@@ -1,0 +1,267 @@
+ERROR - 2026-03-02 15:26:50 --> Error connecting to the database: mysqli_sql_exception: Access denied for user ''@'localhost' (using password: NO) in C:\wamp64\www\AIS\system\Database\MySQLi\Connection.php:201
+Stack trace:
+#0 C:\wamp64\www\AIS\system\Database\MySQLi\Connection.php(201): mysqli->real_connect('localhost', '', Object(SensitiveParameterValue), '', 3306, '', 0)
+#1 C:\wamp64\www\AIS\system\Database\BaseConnection.php(419): CodeIgniter\Database\MySQLi\Connection->connect(false)
+#2 C:\wamp64\www\AIS\system\Database\BaseConnection.php(654): CodeIgniter\Database\BaseConnection->initialize()
+#3 C:\wamp64\www\AIS\system\Database\BaseConnection.php(1565): CodeIgniter\Database\BaseConnection->query('SHOW TABLES FRO...')
+#4 C:\wamp64\www\AIS\system\Database\BaseConnection.php(1585): CodeIgniter\Database\BaseConnection->listTables()
+#5 C:\wamp64\www\AIS\system\Database\MigrationRunner.php(821): CodeIgniter\Database\BaseConnection->tableExists('migrations')
+#6 C:\wamp64\www\AIS\system\Database\MigrationRunner.php(173): CodeIgniter\Database\MigrationRunner->ensureTable()
+#7 C:\wamp64\www\AIS\system\Commands\Database\Migrate.php(89): CodeIgniter\Database\MigrationRunner->latest(NULL)
+#8 C:\wamp64\www\AIS\system\CLI\SignalTrait.php(245): CodeIgniter\Commands\Database\Migrate::CodeIgniter\Commands\Database\{closure}()
+#9 C:\wamp64\www\AIS\system\Commands\Database\Migrate.php(88): CodeIgniter\Commands\Database\Migrate->withSignalsBlocked(Object(Closure))
+#10 C:\wamp64\www\AIS\vendor\codeigniter4\shield\src\Commands\Setup.php(430): CodeIgniter\Commands\Database\Migrate->run(Array)
+#11 C:\wamp64\www\AIS\vendor\codeigniter4\shield\src\Commands\Setup.php(97): CodeIgniter\Shield\Commands\Setup->runMigrations()
+#12 C:\wamp64\www\AIS\vendor\codeigniter4\shield\src\Commands\Setup.php(82): CodeIgniter\Shield\Commands\Setup->publishConfig()
+#13 C:\wamp64\www\AIS\system\CLI\Commands.php(74): CodeIgniter\Shield\Commands\Setup->run(Array)
+#14 C:\wamp64\www\AIS\system\CLI\Console.php(47): CodeIgniter\CLI\Commands->run('shield:setup', Array)
+#15 C:\wamp64\www\AIS\system\Boot.php(442): CodeIgniter\CLI\Console->run()
+#16 C:\wamp64\www\AIS\system\Boot.php(166): CodeIgniter\Boot::runCommand(Object(CodeIgniter\CLI\Console))
+#17 C:\wamp64\www\AIS\spark(87): CodeIgniter\Boot::bootSpark(Object(Config\Paths))
+#18 {main}
+
+Next CodeIgniter\Database\Exceptions\DatabaseException: Access denied for user ''@'localhost' (using password: NO) in C:\wamp64\www\AIS\system\Database\MySQLi\Connection.php:231
+Stack trace:
+#0 C:\wamp64\www\AIS\system\Database\BaseConnection.php(419): CodeIgniter\Database\MySQLi\Connection->connect(false)
+#1 C:\wamp64\www\AIS\system\Database\BaseConnection.php(654): CodeIgniter\Database\BaseConnection->initialize()
+#2 C:\wamp64\www\AIS\system\Database\BaseConnection.php(1565): CodeIgniter\Database\BaseConnection->query('SHOW TABLES FRO...')
+#3 C:\wamp64\www\AIS\system\Database\BaseConnection.php(1585): CodeIgniter\Database\BaseConnection->listTables()
+#4 C:\wamp64\www\AIS\system\Database\MigrationRunner.php(821): CodeIgniter\Database\BaseConnection->tableExists('migrations')
+#5 C:\wamp64\www\AIS\system\Database\MigrationRunner.php(173): CodeIgniter\Database\MigrationRunner->ensureTable()
+#6 C:\wamp64\www\AIS\system\Commands\Database\Migrate.php(89): CodeIgniter\Database\MigrationRunner->latest(NULL)
+#7 C:\wamp64\www\AIS\system\CLI\SignalTrait.php(245): CodeIgniter\Commands\Database\Migrate::CodeIgniter\Commands\Database\{closure}()
+#8 C:\wamp64\www\AIS\system\Commands\Database\Migrate.php(88): CodeIgniter\Commands\Database\Migrate->withSignalsBlocked(Object(Closure))
+#9 C:\wamp64\www\AIS\vendor\codeigniter4\shield\src\Commands\Setup.php(430): CodeIgniter\Commands\Database\Migrate->run(Array)
+#10 C:\wamp64\www\AIS\vendor\codeigniter4\shield\src\Commands\Setup.php(97): CodeIgniter\Shield\Commands\Setup->runMigrations()
+#11 C:\wamp64\www\AIS\vendor\codeigniter4\shield\src\Commands\Setup.php(82): CodeIgniter\Shield\Commands\Setup->publishConfig()
+#12 C:\wamp64\www\AIS\system\CLI\Commands.php(74): CodeIgniter\Shield\Commands\Setup->run(Array)
+#13 C:\wamp64\www\AIS\system\CLI\Console.php(47): CodeIgniter\CLI\Commands->run('shield:setup', Array)
+#14 C:\wamp64\www\AIS\system\Boot.php(442): CodeIgniter\CLI\Console->run()
+#15 C:\wamp64\www\AIS\system\Boot.php(166): CodeIgniter\Boot::runCommand(Object(CodeIgniter\CLI\Console))
+#16 C:\wamp64\www\AIS\spark(87): CodeIgniter\Boot::bootSpark(Object(Config\Paths))
+#17 {main}
+ERROR - 2026-03-02 15:34:52 --> Error connecting to the database: mysqli_sql_exception: Access denied for user ''@'localhost' (using password: YES) in C:\wamp64\www\AIS\system\Database\MySQLi\Connection.php:201
+Stack trace:
+#0 C:\wamp64\www\AIS\system\Database\MySQLi\Connection.php(201): mysqli->real_connect('localhost', '', Object(SensitiveParameterValue), '', 3306, '', 0)
+#1 C:\wamp64\www\AIS\system\Database\BaseConnection.php(419): CodeIgniter\Database\MySQLi\Connection->connect(false)
+#2 C:\wamp64\www\AIS\system\Database\BaseConnection.php(654): CodeIgniter\Database\BaseConnection->initialize()
+#3 C:\wamp64\www\AIS\system\Database\BaseConnection.php(1565): CodeIgniter\Database\BaseConnection->query('SHOW TABLES FRO...')
+#4 C:\wamp64\www\AIS\system\Database\BaseConnection.php(1585): CodeIgniter\Database\BaseConnection->listTables()
+#5 C:\wamp64\www\AIS\system\Database\MigrationRunner.php(821): CodeIgniter\Database\BaseConnection->tableExists('migrations')
+#6 C:\wamp64\www\AIS\system\Database\MigrationRunner.php(173): CodeIgniter\Database\MigrationRunner->ensureTable()
+#7 C:\wamp64\www\AIS\system\Commands\Database\Migrate.php(89): CodeIgniter\Database\MigrationRunner->latest(NULL)
+#8 C:\wamp64\www\AIS\system\CLI\SignalTrait.php(245): CodeIgniter\Commands\Database\Migrate::CodeIgniter\Commands\Database\{closure}()
+#9 C:\wamp64\www\AIS\system\Commands\Database\Migrate.php(88): CodeIgniter\Commands\Database\Migrate->withSignalsBlocked(Object(Closure))
+#10 C:\wamp64\www\AIS\vendor\codeigniter4\shield\src\Commands\Setup.php(430): CodeIgniter\Commands\Database\Migrate->run(Array)
+#11 C:\wamp64\www\AIS\vendor\codeigniter4\shield\src\Commands\Setup.php(97): CodeIgniter\Shield\Commands\Setup->runMigrations()
+#12 C:\wamp64\www\AIS\vendor\codeigniter4\shield\src\Commands\Setup.php(82): CodeIgniter\Shield\Commands\Setup->publishConfig()
+#13 C:\wamp64\www\AIS\system\CLI\Commands.php(74): CodeIgniter\Shield\Commands\Setup->run(Array)
+#14 C:\wamp64\www\AIS\system\CLI\Console.php(47): CodeIgniter\CLI\Commands->run('shield:setup', Array)
+#15 C:\wamp64\www\AIS\system\Boot.php(442): CodeIgniter\CLI\Console->run()
+#16 C:\wamp64\www\AIS\system\Boot.php(166): CodeIgniter\Boot::runCommand(Object(CodeIgniter\CLI\Console))
+#17 C:\wamp64\www\AIS\spark(87): CodeIgniter\Boot::bootSpark(Object(Config\Paths))
+#18 {main}
+
+Next CodeIgniter\Database\Exceptions\DatabaseException: Access denied for user ''@'localhost' (using password: YES) in C:\wamp64\www\AIS\system\Database\MySQLi\Connection.php:231
+Stack trace:
+#0 C:\wamp64\www\AIS\system\Database\BaseConnection.php(419): CodeIgniter\Database\MySQLi\Connection->connect(false)
+#1 C:\wamp64\www\AIS\system\Database\BaseConnection.php(654): CodeIgniter\Database\BaseConnection->initialize()
+#2 C:\wamp64\www\AIS\system\Database\BaseConnection.php(1565): CodeIgniter\Database\BaseConnection->query('SHOW TABLES FRO...')
+#3 C:\wamp64\www\AIS\system\Database\BaseConnection.php(1585): CodeIgniter\Database\BaseConnection->listTables()
+#4 C:\wamp64\www\AIS\system\Database\MigrationRunner.php(821): CodeIgniter\Database\BaseConnection->tableExists('migrations')
+#5 C:\wamp64\www\AIS\system\Database\MigrationRunner.php(173): CodeIgniter\Database\MigrationRunner->ensureTable()
+#6 C:\wamp64\www\AIS\system\Commands\Database\Migrate.php(89): CodeIgniter\Database\MigrationRunner->latest(NULL)
+#7 C:\wamp64\www\AIS\system\CLI\SignalTrait.php(245): CodeIgniter\Commands\Database\Migrate::CodeIgniter\Commands\Database\{closure}()
+#8 C:\wamp64\www\AIS\system\Commands\Database\Migrate.php(88): CodeIgniter\Commands\Database\Migrate->withSignalsBlocked(Object(Closure))
+#9 C:\wamp64\www\AIS\vendor\codeigniter4\shield\src\Commands\Setup.php(430): CodeIgniter\Commands\Database\Migrate->run(Array)
+#10 C:\wamp64\www\AIS\vendor\codeigniter4\shield\src\Commands\Setup.php(97): CodeIgniter\Shield\Commands\Setup->runMigrations()
+#11 C:\wamp64\www\AIS\vendor\codeigniter4\shield\src\Commands\Setup.php(82): CodeIgniter\Shield\Commands\Setup->publishConfig()
+#12 C:\wamp64\www\AIS\system\CLI\Commands.php(74): CodeIgniter\Shield\Commands\Setup->run(Array)
+#13 C:\wamp64\www\AIS\system\CLI\Console.php(47): CodeIgniter\CLI\Commands->run('shield:setup', Array)
+#14 C:\wamp64\www\AIS\system\Boot.php(442): CodeIgniter\CLI\Console->run()
+#15 C:\wamp64\www\AIS\system\Boot.php(166): CodeIgniter\Boot::runCommand(Object(CodeIgniter\CLI\Console))
+#16 C:\wamp64\www\AIS\spark(87): CodeIgniter\Boot::bootSpark(Object(Config\Paths))
+#17 {main}
+ERROR - 2026-03-02 15:37:49 --> Error connecting to the database: mysqli_sql_exception: Access denied for user 'root'@'localhost' (using password: YES) in C:\wamp64\www\AIS\system\Database\MySQLi\Connection.php:201
+Stack trace:
+#0 C:\wamp64\www\AIS\system\Database\MySQLi\Connection.php(201): mysqli->real_connect('localhost', 'root', Object(SensitiveParameterValue), 'ais', 3306, '', 0)
+#1 C:\wamp64\www\AIS\system\Database\BaseConnection.php(419): CodeIgniter\Database\MySQLi\Connection->connect(false)
+#2 C:\wamp64\www\AIS\system\Database\BaseConnection.php(654): CodeIgniter\Database\BaseConnection->initialize()
+#3 C:\wamp64\www\AIS\system\Database\BaseConnection.php(1565): CodeIgniter\Database\BaseConnection->query('SHOW TABLES FRO...')
+#4 C:\wamp64\www\AIS\system\Database\BaseConnection.php(1585): CodeIgniter\Database\BaseConnection->listTables()
+#5 C:\wamp64\www\AIS\system\Database\MigrationRunner.php(821): CodeIgniter\Database\BaseConnection->tableExists('migrations')
+#6 C:\wamp64\www\AIS\system\Database\MigrationRunner.php(173): CodeIgniter\Database\MigrationRunner->ensureTable()
+#7 C:\wamp64\www\AIS\system\Commands\Database\Migrate.php(89): CodeIgniter\Database\MigrationRunner->latest(NULL)
+#8 C:\wamp64\www\AIS\system\CLI\SignalTrait.php(245): CodeIgniter\Commands\Database\Migrate::CodeIgniter\Commands\Database\{closure}()
+#9 C:\wamp64\www\AIS\system\Commands\Database\Migrate.php(88): CodeIgniter\Commands\Database\Migrate->withSignalsBlocked(Object(Closure))
+#10 C:\wamp64\www\AIS\vendor\codeigniter4\shield\src\Commands\Setup.php(430): CodeIgniter\Commands\Database\Migrate->run(Array)
+#11 C:\wamp64\www\AIS\vendor\codeigniter4\shield\src\Commands\Setup.php(97): CodeIgniter\Shield\Commands\Setup->runMigrations()
+#12 C:\wamp64\www\AIS\vendor\codeigniter4\shield\src\Commands\Setup.php(82): CodeIgniter\Shield\Commands\Setup->publishConfig()
+#13 C:\wamp64\www\AIS\system\CLI\Commands.php(74): CodeIgniter\Shield\Commands\Setup->run(Array)
+#14 C:\wamp64\www\AIS\system\CLI\Console.php(47): CodeIgniter\CLI\Commands->run('shield:setup', Array)
+#15 C:\wamp64\www\AIS\system\Boot.php(442): CodeIgniter\CLI\Console->run()
+#16 C:\wamp64\www\AIS\system\Boot.php(166): CodeIgniter\Boot::runCommand(Object(CodeIgniter\CLI\Console))
+#17 C:\wamp64\www\AIS\spark(87): CodeIgniter\Boot::bootSpark(Object(Config\Paths))
+#18 {main}
+
+Next CodeIgniter\Database\Exceptions\DatabaseException: Access denied for user '****'@'localhost' (using password: YES) in C:\wamp64\www\AIS\system\Database\MySQLi\Connection.php:231
+Stack trace:
+#0 C:\wamp64\www\AIS\system\Database\BaseConnection.php(419): CodeIgniter\Database\MySQLi\Connection->connect(false)
+#1 C:\wamp64\www\AIS\system\Database\BaseConnection.php(654): CodeIgniter\Database\BaseConnection->initialize()
+#2 C:\wamp64\www\AIS\system\Database\BaseConnection.php(1565): CodeIgniter\Database\BaseConnection->query('SHOW TABLES FRO...')
+#3 C:\wamp64\www\AIS\system\Database\BaseConnection.php(1585): CodeIgniter\Database\BaseConnection->listTables()
+#4 C:\wamp64\www\AIS\system\Database\MigrationRunner.php(821): CodeIgniter\Database\BaseConnection->tableExists('migrations')
+#5 C:\wamp64\www\AIS\system\Database\MigrationRunner.php(173): CodeIgniter\Database\MigrationRunner->ensureTable()
+#6 C:\wamp64\www\AIS\system\Commands\Database\Migrate.php(89): CodeIgniter\Database\MigrationRunner->latest(NULL)
+#7 C:\wamp64\www\AIS\system\CLI\SignalTrait.php(245): CodeIgniter\Commands\Database\Migrate::CodeIgniter\Commands\Database\{closure}()
+#8 C:\wamp64\www\AIS\system\Commands\Database\Migrate.php(88): CodeIgniter\Commands\Database\Migrate->withSignalsBlocked(Object(Closure))
+#9 C:\wamp64\www\AIS\vendor\codeigniter4\shield\src\Commands\Setup.php(430): CodeIgniter\Commands\Database\Migrate->run(Array)
+#10 C:\wamp64\www\AIS\vendor\codeigniter4\shield\src\Commands\Setup.php(97): CodeIgniter\Shield\Commands\Setup->runMigrations()
+#11 C:\wamp64\www\AIS\vendor\codeigniter4\shield\src\Commands\Setup.php(82): CodeIgniter\Shield\Commands\Setup->publishConfig()
+#12 C:\wamp64\www\AIS\system\CLI\Commands.php(74): CodeIgniter\Shield\Commands\Setup->run(Array)
+#13 C:\wamp64\www\AIS\system\CLI\Console.php(47): CodeIgniter\CLI\Commands->run('shield:setup', Array)
+#14 C:\wamp64\www\AIS\system\Boot.php(442): CodeIgniter\CLI\Console->run()
+#15 C:\wamp64\www\AIS\system\Boot.php(166): CodeIgniter\Boot::runCommand(Object(CodeIgniter\CLI\Console))
+#16 C:\wamp64\www\AIS\spark(87): CodeIgniter\Boot::bootSpark(Object(Config\Paths))
+#17 {main}
+CRITICAL - 2026-03-02 15:41:03 --> CodeIgniter\Exceptions\FrameworkException: Your zlib.output_compression ini directive is turned on. This will not work well with output buffers.
+[Method: GET, Route: register]
+in APPPATH\Config\Events.php on line 29.
+ 1 APPPATH\Config\Events.php(29): CodeIgniter\Exceptions\FrameworkException::forEnabledZlibOutputCompression()
+ 2 SYSTEMPATH\Events\Events.php(152): CodeIgniter\Events\Events::Config\{closure}()
+ 3 SYSTEMPATH\CodeIgniter.php(325): CodeIgniter\Events\Events::trigger('pre_system')
+ 4 SYSTEMPATH\Boot.php(417): CodeIgniter\CodeIgniter->run()
+ 5 SYSTEMPATH\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+ 6 FCPATH\index.php(59): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+ 7 SYSTEMPATH\rewrite.php(44): require_once('C:\\wamp64\\www\\AIS\\public\\index.php')
+CRITICAL - 2026-03-02 15:42:42 --> CodeIgniter\Exceptions\FrameworkException: Your zlib.output_compression ini directive is turned on. This will not work well with output buffers.
+[Method: GET, Route: register]
+in APPPATH\Config\Events.php on line 29.
+ 1 APPPATH\Config\Events.php(29): CodeIgniter\Exceptions\FrameworkException::forEnabledZlibOutputCompression()
+ 2 SYSTEMPATH\Events\Events.php(152): CodeIgniter\Events\Events::Config\{closure}()
+ 3 SYSTEMPATH\CodeIgniter.php(325): CodeIgniter\Events\Events::trigger('pre_system')
+ 4 SYSTEMPATH\Boot.php(417): CodeIgniter\CodeIgniter->run()
+ 5 SYSTEMPATH\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+ 6 FCPATH\index.php(59): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+ 7 SYSTEMPATH\rewrite.php(44): require_once('C:\\wamp64\\www\\AIS\\public\\index.php')
+CRITICAL - 2026-03-02 15:42:43 --> CodeIgniter\Exceptions\FrameworkException: Your zlib.output_compression ini directive is turned on. This will not work well with output buffers.
+[Method: GET, Route: register]
+in APPPATH\Config\Events.php on line 29.
+ 1 APPPATH\Config\Events.php(29): CodeIgniter\Exceptions\FrameworkException::forEnabledZlibOutputCompression()
+ 2 SYSTEMPATH\Events\Events.php(152): CodeIgniter\Events\Events::Config\{closure}()
+ 3 SYSTEMPATH\CodeIgniter.php(325): CodeIgniter\Events\Events::trigger('pre_system')
+ 4 SYSTEMPATH\Boot.php(417): CodeIgniter\CodeIgniter->run()
+ 5 SYSTEMPATH\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+ 6 FCPATH\index.php(59): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+ 7 SYSTEMPATH\rewrite.php(44): require_once('C:\\wamp64\\www\\AIS\\public\\index.php')
+CRITICAL - 2026-03-02 15:42:43 --> CodeIgniter\Exceptions\FrameworkException: Your zlib.output_compression ini directive is turned on. This will not work well with output buffers.
+[Method: GET, Route: register]
+in APPPATH\Config\Events.php on line 29.
+ 1 APPPATH\Config\Events.php(29): CodeIgniter\Exceptions\FrameworkException::forEnabledZlibOutputCompression()
+ 2 SYSTEMPATH\Events\Events.php(152): CodeIgniter\Events\Events::Config\{closure}()
+ 3 SYSTEMPATH\CodeIgniter.php(325): CodeIgniter\Events\Events::trigger('pre_system')
+ 4 SYSTEMPATH\Boot.php(417): CodeIgniter\CodeIgniter->run()
+ 5 SYSTEMPATH\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+ 6 FCPATH\index.php(59): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+ 7 SYSTEMPATH\rewrite.php(44): require_once('C:\\wamp64\\www\\AIS\\public\\index.php')
+CRITICAL - 2026-03-02 15:42:44 --> CodeIgniter\Exceptions\FrameworkException: Your zlib.output_compression ini directive is turned on. This will not work well with output buffers.
+[Method: GET, Route: register]
+in APPPATH\Config\Events.php on line 29.
+ 1 APPPATH\Config\Events.php(29): CodeIgniter\Exceptions\FrameworkException::forEnabledZlibOutputCompression()
+ 2 SYSTEMPATH\Events\Events.php(152): CodeIgniter\Events\Events::Config\{closure}()
+ 3 SYSTEMPATH\CodeIgniter.php(325): CodeIgniter\Events\Events::trigger('pre_system')
+ 4 SYSTEMPATH\Boot.php(417): CodeIgniter\CodeIgniter->run()
+ 5 SYSTEMPATH\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+ 6 FCPATH\index.php(59): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+ 7 SYSTEMPATH\rewrite.php(44): require_once('C:\\wamp64\\www\\AIS\\public\\index.php')
+CRITICAL - 2026-03-02 15:42:44 --> CodeIgniter\Exceptions\FrameworkException: Your zlib.output_compression ini directive is turned on. This will not work well with output buffers.
+[Method: GET, Route: register]
+in APPPATH\Config\Events.php on line 29.
+ 1 APPPATH\Config\Events.php(29): CodeIgniter\Exceptions\FrameworkException::forEnabledZlibOutputCompression()
+ 2 SYSTEMPATH\Events\Events.php(152): CodeIgniter\Events\Events::Config\{closure}()
+ 3 SYSTEMPATH\CodeIgniter.php(325): CodeIgniter\Events\Events::trigger('pre_system')
+ 4 SYSTEMPATH\Boot.php(417): CodeIgniter\CodeIgniter->run()
+ 5 SYSTEMPATH\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+ 6 FCPATH\index.php(59): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+ 7 SYSTEMPATH\rewrite.php(44): require_once('C:\\wamp64\\www\\AIS\\public\\index.php')
+CRITICAL - 2026-03-02 15:42:44 --> CodeIgniter\Exceptions\FrameworkException: Your zlib.output_compression ini directive is turned on. This will not work well with output buffers.
+[Method: GET, Route: register]
+in APPPATH\Config\Events.php on line 29.
+ 1 APPPATH\Config\Events.php(29): CodeIgniter\Exceptions\FrameworkException::forEnabledZlibOutputCompression()
+ 2 SYSTEMPATH\Events\Events.php(152): CodeIgniter\Events\Events::Config\{closure}()
+ 3 SYSTEMPATH\CodeIgniter.php(325): CodeIgniter\Events\Events::trigger('pre_system')
+ 4 SYSTEMPATH\Boot.php(417): CodeIgniter\CodeIgniter->run()
+ 5 SYSTEMPATH\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+ 6 FCPATH\index.php(59): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+ 7 SYSTEMPATH\rewrite.php(44): require_once('C:\\wamp64\\www\\AIS\\public\\index.php')
+CRITICAL - 2026-03-02 15:42:44 --> CodeIgniter\Exceptions\FrameworkException: Your zlib.output_compression ini directive is turned on. This will not work well with output buffers.
+[Method: GET, Route: register]
+in APPPATH\Config\Events.php on line 29.
+ 1 APPPATH\Config\Events.php(29): CodeIgniter\Exceptions\FrameworkException::forEnabledZlibOutputCompression()
+ 2 SYSTEMPATH\Events\Events.php(152): CodeIgniter\Events\Events::Config\{closure}()
+ 3 SYSTEMPATH\CodeIgniter.php(325): CodeIgniter\Events\Events::trigger('pre_system')
+ 4 SYSTEMPATH\Boot.php(417): CodeIgniter\CodeIgniter->run()
+ 5 SYSTEMPATH\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+ 6 FCPATH\index.php(59): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+ 7 SYSTEMPATH\rewrite.php(44): require_once('C:\\wamp64\\www\\AIS\\public\\index.php')
+CRITICAL - 2026-03-02 15:42:45 --> CodeIgniter\Exceptions\FrameworkException: Your zlib.output_compression ini directive is turned on. This will not work well with output buffers.
+[Method: GET, Route: register]
+in APPPATH\Config\Events.php on line 29.
+ 1 APPPATH\Config\Events.php(29): CodeIgniter\Exceptions\FrameworkException::forEnabledZlibOutputCompression()
+ 2 SYSTEMPATH\Events\Events.php(152): CodeIgniter\Events\Events::Config\{closure}()
+ 3 SYSTEMPATH\CodeIgniter.php(325): CodeIgniter\Events\Events::trigger('pre_system')
+ 4 SYSTEMPATH\Boot.php(417): CodeIgniter\CodeIgniter->run()
+ 5 SYSTEMPATH\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+ 6 FCPATH\index.php(59): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+ 7 SYSTEMPATH\rewrite.php(44): require_once('C:\\wamp64\\www\\AIS\\public\\index.php')
+CRITICAL - 2026-03-02 15:42:45 --> CodeIgniter\Exceptions\FrameworkException: Your zlib.output_compression ini directive is turned on. This will not work well with output buffers.
+[Method: GET, Route: register]
+in APPPATH\Config\Events.php on line 29.
+ 1 APPPATH\Config\Events.php(29): CodeIgniter\Exceptions\FrameworkException::forEnabledZlibOutputCompression()
+ 2 SYSTEMPATH\Events\Events.php(152): CodeIgniter\Events\Events::Config\{closure}()
+ 3 SYSTEMPATH\CodeIgniter.php(325): CodeIgniter\Events\Events::trigger('pre_system')
+ 4 SYSTEMPATH\Boot.php(417): CodeIgniter\CodeIgniter->run()
+ 5 SYSTEMPATH\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+ 6 FCPATH\index.php(59): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+ 7 SYSTEMPATH\rewrite.php(44): require_once('C:\\wamp64\\www\\AIS\\public\\index.php')
+CRITICAL - 2026-03-02 15:42:45 --> CodeIgniter\Exceptions\FrameworkException: Your zlib.output_compression ini directive is turned on. This will not work well with output buffers.
+[Method: GET, Route: register]
+in APPPATH\Config\Events.php on line 29.
+ 1 APPPATH\Config\Events.php(29): CodeIgniter\Exceptions\FrameworkException::forEnabledZlibOutputCompression()
+ 2 SYSTEMPATH\Events\Events.php(152): CodeIgniter\Events\Events::Config\{closure}()
+ 3 SYSTEMPATH\CodeIgniter.php(325): CodeIgniter\Events\Events::trigger('pre_system')
+ 4 SYSTEMPATH\Boot.php(417): CodeIgniter\CodeIgniter->run()
+ 5 SYSTEMPATH\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+ 6 FCPATH\index.php(59): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+ 7 SYSTEMPATH\rewrite.php(44): require_once('C:\\wamp64\\www\\AIS\\public\\index.php')
+CRITICAL - 2026-03-02 15:42:45 --> CodeIgniter\Exceptions\FrameworkException: Your zlib.output_compression ini directive is turned on. This will not work well with output buffers.
+[Method: GET, Route: register]
+in APPPATH\Config\Events.php on line 29.
+ 1 APPPATH\Config\Events.php(29): CodeIgniter\Exceptions\FrameworkException::forEnabledZlibOutputCompression()
+ 2 SYSTEMPATH\Events\Events.php(152): CodeIgniter\Events\Events::Config\{closure}()
+ 3 SYSTEMPATH\CodeIgniter.php(325): CodeIgniter\Events\Events::trigger('pre_system')
+ 4 SYSTEMPATH\Boot.php(417): CodeIgniter\CodeIgniter->run()
+ 5 SYSTEMPATH\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+ 6 FCPATH\index.php(59): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+ 7 SYSTEMPATH\rewrite.php(44): require_once('C:\\wamp64\\www\\AIS\\public\\index.php')
+CRITICAL - 2026-03-02 15:42:50 --> CodeIgniter\Exceptions\FrameworkException: Your zlib.output_compression ini directive is turned on. This will not work well with output buffers.
+[Method: GET, Route: register]
+in APPPATH\Config\Events.php on line 29.
+ 1 APPPATH\Config\Events.php(29): CodeIgniter\Exceptions\FrameworkException::forEnabledZlibOutputCompression()
+ 2 SYSTEMPATH\Events\Events.php(152): CodeIgniter\Events\Events::Config\{closure}()
+ 3 SYSTEMPATH\CodeIgniter.php(325): CodeIgniter\Events\Events::trigger('pre_system')
+ 4 SYSTEMPATH\Boot.php(417): CodeIgniter\CodeIgniter->run()
+ 5 SYSTEMPATH\Boot.php(68): CodeIgniter\Boot::runCodeIgniter(Object(CodeIgniter\CodeIgniter))
+ 6 FCPATH\index.php(59): CodeIgniter\Boot::bootWeb(Object(Config\Paths))
+ 7 SYSTEMPATH\rewrite.php(44): require_once('C:\\wamp64\\www\\AIS\\public\\index.php')
+DEBUG - 2026-03-02 15:43:29 --> Session: Class initialized using 'CodeIgniter\Session\Handlers\FileHandler' driver.
+DEBUG - 2026-03-02 15:44:03 --> Session: Class initialized using 'CodeIgniter\Session\Handlers\FileHandler' driver.
+DEBUG - 2026-03-02 15:44:07 --> Session: Class initialized using 'CodeIgniter\Session\Handlers\FileHandler' driver.
+DEBUG - 2026-03-02 15:44:16 --> Session: Class initialized using 'CodeIgniter\Session\Handlers\FileHandler' driver.
+DEBUG - 2026-03-02 15:44:16 --> Session: Class initialized using 'CodeIgniter\Session\Handlers\FileHandler' driver.
+DEBUG - 2026-03-02 15:44:28 --> Session: Class initialized using 'CodeIgniter\Session\Handlers\FileHandler' driver.
+DEBUG - 2026-03-02 15:44:28 --> Session: Class initialized using 'CodeIgniter\Session\Handlers\FileHandler' driver.
+DEBUG - 2026-03-02 15:44:42 --> Session: Class initialized using 'CodeIgniter\Session\Handlers\FileHandler' driver.
+DEBUG - 2026-03-02 15:44:42 --> Session: Class initialized using 'CodeIgniter\Session\Handlers\FileHandler' driver.
+DEBUG - 2026-03-02 15:49:14 --> Session: Class initialized using 'CodeIgniter\Session\Handlers\FileHandler' driver.
+DEBUG - 2026-03-02 15:49:15 --> Session: Class initialized using 'CodeIgniter\Session\Handlers\FileHandler' driver.
