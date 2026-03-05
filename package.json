@@ -1,0 +1,30 @@
+{
+  "name": "ais",
+  "version": "1.0.0",
+  "description": "CodeIgniter is a PHP full-stack web framework that is light, fast, flexible and secure.\r More information can be found at the [official site](https://codeigniter.com).",
+  "main": "index.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build:css": "tailwindcss -i ./public/css/tailwind.css -o ./public/css/main.css",
+    "build:css:min": "tailwindcss -i ./public/css/tailwind.css -o ./public/css/main.css --minify",
+    "watch:css": "tailwindcss -i ./public/css/tailwind.css -o ./public/css/main.css --watch"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Steinnnn/AIS.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/Steinnnn/AIS/issues"
+  },
+  "homepage": "https://github.com/Steinnnn/AIS#readme",
+  "devDependencies": {
+    "tailwindcss": "^3.4.17"
+  }
+}

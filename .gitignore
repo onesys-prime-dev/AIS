@@ -1,0 +1,40 @@
+#-------------------------
+# Node / Tailwind
+#-------------------------
+node_modules/
+package-lock.json
+public/css/main.css
+
+#-------------------------
+# CodeIgniter
+#-------------------------
+writable/cache/*
+writable/debugbar/*
+writable/logs/*
+writable/session/*
+writable/uploads/*
+!writable/cache/index.html
+!writable/debugbar/index.html
+!writable/logs/index.html
+!writable/session/index.html
+!writable/uploads/index.html
+
+phpunit*.xml
+.phpunit.*.cache
+
+#-------------------------
+# Environment
+#-------------------------
+.env
+env
+
+#-------------------------
+# IDE / OS
+#-------------------------
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
