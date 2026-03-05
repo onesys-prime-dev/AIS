@@ -220,6 +220,9 @@
             <li class="menu-item hidden"><a
                     href="https://codeigniter.com/contribute" target="_blank">Contribute</a>
             </li>
+            <li class="menu-item hidden">
+                <a href="../logout">Logout</a>
+            </li>
         </ul>
     </div>
 
