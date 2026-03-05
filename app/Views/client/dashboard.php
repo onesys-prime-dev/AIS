@@ -24,7 +24,7 @@
 
             <a href="<?= site_url('requests/new') ?>" 
                class="absolute top-6 right-6 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-lg text-sm font-medium shadow flex items-center gap-2">
-                <i class="fa-solid fa-plus"></i> Request Form
+                <i class="fa-solid fa-plus"></i> New Employee
             </a>
         </div>
     </div>
