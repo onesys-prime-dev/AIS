@@ -17,7 +17,7 @@ public function index()
             ->where('time_out', null)
             ->first();
 
-        return view('employee/dashboard', [
+        return view('client_portal/dashboard', [
             'isTimedIn' => $openAttendance !== null,
         ]);
     }
