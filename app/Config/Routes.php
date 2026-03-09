@@ -7,7 +7,7 @@ use App\Controllers\EcovisAuthController;
  * @var RouteCollection $routes
  */
 $routes->get('/', 'Home::index');
-$routes->get('client_portal/dashboard', 'AttendanceController::index', ['filter' => 'session']);
+$routes->get('client_portal/dashboard', 'EmployeeDashboardController::index', ['filter' => 'session']);
 $routes->get('client_portal/time-in', 'AttendanceController::timeIn', ['filter' => 'session']);
 $routes->get('client_portal/time-out/(:num)', 'AttendanceController::timeOut/$1', ['filter' => 'session']);
 

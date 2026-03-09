@@ -13,27 +13,6 @@ class AttendanceController extends BaseController
         $this->attendanceModel = new AttendanceModel();
     }
 
-    // dashboard with time in/time out button
-    public function index()
-    {
-        $user = auth()->user();
-        if (! $user) {
-            return redirect()->to('/login');
-        }
-
-        $userId = $user->id;
-
-        
-        $current = $this->attendanceModel
-            ->where('user_id', $userId)
-            ->where('time_out', null)
-            ->first();
-
-        return view('client_portal/dashboard', [
-            'currentAttendance' => $current
-        ]);
-    }
-
     public function timeIn()
     {
         $user = auth()->user();

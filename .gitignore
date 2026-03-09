@@ -1,0 +1,5 @@
+.env
+/writable
+.DS_Store
+app/Views/.DS_Store
+/writable/debugbar
