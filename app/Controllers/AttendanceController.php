@@ -60,9 +60,9 @@ class AttendanceController extends BaseController
         $timeIn  = $attendance['time_in'];
 
         // calculates total hours
-        $start = strtotime($attendance['date'] . '' . $timeIn);
-        $end = strtotime($attendance['date'] . '' . $timeOut); 
-        $totalHours = ($end - $start) / 3600;
+        $start = strtotime($attendance['date'] . ' ' . $timeIn);
+        $end = strtotime($attendance['date'] . ' ' . $timeOut); 
+        $totalHours = ($end - $start) / 3600 - $attendance['break_duration'];
 
         $this->attendanceModel->update($attendance['id'], [
             'time_out'    => $timeOut,
@@ -74,4 +74,49 @@ class AttendanceController extends BaseController
             ->with('timeout_time', $timeOut)
             ->with('total_hours', round($totalHours, 2));
     }
+
+public function toggleBreak($id)
+{
+    $user = auth()->user();
+    $userId = $user->id;
+
+    $attendance = $this->attendanceModel
+        ->where('id', $id)
+        ->where('user_id', $userId)
+        ->first();
+
+    if (! $attendance || $attendance['time_out'] !== null) {
+        return redirect()->back()->with('error', 'No active attendance found!');
+    }
+
+    if (empty($attendance['break_start'])) {
+        // start break
+        if ($attendance['break_duration'] >= 1) {
+            return redirect()->back()->with('error', 'Maximum break time reached!');
+        }
+
+        $this->attendanceModel->update($id, [
+            'break_start' => date('Y-m-d H:i:s')
+        ]);
+
+        return redirect()->back()->with('success', 'Break started!');
+    } else {
+        // end break
+        $breakStart = strtotime($attendance['break_start']);
+        $breakEnd = time();
+        $breakHours = ($breakEnd - $breakStart) / 3600;
+
+        // break duration caps at 1 hour
+        $totalBreak = min($attendance['break_duration'] + $breakHours, 1.0);
+
+        $this->attendanceModel->update($id, [
+            'break_end' => date('Y-m-d H:i:s'),
+            'break_duration' => $totalBreak,
+        ]);
+
+        return redirect()->back()
+            ->with('success', 'Break ended!')
+            ->with('break_hours', round($totalBreak, 2));
+    }
+}
 }
