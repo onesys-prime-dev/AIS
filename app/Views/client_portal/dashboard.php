@@ -1,12 +1,12 @@
 <?= $this->extend('layouts/main') ?>
-
 <?= $this->section('content') ?>
+<?php $user = auth()->user(); ?>
 
 <div class="flex flex-col lg:flex-row gap-6">
 
     <!-- Clock Card -->
     <div class="flex-1 bg-white rounded-2xl shadow-lg p-8 relative overflow-hidden">
-        <h2 class="text-2xl font-bold text-gray-800 mb-2">Welcome back, <?= esc(auth()->user()->username ?? 'User') ?>!</h2>
+        <h2 class="text-2xl font-bold text-gray-800 mb-2">Welcome back, <?= esc($user->username ?? 'User') ?>!</h2>
         
         <div class="mt-8 flex flex-col items-center">
             <div class="relative w-48 h-48">
@@ -22,10 +22,20 @@
                 </div>
             </div>
 
-            <a href="<?= site_url('requests/new') ?>" 
-               class="absolute top-6 right-6 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-lg text-sm font-medium shadow flex items-center gap-2">
-                <i class="fa-solid fa-plus"></i> New Employee
-            </a>
+            <?php if($user->inGroup('client_payroll_staff')): ?>
+                <a href="<?= site_url('requests/new') ?>" 
+                class="absolute top-6 right-6 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-lg text-sm font-medium shadow flex items-center gap-2">
+                    <i class="fa-solid fa-plus"></i> New Employee
+                </a>
+            <?php endif; ?>
+            
+            <?php if($user->inGroup('employee')): ?>
+                <a href="<?= site_url('requests/new') ?>" 
+                class="absolute top-6 right-6 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-lg text-sm font-medium shadow flex items-center gap-2">
+                    <i class="fa-solid fa-plus"></i> Request
+                </a>
+            <?php endif; ?>
+            
         </div>
     </div>
 
