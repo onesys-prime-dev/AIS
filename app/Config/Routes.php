@@ -28,3 +28,10 @@ $routes->group('client_portal', ['filter' => 'auth'], function($routes){
     $routes->get('timesheets', 'Client\TimesheetController::index');
     });
 
+$routes->group('client_portal', ['namespace' => 'App\Controllers\Client'], function($routes) {
+    $routes->get('payroll', 'PayrollController::payrollView');
+    $routes->post('payroll/create', 'PayrollController::createPayroll');
+    $routes->post('payroll/update/(:num)', 'PayrollController::updatePayroll/$1');
+    $routes->get('payroll/delete/(:num)', 'PayrollController::deletePayroll/$1');
+    $routes->get('payroll/get/(:num)', 'PayrollController::getPayroll/$1');
+});
