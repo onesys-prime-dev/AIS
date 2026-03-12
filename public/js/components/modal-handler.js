@@ -94,13 +94,12 @@ function updateProgress(step)
         if(i <= step)
         {
             progress.classList.remove("bg-gray-300","text-gray-700");
-            progress.classList.add("bg-purple-500","text-white");
+            progress.classList.add("bg-[#A891FC]","text-white");
         }
         else
         {
-            progress.classList.remove("bg-purple-500","text-white");
+            progress.classList.remove("bg-[#A891FC]","text-white");
             progress.classList.add("bg-gray-300","text-gray-700");
         }
-
     });
 }

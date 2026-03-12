@@ -19,6 +19,15 @@
             <span>Timesheets</span>
         </a>
 
+        <?php if(auth()->user()->inGroup('employee')): ?>
+            <!-- Payslip -->
+            <a href="<?= site_url('client_portal/payslip') ?>" 
+            class="flex items-center px-4 py-3 rounded-lg hover:bg-[#4f46e5]/50">
+                <i class="fa-solid fa-file-invoice-dollar mr-3 w-5"></i>
+                <span>Payslip</span>
+            </a>
+        <?php endif; ?>
+
         <!-- Client Payroll Staff ONLY -->
         <?php if(auth()->user()->inGroup('client_payroll_staff')): ?>
 

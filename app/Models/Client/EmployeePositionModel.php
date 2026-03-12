@@ -17,6 +17,7 @@ class EmployeePositionModel extends Model
     protected $allowedFields = [
         'employee_id',
         'department',
-        'position'
+        'position',
+        'employment_type',
     ];
 }
