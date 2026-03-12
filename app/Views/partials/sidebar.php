@@ -17,7 +17,7 @@
             <span>Dashboard</span>
         </a>
  
-        <a href="<?= site_url('client_portal/timesheet') ?>" class="menu-item">
+        <a href="<?= site_url('client_portal/timesheets') ?>" class="menu-item">
             <img src="<?= base_url('icons/timesheet.png') ?>" class="icon">
             <span>Timesheets</span>
         </a>
