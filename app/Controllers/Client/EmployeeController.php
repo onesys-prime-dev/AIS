@@ -5,12 +5,23 @@ namespace App\Controllers\Client;
 use App\Controllers\BaseController;
 use App\Models\Client\EmployeeModel;
 use App\Services\Client\EmployeeService;
+use CodeIgniter\Exceptions\PageNotFoundException;
 
 class EmployeeController extends BaseController 
 {
+    private function ensurePayrollStaff(): void
+    {
+        $user = auth()->user();
+
+        if (! $user || ! $user->inGroup('client_payroll_staff')) {
+            throw PageNotFoundException::forPageNotFound();
+        }
+    }
 
     public function employeeView()
     {
+        $this->ensurePayrollStaff();
+
         $employeeModel = new EmployeeModel();
 
         $data['employees'] = $employeeModel
@@ -24,6 +35,8 @@ class EmployeeController extends BaseController
 
     public function createEmployee()
     {
+        $this->ensurePayrollStaff();
+
         $service = new EmployeeService();
 
         try {
@@ -44,6 +57,8 @@ class EmployeeController extends BaseController
 
     public function updateEmployee($id)
     {
+        $this->ensurePayrollStaff();
+
         $service = new EmployeeService();
         try {
             $service->updateEmployee($id, $this->request->getPost());
@@ -57,6 +72,8 @@ class EmployeeController extends BaseController
 
     public function deleteEmployee($id)
     {
+        $this->ensurePayrollStaff();
+
         $service = new EmployeeService();
         try {
             $service->deleteEmployee($id);
@@ -70,14 +87,15 @@ class EmployeeController extends BaseController
 
     public function getEmployee($id)
     {
-        $employeeModel = new EmployeeModel();
+        $this->ensurePayrollStaff();
 
+        $employeeModel = new EmployeeModel();
         $employee = $employeeModel
-            ->select('employees.*, employee_positions.department, employee_positions.position, employee_positions.employment_type')
+            ->select('employees.*, employee_positions.department, employee_positions.position, employee_positions.employment_type, users.active as status')
             ->join('employee_positions', 'employees.id = employee_positions.employee_id', 'left')
+            ->join('users', 'employees.user_id = users.id', 'left')
             ->where('employees.id', $id)
             ->first();
-
         return $this->response->setJSON($employee);
     }
 

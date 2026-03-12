@@ -2,33 +2,35 @@
 
 namespace App\Controllers\Auth;
 
-use CodeIgniter\Controller;
+use CodeIgniter\HTTP\RedirectResponse;
 use CodeIgniter\Shield\Controllers\LoginController;
 
 class ClientAuthController extends LoginController
 {
-    /* public function clientLogin()
+    /**
+     * Override Shield's loginAction to enforce the `active` flag.
+     * Shield's Session authenticator only checks isBanned(), not active,
+     * so we intercept after a successful attempt and block inactive accounts.
+     */
+    public function loginAction(): RedirectResponse
     {
-        // If already logged in, redirect
-        if (auth()->loggedIn()) {
-            return redirect()->to('/client_portal/dashboard');
+        $response = parent::loginAction();
+
+        if (auth()->loggedIn() && ! (bool) auth()->user()->active) {
+            auth()->logout();
+
+            return redirect()->route('login')
+                ->withInput()
+                ->with('error', 'Your account has been deactivated. Please contact your administrator.');
         }
 
-        return view('/auth/login');
-    } */
+        return $response;
+    }
 
-    /* public function attemptClientLogin()
+    public function logout(): RedirectResponse
     {
-        // For now, use Shield's default login logic
-        return $this->loginAction();
-    } */
-
-    public function logout()
-    {
-        // Logout the user
         auth()->logout();
 
-        // Redirect to login page with success message
         return redirect()->to('/login')->with('info', 'You have been logged out successfully.');
     }
 }

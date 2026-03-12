@@ -1,4 +1,4 @@
-<?= $this->extend('layouts/main') ?>
+﻿<?= $this->extend('layouts/main') ?>
 
 <?= $this->section('content') ?>
 
@@ -29,7 +29,7 @@
             data-modal-open="employeeModal"
             class="bg-[#FF2D2D] hover:bg-[#ff2d2dd2] text-white px-3 py-3 rounded-lg shadow flex items-center gap-2">
                 <div id="add-icon" class="w-7 h-7 cursor-pointer">
-                    <img src="<?php echo base_url('images/icons/add.png'); ?>" alt="Add"/>
+                    <img src="<?php echo base_url('icons/add.png'); ?>" alt="Add"/>
                 </div>
             New Employee
         </button>
@@ -62,8 +62,9 @@
                         </svg>
                     </span>
                     <input 
+                        id="employeeSearch"
                         type="text"
-                        placeholder="Search by employee’s name..."
+                        placeholder="Search"
                         class="w-full bg-gray-200 text-gray-700 text-sm pl-10 pr-5 py-3 rounded-lg outline-none placeholder-gray-500"
                     >
                 </div>
@@ -71,7 +72,7 @@
                 <button class="flex items-center gap-3 bg-gray-600 hover:bg-gray-700 text-white text-sm px-6 py-3 rounded-lg shadow-md">
                     <span>Filters</span>
                     <div>
-                        <img src="<?php echo base_url('images/icons/filter.png'); ?>" class="w-4 h-4" alt="Filter" />   
+                        <img src="<?= base_url('icons/filter.png'); ?>" class="w-4 h-4" alt="Filter" />   
                     </div>
                 </button>
             </div>
@@ -87,7 +88,7 @@
                 <thead>
                     <tr class="bg-gray-300 text-gray-600">
                         <th class="p-4 rounded-tl-lg rounded-bl-lg">Employee Name</th>
-                        <th class="p-4">Title</th>
+                        <th class="p-4">Position</th>
                         <th class="p-4">Department</th>
                         <th class="p-4">ID</th>
                         <th class="p-4">Type</th>
@@ -97,88 +98,8 @@
                 </thead>
 
 
-                <!-- Table Body -->
-                <tbody class="text-gray-700">
-
-                    <?php foreach($employees as $employee): ?>
-
-                    <tr class="border-b hover:bg-gray-50">
-
-                        <!-- Name -->
-                        <td class="p-4">
-                            <div class="flex items-center gap-3">
-                                <div class="w-10 h-10 bg-gray-300 rounded-full"></div>
-
-                                <span>
-                                    <?= esc($employee['first_name'] ?? '') ?> 
-                                    <?= esc($employee['middle_name'] ?? '') ?> 
-                                    <?= esc($employee['last_name'] ?? '') ?>
-                                </span>
-                            </div>
-                        </td>
-
-                        <!-- Title -->
-                        <td class="p-4"><?= esc($employee['position'] ?? '---') ?></td>
-
-                        <!-- Department -->
-                        <td class="p-4"><?= esc($employee['department'] ?? '---') ?></td>
-
-                        <!-- ID -->
-                        <td class="p-4"><?= esc($employee['employee_number'] ?? '---') ?></td>
-
-                        <!-- Type -->
-                        <td class="p-4"><?= esc($employee['employment_type'] ?? '---') ?></td>
-
-                        <!-- Status -->
-                        <td class="p-4">
-
-                        <?php if(($employee['status'] ?? 0) == 1): ?>
-
-                            <span class="bg-green-200 text-green-700 px-3 py-1 rounded-full text-xs font-semibold">
-                                Active
-                            </span>
-
-                        <?php else: ?>
-
-                            <span class="bg-red-200 text-red-600 px-3 py-1 rounded-full text-xs font-semibold">
-                                Inactive
-                            </span>
-
-                        <?php endif ?>
-
-                        </td>
-
-                        <!-- Actions -->
-                        <td class="p-4">
-                            <div class="flex justify-center">
-                                <div id="action-utility-container" class="flex items-center gap-4">
-
-                                    <div 
-                                        class="editEmployeeBtn cursor-pointer flex items-center justify-center w-7 h-7 hover:scale-110 transition"
-                                        data-id="<?= $employee['id'] ?>"
-                                        role="button"
-                                        tabindex="0">
-                                        <img src="<?= base_url('images/icons/edit.png'); ?>" class="w-7 h-7" alt="Edit">
-                                    </div>
-
-                                    <div 
-                                        id="deleteEmployeeBtn" 
-                                        class="deleteEmployeeBtn cursor-pointer flex items-center justify-center w-7 h-7 hover:scale-110 transition" 
-                                        data-id="<?= $employee['id'] ?>"
-                                        role="button"
-                                        tabindex="0">
-                                        <img src="<?php echo base_url('images/icons/delete.png'); ?>" class="w-7 h-7" alt="Delete" />
-                                    </div>
-
-                                </div>
-                            </div>
-                        </td>
-
-                    </tr>
-
-                    <?php endforeach ?>
-
-                </tbody>
+                <!-- Table Body — rows rendered by JS -->
+                <tbody id="employeeTableBody" class="text-gray-700"></tbody>
 
             </table>
 
@@ -222,41 +143,150 @@
 
     <script src="<?= base_url('js/components/modal-handler.js') ?>"></script>
     <script>
-        document.querySelectorAll(".editEmployeeBtn").forEach(btn => {
+        const EMPLOYEES   = <?= json_encode($employees, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+        const EDIT_ICON   = "<?= base_url('icons/edit.png') ?>";
+        const DELETE_ICON = "<?= base_url('icons/delete.png') ?>";
+        const UPDATE_URL  = "<?= site_url('client_portal/employees/update') ?>";
+        const DELETE_URL  = "<?= site_url('client_portal/employees/delete') ?>";
+        const CURRENT_USER_ID = <?= (int) (auth()->user()->id ?? 0) ?>;
+        const CSRF_NAME   = "<?= csrf_token() ?>";
+        const CSRF_HASH   = "<?= csrf_hash() ?>";
 
-            btn.addEventListener("click", async () => {
+        function htmlEsc(val) {
+            if (val == null) return '';
+            return String(val)
+                .replace(/&/g, '&amp;')
+                .replace(/"/g, '&quot;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
+        }
 
-                const employeeId = btn.dataset.id;
+        function renderEmployees(list) {
+            const tbody = document.getElementById('employeeTableBody');
 
-                // reset form first so previous values disappear
-                document.getElementById("editEmployeeForm").reset();
+            if (!list.length) {
+                tbody.innerHTML = '<tr><td colspan="7" class="p-8 text-center text-gray-400">No employees found.</td></tr>';
+                return;
+            }
 
-                try {
+            tbody.innerHTML = list.map(e => {
+                const statusBadge = e.status == 1
+                    ? '<span class="bg-green-200 text-green-700 px-3 py-1 rounded-full text-xs font-semibold">Active</span>'
+                    : '<span class="bg-red-200 text-red-600 px-3 py-1 rounded-full text-xs font-semibold">Inactive</span>';
 
-                    const response = await fetch(
-                        "<?= site_url('client_portal/employees/get') ?>/" + employeeId
-                    );
+                return `
+                <tr class="border-b hover:bg-gray-50">
+                    <td class="p-4">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 bg-gray-300 rounded-full"></div>
+                            <span>${htmlEsc(e.first_name)} ${htmlEsc(e.middle_name)} ${htmlEsc(e.last_name)}</span>
+                        </div>
+                    </td>
+                    <td class="p-4">${htmlEsc(e.position) || '---'}</td>
+                    <td class="p-4">${htmlEsc(e.department) || '---'}</td>
+                    <td class="p-4">${htmlEsc(e.employee_number) || '---'}</td>
+                    <td class="p-4">${htmlEsc(e.employment_type) || '---'}</td>
+                    <td class="p-4">${statusBadge}</td>
+                    <td class="p-4">
+                        <div class="flex justify-center">
+                            <div class="flex items-center gap-4">
+                                <div class="editEmployeeBtn cursor-pointer flex items-center justify-center w-7 h-7 hover:scale-110 transition"
+                                    data-id="${htmlEsc(e.id)}"
+                                    data-user_id="${htmlEsc(e.user_id)}"
+                                    data-first_name="${htmlEsc(e.first_name)}"
+                                    data-middle_name="${htmlEsc(e.middle_name)}"
+                                    data-last_name="${htmlEsc(e.last_name)}"
+                                    data-department="${htmlEsc(e.department)}"
+                                    data-position="${htmlEsc(e.position)}"
+                                    data-employment_type="${htmlEsc(e.employment_type)}"
+                                    data-birthdate="${htmlEsc(e.birthdate)}"
+                                    data-status="${htmlEsc(e.status ?? 0)}"
+                                    role="button" tabindex="0">
+                                    <img src="${EDIT_ICON}" class="w-7 h-7" alt="Edit">
+                                </div>
+                                <div class="deleteEmployeeBtn cursor-pointer flex items-center justify-center w-7 h-7 hover:scale-110 transition"
+                                    data-id="${htmlEsc(e.id)}"
+                                    role="button" tabindex="0">
+                                    <img src="${DELETE_ICON}" class="w-7 h-7" alt="Delete">
+                                </div>
+                            </div>
+                        </div>
+                    </td>
+                </tr>`;
+            }).join('');
+        }
 
-                    const employee = await response.json();
+        document.addEventListener('DOMContentLoaded', () => {
 
-                    document.getElementById("edit_first_name").value = employee.first_name || "";
-                    document.getElementById("edit_middle_name").value = employee.middle_name || "";
-                    document.getElementById("edit_last_name").value = employee.last_name || "";
-                    document.getElementById("edit_department").value = employee.department || "";
-                    document.getElementById("edit_position").value = employee.position || "";
-                    document.getElementById("edit_employment_type").value = employee.employment_type || "";
-                    document.getElementById("edit_dob").value = employee.birthdate || "";
+            // Initial render — show all employees on page load
+            renderEmployees(EMPLOYEES);
 
-                    document.getElementById("editEmployeeForm").action =
-                        "<?= site_url('client_portal/employees/update') ?>/" + employeeId;
+            // Search filter
+            document.getElementById('employeeSearch').addEventListener('input', function () {
+                const q = this.value.toLowerCase().trim();
 
-                    // OPEN MODAL AFTER DATA LOAD
-                    document.getElementById("editEmployeeModal").classList.remove("hidden");
+                if (!q) { renderEmployees(EMPLOYEES); return; }
 
-                } catch (error) {
+                const filtered = EMPLOYEES.filter(e => [
+                    (e.first_name  ?? '') + ' ' + (e.middle_name ?? '') + ' ' + (e.last_name ?? ''),
+                    e.position        ?? '',
+                    e.department      ?? '',
+                    e.employee_number ?? '',
+                    e.employment_type ?? '',
+                    e.status == 1 ? 'active' : 'inactive',
+                ].join(' ').toLowerCase().includes(q));
 
-                    console.error("Failed to fetch employee:", error);
+                renderEmployees(filtered);
+            });
 
+            // Edit & Delete — delegated on tbody so dynamic rows are always wired
+            document.getElementById('employeeTableBody').addEventListener('click', e => {
+
+                const editBtn = e.target.closest('.editEmployeeBtn');
+                if (editBtn) {
+                    const form = document.getElementById('editEmployeeForm');
+                    const statusSelect = document.getElementById('edit_status');
+                    const inactiveOption = statusSelect.querySelector('option[value="0"]');
+                    const selfGuardNote = document.getElementById('selfDeactivateGuardNote');
+                    const targetUserId = Number(editBtn.dataset.user_id || 0);
+                    const isEditingSelf = CURRENT_USER_ID > 0 && targetUserId === CURRENT_USER_ID;
+
+                    document.getElementById('edit_first_name').value      = editBtn.dataset.first_name      || '';
+                    document.getElementById('edit_middle_name').value     = editBtn.dataset.middle_name     || '';
+                    document.getElementById('edit_last_name').value       = editBtn.dataset.last_name       || '';
+                    document.getElementById('edit_department').value      = editBtn.dataset.department      || '';
+                    document.getElementById('edit_position').value        = editBtn.dataset.position        || '';
+                    document.getElementById('edit_employment_type').value = editBtn.dataset.employment_type || '';
+                    document.getElementById('edit_dob').value             = editBtn.dataset.birthdate       || '';
+
+                    if (inactiveOption) {
+                        inactiveOption.disabled = isEditingSelf;
+                        inactiveOption.hidden = isEditingSelf;
+                    }
+
+                    if (selfGuardNote) {
+                        selfGuardNote.classList.toggle('hidden', !isEditingSelf);
+                    }
+
+                    if (isEditingSelf) {
+                        statusSelect.value = '1';
+                    } else {
+                        statusSelect.value = editBtn.dataset.status || '1';
+                    }
+
+                    form.action = UPDATE_URL + '/' + editBtn.dataset.id;
+                    document.getElementById('editEmployeeModal').classList.remove('hidden');
+                    return;
+                }
+
+                const delBtn = e.target.closest('.deleteEmployeeBtn');
+                if (delBtn && confirm('Are you sure you want to delete this employee? This action cannot be undone.')) {
+                    const form = document.createElement('form');
+                    form.method = 'POST';
+                    form.action = DELETE_URL + '/' + delBtn.dataset.id;
+                    form.innerHTML = `<input type="hidden" name="${CSRF_NAME}" value="${CSRF_HASH}">`;
+                    document.body.appendChild(form);
+                    form.submit();
                 }
 
             });

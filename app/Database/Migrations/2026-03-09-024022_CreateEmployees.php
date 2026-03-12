@@ -50,7 +50,7 @@ class CreateEmployees extends Migration
             'updated_at' => [
                 'type' => 'DATETIME',
                 'null' => true,
-                'default' => new RawSql('CURRENT_TIMESTAMP'),
+                'default' => null,
             ],
         ]);
 

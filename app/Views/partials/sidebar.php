@@ -11,40 +11,45 @@
 <!-- MAIN MENU -->
 <nav class="menu">
 
-<a href="<?= site_url('client_portal/dashboard') ?>"
-class="menu-item <?= current_url() === site_url('client_portal/dashboard') ? 'active' : '' ?>">
+        <a href="<?= site_url('client_portal/dashboard') ?>"
+            class="menu-item <?= current_url() === site_url('client_portal/dashboard') ? 'active' : '' ?>">
+            <img src="<?= base_url('icons/dashboard.png') ?>" class="icon">
+            <span>Dashboard</span>
+        </a>
 
-<img src="<?= base_url('icons/dashboard.png') ?>" class="icon">
-<span>Dashboard</span>
-
-</a>
-
-        <!-- Timesheets (both roles) -->
-        <a href="<?= site_url('client_portal/timesheets') ?>" 
-        class="flex items-center px-4 py-3 rounded-lg hover:bg-[#4f46e5]/50">
-            <i class="fa-solid fa-clock-rotate-left mr-3 w-5"></i>
+        <a href="<?= site_url('client_portal/timesheet') ?>" class="menu-item">
+            <img src="<?= base_url('icons/timesheet.png') ?>" class="icon">
             <span>Timesheets</span>
         </a>
 
-        <!-- Client Payroll Staff ONLY -->
+        <?php if(auth()->user()->inGroup('employee')): ?>
+            <!-- Payslip -->
+            <a href="<?= site_url('client_portal/payslip') ?>" 
+            class="flex items-center px-4 py-3 rounded-lg hover:bg-[#4f46e5]/50">
+                <i class="fa-solid fa-file-invoice-dollar mr-3 w-5"></i>
+                <span>Payslip</span>
+            </a>
+        <?php endif; ?>
+
+            <!-- Client Payroll Staff ONLY -->
         <?php if(auth()->user()->inGroup('client_payroll_staff')): ?>
+        <a href="<?= site_url('client_portal/payroll') ?>" class="menu-item">
+            <img src="<?= base_url('icons/payroll.png') ?>" class="icon">
+            <span>Payroll</span>
+        </a>
 
-<a href="<?= site_url('client_portal/payroll') ?>" class="menu-item">
+        <a href="<?= site_url('client_portal/employees') ?>" class="menu-item">
+            <img src="<?= base_url('icons/employee.png') ?>" class="icon">
+            <span>Employee</span>
+        </a>
 
-<img src="<?= base_url('icons/payroll.png') ?>" class="icon">
-<span>Payroll</span>
+        <?php endif; ?>
 
-</a>
-
-<?php endif; ?>
-
-
-<a href="<?= site_url('client_portal/requests') ?>" class="menu-item">
-
-<img src="<?= base_url('icons/Requests.png') ?>" class="icon">
-<span>Requests</span>
-
-</a>
+         <!-- Requests -->
+        <a href="<?= site_url('client_portal/requests') ?>" class="menu-item">
+            <img src="<?= base_url('icons/Requests.png') ?>" class="icon">
+            <span>Requests</span>
+        </a>
 
 </nav>
 
@@ -138,8 +143,8 @@ border-radius:4px;
 .menu{
 display:flex;
 flex-direction:column;
-gap:22px;
-padding-top:30px;
+gap:10px;
+padding-top:15px;
 align-items:center;
 width:100%;
 }
@@ -195,10 +200,10 @@ height:28px;
 
 .bottom-menu{
 margin-top:auto;
-padding-bottom:25px;
+padding-bottom:15px;
 display:flex;
 flex-direction:column;
-gap:22px;
+gap:10px;
 align-items:center;
 width:100%;
 }

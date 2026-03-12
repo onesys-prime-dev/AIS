@@ -49,6 +49,7 @@ class EmployeeService
                 'email' => $email,
                 'password' => $password,
                 'active' => 1,
+                'status' => 'active',
             ]);
 
             if (! $this->userModel->save($user)) {
@@ -118,13 +119,44 @@ class EmployeeService
         try {
             $employeeModel = new EmployeeModel();
             $positionModel = new EmployeePositionModel();
+            $status = isset($data['status']) ? (int) $data['status'] : 1;
+
+            if (! in_array($status, [0, 1], true)) {
+                throw new \InvalidArgumentException('Invalid account status.');
+            }
+
+            $employee = $employeeModel->find($employeeId);
+
+            if (! $employee) {
+                throw new \RuntimeException('Employee not found.');
+            }
+
+            $currentUser = auth()->user();
+            $currentUserId = (int) ($currentUser->id ?? 0);
+
+            // Safety guard: prevent currently logged-in user from disabling their own account.
+            if (
+                $status === 0
+                && ! empty($employee['user_id'])
+                && (int) $employee['user_id'] === $currentUserId
+            ) {
+                throw new \RuntimeException('You cannot deactivate your own account while logged in.');
+            }
 
             $employeeModel->update($employeeId, [
                 'first_name' => $data['first_name'],
                 'middle_name' => $data['middle_name'],
                 'last_name' => $data['last_name'],
                 'birthdate' => $data['dob'],
+                'updated_at' => date('Y-m-d H:i:s'),
             ]);
+
+            if (! empty($employee['user_id'])) {
+                $this->userModel->update($employee['user_id'], [
+                    'active' => $status,
+                    'status' => $status === 1 ? 'active' : 'inactive',
+                ]);
+            }
 
             $positionModel
                 ->where('employee_id', $employeeId)
