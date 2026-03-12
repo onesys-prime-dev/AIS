@@ -1,16 +1,23 @@
-<aside class="hidden md:flex md:flex-col w-64 bg-[#212121] text-white flex-shrink-0">
-    <div class="p-6 border-b border-[#DAD7D7]">
-        <h1 class="text-2xl font-bold tracking-tight">YourCompany</h1>
-    </div>
-    
-    <nav class="flex-1 px-4 py-6 space-y-1">
+<aside class="sidebar">
 
-        <!-- Dashboard -->
-        <a href="<?= site_url('client_portal/dashboard') ?>" 
-        class="flex items-center px-4 py-3 rounded-lg <?= current_url() === site_url('client_portal/dashboard') ? 'bg-[#4f46e5]/70' : 'hover:bg-[#4f46e5]/50' ?>">
-            <i class="fa-solid fa-house mr-3 w-5"></i>
-            <span>Dashboard</span>
-        </a>
+<div class="sidebar-inner">
+
+<!-- LOGO -->
+<div class="logo-box">
+<div class="logo"></div>
+</div>
+
+
+<!-- MAIN MENU -->
+<nav class="menu">
+
+<a href="<?= site_url('client_portal/dashboard') ?>"
+class="menu-item <?= current_url() === site_url('client_portal/dashboard') ? 'active' : '' ?>">
+
+<img src="<?= base_url('icons/dashboard.png') ?>" class="icon">
+<span>Dashboard</span>
+
+</a>
 
         <!-- Timesheets (both roles) -->
         <a href="<?= site_url('client_portal/timesheets') ?>" 
@@ -19,52 +26,181 @@
             <span>Timesheets</span>
         </a>
 
-        <?php if(auth()->user()->inGroup('employee')): ?>
-            <!-- Payslip -->
-            <a href="<?= site_url('client_portal/payslip') ?>" 
-            class="flex items-center px-4 py-3 rounded-lg hover:bg-[#4f46e5]/50">
-                <i class="fa-solid fa-file-invoice-dollar mr-3 w-5"></i>
-                <span>Payslip</span>
-            </a>
-        <?php endif; ?>
-
         <!-- Client Payroll Staff ONLY -->
         <?php if(auth()->user()->inGroup('client_payroll_staff')): ?>
 
-            <a href="<?= site_url('client_portal/payroll') ?>" 
-            class="flex items-center px-4 py-3 rounded-lg hover:bg-[#4f46e5]/50">
-                <i class="fa-solid fa-users mr-3 w-5"></i>
-                <span>Payroll</span>
-            </a>
+<a href="<?= site_url('client_portal/payroll') ?>" class="menu-item">
 
-            <a href="<?= site_url('client_portal/employees') ?>" 
-            class="flex items-center px-4 py-3 rounded-lg hover:bg-[#4f46e5]/50">
-                <i class="fa-solid fa-users mr-3 w-5"></i>
-                <span>Employee Management</span>
-            </a>
+<img src="<?= base_url('icons/payroll.png') ?>" class="icon">
+<span>Payroll</span>
 
-            <a href="<?= site_url('client_portal/requests') ?>" 
-            class="flex items-center px-4 py-3 rounded-lg hover:bg-[#4f46e5]/50">
-                <i class="fa-solid fa-file-lines mr-3 w-5"></i>
-                <span>Request Management</span>
-            </a>
+</a>
 
-        <?php endif; ?>
+<?php endif; ?>
 
-    </nav>
 
-    <div class="p-4 border-t border-[#DAD7D7]">
-        <a href="<?= site_url('settings') ?>" class="flex items-center px-4 py-3 rounded-lg hover:bg-[#4f46e5]/50 transition">
-            <i class="fa-solid fa-arrow-right-from-bracket mr-3 w-5"></i>
-            <span>Settings</span>
-        </a>
-        <a href="<?= site_url('information') ?>" class="flex items-center px-4 py-3 rounded-lg hover:bg-[#4f46e5]/50 transition">
-            <i class="fa-solid fa-arrow-right-from-bracket mr-3 w-5"></i>
-            <span>Information</span>
-        </a>
-        <a href="<?= site_url('logout') ?>" class="flex items-center px-4 py-3 rounded-lg hover:bg-[#4f46e5]/50 transition">
-            <i class="fa-solid fa-arrow-right-from-bracket mr-3 w-5"></i>
-            <span>Logout</span>
-        </a>
-    </div>
+<a href="<?= site_url('client_portal/requests') ?>" class="menu-item">
+
+<img src="<?= base_url('icons/Requests.png') ?>" class="icon">
+<span>Requests</span>
+
+</a>
+
+</nav>
+
+
+
+<!-- BOTTOM MENU -->
+<div class="bottom-menu">
+
+<a href="<?= site_url('help') ?>" class="menu-item">
+
+<img src="<?= base_url('icons/help.png') ?>" class="icon">
+<span>Help</span>
+
+</a>
+
+
+<a href="<?= site_url('settings') ?>" class="menu-item">
+
+<img src="<?= base_url('icons/settings.png') ?>" class="icon">
+<span>Settings</span>
+
+</a>
+
+
+<a href="<?= site_url('logout') ?>" class="menu-item">
+
+<img src="<?= base_url('icons/logout.png') ?>" class="icon">
+<span>Log-out</span>
+
+</a>
+
+</div>
+
+</div>
+
 </aside>
+
+
+
+<style>
+
+/* SIDEBAR */
+
+.sidebar{
+width:95px;
+background:#1e1e1e;
+min-height:100vh;
+display:flex;
+flex-direction:column;
+align-items:center;
+border-right:1px solid #2c2c2c;
+font-family:Segoe UI, Arial;
+flex-shrink:0;
+}
+
+
+
+/* INNER */
+
+.sidebar-inner{
+display:flex;
+flex-direction:column;
+height:100%;
+width:100%;
+align-items:center;
+}
+
+
+
+/* LOGO */
+
+.logo-box{
+padding:25px 0;
+border-bottom:1px solid #2c2c2c;
+width:100%;
+display:flex;
+justify-content:center;
+}
+
+.logo{
+width:50px;
+height:50px;
+background:#d9d9d9;
+border-radius:4px;
+}
+
+
+
+/* MAIN MENU */
+
+.menu{
+display:flex;
+flex-direction:column;
+gap:22px;
+padding-top:30px;
+align-items:center;
+width:100%;
+}
+
+
+
+/* MENU ITEM */
+
+.menu-item{
+display:flex;
+flex-direction:column;
+align-items:center;
+justify-content:center;
+gap:6px;
+width:72px;
+height:72px;
+border-radius:16px;
+text-decoration:none;
+color:#cfcfcf;
+font-size:11px;
+transition:0.2s;
+}
+
+
+
+/* ACTIVE ITEM */
+
+.menu-item.active{
+background:#555;
+color:white;
+}
+
+
+
+/* HOVER */
+
+.menu-item:hover{
+background:#333;
+}
+
+
+
+/* ICON */
+
+.icon{
+width:28px;
+height:28px;
+}
+
+
+
+/* BOTTOM MENU */
+
+.bottom-menu{
+margin-top:auto;
+padding-bottom:25px;
+display:flex;
+flex-direction:column;
+gap:22px;
+align-items:center;
+width:100%;
+}
+
+</style>
