@@ -24,7 +24,7 @@
         <?= view('partials/header') ?>
 
         <!-- Page Content -->
-        <main class="flex-1 overflow-y-auto p-6">
+        <main class="flex-1 overflow-y-auto p-4">
             <?= $this->renderSection('content') ?>
         </main>
 
@@ -32,7 +32,6 @@
 
 </div>
 
-<!-- 👇 IMPORTANT: MODALS RENDER HERE -->
 <?= $this->renderSection('modals') ?>
 
 <?= $this->renderSection('scripts') ?>

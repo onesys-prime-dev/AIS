@@ -4,33 +4,32 @@
 <!-- STEP PROGRESS -->
 <div class="flex justify-center mb-8">
 
-    <div class="flex text-sm font-semibold">
+    <div class="flex text-sm font-semibold gap-3">
 
         <!-- Step 1 -->
         <div id="progress1"
-            class="flex items-center px-8 py-2 text-white bg-purple-600"
-            style="clip-path: polygon(0 0, 90% 0, 100% 50%, 90% 100%, 0 100%);">
+            class="flex items-center px-8 py-2 text-white bg-[#A891FC] rounded-l-full"
+            style="clip-path: polygon(91% 0, 100% 50%, 91% 100%, 0% 100%, 0 50%, 0% 0%);">
             1. Personal Info
         </div>
 
         <!-- Step 2 -->
         <div id="progress2"
-            class="flex items-center px-8 py-2 text-gray-700 bg-gray-300 -ml-4"
-            style="clip-path: polygon(10% 0, 90% 0, 100% 50%, 90% 100%, 10% 100%, 0 50%);">
-            2. Job Details
+            class="flex items-center px-8 py-2 text-gray-800 bg-gray-300 -ml-4"
+            style="clip-path: polygon(91% 0, 100% 50%, 91% 100%, 0% 100%, 9% 50%, 0% 0%);">
+            2. Government IDs
         </div>
 
         <!-- Step 3 -->
         <div id="progress3"
-            class="flex items-center px-8 py-2 text-gray-700 bg-gray-300 -ml-4"
-            style="clip-path: polygon(10% 0, 100% 0, 100% 100%, 10% 100%, 0 50%);">
-            3. Something
+            class="flex items-center px-8 py-2 text-gray-800 bg-gray-300 -ml-4 rounded-r-full"
+            style="clip-path: polygon(100% 0, 100% 50%, 100% 100%, 0% 100%, 9% 50%, 0% 0%);">
+            3. Job Details
         </div>
 
     </div>
 
 </div>
-
 
 <!-- ================= STEP 1 ================= -->
 <div class="form-step" id="step1">
@@ -73,7 +72,6 @@
     </div>
 
 </div>
-
 
 <!-- ================= STEP 2 ================= -->
 <div class="form-step hidden" id="step2">
@@ -126,7 +124,6 @@
 
 </div>
 
-
 <!-- ================= STEP 3 ================= -->
 <div class="form-step hidden" id="step3">
 
@@ -141,6 +138,12 @@
         <div>
             <label class="block text-sm mb-1">Position:</label>
             <input type="text" name="position"
+                class="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
+        </div>
+
+        <div>
+            <label class="block text-sm mb-1">Employment type:</label>
+            <input type="text" name="employment_type"
                 class="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
         </div>
 

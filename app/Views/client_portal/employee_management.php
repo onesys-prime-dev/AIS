@@ -27,11 +27,11 @@
 
         <button 
             data-modal-open="employeeModal"
-            class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg shadow flex items-center gap-2">
-            
-            <i class="fa-solid fa-plus"></i>
+            class="bg-[#FF2D2D] hover:bg-[#ff2d2dd2] text-white px-3 py-3 rounded-lg shadow flex items-center gap-2">
+                <div id="add-icon" class="w-7 h-7 cursor-pointer">
+                    <img src="<?php echo base_url('images/icons/add.png'); ?>" alt="Add"/>
+                </div>
             New Employee
-
         </button>
 
     </div>
@@ -41,32 +41,43 @@
     <div class="bg-white rounded-2xl shadow-lg p-6">
 
         <!-- Header -->
-        <div class="flex justify-between items-center mb-4">
+        <div class="flex justify-between items-center mb-5">
 
             <h2 class="text-lg font-semibold text-gray-700">
                 Recent People
             </h2>
 
-            <div class="flex gap-3">
-
+            <div class="flex items-center gap-4">
                 <!-- Search -->
-                <div class="relative">
+                <div class="relative w-[350px]">
+                    <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-600">
+                        <svg xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 24 24"
+                            fill="currentColor"
+                            class="w-5 h-5">
 
+                            <path fill-rule="evenodd"
+                                d="M10.5 3.75a6.75 6.75 0 1 0 0 13.5 6.75 6.75 0 0 0 0-13.5ZM2.25 10.5a8.25 8.25 0 1 1 14.59 5.28l4.69 4.69a.75.75 0 1 1-1.06 1.06l-4.69-4.69A8.25 8.25 0 0 1 2.25 10.5Z"
+                                clip-rule="evenodd" />
+                        </svg>
+                    </span>
                     <input 
                         type="text"
-                        placeholder="Search by employee's name..."
-                        class="bg-gray-100 text-sm px-4 py-2 rounded-lg pl-10 outline-none"
+                        placeholder="Search by employee’s name..."
+                        class="w-full bg-gray-200 text-gray-700 text-sm pl-10 pr-5 py-3 rounded-lg outline-none placeholder-gray-500"
                     >
-
-                    <i class="fa-solid fa-magnifying-glass absolute left-3 top-3 text-gray-400"></i>
-
                 </div>
-
+                <!-- Filter -->
+                <button class="flex items-center gap-3 bg-gray-600 hover:bg-gray-700 text-white text-sm px-6 py-3 rounded-lg shadow-md">
+                    <span>Filters</span>
+                    <div>
+                        <img src="<?php echo base_url('images/icons/filter.png'); ?>" class="w-4 h-4" alt="Filter" />   
+                    </div>
+                </button>
             </div>
 
         </div>
-
-
+        
         <!-- Table -->
         <div class="overflow-x-auto">
 
@@ -74,15 +85,14 @@
 
                 <!-- Table Header -->
                 <thead>
-                    <tr class="bg-gray-100 text-gray-600">
-
-                        <th class="p-4">Employee Name</th>
+                    <tr class="bg-gray-300 text-gray-600">
+                        <th class="p-4 rounded-tl-lg rounded-bl-lg">Employee Name</th>
                         <th class="p-4">Title</th>
+                        <th class="p-4">Department</th>
                         <th class="p-4">ID</th>
                         <th class="p-4">Type</th>
                         <th class="p-4">Status</th>
-                        <th class="p-4 text-center">Action</th>
-
+                        <th class="p-4 text-center rounded-tr-lg rounded-br-lg">Action</th>
                     </tr>
                 </thead>
 
@@ -95,28 +105,34 @@
                     <tr class="border-b hover:bg-gray-50">
 
                         <!-- Name -->
-                        <td class="p-4 flex items-center gap-3">
+                        <td class="p-4">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 bg-gray-300 rounded-full"></div>
 
-                            <div class="w-10 h-10 bg-gray-300 rounded-full"></div>
-
-                            <span><?= esc($employee['first_name'] ?? 'Employee') ?></span>
-
+                                <span>
+                                    <?= esc($employee['first_name'] ?? '') ?> 
+                                    <?= esc($employee['middle_name'] ?? '') ?> 
+                                    <?= esc($employee['last_name'] ?? '') ?>
+                                </span>
+                            </div>
                         </td>
 
                         <!-- Title -->
-                        <td class="p-4">Employee</td>
+                        <td class="p-4"><?= esc($employee['position'] ?? '---') ?></td>
+
+                        <!-- Department -->
+                        <td class="p-4"><?= esc($employee['department'] ?? '---') ?></td>
 
                         <!-- ID -->
-                        <td class="p-4"><?= esc($employee['employee_id'] ?? '---') ?></td>
+                        <td class="p-4"><?= esc($employee['employee_number'] ?? '---') ?></td>
 
                         <!-- Type -->
-                        <td class="p-4">Full Time</td>
-
+                        <td class="p-4"><?= esc($employee['employment_type'] ?? '---') ?></td>
 
                         <!-- Status -->
                         <td class="p-4">
 
-                        <?php if(($employee['status'] ?? '') == 'active'): ?>
+                        <?php if(($employee['status'] ?? 0) == 1): ?>
 
                             <span class="bg-green-200 text-green-700 px-3 py-1 rounded-full text-xs font-semibold">
                                 Active
@@ -132,18 +148,30 @@
 
                         </td>
 
-
                         <!-- Actions -->
-                        <td class="p-4 flex justify-center gap-4">
+                        <td class="p-4">
+                            <div class="flex justify-center">
+                                <div id="action-utility-container" class="flex items-center gap-4">
 
-                            <button class="text-gray-600 hover:text-indigo-600">
-                                <i class="fa-solid fa-pen-to-square"></i>
-                            </button>
+                                    <div 
+                                        class="editEmployeeBtn cursor-pointer flex items-center justify-center w-7 h-7 hover:scale-110 transition"
+                                        data-id="<?= $employee['id'] ?>"
+                                        role="button"
+                                        tabindex="0">
+                                        <img src="<?= base_url('images/icons/edit.png'); ?>" class="w-7 h-7" alt="Edit">
+                                    </div>
 
-                            <button class="text-gray-600 hover:text-red-500">
-                                <i class="fa-solid fa-trash"></i>
-                            </button>
+                                    <div 
+                                        id="deleteEmployeeBtn" 
+                                        class="deleteEmployeeBtn cursor-pointer flex items-center justify-center w-7 h-7 hover:scale-110 transition" 
+                                        data-id="<?= $employee['id'] ?>"
+                                        role="button"
+                                        tabindex="0">
+                                        <img src="<?php echo base_url('images/icons/delete.png'); ?>" class="w-7 h-7" alt="Delete" />
+                                    </div>
 
+                                </div>
+                            </div>
                         </td>
 
                     </tr>
@@ -170,7 +198,19 @@
 
     echo view('components/modal', [
         'id' => 'employeeModal',
-        'title' => 'Add New Employee',
+        'title' => 'Employee Management',
+        'content' => $content
+    ]);
+
+    ?>
+
+    <?php
+
+    $content = view('client_portal/modals/edit_employee_form');
+
+    echo view('components/modal', [
+        'id' => 'editEmployeeModal',
+        'title' => 'Employee Management',
         'content' => $content
     ]);
 
@@ -181,5 +221,47 @@
 <?= $this->section('scripts') ?>
 
     <script src="<?= base_url('js/components/modal-handler.js') ?>"></script>
+    <script>
+        document.querySelectorAll(".editEmployeeBtn").forEach(btn => {
+
+            btn.addEventListener("click", async () => {
+
+                const employeeId = btn.dataset.id;
+
+                // reset form first so previous values disappear
+                document.getElementById("editEmployeeForm").reset();
+
+                try {
+
+                    const response = await fetch(
+                        "<?= site_url('client_portal/employees/get') ?>/" + employeeId
+                    );
+
+                    const employee = await response.json();
+
+                    document.getElementById("edit_first_name").value = employee.first_name || "";
+                    document.getElementById("edit_middle_name").value = employee.middle_name || "";
+                    document.getElementById("edit_last_name").value = employee.last_name || "";
+                    document.getElementById("edit_department").value = employee.department || "";
+                    document.getElementById("edit_position").value = employee.position || "";
+                    document.getElementById("edit_employment_type").value = employee.employment_type || "";
+                    document.getElementById("edit_dob").value = employee.birthdate || "";
+
+                    document.getElementById("editEmployeeForm").action =
+                        "<?= site_url('client_portal/employees/update') ?>/" + employeeId;
+
+                    // OPEN MODAL AFTER DATA LOAD
+                    document.getElementById("editEmployeeModal").classList.remove("hidden");
+
+                } catch (error) {
+
+                    console.error("Failed to fetch employee:", error);
+
+                }
+
+            });
+
+        });
+    </script>
 
 <?= $this->endSection() ?>

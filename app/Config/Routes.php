@@ -25,6 +25,5 @@ $routes->group('client_portal', ['filter' => 'auth'], function($routes){
     $routes->post('requests/update/(:num)', 'Client\RequestController::updateStatus/$1');
     $routes->post('tasks/submit', 'Client\TaskController::submitTask');
     $routes->get('tasks/saved', 'Client\TaskController::getSavedTasks');
-    $routes->get('timesheets', 'Client\TimesheetController::index');
     });
 

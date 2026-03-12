@@ -27,6 +27,10 @@ class CreateEmployeePositions extends Migration
                 'type' => 'VARCHAR',
                 'constraint' => 100,
             ],
+            'employment_type' => [
+                'type' => 'VARCHAR',
+                'constraint' => 100,
+            ],
         ]);
 
         $this->forge->addKey('id', true);
