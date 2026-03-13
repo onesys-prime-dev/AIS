@@ -6,9 +6,6 @@ use CodeIgniter\Router\RouteCollection;
  * @var RouteCollection $routes
  */
 $routes->get('/logout', 'Auth\ClientAuthController::logout');
-
-// Override Shield's login POST before Shield registers its own, so first-match wins.
-// ClientAuthController::loginAction adds the `active` flag check that Shield skips.
 $routes->post('login', 'Auth\ClientAuthController::loginAction');
 
 service('auth')->routes($routes, ['except' => ['register']]);

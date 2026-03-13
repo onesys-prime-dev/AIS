@@ -104,7 +104,7 @@ class="search-input"
 /* HEADER */
 
 .app-header{
-height:72px;
+height:80px;
 background:#fff;
 border-bottom:1px solid #e5e7eb;
 display:flex;
@@ -112,7 +112,7 @@ align-items:center;
 justify-content:space-between;
 padding:0 35px;
 font-family:Segoe UI, Arial;
-box-shadow:0 2px 6px rgba(0,0,0,0.04);
+box-shadow:0 4px 12px rgba(0,0,0,0.1);
 }
 
 

@@ -21,8 +21,8 @@ class PayrollController extends BaseController
         // Fetch payroll records for the selected month with employee name
         $data['payrolls'] = $payrollModel
             ->select('payroll.*, 
-                      CONCAT(employees.first_name, " ", employees.last_name) as employee_name,
-                      employees.employee_number')
+                    CONCAT(employees.last_name, ", ", employees.first_name, " ", LEFT(employees.middle_name, 1), ".") as employee_name,
+                    employees.employee_number')
             ->join('employees', 'employees.id = payroll.employee_id', 'left')
             ->where('payroll.month_year', $month)
             ->findAll();

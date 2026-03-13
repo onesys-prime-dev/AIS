@@ -148,7 +148,6 @@ class EmployeeService
                 'middle_name' => $data['middle_name'],
                 'last_name' => $data['last_name'],
                 'birthdate' => $data['dob'],
-                'updated_at' => date('Y-m-d H:i:s'),
             ]);
 
             if (! empty($employee['user_id'])) {

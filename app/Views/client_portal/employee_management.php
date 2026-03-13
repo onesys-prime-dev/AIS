@@ -2,26 +2,43 @@
 
 <?= $this->section('content') ?>
 
-<div class="p-6">
+<div class="p-5 h-full overflow-y-auto">
 
-    <!-- Error/Success Messages -->
-    <?php if (session()->getFlashdata('error')): ?>
-        <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4" role="alert">
-            <strong>Error:</strong> <?= session()->getFlashdata('error') ?>
-        </div>
+    <!-- Flash Toast Notifications -->
+    <?php if (session()->getFlashdata('success')): ?>
+    <div id="toast-success"
+        class="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 
+        z-[9999] flex items-center gap-3 
+        bg-green-100 border border-green-400 text-green-700 
+        px-6 py-4 rounded-lg shadow-xl
+        opacity-0 scale-95 transition-all duration-300">
+
+        <i class="fa-solid fa-circle-check text-lg"></i>
+        <span class="font-medium"><?= session()->getFlashdata('success') ?></span>
+
+    </div>
     <?php endif; ?>
 
-    <?php if (session()->getFlashdata('success')): ?>
-        <div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4" role="alert">
-            <strong>Success:</strong> <?= session()->getFlashdata('success') ?>
-        </div>
+
+    <?php if (session()->getFlashdata('error')): ?>
+    <div id="toast-error"
+        class="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 
+        z-[9999] flex items-center gap-3 
+        bg-red-100 border border-red-400 text-red-700 
+        px-6 py-4 rounded-lg shadow-xl
+        opacity-0 scale-95 transition-all duration-300">
+
+        <i class="fa-solid fa-circle-exclamation text-lg"></i>
+        <span class="font-medium"><?= session()->getFlashdata('error') ?></span>
+
+    </div>
     <?php endif; ?>
 
     <!-- Page Header -->
     <div class="flex justify-between items-center mb-6">
         
-        <div>
-            <h1 class="text-3xl font-bold text-gray-800">Employee Management</h1>
+        <div class="p-1">
+            <h1 class="text-3xl font-bold text-gray-800 mb-1">Employee Management</h1>
             <p class="text-gray-500 text-sm">Manage employee data here.</p>
         </div>
 
@@ -36,9 +53,8 @@
 
     </div>
 
-
     <!-- Employee Card -->
-    <div class="bg-white rounded-2xl shadow-lg p-6">
+    <div class="bg-white rounded-2xl shadow-lg p-5 h-[85%] border border-gray-400">
 
         <!-- Header -->
         <div class="flex justify-between items-center mb-5">
@@ -69,44 +85,96 @@
                     >
                 </div>
                 <!-- Filter -->
-                <button class="flex items-center gap-3 bg-gray-600 hover:bg-gray-700 text-white text-sm px-6 py-3 rounded-lg shadow-md">
-                    <span>Filters</span>
-                    <div>
-                        <img src="<?= base_url('icons/filter.png'); ?>" class="w-4 h-4" alt="Filter" />   
-                    </div>
-                </button>
-            </div>
+                <div class="relative">
+                    <button
+                        id="filterToggle"
+                        type="button"
+                        aria-expanded="false"
+                        aria-controls="employeeFilterDropdown"
+                        class="flex items-center gap-3 bg-gray-600 hover:bg-gray-700 text-white text-sm px-6 py-3 rounded-lg shadow-md">
+                        <span>Filters</span>
+                        <div>
+                            <img src="<?= base_url('icons/filter.png'); ?>" class="w-4 h-4" alt="Filter" />
+                        </div>
+                    </button>
 
+                    <div
+                        id="employeeFilterDropdown"
+                        class="hidden absolute right-0 mt-3 w-80 bg-[#F3F4F4] border border-gray-200 rounded-xl shadow-xl z-20 p-4">
+                        <p class="text-sm font-semibold text-gray-700 mb-3">Filter Employees</p>
+
+                        <div class="space-y-3">
+                            <div>
+                                <label for="filterStatus" class="block text-xs font-medium text-gray-500 mb-1">Status</label>
+                                <select id="filterStatus" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700">
+                                    <option value="">All Statuses</option>
+                                    <option value="active">Active</option>
+                                    <option value="inactive">Inactive</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label for="filterDepartment" class="block text-xs font-medium text-gray-500 mb-1">Department</label>
+                                <select id="filterDepartment" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700">
+                                    <option value="">All Departments</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label for="filterEmploymentType" class="block text-xs font-medium text-gray-500 mb-1">Employment Type</label>
+                                <select id="filterEmploymentType" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700">
+                                    <option value="">All Types</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label for="filterSortBy" class="block text-xs font-medium text-gray-500 mb-1">Sort By</label>
+                                <select id="filterSortBy" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700">
+                                    <option value="name">Employee Name</option>
+                                    <option value="department">Department</option>
+                                    <option value="employment_type">Employment Type</option>
+                                    <option value="employee_number">Employee ID</option>
+                                    <option value="status">Status</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label for="filterSortOrder" class="block text-xs font-medium text-gray-500 mb-1">Order</label>
+                                <select id="filterSortOrder" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700">
+                                    <option value="asc">Ascending</option>
+                                    <option value="desc">Descending</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="mt-4 flex justify-end">
+                            <button id="clearFiltersBtn" type="button" class="text-sm px-3 py-2 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-100">
+                                Clear Filters
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
         
         <!-- Table -->
         <div class="overflow-x-auto">
-
             <table class="w-full text-sm text-left">
-
                 <!-- Table Header -->
-                <thead>
-                    <tr class="bg-gray-300 text-gray-600">
-                        <th class="p-4 rounded-tl-lg rounded-bl-lg">Employee Name</th>
-                        <th class="p-4">Position</th>
-                        <th class="p-4">Department</th>
-                        <th class="p-4">ID</th>
-                        <th class="p-4">Type</th>
-                        <th class="p-4">Status</th>
-                        <th class="p-4 text-center rounded-tr-lg rounded-br-lg">Action</th>
-                    </tr>
-                </thead>
-
-
+                <div class="grid grid-cols-[2fr_1.5fr_1.5fr_1.2fr_1fr_1fr_1fr] bg-[#DCDCDC] text-[#737373] border border-[#9E9E9E] rounded-lg overflow-hidden text-sm font-medium">
+                    <div class="p-4">Employee Name</div>
+                    <div class="p-4">Position</div>
+                    <div class="p-4">Department</div>
+                    <div class="p-4">ID</div>
+                    <div class="p-4">Type</div>
+                    <div class="p-4">Status</div>
+                    <div class="p-4 text-center">Action</div>
+                </div>
                 <!-- Table Body — rows rendered by JS -->
-                <tbody id="employeeTableBody" class="text-gray-700"></tbody>
-
+                <div id="employeeTableBody" class="text-gray-700"></div>
             </table>
-
         </div>
-
     </div>
-
 </div>
 
 <?= $this->endSection() ?>
@@ -114,33 +182,28 @@
 <?= $this->section('modals') ?>
 
     <?php
-
-    $content = view('client_portal/modals/add_employee_form');
-
-    echo view('components/modal', [
-        'id' => 'employeeModal',
-        'title' => 'Employee Management',
-        'content' => $content
-    ]);
-
+        $content = view('client_portal/modals/add_employee_form');
+        echo view('components/modal', [
+            'id' => 'employeeModal',
+            'title' => 'Employee Management',
+            'content' => $content
+        ]);
     ?>
 
     <?php
-
-    $content = view('client_portal/modals/edit_employee_form');
-
-    echo view('components/modal', [
-        'id' => 'editEmployeeModal',
-        'title' => 'Employee Management',
-        'content' => $content
-    ]);
-
+        $content = view('client_portal/modals/edit_employee_form');
+        echo view('components/modal', [
+            'id' => 'editEmployeeModal',
+            'title' => 'Employee Management',
+            'content' => $content
+        ]);
     ?>
 
 <?= $this->endSection() ?>
 
 <?= $this->section('scripts') ?>
-
+    
+    <script src="<?= base_url('js/components/flash-notifications.js') ?>"></script>
     <script src="<?= base_url('js/components/modal-handler.js') ?>"></script>
     <script>
         const EMPLOYEES   = <?= json_encode($employees, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
@@ -162,34 +225,57 @@
         }
 
         function renderEmployees(list) {
-            const tbody = document.getElementById('employeeTableBody');
+            const body = document.getElementById('employeeTableBody');
 
             if (!list.length) {
-                tbody.innerHTML = '<tr><td colspan="7" class="p-8 text-center text-gray-400">No employees found.</td></tr>';
+                body.innerHTML = `
+                    <div class="flex flex-col items-center justify-center h-[320px] text-gray-400 gap-3">
+
+                        <i class="fa-solid fa-users text-4xl opacity-40"></i>
+
+                        <span class="text-lg font-medium">
+                            No employees found
+                        </span>
+
+                        <span class="text-sm text-gray-400">
+                            Try adjusting your search or filters
+                        </span>
+
+                    </div>
+                `;
                 return;
             }
 
-            tbody.innerHTML = list.map(e => {
+            body.innerHTML = list.map(e => {
                 const statusBadge = e.status == 1
                     ? '<span class="bg-green-200 text-green-700 px-3 py-1 rounded-full text-xs font-semibold">Active</span>'
                     : '<span class="bg-red-200 text-red-600 px-3 py-1 rounded-full text-xs font-semibold">Inactive</span>';
 
                 return `
-                <tr class="border-b hover:bg-gray-50">
-                    <td class="p-4">
-                        <div class="flex items-center gap-3">
+                    <div class="grid grid-cols-[2fr_1.5fr_1.5fr_1.2fr_1fr_1fr_1fr] items-center border-b hover:bg-gray-50">
+
+                        <div class="p-4 flex items-center gap-3">
                             <div class="w-10 h-10 bg-gray-300 rounded-full"></div>
-                            <span>${htmlEsc(e.first_name)} ${htmlEsc(e.middle_name)} ${htmlEsc(e.last_name)}</span>
+                            <span class="font-medium">
+                                ${htmlEsc(e.last_name)}, 
+                                ${htmlEsc(e.first_name)}
+                                ${e.middle_name ? htmlEsc(e.middle_name.charAt(0).toUpperCase()) + '.' : ''} 
+                            </span>
                         </div>
-                    </td>
-                    <td class="p-4">${htmlEsc(e.position) || '---'}</td>
-                    <td class="p-4">${htmlEsc(e.department) || '---'}</td>
-                    <td class="p-4">${htmlEsc(e.employee_number) || '---'}</td>
-                    <td class="p-4">${htmlEsc(e.employment_type) || '---'}</td>
-                    <td class="p-4">${statusBadge}</td>
-                    <td class="p-4">
-                        <div class="flex justify-center">
+
+                        <div class="p-4">${htmlEsc(e.position) || '---'}</div>
+
+                        <div class="p-4">${htmlEsc(e.department) || '---'}</div>
+
+                        <div class="p-4">${htmlEsc(e.employee_number) || '---'}</div>
+
+                        <div class="p-4">${htmlEsc(e.employment_type) || '---'}</div>
+
+                        <div class="p-4">${statusBadge}</div>
+
+                        <div class="p-4 flex justify-center">
                             <div class="flex items-center gap-4">
+
                                 <div class="editEmployeeBtn cursor-pointer flex items-center justify-center w-7 h-7 hover:scale-110 transition"
                                     data-id="${htmlEsc(e.id)}"
                                     data-user_id="${htmlEsc(e.user_id)}"
@@ -202,41 +288,145 @@
                                     data-birthdate="${htmlEsc(e.birthdate)}"
                                     data-status="${htmlEsc(e.status ?? 0)}"
                                     role="button" tabindex="0">
+
                                     <img src="${EDIT_ICON}" class="w-7 h-7" alt="Edit">
                                 </div>
+
                                 <div class="deleteEmployeeBtn cursor-pointer flex items-center justify-center w-7 h-7 hover:scale-110 transition"
                                     data-id="${htmlEsc(e.id)}"
                                     role="button" tabindex="0">
+
                                     <img src="${DELETE_ICON}" class="w-7 h-7" alt="Delete">
+
                                 </div>
+
                             </div>
                         </div>
-                    </td>
-                </tr>`;
+
+                    </div>`;
             }).join('');
         }
 
         document.addEventListener('DOMContentLoaded', () => {
+            const searchInput = document.getElementById('employeeSearch');
+            const filterToggle = document.getElementById('filterToggle');
+            const filterDropdown = document.getElementById('employeeFilterDropdown');
+            const filterStatus = document.getElementById('filterStatus');
+            const filterDepartment = document.getElementById('filterDepartment');
+            const filterEmploymentType = document.getElementById('filterEmploymentType');
+            const filterSortBy = document.getElementById('filterSortBy');
+            const filterSortOrder = document.getElementById('filterSortOrder');
+            const clearFiltersBtn = document.getElementById('clearFiltersBtn');
+
+            function addUniqueOptions(selectEl, values) {
+                const uniqueSorted = Array.from(new Set(values.filter(Boolean).map(v => String(v).trim()))).sort((a, b) =>
+                    a.localeCompare(b)
+                );
+
+                uniqueSorted.forEach(val => {
+                    const opt = document.createElement('option');
+                    opt.value = val;
+                    opt.textContent = val;
+                    selectEl.appendChild(opt);
+                });
+            }
+
+            addUniqueOptions(filterDepartment, EMPLOYEES.map(e => e.department));
+            addUniqueOptions(filterEmploymentType, EMPLOYEES.map(e => e.employment_type));
+
+            function applyEmployeeFilters() {
+                const q = (searchInput.value || '').toLowerCase().trim();
+                const status = (filterStatus.value || '').toLowerCase();
+                const department = (filterDepartment.value || '').toLowerCase();
+                const employmentType = (filterEmploymentType.value || '').toLowerCase();
+                const sortBy = filterSortBy.value || 'name';
+                const sortOrder = filterSortOrder.value || 'asc';
+
+                const filtered = EMPLOYEES.filter(e => {
+                    const fullName = [e.first_name ?? '', e.middle_name ?? '', e.last_name ?? ''].join(' ').toLowerCase();
+                    const ePosition = (e.position ?? '').toLowerCase();
+                    const eDepartment = (e.department ?? '').toLowerCase();
+                    const eNumber = (e.employee_number ?? '').toLowerCase();
+                    const eType = (e.employment_type ?? '').toLowerCase();
+                    const eStatus = e.status == 1 ? 'active' : 'inactive';
+
+                    const matchSearch =
+                        !q ||
+                        [fullName, ePosition, eDepartment, eNumber, eType, eStatus].join(' ').includes(q);
+
+                    const matchStatus = !status || eStatus === status;
+                    const matchDepartment = !department || eDepartment === department;
+                    const matchEmploymentType = !employmentType || eType === employmentType;
+
+                    return matchSearch && matchStatus && matchDepartment && matchEmploymentType;
+                });
+
+                const sorted = [...filtered].sort((a, b) => {
+                    let left = '';
+                    let right = '';
+
+                    if (sortBy === 'name') {
+                        left = [a.first_name ?? '', a.middle_name ?? '', a.last_name ?? ''].join(' ').trim().toLowerCase();
+                        right = [b.first_name ?? '', b.middle_name ?? '', b.last_name ?? ''].join(' ').trim().toLowerCase();
+                    } else if (sortBy === 'status') {
+                        left = String(a.status ?? 0);
+                        right = String(b.status ?? 0);
+                    } else {
+                        left = String(a[sortBy] ?? '').toLowerCase();
+                        right = String(b[sortBy] ?? '').toLowerCase();
+                    }
+
+                    if (left < right) return sortOrder === 'asc' ? -1 : 1;
+                    if (left > right) return sortOrder === 'asc' ? 1 : -1;
+                    return 0;
+                });
+
+                renderEmployees(sorted);
+            }
+
+            function closeFilterDropdown() {
+                filterDropdown.classList.add('hidden');
+                filterToggle.setAttribute('aria-expanded', 'false');
+            }
+
+            function toggleFilterDropdown() {
+                const isHidden = filterDropdown.classList.contains('hidden');
+                filterDropdown.classList.toggle('hidden');
+                filterToggle.setAttribute('aria-expanded', isHidden ? 'true' : 'false');
+            }
 
             // Initial render — show all employees on page load
             renderEmployees(EMPLOYEES);
 
-            // Search filter
-            document.getElementById('employeeSearch').addEventListener('input', function () {
-                const q = this.value.toLowerCase().trim();
+            // Search and filters
+            searchInput.addEventListener('input', applyEmployeeFilters);
+            filterStatus.addEventListener('change', applyEmployeeFilters);
+            filterDepartment.addEventListener('change', applyEmployeeFilters);
+            filterEmploymentType.addEventListener('change', applyEmployeeFilters);
+            filterSortBy.addEventListener('change', applyEmployeeFilters);
+            filterSortOrder.addEventListener('change', applyEmployeeFilters);
 
-                if (!q) { renderEmployees(EMPLOYEES); return; }
+            filterToggle.addEventListener('click', toggleFilterDropdown);
 
-                const filtered = EMPLOYEES.filter(e => [
-                    (e.first_name  ?? '') + ' ' + (e.middle_name ?? '') + ' ' + (e.last_name ?? ''),
-                    e.position        ?? '',
-                    e.department      ?? '',
-                    e.employee_number ?? '',
-                    e.employment_type ?? '',
-                    e.status == 1 ? 'active' : 'inactive',
-                ].join(' ').toLowerCase().includes(q));
+            clearFiltersBtn.addEventListener('click', () => {
+                filterStatus.value = '';
+                filterDepartment.value = '';
+                filterEmploymentType.value = '';
+                filterSortBy.value = 'name';
+                filterSortOrder.value = 'asc';
+                applyEmployeeFilters();
+            });
 
-                renderEmployees(filtered);
+            document.addEventListener('click', evt => {
+                if (!filterDropdown.contains(evt.target) && !filterToggle.contains(evt.target)) {
+                    closeFilterDropdown();
+                }
+            });
+
+            document.addEventListener('keydown', evt => {
+                if (evt.key === 'Escape') {
+                    closeFilterDropdown();
+                }
             });
 
             // Edit & Delete — delegated on tbody so dynamic rows are always wired

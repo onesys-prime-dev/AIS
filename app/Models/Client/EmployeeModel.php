@@ -13,6 +13,10 @@ class EmployeeModel extends Model
     protected $useAutoIncrement = true;
 
     protected $protectFields = true;
+    protected $useTimestamps = true;
+    protected $dateFormat = 'datetime';
+    protected $createdField = 'created_at';
+    protected $updatedField = 'updated_at';
 
     protected $allowedFields = [
         'employee_number',
@@ -21,5 +25,7 @@ class EmployeeModel extends Model
         'middle_name',
         'last_name',
         'birthdate',
+        'created_at',
+        'updated_at',
     ];
 }
