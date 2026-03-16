@@ -178,7 +178,7 @@
                 </div>
 
                 <div class="request-actions">
-                    <?php if ($request['status'] == 'pending'): ?>
+                    <?php if (auth()->user()->inGroup('client_payroll_staff') && $request['status'] == 'pending'): ?>
                     <form action="<?= site_url('client_portal/requests/update/'.$request['id']) ?>" method="post">
                         <input type="hidden" name="status" value="rejected">
                         <button type="submit" class="btn-circle btn-reject">✕</button>

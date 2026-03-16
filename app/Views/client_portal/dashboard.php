@@ -454,28 +454,32 @@ Notifications ●
 
 <div class="modal">
 
+<form action="<?= site_url('client_portal/requests/store') ?>" method="post">
+
 <div class="modal-header">
 <span>Request Form</span>
-<button onclick="closeRequestForm()">✕</button>
+<button type="button" onclick="closeRequestForm()">✕</button>
 </div>
 
 <label>Select Form *</label>
-<select>
-<option>Leave Request</option>
-<option>Overtime Request</option>
-<option>Undertime Request</option>
+<select name="request_type" required>
+<option value="leave">Leave Request</option>
+<option value="overtime">Overtime Request</option>
+<option value="undertime">Undertime Request</option>
 </select>
 
 <label>Date *</label>
-<input type="date">
+<input type="date" name="date" required>
 
 <label>Message</label>
-<textarea></textarea>
+<textarea name="reason"></textarea>
 
 <div class="modal-footer">
-<button class="cancel-btn" onclick="closeRequestForm()">Cancel</button>
-<button class="submit-btn">Submit</button>
+<button type="button" class="cancel-btn" onclick="closeRequestForm()">Cancel</button>
+<button type="submit" class="submit-btn">Submit</button>
 </div>
+
+</form>
 
 </div>
 

@@ -25,10 +25,10 @@ $routes->group('client_portal', ['filter' => 'auth'], function($routes){
 $routes->get('time-in', 'Client\AttendanceController::timeIn');
 $routes->get('time-out/(:num)', 'Client\AttendanceController::timeOut/$1');
 $routes->get('toggle-break/(:num)', 'Client\AttendanceController::toggleBreak/$1');
-$routes->get('requests/new', 'Client\RequestController::create'); 
-$routes->post('requests/store', 'Client\RequestController::store');
-$routes->get('requests', 'Client\RequestController::index');
-$routes->post('requests/update/(:num)', 'Client\RequestController::updateStatus/$1');
+$routes->get('client_portal/requests/new', 'Client\RequestController::create'); 
+$routes->post('client_portal/requests/store', 'Client\RequestController::store');
+$routes->get('client_portal/requests', 'Client\RequestController::index');
+$routes->post('client_portal/requests/update/(:num)', 'Client\RequestController::updateStatus/$1');
 $routes->post('tasks/submit', 'Client\TaskController::submitTask');
 $routes->get('tasks/saved', 'Client\TaskController::getSavedTasks');
 $routes->get('client_portal/timesheet', 'Client\TimesheetController::index');

@@ -17,14 +17,26 @@ class RequestController extends BaseController
     public function index()
     {
         $user = auth()->user();
+
         if (! $user) {
             return redirect()->to('/login');
         }
 
-        // get all requests
-        $data['requests'] = $this->requestModel
-                                ->orderBy('created_at', 'DESC')
-                                ->findAll();
+        // Payroll staff see all requests
+        if ($user->inGroup('client_payroll_staff')) {
+
+            $data['requests'] = $this->requestModel
+                                    ->orderBy('created_at', 'DESC')
+                                    ->findAll();
+
+        } else {
+
+            // Employees only see their own requests
+            $data['requests'] = $this->requestModel
+                                    ->where('requested_by', $user->id)
+                                    ->orderBy('created_at', 'DESC')
+                                    ->findAll();
+        }
 
         return view('client_portal/requests', $data);
     }
@@ -32,11 +44,17 @@ class RequestController extends BaseController
     public function updateStatus($id)
     {
         $user = auth()->user();
+
         if (!$user) {
             return redirect()->to('/login');
         }
 
-        $status = $this->request->getPost('status'); // 'approved' or 'rejected'
+        // Only payroll staff can approve/reject
+        if (!$user->inGroup('client_payroll_staff')) {
+            return redirect()->back()->with('error', 'Unauthorized action.');
+        }
+
+        $status = $this->request->getPost('status');
 
         $this->requestModel->update($id, [
             'status'       => $status,
