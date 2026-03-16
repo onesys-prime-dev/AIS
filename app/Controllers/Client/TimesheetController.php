@@ -17,7 +17,7 @@ class TimesheetController extends BaseController
 
         $tasksModel = new TasksModel();
 
-        $timesheets = $tasksModel
+        $timesheet = $tasksModel
             ->select('
                 attendance.date,
                 tasks.start_time,
@@ -34,8 +34,8 @@ class TimesheetController extends BaseController
             ->orderBy('tasks.start_time', 'ASC')
             ->findAll();
 
-        return view('client_portal/timesheets', [
-            'timesheets' => $timesheets
+        return view('client_portal/timesheet', [
+            'timesheet' => $timesheet
         ]);
     }
 }

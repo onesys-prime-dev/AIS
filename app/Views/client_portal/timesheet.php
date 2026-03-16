@@ -108,8 +108,8 @@
                 </tr>
             </thead>
             <tbody>
-                <?php if(!empty($timesheets)): ?>
-                    <?php foreach($timesheets as $task): ?>
+                <?php if(!empty($timesheet)): ?>
+                    <?php foreach($timesheet as $task): ?>
                         <tr>
                             <td><?= date('m/d/y', strtotime($task['date'])) ?></td>
                             <td><?= date('H:i:s', strtotime($task['start_time'])) ?></td>

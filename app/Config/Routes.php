@@ -31,6 +31,7 @@ $routes->get('requests', 'Client\RequestController::index');
 $routes->post('requests/update/(:num)', 'Client\RequestController::updateStatus/$1');
 $routes->post('tasks/submit', 'Client\TaskController::submitTask');
 $routes->get('tasks/saved', 'Client\TaskController::getSavedTasks');
+$routes->get('client_portal/timesheet', 'Client\TimesheetController::index');
 
 $routes->group('client_portal', ['namespace' => 'App\Controllers\Client'], function($routes) {
     $routes->get('payroll', 'PayrollController::payrollView');
