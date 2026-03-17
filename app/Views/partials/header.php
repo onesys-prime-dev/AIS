@@ -61,20 +61,17 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
 
             <!-- USER DROPDOWN -->
             <div id="userDropdown" class="user-dropdown">
-
-            <a href="#">Profile</a>
-            <a href="#">Settings</a>
-            <a href="<?= site_url('logout') ?>">Logout</a>
+                <a href="#">Profile</a>
+                <a href="#">Settings</a>
+                <a href="<?= site_url('logout') ?>">Logout</a>
             </div>
         </div>
     </div>
 </header>
 
-
 <style>
 
 /* HEADER */
-
 .app-header{
     height:80px;
     background:#fff;
@@ -88,9 +85,7 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
 }
 
 
-
 /* SEARCH */
-
 .search-box{
     position:relative;
     width:420px;
