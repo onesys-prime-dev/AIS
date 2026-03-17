@@ -70,9 +70,9 @@ class AttendanceController extends BaseController
         $breakDuration = $attendance['break_duration'] ?? 0;
 
         // if break is less than 1 hour, automatically add up to 1 hour
-        if ($breakDuration < 1) {
+        /*  if ($breakDuration < 1) {
             $breakDuration = 1.0;
-        }
+        } */
 
         // subtract break from total hours
         $workedHours = $totalHours - $breakDuration;
@@ -117,7 +117,7 @@ class AttendanceController extends BaseController
         if (empty($attendance['break_start'])) {
             // start break
             if ($attendance['break_duration'] >= 1) {
-                return redirect()->back()->with('error', 'Maximum break time reached!');
+                return redirect()->back()->with('error', "You've used up your 1 hour break!");
             }
 
             $this->attendanceModel->update($id, [
