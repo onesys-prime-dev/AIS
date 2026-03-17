@@ -5,7 +5,7 @@
         <div class="mb-4">
             <label class="block text-sm font-medium text-gray-700 mb-1">Employee</label>
             <input type="hidden" name="employee_id" id="edit_employee_id" required>
-            <input type="text" id="edit_employee_name" class="w-full border rounded-lg px-3 py-2 bg-gray-100">
+            <input type="text" name="employee_name" id="edit_employee_name" class="w-full border rounded-lg px-3 py-2">
         </div>
 
         <div class="mb-4">
@@ -40,7 +40,6 @@
         </div>
 
         <div class="flex justify-end gap-2">
-            <button type="button" data-modal-close class="px-4 py-2 bg-gray-300 rounded-lg">Cancel</button>
             <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg">Update</button>
         </div>
 </form>
