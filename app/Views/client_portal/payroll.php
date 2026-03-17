@@ -66,16 +66,18 @@
         
         <!-- Table -->
         <div class="overflow-x-auto">
-            <div class="grid grid-cols-[2fr_1.5fr_1.5fr_1.2fr_1fr_1fr_1fr] bg-[#DCDCDC] text-[#737373] border border-[#9E9E9E] rounded-lg overflow-hidden text-sm font-medium">
-                <div class="p-4">Employee Name</div>
-                <div class="p-4">Phone</div>
-                <div class="p-4">Daily Rate</div>
-                <div class="p-4">DST</div>
-                <div class="p-4">Currency</div>
-                <div class="p-4">Status</div>
-                <div class="p-4 text-center">Action</div>
-            </div>
-            <div id="payrollTableBody" class="text-gray-700"></div>
+            <table class="w-full text-sm text-left">
+                <div class="grid grid-cols-[2fr_1.5fr_1.5fr_1.2fr_1fr_1fr_1fr] bg-[#DCDCDC] text-[#737373] border border-[#9E9E9E] rounded-lg overflow-hidden text-sm font-medium">
+                    <div class="p-4">Employee Name</div>
+                    <div class="p-4">Phone</div>
+                    <div class="p-4">Daily Rate</div>
+                    <div class="p-4">DST</div>
+                    <div class="p-4">Currency</div>
+                    <div class="p-4">Status</div>
+                    <div class="p-4 text-center">Action</div>
+                </div>
+                <div id="payrollTableBody" class="text-gray-700"></div>
+            </table>
         </div>
 
     </div>
@@ -114,24 +116,27 @@
     <script src="<?= base_url('js/components/modal-handler.js') ?>"></script>
     <script>
         const PAYROLLS   = <?= json_encode($payrolls, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+        const EDIT_ICON  = "<?= base_url('icons/edit.png') ?>";
+        const DELETE_ICON= "<?= base_url('icons/delete.png') ?>";
+        const GET_URL    = "<?= site_url('client_portal/payroll/get') ?>";
         const UPDATE_URL = "<?= site_url('client_portal/payroll/update') ?>";
         const DELETE_URL = "<?= site_url('client_portal/payroll/delete') ?>";
 
-        function htmlEsc(v) {
-            if (v == null) return '';
-            return String(v)
-                .replace(/&/g, '&amp;')
-                .replace(/"/g, '&quot;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;');
-        }
+    function htmlEsc(v) {
+        if (v == null) return '';
+        return String(v)
+            .replace(/&/g, '&amp;')
+            .replace(/"/g, '&quot;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+    }
 
-        function money(v) {
-            return Number(v || 0).toLocaleString(undefined, {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2
-            });
-        }
+    function money(v) {
+        return Number(v || 0).toLocaleString(undefined, {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        });
+    }
 
         function renderPayrolls(list) {
             const body = document.getElementById('payrollTableBody');
@@ -140,9 +145,17 @@
             if (!list.length) {
                 body.innerHTML = `
                     <div class="flex flex-col items-center justify-center h-[320px] text-gray-400 gap-3">
+
                         <i class="fa-solid fa-users text-4xl opacity-40"></i>
-                        <span class="text-lg font-medium">No employees found</span>
-                        <span class="text-sm text-gray-400">Try adjusting your search or filters</span>
+
+                        <span class="text-lg font-medium">
+                            No employees found
+                        </span>
+
+                        <span class="text-sm text-gray-400">
+                            Try adjusting your search or filters
+                        </span>
+
                     </div>
                 `;
                 return;
@@ -150,38 +163,44 @@
 
             body.innerHTML = list.map(p => `
                 <div class="grid grid-cols-[2fr_1.5fr_1.5fr_1.2fr_1fr_1fr_1fr] items-center border-b last:border-b-0 hover:bg-gray-50">
-                    <!-- Employee Name -->
+
                     <div class="p-4 flex items-center gap-3">
                         <div class="w-10 h-10 bg-gray-300 rounded-full"></div>
-                        <span class="font-medium">${htmlEsc(p.employee_name || '---')}</span>
+                        <span class="font-medium">
+                            ${htmlEsc(p.employee_name || '---')} 
+                        </span>
                     </div>    
-                    <!-- Phone -->
                     <div class="p-4">${htmlEsc(p.phone || '---')}</div>
-                    <!-- Daily Rate -->
                     <div class="p-4">${htmlEsc(p.currency === 'USD' ? '$' : '₱')} ${htmlEsc(money(p.daily_rate))}</div>
-                    <!-- DST: ☐ or ☑ -->
-                    <div class="p-4 text-xl">${Number(p.dst) === 1 ? '☑' : '☐'}</div>
-                    <!-- Currency (plain text) -->
+                    <div class="p-4">${Number(p.dst) === 1 ? 'Yes' : 'No'}</div>
                     <div class="p-4">${htmlEsc(p.currency || 'PHP')}</div>
-                    <!-- Status -->
                     <div class="p-4">
                         ${p.status === 'Paid'
                             ? '<span class="bg-green-200 text-green-700 px-3 py-1 rounded-full text-xs font-semibold">Paid</span>'
                             : '<span class="bg-yellow-200 text-yellow-700 px-3 py-1 rounded-full text-xs font-semibold">Pending</span>'}
                     </div>
-                    <!-- Action: single document icon -->
                     <div class="p-4 flex justify-center">
-                        <div class="viewPayrollBtn cursor-pointer hover:scale-110 transition" 
-                             data-id="${htmlEsc(p.id)}"
-                             data-employee_id="${htmlEsc(p.employee_id)}"
-                             data-employee_name="${htmlEsc(p.employee_name)}"
-                             data-phone="${htmlEsc(p.phone)}"
-                             data-daily_rate="${htmlEsc(p.daily_rate)}"
-                             data-dst="${htmlEsc(p.dst)}"
-                             data-currency="${htmlEsc(p.currency)}"
-                             data-status="${htmlEsc(p.status ?? 'Pending')}"
-                             role="button" tabindex="0">
-                            <span class="text-2xl">📄</span>
+                        <div class="p-4 flex justify-center gap-4">
+                            <div class="editPayrollBtn cursor-pointer flex items-center justify-center w-7 h-7 hover:scale-110 transition"
+                                data-id="${htmlEsc(p.id)}"
+                                data-employee_id="${htmlEsc(p.employee_id)}"
+                                data-employee_name="${htmlEsc(p.employee_name)}"
+                                data-phone="${htmlEsc(p.phone)}"
+                                data-daily_rate="${htmlEsc(p.daily_rate)}"
+                                data-dste="${htmlEsc(p.dst)}"
+                                data-currency="${htmlEsc(p.currency)}"
+                                data-status="${htmlEsc(p.status ?? 0)}"
+                                role="button" tabindex="0">
+
+                                <img src="${EDIT_ICON}" class="w-7 h-7" alt="Edit">
+                            </div>
+
+                            <div class="deletePayrollBtn cursor-pointer flex items-center justify-center w-7 h-7 hover:scale-110 transition"
+                                data-id="${htmlEsc(p.id)}"
+                                role="button" tabindex="0">
+
+                                <img src="${DELETE_ICON}" class="w-7 h-7" alt="Delete">
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -205,45 +224,37 @@
             renderPayrolls(filtered);
         });
 
-        // Click on document icon → open edit modal with data
-        document.getElementById('payrollTableBody')?.addEventListener('click', (e) => {
-            const viewBtn = e.target.closest('.viewPayrollBtn');
-            if (!viewBtn) return;
+        // Delegated row actions (works for dynamic rows)
+        document.getElementById('payrollTableBody')?.addEventListener('click', async (e) => {
+        const editBtn = e.target.closest('.editPayrollBtn');
+        const delBtn  = e.target.closest('.deletePayrollBtn');
 
-            const payrollId = viewBtn.dataset.id;
+        if (editBtn) {
+            const payrollId = editBtn.dataset.id;
             const form = document.getElementById('editPayrollForm');
-            if (!form) return;
-
             form.reset();
 
-            // Populate form fields (adjust IDs to match your edit form)
-            document.getElementById('edit_employee_id').value = viewBtn.dataset.employee_id || '';
+            // Instant fill from row data (fast)
+            document.getElementById('edit_employee_id').value = editBtn.dataset.employee_id || '';
             const employeeNameEl = document.getElementById('edit_employee_name');
-            if (employeeNameEl) employeeNameEl.value = viewBtn.dataset.employee_name || '';
-            document.getElementById('edit_phone').value = viewBtn.dataset.phone || '';
-            document.getElementById('edit_daily_rate').value = viewBtn.dataset.daily_rate || '';
-            document.getElementById('edit_dst').checked = Number(viewBtn.dataset.dst) === 1;
-            document.getElementById('edit_currency').value = viewBtn.dataset.currency || 'PHP';
-            document.getElementById('edit_status').value = viewBtn.dataset.status || 'Pending';
+            if (employeeNameEl) employeeNameEl.value = editBtn.dataset.employee_name || '';
+            document.getElementById('edit_phone').value = editBtn.dataset.phone || '';
+            document.getElementById('edit_daily_rate').value = editBtn.dataset.daily_rate || '';
+            document.getElementById('edit_dst').checked = Number(editBtn.dataset.dst) === 1;
+            document.getElementById('edit_currency').value = editBtn.dataset.currency || 'PHP';
+            document.getElementById('edit_status').value = editBtn.dataset.status || 'Pending';
             form.action = `${UPDATE_URL}/${payrollId}`;
 
-            // Also set the delete button's data-id inside the modal
-            const deleteBtn = form.querySelector('.deletePayrollBtn');
-            if (deleteBtn) {
-                deleteBtn.dataset.id = payrollId;
-            }
-
-            // Show modal
+            // Open immediately
             document.getElementById('editPayrollModal').classList.remove('hidden');
-        });
+            return;
+        }
 
-        // Delete button inside edit modal
-        document.addEventListener('click', (e) => {
-            const deleteBtn = e.target.closest('.deletePayrollBtn');
-            if (deleteBtn && confirm('Are you sure you want to delete this payroll record?')) {
-                const id = deleteBtn.dataset.id;
-                window.location.href = `${DELETE_URL}/${id}`;
+        if (delBtn) {
+            if (confirm('Are you sure you want to delete this payroll record?')) {
+                window.location.href = `${DELETE_URL}/${delBtn.dataset.id}`;
             }
+        }
         });
     </script>
 

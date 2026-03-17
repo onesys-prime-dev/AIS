@@ -19,9 +19,6 @@ class TaskController extends BaseController
         $this->savedTasksModel = new SavedTasksModel();
         $this->attendanceModel = new AttendanceModel();
     }
-
-    
-    // Show the task logging form (or dashboard snippet)
     
     public function showLogTaskForm()
     {
@@ -80,10 +77,6 @@ class TaskController extends BaseController
         // task time validation
         if ($startTime < $attendance['time_in']) {
             return redirect()->back()->with('error', 'Task start time cannot be before your clock-in time!');
-        }
-
-        if ($endTime > $now) {
-            return redirect()->back()->with('error', 'Task end time cannot be in the future!');
         }
 
         if ($endTime < $startTime) {
