@@ -1,5 +1,5 @@
 <div 
-    class="bg-white rounded-2xl shadow-lg p-5 h-[85%] border border-gray-400 relative"
+    class="bg-white rounded-2xl shadow-lg p-5 h-full border border-gray-400 relative flex flex-col min-h-0"
     data-crud-table="<?= esc($tableId) ?>">
 
     <!-- Header -->
@@ -101,7 +101,7 @@
     </div>
 
     <!-- TABLE -->
-    <div class="flex flex-col h-full">
+    <div class="flex flex-col flex-1 min-h-0">
         <!-- HEAD -->
         <div class="grid <?= esc($grid) ?> bg-[#DCDCDC] text-[#737373] border border-[#9E9E9E] rounded-lg overflow-hidden text-sm font-medium">
             <?php foreach ($columns as $col): ?>
@@ -111,7 +111,7 @@
             <?php endforeach; ?>
         </div>
         <!-- BODY -->
-        <div class="crud-body text-gray-700"></div>
+        <div class="crud-body text-gray-700 flex-1 min-h-0 overflow-y-auto"></div>
     </div>
 
 </div>

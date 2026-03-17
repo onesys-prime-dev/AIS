@@ -2,40 +2,10 @@
 
 <?= $this->section('content') ?>
 
-<div class="p-5 h-full overflow-y-auto">
-
-    <!-- Flash Toast Notifications -->
-    <?php if (session()->getFlashdata('success')): ?>
-    <div id="toast-success"
-        class="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 
-        z-[9999] flex items-center gap-3 
-        bg-green-100 border border-green-400 text-green-700 
-        px-6 py-4 rounded-lg shadow-xl
-        opacity-0 scale-95 transition-all duration-300">
-
-        <i class="fa-solid fa-circle-check text-lg"></i>
-        <span class="font-medium"><?= session()->getFlashdata('success') ?></span>
-
-    </div>
-    <?php endif; ?>
-
-
-    <?php if (session()->getFlashdata('error')): ?>
-    <div id="toast-error"
-        class="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 
-        z-[9999] flex items-center gap-3 
-        bg-red-100 border border-red-400 text-red-700 
-        px-6 py-4 rounded-lg shadow-xl
-        opacity-0 scale-95 transition-all duration-300">
-
-        <i class="fa-solid fa-circle-exclamation text-lg"></i>
-        <span class="font-medium"><?= session()->getFlashdata('error') ?></span>
-
-    </div>
-    <?php endif; ?>
+<div class="p-5 h-full flex flex-col min-h-0 overflow-hidden">
 
     <!-- Page Header -->
-    <div class="flex justify-between items-center mb-6">
+    <div class="flex justify-between items-center mb-4">
         
         <div class="p-1">
             <h1 class="text-3xl font-bold text-gray-800 mb-1">Employee Management</h1>
@@ -74,23 +44,23 @@
 
 <?= $this->section('modals') ?>
 
-<?php
-$content = view('client_portal/modals/add_employee_form');
-echo view('components/modal', [
-    'id' => 'employeeModal',
-    'title' => 'Employee Management',
-    'content' => $content
-]);
-?>
+    <?php
+    $content = view('client_portal/modals/add_employee_form');
+    echo view('components/modal', [
+        'id' => 'employeeModal',
+        'title' => 'Employee Management',
+        'content' => $content
+    ]);
+    ?>
 
-<?php
-$content = view('client_portal/modals/edit_employee_form');
-echo view('components/modal', [
-    'id' => 'editEmployeeModal',
-    'title' => 'Employee Management',
-    'content' => $content
-]);
-?>
+    <?php
+    $content = view('client_portal/modals/edit_employee_form');
+    echo view('components/modal', [
+        'id' => 'editEmployeeModal',
+        'title' => 'Employee Management',
+        'content' => $content
+    ]);
+    ?>
 
 <?= $this->endSection() ?>
 
@@ -109,93 +79,88 @@ const DELETE_ICON = "<?= base_url('icons/delete.png') ?>";
 const UPDATE_URL = "<?= site_url('client_portal/employees/update') ?>";
 const DELETE_URL = "<?= site_url('client_portal/employees/delete') ?>";
 
-function htmlEsc(val) {
-    if (val == null) return '';
-    return String(val)
-        .replace(/&/g, '&amp;')
-        .replace(/"/g, '&quot;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
-}
+    function htmlEsc(val) {
+        if (val == null) return '';
+        return String(val)
+            .replace(/&/g, '&amp;')
+            .replace(/"/g, '&quot;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+    }
 
-function employeeRowTemplate(p) {
+    function employeeRowTemplate(p) {
+        return `
+            <div class="grid grid-cols-[2fr_1.5fr_1.5fr_1.2fr_1fr_1fr_1fr] items-center border-b hover:bg-gray-50">
 
-    return `
-    <div class="grid grid-cols-[2fr_1.5fr_1.5fr_1.2fr_1fr_1fr_1fr] items-center border-b hover:bg-gray-50">
+                <div class="p-4 flex items-center gap-3">
+                    <div class="w-10 h-10 bg-gray-300 rounded-full"></div>
+                    <span class="font-medium">
+                        ${htmlEsc(p.last_name)}, 
+                        ${htmlEsc(p.first_name)}
+                        ${p.middle_name ? htmlEsc(p.middle_name.charAt(0).toUpperCase()) + '.' : ''}
+                    </span>
+                </div>
 
-        <div class="p-4 flex items-center gap-3">
-            <div class="w-10 h-10 bg-gray-300 rounded-full"></div>
-            <span class="font-medium">
-                ${htmlEsc(p.last_name)}, 
-                ${htmlEsc(p.first_name)}
-                ${p.middle_name ? htmlEsc(p.middle_name.charAt(0).toUpperCase()) + '.' : ''}
-            </span>
-        </div>
+                <div class="p-4">${htmlEsc(p.position) || '---'}</div>
+                <div class="p-4">${htmlEsc(p.department) || '---'}</div>
+                <div class="p-4">${htmlEsc(p.employee_number) || '---'}</div>
+                <div class="p-4">${htmlEsc(p.employment_type) || '---'}</div>
 
-        <div class="p-4">${htmlEsc(p.position) || '---'}</div>
-        <div class="p-4">${htmlEsc(p.department) || '---'}</div>
-        <div class="p-4">${htmlEsc(p.employee_number) || '---'}</div>
-        <div class="p-4">${htmlEsc(p.employment_type) || '---'}</div>
+                <div class="p-4">
+                    ${p.status == 1
+                        ? '<span class="bg-green-200 text-green-700 px-3 py-1 rounded-full text-xs font-semibold">Active</span>'
+                        : '<span class="bg-red-200 text-red-600 px-3 py-1 rounded-full text-xs font-semibold">Inactive</span>'}
+                </div>
 
-        <div class="p-4">
-            ${p.status == 1
-                ? '<span class="bg-green-200 text-green-700 px-3 py-1 rounded-full text-xs font-semibold">Active</span>'
-                : '<span class="bg-red-200 text-red-600 px-3 py-1 rounded-full text-xs font-semibold">Inactive</span>'}
-        </div>
+                <div class="p-4 flex justify-center gap-4">
 
-        <div class="p-4 flex justify-center gap-4">
+                    <div
+                        class="cursor-pointer w-7 h-7 hover:scale-110 transition"
+                        data-action="edit"
+                        data-modal="editEmployeeModal"
+                        data-update-url="${UPDATE_URL}"
+                        data-id="${htmlEsc(p.id)}"
+                        data-user_id="${htmlEsc(p.user_id)}"
+                        data-first_name="${htmlEsc(p.first_name)}"
+                        data-middle_name="${htmlEsc(p.middle_name)}"
+                        data-last_name="${htmlEsc(p.last_name)}"
+                        data-department="${htmlEsc(p.department)}"
+                        data-position="${htmlEsc(p.position)}"
+                        data-employment_type="${htmlEsc(p.employment_type)}"
+                        data-dob="${htmlEsc(p.birthdate)}"
+                        data-status="${htmlEsc(p.status ?? 0)}">
 
-            <div
-                class="cursor-pointer w-7 h-7 hover:scale-110 transition"
-                data-action="edit"
-                data-modal="editEmployeeModal"
-                data-update-url="${UPDATE_URL}"
-                data-id="${htmlEsc(p.id)}"
-                data-user_id="${htmlEsc(p.user_id)}"
-                data-first_name="${htmlEsc(p.first_name)}"
-                data-middle_name="${htmlEsc(p.middle_name)}"
-                data-last_name="${htmlEsc(p.last_name)}"
-                data-department="${htmlEsc(p.department)}"
-                data-position="${htmlEsc(p.position)}"
-                data-employment_type="${htmlEsc(p.employment_type)}"
-                data-dob="${htmlEsc(p.birthdate)}"
-                data-status="${htmlEsc(p.status ?? 0)}">
+                        <img src="${EDIT_ICON}" class="w-7 h-7" alt="Edit">
 
-                <img src="${EDIT_ICON}" class="w-7 h-7" alt="Edit">
+                    </div>
+
+                    <div
+                        class="cursor-pointer w-7 h-7 hover:scale-110 transition"
+                        data-action="delete"
+                        data-delete-url="${DELETE_URL}"
+                        data-id="${htmlEsc(p.id)}">
+
+                        <img src="${DELETE_ICON}" class="w-7 h-7" alt="Delete">
+
+                    </div>
+
+                </div>
 
             </div>
+            `;
+        }
 
-            <div
-                class="cursor-pointer w-7 h-7 hover:scale-110 transition"
-                data-action="delete"
-                data-delete-url="${DELETE_URL}"
-                data-id="${htmlEsc(p.id)}">
-
-                <img src="${DELETE_ICON}" class="w-7 h-7" alt="Delete">
-
-            </div>
-
-        </div>
-
-    </div>
-    `;
-}
-
-createCrudTable({
-
-    tableId: "employeeTable",
-    data: EMPLOYEES,
-    renderRow: employeeRowTemplate,
-
-    search: (item, q) =>
-        `${item.first_name} ${item.middle_name} ${item.last_name} 
-        ${item.position} ${item.department} ${item.employee_number}
-        ${item.employment_type} ${item.status} `
-        .toLowerCase()
-        .includes(q)
-
-});
-
+    createCrudTable({
+        tableId: "employeeTable",
+        data: EMPLOYEES,
+        renderRow: employeeRowTemplate,
+        search: (item, q) =>
+            `${item.first_name} ${item.middle_name} ${item.last_name} 
+            ${item.position} ${item.department} ${item.employee_number}
+            ${item.employment_type} ${item.status} `
+            .toLowerCase()
+            .includes(q)
+    });
 </script>
 
 <?= $this->endSection() ?>

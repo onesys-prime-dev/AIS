@@ -2,7 +2,7 @@
 
 <?= $this->section('content') ?>
 
-<div class="p-5 h-full overflow-y-auto">
+<div class="p-5 h-full flex flex-col min-h-0 overflow-hidden">
 
     <div class="flex justify-between items-center mb-6">
         

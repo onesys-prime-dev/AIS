@@ -28,21 +28,15 @@ window.createCrudTable = function ({
     function render(list) {
 
         if (!list.length) {
-
             body.innerHTML = `
-                <div flex h-[400px] justify-center items-center>
-                    <div class="flex flex-col items-center justify-center h-[320px] text-gray-400 gap-3">
+                <div class="flex items-center justify-center h-full text-gray-400">
+                    <div class="flex flex-col items-center gap-3">
                         <i class="fa-solid fa-users text-4xl opacity-40"></i>
-                        <span class="text-lg font-medium">
-                            No employees found
-                        </span>
-                        <span class="text-sm text-gray-400">
-                            Try adjusting your search or filters
-                        </span>
+                        <span class="text-lg font-medium">No employees found</span>
+                        <span class="text-sm">Try adjusting your search or filters</span>
                     </div>
                 </div>
             `;
-
             return;
         }
 
