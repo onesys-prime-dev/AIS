@@ -106,9 +106,16 @@ class EmployeeService
     private function generateEmployeeNumber()
     {
         $year = date('Y');
-        $count = $this->employeeModel->countAll() + 1;
+        $prefix = 'EMP-' . $year . '-';
 
-        return 'EMP-' . $year . '-' . str_pad((string) $count, 4, '0', STR_PAD_LEFT);
+        $latestEmployee = $this->employeeModel
+            ->select('MAX(CAST(SUBSTRING_INDEX(employee_number, \'-\', -1) AS UNSIGNED)) AS max_sequence', false)
+            ->like('employee_number', $prefix, 'after')
+            ->first();
+
+        $nextSequence = ((int) ($latestEmployee['max_sequence'] ?? 0)) + 1;
+
+        return $prefix . str_pad((string) $nextSequence, 4, '0', STR_PAD_LEFT);
     }
 
     public function updateEmployee($employeeId, array $data)

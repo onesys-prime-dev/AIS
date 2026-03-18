@@ -6,6 +6,7 @@
     <title><?= esc($title ?? 'Dashboard') ?> | Your Company</title>
     
     <link href="<?= base_url('css/main.css') ?>" rel="stylesheet">
+    <link href="<?= base_url('css/scrollBar.css') ?>" rel="stylesheet">
     
     <?= $this->renderSection('styles') ?>
 </head>

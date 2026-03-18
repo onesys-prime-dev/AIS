@@ -1,134 +1,233 @@
+<?= $this->extend('layouts/main') ?>
 
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Timesheet</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            background: #f4f4f7;
-            margin: 0;
-            padding: 0;
-        }
+<?= $this->section('content') ?>
 
-        .container {
-            max-width: 900px;
-            margin: 50px auto;
-            background: white;
-            padding: 20px 30px;
-            border-radius: 12px;
-            box-shadow: 0 6px 15px rgba(0,0,0,0.1);
-        }
+<style>
+/* Page */
+.page {
+    background: #f4f4f4;
+    min-height: 100vh;
+    padding: 25px;
+    font-family: Arial, sans-serif;
+    width: 100%;
+}
 
-        h1 {
-            margin: 0 0 5px 0;
-            font-size: 24px;
-        }
+/* IMPORTANT FIX */
+.content-wrapper {
+    width: 100%;
+}
 
-        p {
-            margin: 0 0 20px 0;
-            color: #555;
-            font-size: 14px;
-        }
+/* Header */
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    width: 100%;
+}
 
-        .date-range {
-            font-weight: bold;
-            margin-bottom: 15px;
-            font-size: 16px;
-        }
+.header h1 {
+    margin: 0;
+    font-size: 28px;
+    color: #333;
+}
 
-        table {
-            width: 100%;
-            border-collapse: separate;
-            border-spacing: 0;
-            margin-top: 10px;
-        }
+.header p {
+    margin: 5px 0 0;
+    color: #777;
+    font-size: 13px;
+}
 
-        thead tr th {
-            background: #e0e0e0;
-            color: #333;
-            font-weight: bold;
-            padding: 12px;
-            border-top-left-radius: 8px;
-            border-top-right-radius: 8px;
-            text-align: left;
-        }
+/* Buttons */
+.actions {
+    display: flex;
+    gap: 10px;
+}
 
-        tbody tr {
-            border-bottom: 1px solid #ddd;
-        }
+.btn {
+    border: none;
+    border-radius: 10px;
+    padding: 12px 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
 
-        tbody tr:last-child {
-            border-bottom: none;
-        }
+.btn img {
+    width: 18px;
+}
 
-        td {
-            padding: 10px 12px;
-        }
+.btn-white {
+    background: #fff;
+}
 
-        tr:hover {
-            background: #f9f9f9;
-        }
+.btn-white:hover {
+    background: #eee;
+}
 
-        .actions {
-            display: flex;
-            gap: 12px;
-            justify-content: flex-start;
-        }
+.btn-red {
+    background: #ff3b30;
+    color: #fff;
+}
 
-        .actions i {
-            cursor: pointer;
-            font-size: 16px;
-            color: #555;
-        }
+.btn-red:hover {
+    background: #e63228;
+}
 
-        .actions i:hover {
-            color: #000;
-        }
-    </style>
-    <!-- Font Awesome for icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"/>
-</head>
-<body>
-        <div class="wrapper" style="display:flex;">
-        <!-- Sidebar -->
-        <?= view('partials/sidebar') ?>
-    <div class="container">
+/* CARD FIX (THIS WAS YOUR PROBLEM) */
+.card {
+    width: 100%;
+    max-width: 100%; /* prevents shrinking */
+    background: #fff;
+    border-radius: 15px;
+    padding: 20px;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+}
 
-        <table>
-            <thead>
-                <tr>
-                    <th>Date</th>
-                    <th>Time Start</th>
-                    <th>Time End</th>
-                    <th>Client</th>
-                    <th>Task Performed</th>
-                    <th>Action</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php if(!empty($timesheet)): ?>
-                    <?php foreach($timesheet as $task): ?>
-                        <tr>
-                            <td><?= date('m/d/y', strtotime($task['date'])) ?></td>
-                            <td><?= date('H:i:s', strtotime($task['start_time'])) ?></td>
-                            <td><?= date('H:i:s', strtotime($task['end_time'])) ?></td>
-                            <td><?= esc($task['department']) ?></td>
-                            <td><?= esc($task['task_performed']) ?></td>
-                            <td class="actions">
-                                <i class="fa-regular fa-pen-to-square" title="Edit"></i>
-                                <i class="fa-regular fa-trash-can" title="Delete"></i>
-                            </td>
-                        </tr>
-                    <?php endforeach; ?>
-                <?php else: ?>
-                    <tr>
-                        <td colspan="6" style="text-align:center; color:#888;">No timesheets found.</td>
-                    </tr>
-                <?php endif; ?>
-            </tbody>
-        </table>
+/* Date */
+.date-range {
+    font-weight: 600;
+    margin-bottom: 15px;
+    color: #444;
+}
+
+/* TABLE FULL WIDTH */
+.table {
+    width: 100%;
+}
+
+/* Header row */
+.table-header {
+    background: #e5e5e5;
+    display: grid;
+    width: 100%;
+    grid-template-columns: 
+        120px
+        140px
+        140px
+        250px
+        1fr
+        120px;
+    padding: 12px;
+    font-weight: bold;
+    font-size: 14px;
+    color: #555;
+}
+
+/* Rows */
+.table-row {
+    display: grid;
+    width: 100%;
+    grid-template-columns: 
+        120px
+        140px
+        140px
+        250px
+        1fr
+        120px;
+    padding: 14px 12px;
+    font-size: 14px;
+    color: #444;
+    border-top: 1px solid #eee;
+    align-items: center;
+}
+
+.table-row:hover {
+    background: #fafafa;
+}
+
+/* spacing */
+.table-header div,
+.table-row div {
+    padding-right: 10px;
+}
+
+/* truncate client */
+.table-row div:nth-child(4) {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Actions */
+.actions-icons {
+    display: flex;
+    gap: 12px;
+}
+
+.actions-icons i {
+    cursor: pointer;
+    color: #555;
+}
+
+.actions-icons i:hover {
+    color: #000;
+}
+</style>
+
+<div class="page">
+    <div class="content-wrapper">
+
+        <!-- Header -->
+        <div class="header">
+            <div>
+                <h1>Timesheet</h1>
+                <p>Manage your timesheet and payslip here.</p>
+            </div>
+
+            <div class="actions">
+                <button class="btn btn-white">
+                    <img src="<?= base_url('icons/alarms.png'); ?>">
+                </button>
+
+                <button class="btn btn-red" data-modal-open="timesheets">
+                    <img src="<?= base_url('icons/payslip.png'); ?>">
+                    View Payslip
+                </button>
+            </div>
+        </div>
+
+        <!-- Card -->
+        <div class="card">
+
+            <div class="date-range">
+                February 5, 2026 – February 11, 2026
+            </div>
+
+            <!-- Table -->
+            <div class="table">
+
+                <div class="table-header">
+                    <div>Date</div>
+                    <div>Time Start</div>
+                    <div>Time End</div>
+                    <div>Client</div>
+                    <div>Task Performed</div>
+                    <div>Action</div>
+                </div>
+
+                <?php for($i=0; $i<7; $i++): ?>
+                <div class="table-row">
+                    <div>02/05/26</div>
+                    <div>7:30:00</div>
+                    <div>12:00:00</div>
+                    <div>ONESYS PRIME SOLUTIONS INC.</div>
+                    <div>Coding Session</div>
+
+                    <div class="actions-icons">
+                        <i class="fas fa-pen"></i>
+                        <i class="fas fa-trash"></i>
+                    </div>
+                </div>
+                <?php endfor; ?>
+
+            </div>
+
+        </div>
+
     </div>
-</body>
-</html>
+</div>
+
+<?= $this->endSection() ?>
