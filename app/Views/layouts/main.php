@@ -61,6 +61,15 @@
 
 </div>
 
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const savedColor = localStorage.getItem('headerColor');
+    if (savedColor) {
+        document.documentElement.style.setProperty('--header-bg', savedColor);
+    }
+});
+</script>
+
 <?= $this->renderSection('modals') ?>
 
 <?= $this->renderSection('scripts') ?>
