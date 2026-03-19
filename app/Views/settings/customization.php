@@ -5,44 +5,61 @@
 
     <h1>Customization</h1>
 
-    <div class="custom-card">
+    <div class="grid">
 
         <!-- LOGO -->
-        <div class="form-group">
-            <label>Company Logo</label>
-            <div class="logo-upload">
-                <button class="upload-btn">
-                    <i class="fa-solid fa-upload"></i>
-                    Upload PNG, JPG, or SVG
-                </button>
-                <div class="logo-preview"></div>
+        <div class="card">
+            <h3>Company Logo</h3>
+
+            <div class="upload-box">
+                <div class="upload-inner">
+                    <div class="logo-circle" id="logoPreview">Logo</div>
+
+                    <p class="drag-text">Drag and drop your file</p>
+                    <small id="fileName">No file selected</small>
+
+                    <label class="upload-btn">
+                        Upload Files
+                        <input type="file" id="logoInput" hidden accept="image/*">
+                    </label>
+
+                    <span class="format">Formats: PNG, JPG, or SVG Only</span>
+                </div>
             </div>
         </div>
 
-        <!-- DIVIDER -->
-        <hr>
+        <!-- COLORS -->
+        <div class="card">
+            <h3>Company Colors</h3>
 
-        <!-- HEADER COLOR -->
-        <div class="form-group">
-            <label>Topbar Color</label>
-            <div class="color-row">
-                <input type="color" id="headerColorPicker">
-                <span id="headerColorValue">#ffffff</span>
+            <div class="color-box">
+                <label>Sidebar Color</label>
+                <div class="color-field">
+                    <input type="color" id="sidebarColorPicker">
+                    <input type="text" id="sidebarColorValue" readonly>
+                </div>
             </div>
-        </div>
 
-        <!-- SIDEBAR COLOR -->
-        <div class="form-group">
-            <label>Topbar Color</label>
-            <div class="color-row">
-                <input type="color" id="sidebarColorPicker">
-                <span id="sidebarColorValue">#ffffff</span>
+            <div class="color-box">
+                <label>Topbar Color</label>
+                <div class="color-field">
+                    <input type="color" id="headerColorPicker">
+                    <input type="text" id="headerColorValue" readonly>
+                </div>
+            </div>
+
+            <div class="color-box">
+                <label>Background Color</label>
+                <div class="color-field">
+                    <input type="color" id="bgColorPicker">
+                    <input type="text" id="bgColorValue" readonly>
+                </div>
             </div>
         </div>
 
     </div>
 
-    <!-- ACTION BUTTONS -->
+    <!-- ACTIONS -->
     <div class="actions">
         <button class="discard-btn">Discard Changes</button>
         <button class="save-btn">Apply & Save</button>
@@ -51,95 +68,123 @@
 </div>
 
 <style>
+body {
+    background: var(--bg-color, #f5f6fa);
+}
+
+/* PAGE */
 .customization-page {
     padding: 40px;
     font-family: 'Segoe UI', sans-serif;
 }
 
-.customization-page h1 {
+h1 {
     font-size: 28px;
-    margin-bottom: 30px;
-}
-
-/* CARD */
-.custom-card {
-    background: #f9fafb;
-    border-radius: 12px;
-    padding: 30px;
-    max-width: 600px;
-}
-
-/* FORM GROUP */
-.form-group {
     margin-bottom: 25px;
 }
 
-label {
-    display: block;
-    font-weight: 600;
-    margin-bottom: 10px;
+/* GRID */
+.grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 25px;
 }
 
-/* LOGO */
-.logo-upload {
+/* CARD */
+.card {
+    background: #ffffff;
+    border-radius: 18px;
+    padding: 25px;
+    box-shadow: 0 8px 25px rgba(0,0,0,0.08);
+}
+
+.card h3 {
+    margin-bottom: 20px;
+}
+
+/* UPLOAD BOX */
+.upload-box {
+    border: 2px dashed #d1d5db;
+    border-radius: 16px;
+    padding: 40px 20px;
+    text-align: center;
+}
+
+.logo-circle {
+    width: 70px;
+    height: 70px;
+    background: #e5e7eb;
+    border-radius: 50%;
+    margin: 0 auto 15px;
     display: flex;
     align-items: center;
-    gap: 15px;
+    justify-content: center;
+    overflow: hidden;
+    background-size: cover;
+    background-position: center;
+}
+
+.drag-text {
+    font-weight: 500;
+}
+
+.format {
+    display: block;
+    margin-top: 10px;
+    font-size: 12px;
+    color: #9ca3af;
 }
 
 .upload-btn {
+    display: inline-block;
+    margin-top: 15px;
     background: linear-gradient(135deg, #7c3aed, #8b5cf6);
     color: white;
-    border: none;
-    padding: 12px 18px;
+    padding: 10px 18px;
     border-radius: 8px;
     cursor: pointer;
-    font-size: 14px;
 }
 
-.logo-preview {
-    width: 50px;
-    height: 50px;
-    background: #e5e7eb;
-    border-radius: 8px;
+/* COLOR */
+.color-box {
+    background: #f9fafb;
+    padding: 15px;
+    border-radius: 12px;
+    margin-bottom: 15px;
 }
 
-/* COLOR PICKER */
-.color-row {
+.color-field {
     display: flex;
-    align-items: center;
-    gap: 12px;
+    gap: 10px;
+    margin-top: 8px;
 }
 
-input[type="color"] {
-    width: 40px;
-    height: 40px;
+.color-field input[type="color"] {
+    width: 35px;
+    height: 35px;
     border: none;
-    background: none;
-    cursor: pointer;
 }
 
-#headerColorValue,
-#sidebarColorValue {  
+.color-field input[type="text"] {
+    flex: 1;
+    padding: 8px;
+    border-radius: 8px;
+    border: none;
     background: #e5e7eb;
-    padding: 6px 10px;
-    border-radius: 6px;
-    font-size: 13px;
 }
 
 /* ACTIONS */
 .actions {
-    margin-top: 40px;
+    margin-top: 30px;
     display: flex;
     justify-content: flex-end;
-    gap: 20px;
+    gap: 15px;
 }
 
 .discard-btn {
     background: none;
     border: none;
     color: #7c3aed;
-    font-weight: 500;
     cursor: pointer;
 }
 
@@ -149,149 +194,97 @@ input[type="color"] {
     border: none;
     padding: 12px 22px;
     border-radius: 10px;
-    font-weight: 600;
     cursor: pointer;
-    box-shadow: 0 6px 18px rgba(124,58,237,0.3);
 }
 </style>
 
 <script>
+// SAFE GET
+function $(id) {
+    return document.getElementById(id);
+}
+
 // ELEMENTS
-const headerPicker = document.getElementById('headerColorPicker');
-const headerColorValue = document.getElementById('headerColorValue');
+const headerPicker = $('headerColorPicker');
+const sidebarPicker = $('sidebarColorPicker');
+const bgPicker = $('bgColorPicker');
 
-const sidebarPicker = document.getElementById('sidebarColorPicker');
-const sidebarColorValue = document.getElementById('sidebarColorValue');
+const headerVal = $('headerColorValue');
+const sidebarVal = $('sidebarColorValue');
+const bgVal = $('bgColorValue');
 
-// LOAD SAVED VALUES
-let savedHeaderColor = localStorage.getItem('headerColor') || '#ffffff';
-let savedSidebarColor = localStorage.getItem('sidebarColor') || '#1e1e1e';
+const logoInput = $('logoInput');
+const logoPreview = $('logoPreview');
+const fileName = $('fileName');
 
-// TEMP VALUES
-let tempHeaderColor = savedHeaderColor;
-let tempSidebarColor = savedSidebarColor;
+// LOAD SAVED
+let headerColor = localStorage.getItem('headerColor') || '#ffffff';
+let sidebarColor = localStorage.getItem('sidebarColor') || '#1e1e1e';
+let bgColor = localStorage.getItem('bgColor') || '#f5f6fa';
 
-// FUNCTION: AUTO TEXT COLOR
-function getContrastColor(hex) {
-    hex = hex.replace('#', '');
+// APPLY INITIAL
+if (headerPicker) headerPicker.value = headerColor;
+if (sidebarPicker) sidebarPicker.value = sidebarColor;
+if (bgPicker) bgPicker.value = bgColor;
 
-    const r = parseInt(hex.substring(0,2), 16);
-    const g = parseInt(hex.substring(2,4), 16);
-    const b = parseInt(hex.substring(4,6), 16);
+if (headerVal) headerVal.value = headerColor;
+if (sidebarVal) sidebarVal.value = sidebarColor;
+if (bgVal) bgVal.value = bgColor;
 
-    const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+applyColors();
 
-    return brightness > 155 ? '#000000' : '#ffffff';
+// APPLY FUNCTION
+function applyColors() {
+    document.documentElement.style.setProperty('--header-bg', headerColor);
+    document.documentElement.style.setProperty('--sidebar-bg', sidebarColor);
+    document.documentElement.style.setProperty('--bg-color', bgColor);
 }
 
-// FUNCTION: INVERT ICON COLOR
-function getIconFilter(hex) {
-    hex = hex.replace('#', '');
-
-    const r = parseInt(hex.substring(0,2), 16);
-    const g = parseInt(hex.substring(2,4), 16);
-    const b = parseInt(hex.substring(4,6), 16);
-
-    const brightness = (r * 299 + g * 587 + b * 114) / 1000;
-    
-    return brightness > 155 ? 'invert(1)' : 'invert(0)';
-}
-
-// FUNCTION: ADJUST COLOR BASED OFF SIDEBAR COLOR
-function adjustColor(hex, percent) {
-    hex = hex.replace('#', '');
-
-    let r = parseInt(hex.substring(0,2), 16);
-    let g = parseInt(hex.substring(2,4), 16);
-    let b = parseInt(hex.substring(4,6), 16);
-
-    r = Math.min(255, Math.max(0, r + (r * percent)));
-    g = Math.min(255, Math.max(0, g + (g * percent)));
-    b = Math.min(255, Math.max(0, b + (b * percent)));
-
-    return "#" + 
-        Math.round(r).toString(16).padStart(2,'0') +
-        Math.round(g).toString(16).padStart(2,'0') +
-        Math.round(b).toString(16).padStart(2,'0');
-}
-
-// INITIAL APPLY
-document.documentElement.style.setProperty('--header-bg', savedHeaderColor);
-document.documentElement.style.setProperty('--sidebar-bg', savedSidebarColor);
-
-document.documentElement.style.setProperty('--header-text', getContrastColor(savedHeaderColor));
-document.documentElement.style.setProperty('--sidebar-text', getContrastColor(savedSidebarColor));
-document.documentElement.style.setProperty('--sidebar-icon-filter', getIconFilter(savedSidebarColor));
-
-
-// SET PICKERS
-headerPicker.value = savedHeaderColor;
-headerColorValue.textContent = savedHeaderColor;
-
-sidebarPicker.value = savedSidebarColor;
-sidebarColorValue.textContent = savedSidebarColor;
-
-// LIVE PREVIEW (HEADER)
-headerPicker.addEventListener('input', function() {
-    tempHeaderColor = this.value;
-
-    document.documentElement.style.setProperty('--header-bg', tempHeaderColor);
-    document.documentElement.style.setProperty('--header-text', getContrastColor(tempHeaderColor));
-
-    headerColorValue.textContent = tempHeaderColor;
+// LIVE UPDATE
+headerPicker?.addEventListener('input', () => {
+    headerColor = headerPicker.value;
+    headerVal.value = headerColor;
+    applyColors();
 });
 
-// LIVE PREVIEW (SIDEBAR)
-sidebarPicker.addEventListener('input', function() {
-    tempSidebarColor = this.value;
+sidebarPicker?.addEventListener('input', () => {
+    sidebarColor = sidebarPicker.value;
+    sidebarVal.value = sidebarColor;
+    applyColors();
+});
 
-    document.documentElement.style.setProperty('--sidebar-bg', tempSidebarColor);
-    document.documentElement.style.setProperty('--sidebar-text', getContrastColor(tempSidebarColor));
-    document.documentElement.style.setProperty('--sidebar-icon-filter', getIconFilter(tempSidebarColor));
-
-    // Hover = slightly lighter
-    document.documentElement.style.setProperty('--sidebar-hover', adjustColor(tempSidebarColor, 0.15));
-
-    // Active = stronger contrast
-    document.documentElement.style.setProperty('--sidebar-active', adjustColor(tempSidebarColor, 0.3));
-
-    // Panel background = slightly darker
-    document.documentElement.style.setProperty('--panel-bg', adjustColor(tempSidebarColor, -0.2));
-
-    // Panel text + icons
-    document.documentElement.style.setProperty('--panel-text', getContrastColor(adjustColor(tempSidebarColor, -0.2)));
-    document.documentElement.style.setProperty('--panel-icon-filter', getIconFilter(adjustColor(tempSidebarColor, -0.2)));
-    sidebarColorValue.textContent = tempSidebarColor;
+bgPicker?.addEventListener('input', () => {
+    bgColor = bgPicker.value;
+    bgVal.value = bgColor;
+    applyColors();
 });
 
 // SAVE
 document.querySelector('.save-btn').addEventListener('click', () => {
-    localStorage.setItem('headerColor', tempHeaderColor);
-    localStorage.setItem('sidebarColor', tempSidebarColor);
-
-    savedHeaderColor = tempHeaderColor;
-    savedSidebarColor = tempSidebarColor;
-
+    localStorage.setItem('headerColor', headerColor);
+    localStorage.setItem('sidebarColor', sidebarColor);
+    localStorage.setItem('bgColor', bgColor);
     alert('Changes saved!');
 });
 
 // DISCARD
 document.querySelector('.discard-btn').addEventListener('click', () => {
-    tempHeaderColor = savedHeaderColor;
-    tempSidebarColor = savedSidebarColor;
+    location.reload();
+});
 
-    document.documentElement.style.setProperty('--header-bg', savedHeaderColor);
-    document.documentElement.style.setProperty('--sidebar-bg', savedSidebarColor);
+// LOGO PREVIEW
+logoInput?.addEventListener('change', function () {
+    const file = this.files[0];
+    if (!file) return;
 
-    document.documentElement.style.setProperty('--header-text', getContrastColor(savedHeaderColor));
-    document.documentElement.style.setProperty('--sidebar-text', getContrastColor(savedSidebarColor));
-    document.documentElement.style.setProperty('--sidebar-icon-filter', getIconFilter(savedSidebarColor));
+    fileName.textContent = file.name;
 
-    headerPicker.value = savedHeaderColor;
-    headerColorValue.textContent = savedHeaderColor;
-
-    sidebarPicker.value = savedSidebarColor;
-    sidebarColorValue.textContent = savedSidebarColor;
+    const reader = new FileReader();
+    reader.onload = function (e) {
+        logoPreview.style.backgroundImage = `url(${e.target.result})`;
+        logoPreview.textContent = '';
+    };
+    reader.readAsDataURL(file);
 });
 </script>
 
