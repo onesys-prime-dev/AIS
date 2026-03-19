@@ -33,6 +33,7 @@ $routes->post('client_portal/tasks/submit', 'Client\TaskController::submitTask')
 $routes->get('client_portal/tasks/saved', 'Client\TaskController::getSavedTasks');
 $routes->get('client_portal/timesheet', 'Client\TimesheetController::index');
 $routes->get('client_portal/profile', 'Client\EmployeeAccountController::index');
+$routes->get('settings/customization', 'SettingsController::customization');
 
 $routes->group('client_portal', ['namespace' => 'App\Controllers\Client'], function($routes) {
     $routes->get('payroll', 'PayrollController::payrollView');
