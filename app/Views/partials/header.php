@@ -70,20 +70,35 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
 
 <style>
 
+:root {
+    --header-bg: #ffffff;
+    --header-text: #000000;
+
+    --header-border: #e5e7eb;
+    --header-shadow: 0 4px 12px rgba(0,0,0,0.1);
+
+    --search-bg: #DAD7D7;
+    --search-text: #374151;
+    --search-placeholder: #6b7280;
+
+    --dropdown-bg: #ffffff;
+    --dropdown-text: #374151;
+}
+
 /* HEADER */
 .app-header{
     height:80px;
-    background:#fff;
-    border-bottom:1px solid #e5e7eb;
+    background: var(--header-bg);
+    border-bottom:1px solid var(--header-border);
     display:flex;
     align-items:center;
     justify-content:space-between;
     padding:0 35px;
     font-family:Segoe UI, Arial;
-    box-shadow:0 4px 12px rgba(0,0,0,0.1);
+    box-shadow: var(--header-shadow);
 
-    position:relative;   /* ✅ IMPORTANT */
-    z-index:1000;        /* ✅ PUSH HEADER ABOVE CONTENT */
+    position:relative;
+    z-index:1000;
 }
 
 /* SEARCH */
@@ -98,15 +113,14 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
     border:none;
     outline:none;
     border-radius:999px;
-    background:#DAD7D7;
+    background: var(--search-bg);
     padding-left:45px;
     font-size:14px;
-    color:#374151;
+    color: var(--search-text);
 }
 
-/* PLACEHOLDER */
 .search-input::placeholder {
-    color:#6b7280;
+    color: var(--search-placeholder);
     opacity:1;
 }
 
@@ -115,7 +129,7 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
     left:16px;
     top:50%;
     transform:translateY(-50%);
-    color:#6b7280;
+    color: var(--search-placeholder);
 }
 
 /* RIGHT SIDE */
@@ -135,7 +149,7 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
     border:none;
     font-size:20px;
     cursor:pointer;
-    color:#374151;
+    color: var(--header-text);
     position:relative;
 }
 
@@ -155,26 +169,26 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
     font-weight:600;
 }
 
-/* ✅ FIXED DROPDOWN */
+/* NOTIF DROPDOWN */
 .notif-dropdown{
     position:absolute;
     right:0;
     top:50px;
     width:280px;
-    background:white;
+    background: var(--dropdown-bg);
     border-radius:10px;
     box-shadow:0 10px 30px rgba(0,0,0,0.15);
     display:none;
     padding:10px 0;
 
-    z-index:9999; /* 🔥 CRITICAL FIX */
+    z-index:9999;
 }
 
-/* CONTENT */
 .notif-header{
     font-weight:600;
     padding:10px 15px;
     border-bottom:1px solid #eee;
+    color: var(--header-text);
 }
 
 .notif-item{
@@ -185,6 +199,7 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
 .notif-title{
     font-size:13px;
     font-weight:600;
+    color: var(--header-text);
 }
 
 .notif-desc{
@@ -230,6 +245,7 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
 .user-name{
     font-size:14px;
     font-weight:600;
+    color: var(--header-text);
 }
 
 .user-email{
@@ -239,6 +255,7 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
 
 .dropdown-icon{
     font-size:12px;
+    color: var(--header-text);
 }
 
 /* USER DROPDOWN */
@@ -246,20 +263,20 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
     position:absolute;
     right:0;
     top:55px;
-    background:white;
+    background: var(--dropdown-bg);
     border-radius:10px;
     box-shadow:0 10px 30px rgba(0,0,0,0.15);
     display:none;
     width:160px;
 
-    z-index:9999; /* ✅ MATCH NOTIF */
+    z-index:9999;
 }
 
 .user-dropdown a{
     display:block;
     padding:12px 15px;
     text-decoration:none;
-    color:#374151;
+    color: var(--dropdown-text);
     font-size:14px;
 }
 
