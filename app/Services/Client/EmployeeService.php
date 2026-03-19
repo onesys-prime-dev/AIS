@@ -37,7 +37,7 @@ class EmployeeService
             }
 
             $existingUser = $this->userModel
-                ->where('username', $email)
+                ->where('email', $email)
                 ->first();
 
             if ($existingUser) {
@@ -45,7 +45,7 @@ class EmployeeService
             }
 
             $user = new User([
-                'username' => $email,
+                'username' => $data['first_name'],
                 'email' => $email,
                 'password' => $password,
                 'active' => 1,
@@ -62,7 +62,19 @@ class EmployeeService
                 throw new \Exception('Unable to determine created user.');
             }
 
-            $user->addGroup('employee');
+            $savedUser = $this->userModel->find($userId);
+
+            if (! $savedUser instanceof User) {
+                throw new \Exception('Unable to load created user for group assignment.');
+            }
+
+            // Ensure normal employees created by payroll staff are in employee group.
+            $savedUser->removeGroup('user');
+            $savedUser->addGroup('employee');
+
+            if (! $savedUser->inGroup('employee')) {
+                throw new \Exception('Failed to assign employee group.');
+            }
 
             $employeeNumber = $this->generateEmployeeNumber();
 
@@ -87,6 +99,10 @@ class EmployeeService
                 'philhealth' => $data['philhealth'],
             ]);
 
+            if ($this->govModel->errors()) {
+                throw new \Exception(json_encode($this->govModel->errors()));
+            }
+
             $this->posModel->insert([
                 'employee_id' => $employeeId,
                 'department' => $data['department'],
@@ -94,9 +110,86 @@ class EmployeeService
                 'employment_type' => $data['employment_type'],
             ]);
 
+            if ($this->posModel->errors()) {
+                throw new \Exception(json_encode($this->posModel->errors()));
+            }
+
             $db->transCommit();
 
             return true;
+        } catch (\Throwable $e) {
+            $db->transRollback();
+            throw $e;
+        }
+    }
+
+    public function createEmployeeProfileForExistingUser(int $userId, string $role, array $details): void
+    {
+        $existingEmployee = $this->employeeModel->where('user_id', $userId)->first();
+        if ($existingEmployee) {
+            return;
+        }
+
+        [$firstNameFallback, $middleNameFallback, $lastNameFallback] = $this->extractNameParts(
+            (string) ($details['username'] ?? ''),
+            (string) ($details['email'] ?? '')
+        );
+
+        $firstName = trim((string) ($details['first_name'] ?? '')) ?: $firstNameFallback;
+        $middleName = trim((string) ($details['middle_name'] ?? '')) ?: $middleNameFallback;
+        $lastName = trim((string) ($details['last_name'] ?? '')) ?: $lastNameFallback;
+        $birthdate = trim((string) ($details['birthdate'] ?? '')) ?: '1900-01-01';
+
+        $sss = trim((string) ($details['sss'] ?? '')) ?: 'PENDING';
+        $tin = trim((string) ($details['tin'] ?? '')) ?: 'PENDING';
+        $pagibig = trim((string) ($details['pagibig'] ?? '')) ?: 'PENDING';
+        $philhealth = trim((string) ($details['philhealth'] ?? '')) ?: 'PENDING';
+
+        $department = trim((string) ($details['department'] ?? '')) ?: ($role === 'client_payroll_staff' ? 'Payroll' : 'General');
+        $position = trim((string) ($details['position'] ?? '')) ?: ($role === 'client_payroll_staff' ? 'Client Payroll Staff' : 'Employee');
+        $employmentType = trim((string) ($details['employment_type'] ?? '')) ?: 'Regular';
+
+        $db = \Config\Database::connect();
+        $db->transBegin();
+
+        try {
+            $employeeId = $this->employeeModel->insert([
+                'employee_number' => $this->generateEmployeeNumber(),
+                'user_id' => $userId,
+                'first_name' => $firstName,
+                'middle_name' => $middleName,
+                'last_name' => $lastName,
+                'birthdate' => $birthdate,
+            ]);
+
+            if (! $employeeId) {
+                throw new \RuntimeException('Failed to create employee record: ' . json_encode($this->employeeModel->errors()));
+            }
+
+            $this->govModel->insert([
+                'employee_id' => $employeeId,
+                'sss' => $sss,
+                'tin' => $tin,
+                'pagibig' => $pagibig,
+                'philhealth' => $philhealth,
+            ]);
+
+            if ($this->govModel->errors()) {
+                throw new \RuntimeException('Failed to create employee government IDs: ' . json_encode($this->govModel->errors()));
+            }
+
+            $this->posModel->insert([
+                'employee_id' => $employeeId,
+                'department' => $department,
+                'position' => $position,
+                'employment_type' => $employmentType,
+            ]);
+
+            if ($this->posModel->errors()) {
+                throw new \RuntimeException('Failed to create employee position: ' . json_encode($this->posModel->errors()));
+            }
+
+            $db->transCommit();
         } catch (\Throwable $e) {
             $db->transRollback();
             throw $e;
@@ -109,13 +202,50 @@ class EmployeeService
         $prefix = 'EMP-' . $year . '-';
 
         $latestEmployee = $this->employeeModel
-            ->select('MAX(CAST(SUBSTRING_INDEX(employee_number, \'-\', -1) AS UNSIGNED)) AS max_sequence', false)
+            ->select('employee_number')
             ->like('employee_number', $prefix, 'after')
+            ->orderBy('employee_number', 'DESC')
             ->first();
 
-        $nextSequence = ((int) ($latestEmployee['max_sequence'] ?? 0)) + 1;
+        $lastSequence = 0;
+        if (! empty($latestEmployee['employee_number'])) {
+            $parts = explode('-', (string) $latestEmployee['employee_number']);
+            $lastChunk = end($parts);
+            $lastSequence = (int) $lastChunk;
+        }
+
+        $nextSequence = $lastSequence + 1;
 
         return $prefix . str_pad((string) $nextSequence, 4, '0', STR_PAD_LEFT);
+    }
+
+    private function extractNameParts(string $username, string $email): array
+    {
+        $base = trim($username);
+
+        if ($base === '') {
+            $base = trim(strtok($email, '@') ?: 'Employee');
+        }
+
+        $parts = preg_split('/\s+/', $base) ?: [];
+
+        if (count($parts) === 0) {
+            return ['Employee', null, 'User'];
+        }
+
+        if (count($parts) === 1) {
+            return [$parts[0], null, 'User'];
+        }
+
+        if (count($parts) === 2) {
+            return [$parts[0], null, $parts[1]];
+        }
+
+        $first = array_shift($parts);
+        $last = array_pop($parts);
+        $middle = implode(' ', $parts);
+
+        return [$first ?: 'Employee', $middle ?: null, $last ?: 'User'];
     }
 
     public function updateEmployee($employeeId, array $data)

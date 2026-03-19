@@ -1,8 +1,15 @@
 <?= $this->extend('layouts/main') ?>
 <?= $this->section('content') ?>
 <style>
-.requests-container {
-    padding: 24px;
+.requests-container { /* Create global css for this default alignment of content in the main*/
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-height: 0;
+    padding-left: 2rem;
+    padding-right: 2rem;
+    padding-bottom: 2rem;
 }
 
 .page-title {
@@ -127,11 +134,12 @@
     background: #f59e0b;
 }
 
-.page-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: 20px;
+.page-header { /* Create global variable for this */
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-top: 1rem;
+    margin-bottom: 1rem;
 }
 
 .filter-container {

@@ -1,4 +1,3 @@
-
 <!-- FONT AWESOME -->
 <link rel="stylesheet"
 href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
@@ -61,7 +60,7 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
 
             <!-- USER DROPDOWN -->
             <div id="userDropdown" class="user-dropdown">
-                <a href="#">Profile</a>
+                <a href="<?= site_url('client_portal/profile') ?>">Profile</a>
                 <a href="#">Settings</a>
                 <a href="<?= site_url('logout') ?>">Logout</a>
             </div>
@@ -82,8 +81,10 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
     padding:0 35px;
     font-family:Segoe UI, Arial;
     box-shadow:0 4px 12px rgba(0,0,0,0.1);
-}
 
+    position:relative;   /* ✅ IMPORTANT */
+    z-index:1000;        /* ✅ PUSH HEADER ABOVE CONTENT */
+}
 
 /* SEARCH */
 .search-box{
@@ -97,9 +98,16 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
     border:none;
     outline:none;
     border-radius:999px;
-    background:#f3f4f6;
+    background:#DAD7D7;
     padding-left:45px;
     font-size:14px;
+    color:#374151;
+}
+
+/* PLACEHOLDER */
+.search-input::placeholder {
+    color:#6b7280;
+    opacity:1;
 }
 
 .search-icon{
@@ -110,20 +118,14 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
     color:#6b7280;
 }
 
-
-
 /* RIGHT SIDE */
-
 .header-right{
     display:flex;
     align-items:center;
     gap:30px;
 }
 
-
-
 /* BELL */
-
 .notif-wrapper{
     position:relative;
 }
@@ -153,22 +155,22 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
     font-weight:600;
 }
 
-
-
-/* NOTIFICATION DROPDOWN */
-
+/* ✅ FIXED DROPDOWN */
 .notif-dropdown{
     position:absolute;
     right:0;
-    top:40px;
+    top:50px;
     width:280px;
     background:white;
     border-radius:10px;
     box-shadow:0 10px 30px rgba(0,0,0,0.15);
     display:none;
     padding:10px 0;
+
+    z-index:9999; /* 🔥 CRITICAL FIX */
 }
 
+/* CONTENT */
 .notif-header{
     font-weight:600;
     padding:10px 15px;
@@ -198,7 +200,6 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
 }
 
 /* USER */
-
 .user-wrapper{
     position:relative;
 }
@@ -211,8 +212,8 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
 }
 
 .avatar{
-    width:40px;
-    height:40px;
+    width:50px;
+    height:50px;
     border-radius:50%;
     background:#e5e7eb;
     display:flex;
@@ -240,10 +241,7 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
     font-size:12px;
 }
 
-
-
 /* USER DROPDOWN */
-
 .user-dropdown{
     position:absolute;
     right:0;
@@ -253,7 +251,8 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
     box-shadow:0 10px 30px rgba(0,0,0,0.15);
     display:none;
     width:160px;
-    z-index: 99999;
+
+    z-index:9999; /* ✅ MATCH NOTIF */
 }
 
 .user-dropdown a{

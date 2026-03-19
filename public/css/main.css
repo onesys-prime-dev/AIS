@@ -666,6 +666,11 @@ video {
   margin-right: auto;
 }
 
+.my-4 {
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+}
+
 .-ml-4 {
   margin-left: -1rem;
 }
@@ -862,6 +867,10 @@ video {
   grid-template-columns: 2fr 1.5fr 1.5fr 1.2fr 1fr 1fr 1fr;
 }
 
+.flex-row {
+  flex-direction: row;
+}
+
 .flex-col {
   flex-direction: column;
 }
@@ -896,6 +905,10 @@ video {
 
 .gap-6 {
   gap: 1.5rem;
+}
+
+.gap-8 {
+  gap: 2rem;
 }
 
 .space-y-3 > :not([hidden]) ~ :not([hidden]) {
@@ -1211,6 +1224,10 @@ video {
 
 .py-8 {
   padding-top: 2rem;
+  padding-bottom: 2rem;
+}
+
+.pb-8 {
   padding-bottom: 2rem;
 }
 

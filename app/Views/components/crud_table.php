@@ -111,7 +111,7 @@
             <?php endforeach; ?>
         </div>
         <!-- BODY -->
-        <div class="crud-body text-gray-700 flex-1 min-h-0 overflow-y-auto"></div>
+        <div class="crud-body scroll-bar text-gray-700 flex-1 min-h-0 overflow-y-auto"></div>
     </div>
 
 </div>

@@ -53,23 +53,4 @@ Events::on('pre_system', static function (): void {
         }
     }
 
-    Events::on('register', function ($user) {
-
-    $request = service('request');
-    $role = $request->getPost('role');
-
-    if ($role) {
-
-        // remove default group assigned by Shield
-        $user->removeGroup('user');
-
-        // assign the selected role
-        $user->addGroup($role);
-
-    }
-
-     // Logout the automatically logged-in user
-    auth()->logout();
-
-});
 });

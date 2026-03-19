@@ -23,12 +23,17 @@ class EmployeeController extends BaseController
         $this->ensurePayrollStaff();
 
         $employeeModel = new EmployeeModel();
+        $currentUser = auth()->user();
 
         $data['employees'] = $employeeModel
-            ->select('employees.*, employee_positions.department, employee_positions.position, employee_positions.employment_type, users.active as status')
+            ->select("employees.*, employee_positions.department, employee_positions.position, employee_positions.employment_type, users.active as status, COALESCE(MAX(CASE WHEN agu.group = 'client_payroll_staff' THEN 'client_payroll_staff' WHEN agu.group = 'employee' THEN 'employee' ELSE NULL END), 'employee') as account_role", false)
             ->join('employee_positions', 'employees.id = employee_positions.employee_id', 'left')
             ->join('users', 'employees.user_id = users.id', 'left')
+            ->join('auth_groups_users as agu', 'employees.user_id = agu.user_id', 'left')
+            ->groupBy('employees.id')
             ->findAll();
+
+        $data['currentUserId'] = (int) ($currentUser->id ?? 0);
 
         return view('client_portal/employee_management', $data);
     }
@@ -91,10 +96,12 @@ class EmployeeController extends BaseController
 
         $employeeModel = new EmployeeModel();
         $employee = $employeeModel
-            ->select('employees.*, employee_positions.department, employee_positions.position, employee_positions.employment_type, users.active as status')
+            ->select("employees.*, employee_positions.department, employee_positions.position, employee_positions.employment_type, users.active as status, COALESCE(MAX(CASE WHEN agu.group = 'client_payroll_staff' THEN 'client_payroll_staff' WHEN agu.group = 'employee' THEN 'employee' ELSE NULL END), 'employee') as account_role", false)
             ->join('employee_positions', 'employees.id = employee_positions.employee_id', 'left')
             ->join('users', 'employees.user_id = users.id', 'left')
+            ->join('auth_groups_users as agu', 'employees.user_id = agu.user_id', 'left')
             ->where('employees.id', $id)
+            ->groupBy('employees.id')
             ->first();
         return $this->response->setJSON($employee);
     }

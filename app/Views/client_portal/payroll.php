@@ -2,9 +2,9 @@
 
 <?= $this->section('content') ?>
 
-<div class="p-5 h-full flex flex-col min-h-0 overflow-hidden">
+<div class="h-full flex flex-col min-h-0 overflow-hidden px-8 pb-8">
 
-    <div class="flex justify-between items-center mb-6">
+    <div class="flex justify-between items-center my-4">
         
         <div class="p-1">
             <h1 class="text-3xl font-bold text-gray-800 mb-1">Payroll Status</h1>

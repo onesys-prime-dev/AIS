@@ -7,6 +7,8 @@
     
     <link href="<?= base_url('css/main.css') ?>" rel="stylesheet">
     <link href="<?= base_url('css/scrollBar.css') ?>" rel="stylesheet">
+    <link href="<?= base_url('css/tailwind.css') ?>" rel="stylesheet">
+    <link href="<?= base_url('css/style.css') ?>" rel="stylesheet">
     
     <?= $this->renderSection('styles') ?>
 </head>
@@ -25,7 +27,7 @@
         <?= view('partials/header') ?>
 
         <!-- Page Content -->
-        <main class="flex-1 overflow-y-auto px-4">
+        <main class="flex-1 overflow-y-auto ">
             <!-- Flash Toast Notifications -->
             <?php if (session()->getFlashdata('success')): ?>
             <div id="toast-success"

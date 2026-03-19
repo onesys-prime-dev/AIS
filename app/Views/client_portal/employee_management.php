@@ -2,10 +2,10 @@
 
 <?= $this->section('content') ?>
 
-<div class="p-5 h-full flex flex-col min-h-0 overflow-hidden">
+<div class="h-full flex flex-col min-h-0 overflow-hidden px-8 pb-8">
 
     <!-- Page Header -->
-    <div class="flex justify-between items-center mb-4">
+    <div class="flex justify-between items-center my-4">
         
         <div class="p-1">
             <h1 class="text-3xl font-bold text-gray-800 mb-1">Employee Management</h1>
@@ -74,6 +74,7 @@
 <script>
 
 const EMPLOYEES = <?= json_encode($employees) ?>;
+const CURRENT_USER_ID = <?= (int) ($currentUserId ?? 0) ?>;
 const EDIT_ICON = "<?= base_url('icons/edit.png') ?>";
 const DELETE_ICON = "<?= base_url('icons/delete.png') ?>";
 const UPDATE_URL = "<?= site_url('client_portal/employees/update') ?>";
@@ -98,6 +99,7 @@ const DELETE_URL = "<?= site_url('client_portal/employees/delete') ?>";
                         ${htmlEsc(p.last_name)}, 
                         ${htmlEsc(p.first_name)}
                         ${p.middle_name ? htmlEsc(p.middle_name.charAt(0).toUpperCase()) + '.' : ''}
+                        ${Number(p.user_id) === CURRENT_USER_ID ? '<span class="ml-2 bg-blue-100 text-blue-700 px-2 py-1 rounded-full text-[10px] font-semibold align-middle">Me</span>' : ''}
                     </span>
                 </div>
 
