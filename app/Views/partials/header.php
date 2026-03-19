@@ -61,7 +61,7 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
             <!-- USER DROPDOWN -->
             <div id="userDropdown" class="user-dropdown">
                 <a href="<?= site_url('client_portal/profile') ?>">Profile</a>
-                <a href="#">Settings</a>
+                <a href="<?= site_url('settings/customization') ?>">Settings</a>
                 <a href="<?= site_url('logout') ?>">Logout</a>
             </div>
         </div>
