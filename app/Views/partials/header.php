@@ -75,11 +75,12 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
 
     :root {
         --header-bg: #ffffff; /* default */
+        --header-text: #000000;
     }
 
     .app-header{
         height:80px;
-        background: var(--header-bg);
+        background: var(--header-bg);   
         border-bottom:1px solid #e5e7eb;
         display:flex;
         align-items:center;
@@ -271,6 +272,12 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
 
     .user-dropdown a:hover{
         background:#f3f4f6;
+    }
+
+    .notif-btn,
+    .user-name,
+    .user-email {
+        color: var(--header-text);
     }
 
 </style>

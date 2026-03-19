@@ -27,7 +27,16 @@
             <label>Topbar Color</label>
             <div class="color-row">
                 <input type="color" id="headerColorPicker">
-                <span id="colorValue">#ffffff</span>
+                <span id="headerColorValue">#ffffff</span>
+            </div>
+        </div>
+
+        <!-- SIDEBAR COLOR -->
+        <div class="form-group">
+            <label>Topbar Color</label>
+            <div class="color-row">
+                <input type="color" id="sidebarColorPicker">
+                <span id="sidebarColorValue">#ffffff</span>
             </div>
         </div>
 
@@ -110,7 +119,8 @@ input[type="color"] {
     cursor: pointer;
 }
 
-#colorValue {
+#headerColorValue,
+#sidebarColorValue {  
     background: #e5e7eb;
     padding: 6px 10px;
     border-radius: 6px;
@@ -146,40 +156,142 @@ input[type="color"] {
 </style>
 
 <script>
-const picker = document.getElementById('headerColorPicker');
-const colorValue = document.getElementById('colorValue');
+// ELEMENTS
+const headerPicker = document.getElementById('headerColorPicker');
+const headerColorValue = document.getElementById('headerColorValue');
 
-let savedColor = localStorage.getItem('headerColor') || '#ffffff';
-let tempColor = savedColor;
+const sidebarPicker = document.getElementById('sidebarColorPicker');
+const sidebarColorValue = document.getElementById('sidebarColorValue');
 
-// INITIAL LOAD → apply saved color
-document.documentElement.style.setProperty('--header-bg', savedColor);
-picker.value = savedColor;
-colorValue.textContent = savedColor;
+// LOAD SAVED VALUES
+let savedHeaderColor = localStorage.getItem('headerColor') || '#ffffff';
+let savedSidebarColor = localStorage.getItem('sidebarColor') || '#1e1e1e';
 
-// 🎨 LIVE PREVIEW ONLY (no saving)
-picker.addEventListener('input', function() {
-    tempColor = this.value;
+// TEMP VALUES
+let tempHeaderColor = savedHeaderColor;
+let tempSidebarColor = savedSidebarColor;
 
-    document.documentElement.style.setProperty('--header-bg', tempColor);
-    colorValue.textContent = tempColor;
+// FUNCTION: AUTO TEXT COLOR
+function getContrastColor(hex) {
+    hex = hex.replace('#', '');
+
+    const r = parseInt(hex.substring(0,2), 16);
+    const g = parseInt(hex.substring(2,4), 16);
+    const b = parseInt(hex.substring(4,6), 16);
+
+    const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+
+    return brightness > 155 ? '#000000' : '#ffffff';
+}
+
+// FUNCTION: INVERT ICON COLOR
+function getIconFilter(hex) {
+    hex = hex.replace('#', '');
+
+    const r = parseInt(hex.substring(0,2), 16);
+    const g = parseInt(hex.substring(2,4), 16);
+    const b = parseInt(hex.substring(4,6), 16);
+
+    const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+    
+    return brightness > 155 ? 'invert(1)' : 'invert(0)';
+}
+
+// FUNCTION: ADJUST COLOR BASED OFF SIDEBAR COLOR
+function adjustColor(hex, percent) {
+    hex = hex.replace('#', '');
+
+    let r = parseInt(hex.substring(0,2), 16);
+    let g = parseInt(hex.substring(2,4), 16);
+    let b = parseInt(hex.substring(4,6), 16);
+
+    r = Math.min(255, Math.max(0, r + (r * percent)));
+    g = Math.min(255, Math.max(0, g + (g * percent)));
+    b = Math.min(255, Math.max(0, b + (b * percent)));
+
+    return "#" + 
+        Math.round(r).toString(16).padStart(2,'0') +
+        Math.round(g).toString(16).padStart(2,'0') +
+        Math.round(b).toString(16).padStart(2,'0');
+}
+
+// INITIAL APPLY
+document.documentElement.style.setProperty('--header-bg', savedHeaderColor);
+document.documentElement.style.setProperty('--sidebar-bg', savedSidebarColor);
+
+document.documentElement.style.setProperty('--header-text', getContrastColor(savedHeaderColor));
+document.documentElement.style.setProperty('--sidebar-text', getContrastColor(savedSidebarColor));
+document.documentElement.style.setProperty('--sidebar-icon-filter', getIconFilter(savedSidebarColor));
+
+
+// SET PICKERS
+headerPicker.value = savedHeaderColor;
+headerColorValue.textContent = savedHeaderColor;
+
+sidebarPicker.value = savedSidebarColor;
+sidebarColorValue.textContent = savedSidebarColor;
+
+// LIVE PREVIEW (HEADER)
+headerPicker.addEventListener('input', function() {
+    tempHeaderColor = this.value;
+
+    document.documentElement.style.setProperty('--header-bg', tempHeaderColor);
+    document.documentElement.style.setProperty('--header-text', getContrastColor(tempHeaderColor));
+
+    headerColorValue.textContent = tempHeaderColor;
 });
 
-// 💾 SAVE BUTTON
+// LIVE PREVIEW (SIDEBAR)
+sidebarPicker.addEventListener('input', function() {
+    tempSidebarColor = this.value;
+
+    document.documentElement.style.setProperty('--sidebar-bg', tempSidebarColor);
+    document.documentElement.style.setProperty('--sidebar-text', getContrastColor(tempSidebarColor));
+    document.documentElement.style.setProperty('--sidebar-icon-filter', getIconFilter(tempSidebarColor));
+
+    // Hover = slightly lighter
+    document.documentElement.style.setProperty('--sidebar-hover', adjustColor(tempSidebarColor, 0.15));
+
+    // Active = stronger contrast
+    document.documentElement.style.setProperty('--sidebar-active', adjustColor(tempSidebarColor, 0.3));
+
+    // Panel background = slightly darker
+    document.documentElement.style.setProperty('--panel-bg', adjustColor(tempSidebarColor, -0.2));
+
+    // Panel text + icons
+    document.documentElement.style.setProperty('--panel-text', getContrastColor(adjustColor(tempSidebarColor, -0.2)));
+    document.documentElement.style.setProperty('--panel-icon-filter', getIconFilter(adjustColor(tempSidebarColor, -0.2)));
+    sidebarColorValue.textContent = tempSidebarColor;
+});
+
+// SAVE
 document.querySelector('.save-btn').addEventListener('click', () => {
-    localStorage.setItem('headerColor', tempColor);
-    savedColor = tempColor;
+    localStorage.setItem('headerColor', tempHeaderColor);
+    localStorage.setItem('sidebarColor', tempSidebarColor);
+
+    savedHeaderColor = tempHeaderColor;
+    savedSidebarColor = tempSidebarColor;
 
     alert('Changes saved!');
 });
 
-// ❌ DISCARD BUTTON
+// DISCARD
 document.querySelector('.discard-btn').addEventListener('click', () => {
-    tempColor = savedColor;
+    tempHeaderColor = savedHeaderColor;
+    tempSidebarColor = savedSidebarColor;
 
-    document.documentElement.style.setProperty('--header-bg', savedColor);
-    picker.value = savedColor;
-    colorValue.textContent = savedColor;
+    document.documentElement.style.setProperty('--header-bg', savedHeaderColor);
+    document.documentElement.style.setProperty('--sidebar-bg', savedSidebarColor);
+
+    document.documentElement.style.setProperty('--header-text', getContrastColor(savedHeaderColor));
+    document.documentElement.style.setProperty('--sidebar-text', getContrastColor(savedSidebarColor));
+    document.documentElement.style.setProperty('--sidebar-icon-filter', getIconFilter(savedSidebarColor));
+
+    headerPicker.value = savedHeaderColor;
+    headerColorValue.textContent = savedHeaderColor;
+
+    sidebarPicker.value = savedSidebarColor;
+    sidebarColorValue.textContent = savedSidebarColor;
 });
 </script>
 

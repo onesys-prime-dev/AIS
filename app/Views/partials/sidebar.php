@@ -85,9 +85,22 @@
 
     /* SIDEBAR */
 
+    :root {
+        --sidebar-bg: #1e1e1e; /* default */
+        --sidebar-text: #ffffff;
+        --sidebar-icon-filter: invert(1);
+
+        --sidebar-hover: #333333;
+        --sidebar-active: #555555;
+
+        --panel-bg: #2a2a2a;
+        --panel-text: #ffffff;
+        --panel-icon-filter: invert(1);
+    }
+
     .sidebar{
         width:95px;
-        background:#1e1e1e;
+        background: var(--sidebar-bg);
         min-height:100vh;
         display:flex;
         flex-direction:column;
@@ -150,6 +163,7 @@
     /* MENU ITEM */
 
     .menu-item{
+        color: var(--sidebar-text);
         display:flex;
         flex-direction:column;
         align-items:center;
@@ -159,7 +173,6 @@
         height:72px;
         border-radius:16px;
         text-decoration:none;
-        color:#cfcfcf;
         font-size:11px;
         transition:0.2s;
     }
@@ -169,8 +182,8 @@
     /* ACTIVE ITEM */
 
     .menu-item.active{
-    background:#555;
-    color:white;
+    background: var(--sidebar-active);
+    color: var(--sidebar-text);
     }
 
 
@@ -178,7 +191,7 @@
     /* HOVER */
 
     .menu-item:hover{
-    background:#333;
+    background: var(--sidebar-hover);
     }
 
 
@@ -188,6 +201,7 @@
     .icon{
     width:28px;
     height:28px;
+    filter: var(--sidebar-icon-filter);
     }
 
 
@@ -211,7 +225,7 @@
         left: 95px; /* same as sidebar width */
         width: 220px;
         height: 100vh;
-        background: #2a2a2a;
+        background: var(--panel-bg);
         border-right: 1px solid #3a3a3a;
         padding-top: 20px;
 
@@ -228,7 +242,7 @@
     .panel-header {
         font-size: 18px;
         font-weight: 600;
-        color: #fff;
+        color: var(--panel-text);
         padding: 12px 20px;
         margin-bottom: 10px;
     }
@@ -239,7 +253,7 @@
         align-items: center;
         gap: 10px;
         padding: 12px 20px;
-        color: #ddd;
+        color: var(--panel-text);
         text-decoration: none;
         font-size: 14px;
     }
@@ -247,6 +261,7 @@
     .panel-icon {
         width: 18px;
         height: 18px;
+        filter: var(--panel-icon-filter);
     }
 
     .panel-item:hover {
