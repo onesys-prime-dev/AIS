@@ -63,6 +63,74 @@
 
 </div>
 
+<script>
+function getContrastColor(hex) {
+    hex = hex.replace('#', '');
+
+    const r = parseInt(hex.substring(0,2), 16);
+    const g = parseInt(hex.substring(2,4), 16);
+    const b = parseInt(hex.substring(4,6), 16);
+
+    const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+
+    return brightness > 155 ? '#000000' : '#ffffff';
+}
+
+function getIconFilter(hex) {
+    hex = hex.replace('#', '');
+
+    const r = parseInt(hex.substring(0,2), 16);
+    const g = parseInt(hex.substring(2,4), 16);
+    const b = parseInt(hex.substring(4,6), 16);
+
+    const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+
+    return brightness > 155 ? 'invert(1)' : 'invert(0)';
+}
+
+function adjustColor(hex, percent) {
+    hex = hex.replace('#', '');
+
+    let r = parseInt(hex.substring(0,2), 16);
+    let g = parseInt(hex.substring(2,4), 16);
+    let b = parseInt(hex.substring(4,6), 16);
+
+    r = Math.min(255, Math.max(0, r + (r * percent)));
+    g = Math.min(255, Math.max(0, g + (g * percent)));
+    b = Math.min(255, Math.max(0, b + (b * percent)));
+
+    return "#" + 
+        Math.round(r).toString(16).padStart(2,'0') +
+        Math.round(g).toString(16).padStart(2,'0') +
+        Math.round(b).toString(16).padStart(2,'0');
+}
+
+document.addEventListener("DOMContentLoaded", function () {
+    const headerColor = localStorage.getItem('headerColor');
+    const sidebarColor = localStorage.getItem('sidebarColor');
+
+    if (headerColor) {
+        document.documentElement.style.setProperty('--header-bg', headerColor);
+        document.documentElement.style.setProperty('--header-text', getContrastColor(headerColor));
+    }
+
+    if (sidebarColor) {
+    document.documentElement.style.setProperty('--sidebar-bg', sidebarColor);
+    document.documentElement.style.setProperty('--sidebar-text', getContrastColor(sidebarColor));
+    document.documentElement.style.setProperty('--sidebar-icon-filter', getIconFilter(sidebarColor));
+
+    document.documentElement.style.setProperty('--sidebar-hover', adjustColor(sidebarColor, 0.15));
+    document.documentElement.style.setProperty('--sidebar-active', adjustColor(sidebarColor, 0.3));
+
+    const panelBg = adjustColor(sidebarColor, -0.2);
+    document.documentElement.style.setProperty('--panel-bg', panelBg);
+    document.documentElement.style.setProperty('--panel-text', getContrastColor(panelBg));
+    document.documentElement.style.setProperty('--panel-icon-filter', getIconFilter(panelBg));
+}
+});
+
+</script>
+
 <?= $this->renderSection('modals') ?>
 
 <?= $this->renderSection('scripts') ?>

@@ -222,7 +222,71 @@ let headerColor = localStorage.getItem('headerColor') || '#ffffff';
 let sidebarColor = localStorage.getItem('sidebarColor') || '#1e1e1e';
 let bgColor = localStorage.getItem('bgColor') || '#f5f6fa';
 
-// APPLY INITIAL
+// TEXT CONTRAST
+function getContrastColor(hex) {
+    hex = hex.replace('#', '');
+
+    const r = parseInt(hex.substring(0,2), 16);
+    const g = parseInt(hex.substring(2,4), 16);
+    const b = parseInt(hex.substring(4,6), 16);
+
+    const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+
+    return brightness > 155 ? '#000000' : '#ffffff';
+}
+
+// ICON FILTER
+function getIconFilter(hex) {
+    hex = hex.replace('#', '');
+
+    const r = parseInt(hex.substring(0,2), 16);
+    const g = parseInt(hex.substring(2,4), 16);
+    const b = parseInt(hex.substring(4,6), 16);
+
+    const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+
+    return brightness > 155 ? 'invert(0)' : 'invert(1)';
+}
+
+// ADJUST COLOR (hover/active)
+function adjustColor(hex, percent) {
+    hex = hex.replace('#', '');
+
+    let r = parseInt(hex.substring(0,2), 16);
+    let g = parseInt(hex.substring(2,4), 16);
+    let b = parseInt(hex.substring(4,6), 16);
+
+    r = Math.min(255, Math.max(0, r + (r * percent)));
+    g = Math.min(255, Math.max(0, g + (g * percent)));
+    b = Math.min(255, Math.max(0, b + (b * percent)));
+
+    return "#" + 
+        Math.round(r).toString(16).padStart(2,'0') +
+        Math.round(g).toString(16).padStart(2,'0') +
+        Math.round(b).toString(16).padStart(2,'0');
+}
+
+// 🎨 APPLY COLORS
+function applyColors() {
+
+    // BASE
+    document.documentElement.style.setProperty('--header-bg', headerColor);
+    document.documentElement.style.setProperty('--sidebar-bg', sidebarColor);
+    document.documentElement.style.setProperty('--bg-color', bgColor);
+
+    // AUTO TEXT
+    document.documentElement.style.setProperty('--header-text', getContrastColor(headerColor));
+    document.documentElement.style.setProperty('--sidebar-text', getContrastColor(sidebarColor));
+
+    // ICONS
+    document.documentElement.style.setProperty('--sidebar-icon-filter', getIconFilter(sidebarColor));
+
+    // SIDEBAR STATES
+    document.documentElement.style.setProperty('--sidebar-hover', adjustColor(sidebarColor, 0.15));
+    document.documentElement.style.setProperty('--sidebar-active', adjustColor(sidebarColor, 0.3));
+}
+
+// INITIAL LOAD
 if (headerPicker) headerPicker.value = headerColor;
 if (sidebarPicker) sidebarPicker.value = sidebarColor;
 if (bgPicker) bgPicker.value = bgColor;
@@ -232,13 +296,6 @@ if (sidebarVal) sidebarVal.value = sidebarColor;
 if (bgVal) bgVal.value = bgColor;
 
 applyColors();
-
-// APPLY FUNCTION
-function applyColors() {
-    document.documentElement.style.setProperty('--header-bg', headerColor);
-    document.documentElement.style.setProperty('--sidebar-bg', sidebarColor);
-    document.documentElement.style.setProperty('--bg-color', bgColor);
-}
 
 // LIVE UPDATE
 headerPicker?.addEventListener('input', () => {
@@ -264,6 +321,7 @@ document.querySelector('.save-btn').addEventListener('click', () => {
     localStorage.setItem('headerColor', headerColor);
     localStorage.setItem('sidebarColor', sidebarColor);
     localStorage.setItem('bgColor', bgColor);
+
     alert('Changes saved!');
 });
 
