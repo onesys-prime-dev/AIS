@@ -17,3 +17,23 @@
 .scroll-bar::-webkit-scrollbar-thumb:hover {
   background: #b4b5b8;
 }
+
+/* Edit timesheet task textarea scrollbar */
+.task-scrollbar::-webkit-scrollbar {
+  width: 8px;                         /* Chrome/Edge/Safari */
+}
+
+.task-scrollbar::-webkit-scrollbar-track {
+  background: #e5e7eb;
+  border-radius: 10px;
+}
+
+.task-scrollbar::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+  border-radius: 10px;
+  border: 2px solid #e5e7eb;
+}
+
+.task-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}

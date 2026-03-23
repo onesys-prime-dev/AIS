@@ -1,3 +1,29 @@
+function autoResizeTextarea(textarea) {
+    if (!textarea || textarea.tagName !== "TEXTAREA") return;
+
+    if (!textarea.dataset.minHeightPx) {
+        textarea.dataset.minHeightPx = String(textarea.offsetHeight || 0);
+    }
+
+    const minHeight = Number(textarea.dataset.minHeightPx) || 0;
+
+    textarea.style.height = "auto";
+    textarea.style.height = `${Math.max(textarea.scrollHeight, minHeight)}px`;
+}
+
+document.addEventListener("input", function (e) {
+    const textarea = e.target.closest('textarea[data-autoresize="true"]');
+    if (!textarea) return;
+
+    autoResizeTextarea(textarea);
+});
+
+document.addEventListener("DOMContentLoaded", function () {
+    document
+        .querySelectorAll('textarea[data-autoresize="true"]')
+        .forEach(autoResizeTextarea);
+});
+
 document.addEventListener("click", function (e) {
 
     const editBtn = e.target.closest('[data-action="edit"]');
@@ -27,6 +53,10 @@ document.addEventListener("click", function (e) {
                 input.checked = Number(editBtn.dataset[key]) === 1;
             } else {
                 input.value = editBtn.dataset[key];
+
+                if (input.tagName === "TEXTAREA" && input.dataset.autoresize === "true") {
+                    autoResizeTextarea(input);
+                }
             }
 
         });

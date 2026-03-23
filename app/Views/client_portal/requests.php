@@ -12,15 +12,22 @@
     padding-bottom: 2rem;
 }
 
+.page-holder{
+    padding: 0.25rem;
+}
+
 .page-title {
-    font-size: 26px;
-    font-weight: bold;
-    margin-bottom: 10px;
+    font-size: 1.875rem;   /* text-3xl */
+    line-height: 2.25rem;
+    font-weight: 700;      /* font-bold */
+    color: #1f2937;        /* text-gray-800 */
+    margin-bottom: 0.25rem;
 }
 
 .page-subtitle {
-    color: #6b7280;
-    margin-bottom: 24px;
+    color: #6b7280;   
+    font-size: 0.875rem; 
+    line-height: 1.25rem;
 }
 
 /* Grid layout */
@@ -32,11 +39,19 @@
 
 /* Card */
 .request-card {
-    background: white;
+    background: whitesmoke;
     border: 1px solid #e5e7eb;
     border-radius: 10px;
     overflow: hidden;
     box-shadow: 0 3px 8px rgba(0,0,0,0.05);
+}
+
+.request-cards-container{
+    background-color: white;
+    padding: 2rem;
+    border-radius: 1.25rem;
+    height: 100%;
+    border: 1px solid rgb(156 163 175 / 1);
 }
 
 /* Header */
@@ -134,7 +149,7 @@
     background: #f59e0b;
 }
 
-.page-header { /* Create global variable for this */
+.page-header { 
     display:flex;
     justify-content:space-between;
     align-items:center;
@@ -143,24 +158,33 @@
 }
 
 .filter-container {
-    display: flex;
-    align-items: center;
+    display: flex;         
+    align-items: center;   
+    gap: 1rem;
 }
 
 .filter-dropdown {
-    padding: 8px 12px;
-    border-radius: 6px;
-    border: 1px solid #d1d5db;
-    background: white;
-    cursor: pointer;
+    background-color: #FF2D2D;  
+    color: #ffffff;             
+    padding-left: 0.75rem;      
+    padding-right: 0.75rem;     
+    padding-top: 0.75rem;       
+    padding-bottom: 0.75rem;    
+    border-radius: 0.5rem;      
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1),
+                0 1px 2px rgba(0,0,0,0.06);
+    display: flex;              
+    align-items: center;        
+    gap: 0.5rem;
 }
 
 </style>
 
 
 <div class="requests-container">
+
     <div class="page-header">
-        <div>
+        <div class="page-holder">
             <h1 class="page-title">Employee Requests</h1>
             <p class="page-subtitle">Keep track of employees status.</p>
         </div>
@@ -175,51 +199,70 @@
         </div>
     </div>
 
-    <div class="request-grid">
-        <?php foreach ($requests as $request): ?>
-        <div class="request-card" data-status="<?= $request['status'] ?>">
-
-            <div class="request-header <?= $request['status'] ?>">
-                <div>
-                    <div class="request-name"><?= esc($request['requested_by']) ?></div>
-                    <div class="request-date"><?= esc(date('F j, Y', strtotime($request['date']))) ?></div>
-                </div>
-
-                <div class="request-actions">
-                    <?php if (auth()->user()->inGroup('client_payroll_staff') && $request['status'] == 'pending'): ?>
-                    <form action="<?= site_url('client_portal/requests/update/'.$request['id']) ?>" method="post">
-                        <input type="hidden" name="status" value="rejected">
-                        <button type="submit" class="btn-circle btn-reject">✕</button>
-                    </form>
-
-                    <form action="<?= site_url('client_portal/requests/update/'.$request['id']) ?>" method="post">
-                        <input type="hidden" name="status" value="approved">
-                        <button type="submit" class="btn-circle btn-approve">✓</button>
-                    </form>
-                    <?php else: ?>
-
-                    <span class="status-badge <?= $request['status'] ?>">
-                        <?= ucfirst($request['status']) ?>
-                    </span>
-
-                    <?php endif; ?>
-                </div>
-            </div>
-
-            <div class="request-body">
-                <div class="request-row">
-                    <span class="label">Request Type:</span>
-                    <span class="value"><?= ucfirst($request['request_type']) ?></span>
-                </div>
-
-                <div class="request-row">
-                    <span class="label">Message:</span>
-                    <p class="message"><?= esc($request['reason']) ?></p>
-                </div>
-            </div>
-
+    <!-- <div class="flex justify-between items-center my-4">
+        
+        <div class="p-1">
+            <h1 class="text-3xl font-bold text-gray-800 mb-1">Employee Requests</h1>
+            <p class="text-gray-500 text-sm">Keep track of employees status.</p>
         </div>
-        <?php endforeach; ?>
+
+        <div class="flex items-center gap-4">
+            <select id="statusFilter" class="bg-[#FF2D2D] hover:bg-[#ff2d2dd2] text-white px-3 py-3 rounded-lg shadow flex items-center gap-2">
+                <option value="all">All Requests</option>
+                <option value="pending">Pending</option>
+                <option value="approved">Approved</option>
+                <option value="rejected">Rejected</option>
+            </select>
+        </div>
+    </div> -->
+
+    <div class="request-cards-container scroll-bar">
+        <div class="request-grid">
+            <?php foreach ($requests as $request): ?>
+            <div class="request-card" data-status="<?= $request['status'] ?>">
+
+                <div class="request-header <?= $request['status'] ?>">
+                    <div>
+                        <div class="request-name"><?= esc($request['requested_by']) ?></div>
+                        <div class="request-date"><?= esc(date('F j, Y', strtotime($request['date']))) ?></div>
+                    </div>
+
+                    <div class="request-actions">
+                        <?php if (auth()->user()->inGroup('client_payroll_staff') && $request['status'] == 'pending'): ?>
+                        <form action="<?= site_url('client_portal/requests/update/'.$request['id']) ?>" method="post">
+                            <input type="hidden" name="status" value="rejected">
+                            <button type="submit" class="btn-circle btn-reject">✕</button>
+                        </form>
+
+                        <form action="<?= site_url('client_portal/requests/update/'.$request['id']) ?>" method="post">
+                            <input type="hidden" name="status" value="approved">
+                            <button type="submit" class="btn-circle btn-approve">✓</button>
+                        </form>
+                        <?php else: ?>
+
+                        <span class="status-badge <?= $request['status'] ?>">
+                            <?= ucfirst($request['status']) ?>
+                        </span>
+
+                        <?php endif; ?>
+                    </div>
+                </div>
+
+                <div class="request-body">
+                    <div class="request-row">
+                        <span class="label">Request Type:</span>
+                        <span class="value"><?= ucfirst($request['request_type']) ?></span>
+                    </div>
+
+                    <div class="request-row">
+                        <span class="label">Message:</span>
+                        <p class="message"><?= esc($request['reason']) ?></p>
+                    </div>
+                </div>
+
+            </div>
+            <?php endforeach; ?>
+        </div>
     </div>
 </div>
 

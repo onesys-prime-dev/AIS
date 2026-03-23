@@ -37,7 +37,7 @@ class EmployeeService
             }
 
             $existingUser = $this->userModel
-                ->where('email', $email)
+                ->where('username', $email)
                 ->first();
 
             if ($existingUser) {
@@ -45,8 +45,8 @@ class EmployeeService
             }
 
             $user = new User([
-                'username' => $data['first_name'],
-                'email' => $email,
+                // In this project, users table stores login in username (no email column).
+                'username' => $email,
                 'password' => $password,
                 'active' => 1,
                 'status' => 'active',

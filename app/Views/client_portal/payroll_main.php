@@ -2,51 +2,73 @@
 
 <?= $this->section('content') ?>
 
-<div class="h-full flex flex-col min-h-0 overflow-hidden px-8 pb-8">
+<div class="h-full flex flex-col min-h-0 overflow-hidden">
 
-    <div class="flex justify-between items-center my-4">
-        
-        <div class="p-1">
-            <h1 class="text-3xl font-bold text-gray-800 mb-1">Payroll Status</h1>
-            <p class="text-gray-500 text-sm">Check the payroll status of your employees.</p>
-        </div>
-
-        <div class="flex items-center gap-4">
-            <!-- Month Picker -->
-            <input type="month" id="monthPicker" value="<?= $selected_month ?>" class="bg-[#969595] hover:bg-[#797777d2] text-white px-3 py-3 rounded-lg shadow flex items-center gap-2">
-            <button 
-                data-modal-open="payrollModal"
-                class="bg-[#FF2D2D] hover:bg-[#ff2d2dd2] text-white px-3 py-3 rounded-lg shadow flex items-center gap-2">
-                    <div id="add-icon" class="w-7 h-7 cursor-pointer">
-                        <img src="<?php echo base_url('icons/add.png'); ?>" alt="Add"/>
-                    </div>
-                New Payroll Entry
-            </button>
-        </div>
+    <!-- TOP TABS -->
+    <div class="tabs">
+        <button type="button" class="tab active" data-tab="payroll-status">Payroll Status</button>
+        <button type="button" class="tab" data-tab="generate-payslip">Generate Payslip</button>
     </div>
 
-    <?= view('components/crud_table', [
-        'title' => date('F Y', strtotime($selected_month . '-01')) . ' Payroll',
-        'tableId' => 'payrollTable',
-        'grid' => 'grid-cols-[2fr_1.5fr_1.5fr_1.2fr_1fr_1fr_1fr]',
-        'columns' => [
-            'Employee Name',
-            'Phone',
-            'Daily Rate',
-            'DST',
-            'Currency',
-            'Status',
-            'Action'
-        ]
-    ]) ?>
+    <div class="tab-panel h-full flex flex-col min-h-0 overflow-hidden px-8 pb-8" data-panel="payroll-status">
+        <?= view('client_portal/payroll_status') ?>
+    </div>
+
+    <div class="tab-panel h-full flex flex-col min-h-0 overflow-hidden px-8 pb-8" data-panel="generate-payslip">
+        <?= view('client_portal/payroll_management')?>
+    </div>
 
 </div>
+
+<style>
+    .tabs{
+        display:flex;
+        align-items:center;
+        gap:30px;
+        background:#2E2E2E;
+        color:white;
+        padding:15px 25px;
+        min-height:70px;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        flex-shrink: 0;
+    }
+
+    .tab{
+        cursor:pointer;
+        opacity:0.8;
+        background:transparent;
+        border:0;
+        color:inherit;
+        font:inherit;
+    }
+
+    .tab.active{
+        font-weight:600;
+        opacity:1;
+        position:relative;
+    }
+
+    .tab.active::after{
+        content:'';
+        position:absolute;
+        bottom:-24px;
+        left:0;
+        width:100%;
+        height:3px;
+        background:white;
+    }
+
+    .hidden {
+        display: none;
+    }
+</style>
 
 <?= $this->endSection() ?>
 
 <?= $this->section('modals') ?>
 
-    <!-- Add Payroll Modal -->
     <?php
         $content = view('client_portal/modals/add_payroll_form');
         echo view('components/modal', [
@@ -64,7 +86,6 @@
             'content' => $content
         ]);
     ?>
-        
 
 <?= $this->endSection() ?>
 
@@ -76,7 +97,7 @@
 <script src="<?= base_url('js/components/crud-actions.js') ?>"></script>
 
 <script>
-    const PAYROLLS = <?= json_encode($payrolls) ?>;
+    const PAYROLLS = <?= json_encode($payrolls ?? []) ?>;
     const EDIT_ICON = "<?= base_url('icons/edit.png') ?>";
     const DELETE_ICON = "<?= base_url('icons/delete.png') ?>";
     const UPDATE_URL = "<?= site_url('client_portal/payroll/update') ?>";
@@ -99,7 +120,6 @@
     }
 
     function payrollRowTemplate(p) {
-
         return `
         <div class="grid grid-cols-[2fr_1.5fr_1.5fr_1.2fr_1fr_1fr_1fr] items-center border-b hover:bg-gray-50">
 
@@ -111,7 +131,7 @@
             <div class="p-4">${htmlEsc(p.phone || '---')}</div>
 
             <div class="p-4">
-                ${p.currency === 'USD' ? '$' : '₱'} ${money(p.daily_rate)}
+                ${p.currency === 'USD' ? '$' : 'PHP '} ${money(p.daily_rate)}
             </div>
 
             <div class="p-4">${Number(p.dst) === 1 ? 'Yes' : 'No'}</div>
@@ -125,8 +145,6 @@
             </div>
 
             <div class="p-4 flex justify-center gap-4">
-
-                <!-- EDIT -->
                 <div
                     class="cursor-pointer w-7 h-7 hover:scale-110 transition"
                     data-action="edit"
@@ -142,10 +160,8 @@
                     data-status="${htmlEsc(p.status ?? 'Pending')}">
 
                     <img src="${EDIT_ICON}" class="w-7 h-7" alt="Edit">
-
                 </div>
 
-                <!-- DELETE -->
                 <div
                     class="cursor-pointer w-7 h-7 hover:scale-110 transition"
                     data-action="delete"
@@ -153,9 +169,7 @@
                     data-id="${htmlEsc(p.id)}">
 
                     <img src="${DELETE_ICON}" class="w-7 h-7" alt="Delete">
-
                 </div>
-
             </div>
 
         </div>
@@ -163,20 +177,44 @@
     }
 
     createCrudTable({
-
         tableId: "payrollTable",
-
-        data: PAYROLLS,
-
+        data: Array.isArray(PAYROLLS) ? PAYROLLS : [],
         renderRow: payrollRowTemplate,
-
         search: (item, q) =>
-            String(item.employee_name || '')
+            `${item.employee_name ?? ''} ${item.phone ?? ''} ${item.currency ?? ''} ${item.status ?? ''}`
                 .toLowerCase()
                 .includes(q)
-
     });
 
+    document.getElementById('monthPicker')?.addEventListener('change', function () {
+        const url = new URL(window.location.href);
+        url.searchParams.set('month', this.value);
+        window.location.href = url.toString();
+    });
 </script>
 
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const tabs = document.querySelectorAll('.tab[data-tab]');
+        const panels = document.querySelectorAll('.tab-panel[data-panel]');
+
+        function activateTab(tabKey) {
+            tabs.forEach(tab => {
+                tab.classList.toggle('active', tab.dataset.tab === tabKey);
+            });
+
+            panels.forEach(panel => {
+                panel.classList.toggle('hidden', panel.dataset.panel !== tabKey);
+            });
+        }
+
+        tabs.forEach(tab => {
+            tab.addEventListener('click', function () {
+                activateTab(tab.dataset.tab);
+            });
+        });
+
+        activateTab('payroll-status');
+    });
+</script>
 <?= $this->endSection() ?>

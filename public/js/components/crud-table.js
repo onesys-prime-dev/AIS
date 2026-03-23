@@ -7,6 +7,8 @@ window.createCrudTable = function ({
     sort = null
 }) {
 
+    const rowData = Array.isArray(data) ? data : [];
+
     const container = document.querySelector(`[data-crud-table="${tableId}"]`);
     if (!container) return;
 
@@ -32,7 +34,7 @@ window.createCrudTable = function ({
                 <div class="flex items-center justify-center h-full text-gray-400">
                     <div class="flex flex-col items-center gap-3">
                         <i class="fa-solid fa-users text-4xl opacity-40"></i>
-                        <span class="text-lg font-medium">No employees found</span>
+                        <span class="text-lg font-medium">No records found</span>
                         <span class="text-sm">Try adjusting your search or filters</span>
                     </div>
                 </div>
@@ -70,11 +72,11 @@ window.createCrudTable = function ({
 
 
     if (filterDepartment) {
-        addUniqueOptions(filterDepartment, data.map(e => e.department));
+        addUniqueOptions(filterDepartment, rowData.map(e => e.department));
     }
 
     if (filterEmploymentType) {
-        addUniqueOptions(filterEmploymentType, data.map(e => e.employment_type));
+        addUniqueOptions(filterEmploymentType, rowData.map(e => e.employment_type));
     }
 
 
@@ -91,7 +93,23 @@ window.createCrudTable = function ({
         const sortOrder = filterSortOrder?.value || 'asc';
 
 
-        const filtered = data.filter(e => {
+        const filtered = rowData.filter(e => {
+
+            if (typeof filters === 'function') {
+                return filters({
+                    item: e,
+                    query: q,
+                    status,
+                    department,
+                    employmentType,
+                    sortBy,
+                    sortOrder,
+                });
+            }
+
+            if (typeof search === 'function' && !search(e, q)) {
+                return false;
+            }
 
             const fullName = [
                 e.first_name ?? '',
@@ -108,10 +126,14 @@ window.createCrudTable = function ({
 
 
             const matchSearch =
-                !q ||
-                [fullName, ePosition, eDepartment, eNumber, eType, eStatus]
-                .join(' ')
-                .includes(q);
+                typeof search === 'function'
+                    ? true
+                    : (
+                        !q ||
+                        [fullName, ePosition, eDepartment, eNumber, eType, eStatus]
+                            .join(' ')
+                            .includes(q)
+                    );
 
 
             const matchStatus =
@@ -135,6 +157,10 @@ window.createCrudTable = function ({
 
 
         const sorted = [...filtered].sort((a, b) => {
+
+            if (typeof sort === 'function') {
+                return sort({ a, b, sortBy, sortOrder });
+            }
 
             let left = '';
             let right = '';
@@ -217,7 +243,13 @@ window.createCrudTable = function ({
             if (filterDepartment) filterDepartment.value = '';
             if (filterEmploymentType) filterEmploymentType.value = '';
 
-            if (filterSortBy) filterSortBy.value = 'name';
+            if (filterSortBy) {
+                if ([...filterSortBy.options].some(opt => opt.value === 'name')) {
+                    filterSortBy.value = 'name';
+                } else if (filterSortBy.options.length > 0) {
+                    filterSortBy.value = filterSortBy.options[0].value;
+                }
+            }
             if (filterSortOrder) filterSortOrder.value = 'asc';
 
             applyFilters();
@@ -286,6 +318,6 @@ window.createCrudTable = function ({
        INITIAL RENDER
     ---------------------------------------------------- */
 
-    render(data);
+    applyFilters();
 
 };

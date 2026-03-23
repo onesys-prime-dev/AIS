@@ -20,6 +20,8 @@ $routes->group('client_portal', ['filter' => 'auth'], function($routes){
     $routes->get('employees/get/(:num)', 'Client\EmployeeController::getEmployee/$1');
     $routes->post('employees/update/(:num)', 'Client\EmployeeController::updateEmployee/$1');
     $routes->post('employees/delete/(:num)', 'Client\EmployeeController::deleteEmployee/$1');
+    $routes->post('timesheets/update/(:num)', 'Client\TimesheetController::update/$1');
+    $routes->get('timesheets/delete/(:num)', 'Client\TimesheetController::delete/$1');
 });
 
 $routes->get('client_portal/time-in', 'Client\AttendanceController::timeIn');

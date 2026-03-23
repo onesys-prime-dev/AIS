@@ -8,7 +8,7 @@
     <!-- TOP TABS -->
     <div class="tabs">
         <div class="tab active">Account</div>
-        <div class="tab">Security</div>
+        <!-- <div class="tab">Security</div> -->
         <!-- <div class="tab">Customization</div>
         <div class="tab">Notifications</div> -->
     </div>
@@ -175,7 +175,7 @@
     .tab.active::after{
         content:'';
         position:absolute;
-        bottom:-15px;
+        bottom:-24px;
         left:0;
         width:100%;
         height:3px;

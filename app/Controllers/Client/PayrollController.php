@@ -34,7 +34,7 @@ class PayrollController extends BaseController
             ->where('users.active', 1)
             ->findAll();
 
-        return view('client_portal/payroll', $data);
+        return view('client_portal/payroll_main', $data);
     }
 
     public function createPayroll()

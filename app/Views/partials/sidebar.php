@@ -20,6 +20,12 @@
                 <span>Timesheets</span>
             </a>
 
+            <a href="<?= site_url('client_portal/requests') ?>"
+                    class="menu-item <?= str_contains(current_url(), 'client_portal/requests') ? 'active' : '' ?>">
+                    <img src="<?= base_url('icons/Requests.png') ?>" class="icon">
+                    <span>Requests</span>
+                </a>
+
             <!-- Client Payroll Staff ONLY -->
             <?php if(auth()->user()->inGroup('client_payroll_staff')): ?>
                 <a href="<?= site_url('client_portal/payroll') ?>"
@@ -34,11 +40,11 @@
                     <span>Employee</span>
                 </a>
 
-                <a href="<?= site_url('client_portal/requests') ?>"
+                <!-- <a href="<?= site_url('client_portal/requests') ?>"
                     class="menu-item <?= str_contains(current_url(), 'client_portal/requests') ? 'active' : '' ?>">
                     <img src="<?= base_url('icons/Requests.png') ?>" class="icon">
                     <span>Requests</span>
-                </a>
+                </a> -->
             <?php endif; ?>
         </nav>
 
