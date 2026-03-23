@@ -22,6 +22,11 @@ $routes->group('client_portal', ['filter' => 'auth'], function($routes){
     $routes->post('employees/delete/(:num)', 'Client\EmployeeController::deleteEmployee/$1');
     $routes->post('timesheets/update/(:num)', 'Client\TimesheetController::update/$1');
     $routes->get('timesheets/delete/(:num)', 'Client\TimesheetController::delete/$1');
+    $routes->get('profile', 'Client\EmployeeAccountController::index');
+    $routes->post('profile/photo', 'Client\EmployeeAccountController::updatePhoto');
+    $routes->post('profile/contact', 'Client\EmployeeAccountController::updateContact');
+    $routes->post('profile/emergency', 'Client\EmployeeAccountController::updateEmergency');
+    $routes->post('profile/password', 'Client\EmployeeAccountController::updatePassword');
 });
 
 $routes->get('client_portal/time-in', 'Client\AttendanceController::timeIn');
@@ -34,7 +39,6 @@ $routes->post('client_portal/requests/update/(:num)', 'Client\RequestController:
 $routes->post('client_portal/tasks/submit', 'Client\TaskController::submitTask');
 $routes->get('client_portal/tasks/saved', 'Client\TaskController::getSavedTasks');
 $routes->get('client_portal/timesheet', 'Client\TimesheetController::index');
-$routes->get('client_portal/profile', 'Client\EmployeeAccountController::index');
 $routes->get('settings/customization', 'SettingsController::customization');
 
 $routes->group('client_portal', ['namespace' => 'App\Controllers\Client'], function($routes) {

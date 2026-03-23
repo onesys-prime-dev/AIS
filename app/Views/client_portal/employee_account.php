@@ -2,137 +2,568 @@
 
 <?= $this->section('content') ?>
 
+<?php
+    $identity = $identity ?? [];
+    $employment = $employment ?? [];
+    $contact = $contact ?? [];
+    $emergency = $emergency ?? [];
+    $audit = $audit ?? [];
+
+    $joinedLabel = ! empty($identity['joined']) ? date('Y', strtotime((string) $identity['joined'])) : 'N/A';
+    $birthdateLabel = ! empty($identity['birthdate']) ? date('F j, Y', strtotime((string) $identity['birthdate'])) : '-';
+    $hireDateLabel = ! empty($employment['hire_date']) ? date('F j, Y', strtotime((string) $employment['hire_date'])) : '-';
+    $auditLabel = ! empty($audit['updated_at']) ? date('F j, Y g:i A', strtotime((string) $audit['updated_at'])) : '-';
+?>
+
 <!-- ACCOUNT PAGE -->
 <div class="account-container">
 
     <!-- TOP TABS -->
     <div class="tabs">
         <div class="tab active">Account</div>
-        <!-- <div class="tab">Security</div> -->
-        <!-- <div class="tab">Customization</div>
-        <div class="tab">Notifications</div> -->
-    </div>
+     </div>
 
     <!-- GRID -->
     <div class="account-grid scroll-bar">
 
-        <!-- ABOUT ME -->
+        <!-- PERSONAL IDENTITY (READ-ONLY MOSTLY) -->
         <div class="card">
-            <h2>About Me</h2>
+            <h2>Personal Identity</h2>
 
             <div class="about-content">
-                <div class="about-avatar"></div>
+                <div class="about-avatar" style="<?= ! empty($identity['photo_url']) ? 'background-image:url(' . esc($identity['photo_url']) . ');background-size:cover;background-position:center;' : '' ?>"></div>
 
                 <div class="about-info">
-                    <div class="name-row">
-                        <div>
-                            <div class="name">Barb Backes</div>
-                            <div class="joined">Joined in 2014</div>
-                        </div>
-                        <a href="#">Edit</a>
+                    <div class="name"><?= esc($identity['full_name'] ?? '-') ?></div>
+                    <div class="joined">Joined in <?= esc($joinedLabel) ?></div>
+
+                    <form id="photoUploadForm" method="post" action="<?= site_url('client_portal/profile/photo') ?>" enctype="multipart/form-data" class="photo-upload-form">
+                        <?= csrf_field() ?>
+                        <input id="profile_photo" type="file" name="profile_photo" accept=".jpg,.jpeg,.png,.webp" class="photo-input" hidden>
+                        <button type="button" class="photo-link-btn" onclick="document.getElementById('profile_photo').click()">Update photo</button>
+                    </form>
+                </div>
+            </div>
+
+            <div class="info-list">
+                <div class="info-row"><span>Full Name</span><strong><?= esc($identity['full_name'] ?? '-') ?></strong></div>
+                <div class="info-row"><span>Preferred Name</span><strong><?= esc($identity['preferred_name'] ?? '-') ?></strong></div>
+                <div class="info-row"><span>Date of Birth</span><strong><?= esc($birthdateLabel) ?></strong></div>
+                <div class="info-row"><span>Gender</span><strong>Male</strong></div>
+            </div>
+        </div>
+
+        <!-- EMPLOYMENT DETAILS (READ-ONLY) -->
+        <div class="card">
+            <h2>Employment Details</h2>
+
+            <div class="info-list">
+                <div class="info-row"><span>Employee ID</span><strong><?= esc($employment['employee_number'] ?? '-') ?></strong></div>
+                <div class="info-row"><span>Department</span><strong><?= esc($employment['department'] ?? '-') ?></strong></div>
+                <div class="info-row"><span>Job Title</span><strong><?= esc($employment['position'] ?? '-') ?></strong></div>
+                <div class="info-row"><span>Employment Type</span><strong><?= esc($employment['employment_type'] ?? '-') ?></strong></div>
+                <div class="info-row"><span>Hire Date</span><strong><?= esc($hireDateLabel) ?></strong></div>
+                <div class="info-row"><span>Status</span><strong class="status-badge"><?= esc($employment['status'] ?? 'Inactive') ?></strong></div>
+                <div class="info-row"><span>Reports To</span><strong><?= esc($employment['reports_to'] ?? '-') ?></strong></div>
+            </div>
+        </div>
+
+        <!-- CONTACT INFORMATION (EDITABLE) -->
+        <div class="card">
+            <h2>Contact Information</h2>
+
+            <form method="post" action="<?= site_url('client_portal/profile/contact') ?>">
+                <?= csrf_field() ?>
+                <div class="form-group">
+                    <label>Primary Email (CI4 Shield)</label>
+                    <input type="email" value="<?= esc($contact['primary_email'] ?? '') ?>" disabled>
+                    <small class="muted">Primary login email is managed by account registration and authentication.</small>
+                </div>
+
+                <div class="form-group">
+                    <label>Secondary Email</label>
+                    <input type="email" name="secondary_email" value="<?= esc($contact['secondary_email'] ?? '') ?>" placeholder="name@company.com">
+                </div>
+
+                <div class="form-group">
+                    <label>Mobile Number</label>
+                    <input type="text" name="mobile_number" value="<?= esc($contact['mobile_number'] ?? '') ?>" placeholder="09xx-xxx-xxxx">
+                </div>
+
+                <div class="form-group">
+                    <label>Address</label>
+                    <textarea rows="3" name="address" placeholder="Enter current address"><?= esc($contact['address'] ?? '') ?></textarea>
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">Save Contact Info</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- EMERGENCY CONTACT (EDITABLE) -->
+        <div class="card">
+            <h2>Emergency Contact</h2>
+
+            <form method="post" action="<?= site_url('client_portal/profile/emergency') ?>">
+                <?= csrf_field() ?>
+                <div class="form-group">
+                    <label>Contact Name</label>
+                    <input type="text" name="emergency_name" value="<?= esc($emergency['emergency_name'] ?? '') ?>" placeholder="Full name">
+                </div>
+
+                <div class="form-group">
+                    <label>Relationship</label>
+                    <input type="text" name="emergency_relationship" value="<?= esc($emergency['emergency_relationship'] ?? '') ?>" placeholder="Relationship">
+                </div>
+
+                <div class="form-group">
+                    <label>Primary Phone</label>
+                    <input type="text" name="emergency_phone_primary" value="<?= esc($emergency['emergency_phone_primary'] ?? '') ?>" placeholder="Primary phone">
+                </div>
+
+                <div class="form-group">
+                    <label>Alternate Phone</label>
+                    <input type="text" name="emergency_phone_alternate" value="<?= esc($emergency['emergency_phone_alternate'] ?? '') ?>" placeholder="Alternate phone (optional)">
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">Save Emergency Contact</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- SECURITY (PASSWORD UPDATE ACTION) -->
+        <div class="card span-2">
+            <h2>Security</h2>
+
+            <form method="post" action="<?= site_url('client_portal/profile/password') ?>">
+                <?= csrf_field() ?>
+                <div class="security-grid">
+                    <div class="form-group">
+                        <label>Current Password</label>
+                        <input type="password" name="current_password" placeholder="Enter current password" required>
                     </div>
 
-                    <div class="paypal-link">paypal.me/bbackes</div>
-                    <div class="subtext">
-                        With this link, anyone can send you money in seconds.
+                    <div class="form-group">
+                        <label>New Password</label>
+                        <input type="password" name="new_password" placeholder="Enter new password" required>
                     </div>
 
-                    <a href="#" class="photo-link">Update photo</a>
+                    <div class="form-group">
+                        <label>Confirm New Password</label>
+                        <input type="password" name="confirm_password" placeholder="Confirm new password" required>
+                    </div>
                 </div>
-            </div>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">Update Password</button>
+                </div>
+            </form>
         </div>
 
-        <!-- ADDRESS -->
-        <div class="card">
-            <div class="card-header">
-                <h2>Address</h2>
-                <span class="plus">+</span>
-            </div>
-
-            <div class="item">
-                <div>
-                    1602 E. Weathervane Lane<br>
-                    TEMPE, AZ 85283<br>
-                    <span class="muted">Primary, Billing address</span>
-                </div>
-                <div class="actions">Edit | Remove</div>
-            </div>
-
-            <div class="item">
-                <div>
-                    7811 N. via Del Mundo<br>
-                    SCOTTSDALE, AZ 85258
-                </div>
-                <div class="actions">Edit | Remove</div>
-            </div>
-        </div>
-
-        <!-- ACCOUNT OPTIONS -->
-        <div class="card">
-            <h2>Account options</h2>
-
-            <div class="form-group">
-                <label>Language</label>
-                <select>
-                    <option>English</option>
-                </select>
-            </div>
-
-            <div class="form-group">
-                <label>Time zone</label>
-                <select>
-                    <option>(GMT-04:00) Atlantic Standard Time</option>
-                </select>
-            </div>
-
-            <div class="form-group row">
-                <label>SSN</label>
-                <span>xxx-xx-xx83 <a href="#">Edit</a></span>
-            </div>
-
-            <a href="#" class="link">Upgrade to a Business account</a>
-            <a href="#" class="link danger">Close your account</a>
-        </div>
-
-        <!-- EMAIL -->
-        <div class="card">
-            <div class="card-header">
-                <h2>Email</h2>
-                <span class="plus">+</span>
-            </div>
-
-            <div class="item">
-                <div>
-                    barb.backes@gmail.com<br>
-                    <span class="muted">Primary</span>
-                </div>
-                <div class="actions">Edit | Remove</div>
-            </div>
-        </div>
-
-        <!-- PHONE -->
-        <div class="card">
-            <div class="card-header">
-                <h2>Phone</h2>
-                <span class="plus">+</span>
-            </div>
-
-            <div class="item">
-                <div>
-                    (480) 628-6148<br>
-                    <span class="muted">Mobile, Primary</span>
-                </div>
-                <div class="actions">Edit | Remove</div>
-            </div>
-
-            <div class="item">
-                <div>(480) 628-6148</div>
-                <div class="actions">Edit | Remove</div>
-            </div>
+        <!-- SMALL AUDIT LINE -->
+        <div class="card span-2 audit-card">
+            <span>Last updated: <?= esc($auditLabel) ?> by <?= esc($audit['updated_by'] ?? 'System') ?></span>
         </div>
 
     </div>
 </div>
+
+<!-- PHOTO EDITOR MODAL -->
+<div id="photoEditorModal" class="modal-overlay hidden">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Edit Profile Photo</h3>
+            <button type="button" class="modal-close" onclick="closePhotoModal()">&times;</button>
+        </div>
+        
+        <div class="modal-body">
+            <div class="editor-canvas-wrapper">
+                <canvas id="photoCanvas"></canvas>
+            </div>
+            
+            <div class="editor-controls">
+                <div class="control-group">
+                    <label>Zoom</label>
+                    <div class="control-row">
+                        <input type="range" id="zoomSlider" min="1" max="3" step="0.1" value="1" class="slider" oninput="setZoom(this.value)">
+                        <span id="zoomValue" class="value">100%</span>
+                    </div>
+                </div>
+                
+                <div class="control-group">
+                    <label>Rotate</label>
+                    <div class="control-row">
+                        <button type="button" class="control-btn" onclick="rotateImage(-90)">← Rotate</button>
+                        <span id="rotateValue" class="value">0°</span>
+                        <button type="button" class="control-btn" onclick="rotateImage(90)">Rotate →</button>
+                    </div>
+                </div>
+                
+                <div class="control-group">
+                    <label>Position</label>
+                    <div class="control-row">
+                        <button type="button" class="control-btn" onclick="resetPosition()">Reset</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="modal-footer">
+            <button type="button" class="btn btn-cancel" onclick="closePhotoModal()">Cancel</button>
+            <button type="button" class="btn btn-primary" onclick="confirmPhotoEdit()">Confirm & Upload</button>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* MODAL OVERLAY */
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        font-family: Segoe UI, Arial;
+    }
+
+    .modal-overlay.hidden {
+        display: none;
+    }
+
+    /* MODAL CONTENT */
+    .modal-content {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        width: 90%;
+        max-width: 600px;
+        max-height: 90vh;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 20px 25px;
+        border-bottom: 1px solid #e5e7eb;
+    }
+
+    .modal-header h3 {
+        margin: 0;
+        font-size: 18px;
+        font-weight: 600;
+    }
+
+    .modal-close {
+        background: none;
+        border: none;
+        font-size: 28px;
+        cursor: pointer;
+        color: #6b7280;
+        padding: 0;
+        width: 32px;
+        height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .modal-close:hover {
+        color: #000;
+    }
+
+    /* MODAL BODY */
+    .modal-body {
+        flex: 1;
+        padding: 20px 25px;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+    }
+
+    .editor-canvas-wrapper {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        background: #f3f4f6;
+        border-radius: 8px;
+        padding: 15px;
+        min-height: 300px;
+        max-height: 400px;
+        overflow: auto;
+    }
+
+    #photoCanvas {
+        max-width: 100%;
+        max-height: 100%;
+        border-radius: 6px;
+        cursor: grab;
+    }
+
+    #photoCanvas:active {
+        cursor: grabbing;
+    }
+
+    /* EDITOR CONTROLS */
+    .editor-controls {
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+    }
+
+    .control-group {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .control-group label {
+        font-weight: 600;
+        font-size: 13px;
+        color: #374151;
+    }
+
+    .control-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .slider {
+        flex: 1;
+        height: 6px;
+        border-radius: 3px;
+        background: #e5e7eb;
+        outline: none;
+        appearance: none;
+        -webkit-appearance: none;
+    }
+
+    .slider::-webkit-slider-thumb {
+        appearance: none;
+        -webkit-appearance: none;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background: #2563eb;
+        cursor: pointer;
+    }
+
+    .slider::-moz-range-thumb {
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background: #2563eb;
+        cursor: pointer;
+        border: none;
+    }
+
+    .value {
+        font-size: 12px;
+        color: #6b7280;
+        min-width: 45px;
+        text-align: center;
+    }
+
+    .control-btn {
+        padding: 6px 12px;
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        background: #f9fafb;
+        cursor: pointer;
+        font-size: 12px;
+        font-weight: 500;
+        transition: all 0.2s;
+    }
+
+    .control-btn:hover {
+        background: #e5e7eb;
+        border-color: #9ca3af;
+    }
+
+    /* MODAL FOOTER */
+    .modal-footer {
+        display: flex;
+        justify-content: flex-end;
+        gap: 12px;
+        padding: 15px 25px;
+        border-top: 1px solid #e5e7eb;
+        background: #f9fafb;
+    }
+
+    .btn-cancel {
+        background: #e5e7eb;
+        color: #374151;
+    }
+
+    .btn-cancel:hover {
+        background: #d1d5db;
+    }
+</style>
+
+<script>
+    let editorState = {
+        image: null,
+        zoom: 1,
+        rotate: 0,
+        offsetX: 0,
+        offsetY: 0,
+        isDragging: false,
+        dragStartX: 0,
+        dragStartY: 0,
+        originalFile: null,
+        dragListenersBound: false
+    };
+
+    // Handle file input change
+    document.getElementById('profile_photo').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (file) {
+            editorState.originalFile = file;
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const img = new Image();
+                img.onload = function() {
+                    editorState.image = img;
+                    editorState.zoom = 1;
+                    editorState.rotate = 0;
+                    editorState.offsetX = 0;
+                    editorState.offsetY = 0;
+                    document.getElementById('zoomSlider').value = '1';
+                    document.getElementById('zoomValue').textContent = '100%';
+                    document.getElementById('rotateValue').textContent = '0°';
+                    updatePreview();
+                    openPhotoModal();
+                };
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+
+    function openPhotoModal() {
+        document.getElementById('photoEditorModal').classList.remove('hidden');
+        setupCanvasDragListener();
+    }
+
+    function setZoom(value) {
+        editorState.zoom = Number.parseFloat(value) || 1;
+        updatePreview();
+    }
+
+    function closePhotoModal() {
+        document.getElementById('photoEditorModal').classList.add('hidden');
+        document.getElementById('profile_photo').value = '';
+        editorState.originalFile = null;
+    }
+
+    function updatePreview() {
+        const canvas = document.getElementById('photoCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        if (!editorState.image) return;
+
+        // Update zoom display
+        document.getElementById('zoomValue').textContent = Math.round(editorState.zoom * 100) + '%';
+
+        // Set canvas size
+        canvas.width = 400;
+        canvas.height = 400;
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Save context state
+        ctx.save();
+        
+        // Apply transformations
+        ctx.translate(canvas.width / 2, canvas.height / 2);
+        ctx.rotate((editorState.rotate * Math.PI) / 180);
+        ctx.scale(editorState.zoom, editorState.zoom);
+        ctx.translate(editorState.offsetX, editorState.offsetY);
+        
+        // Draw image centered
+        const imgWidth = editorState.image.width;
+        const imgHeight = editorState.image.height;
+        const scale = Math.min(canvas.width / imgWidth, canvas.height / imgHeight);
+        ctx.drawImage(
+            editorState.image,
+            -(imgWidth * scale) / 2,
+            -(imgHeight * scale) / 2,
+            imgWidth * scale,
+            imgHeight * scale
+        );
+
+        ctx.restore();
+    }
+
+    function rotateImage(degrees) {
+        editorState.rotate = (editorState.rotate + degrees) % 360;
+        document.getElementById('rotateValue').textContent = editorState.rotate + '°';
+        updatePreview();
+    }
+
+    function resetPosition() {
+        editorState.offsetX = 0;
+        editorState.offsetY = 0;
+        updatePreview();
+    }
+
+    function setupCanvasDragListener() {
+        if (editorState.dragListenersBound) {
+            return;
+        }
+
+        editorState.dragListenersBound = true;
+        const canvas = document.getElementById('photoCanvas');
+        
+        canvas.addEventListener('mousedown', (e) => {
+            editorState.isDragging = true;
+            editorState.dragStartX = e.clientX;
+            editorState.dragStartY = e.clientY;
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (editorState.isDragging && editorState.image) {
+                const dx = (e.clientX - editorState.dragStartX) / editorState.zoom;
+                const dy = (e.clientY - editorState.dragStartY) / editorState.zoom;
+                editorState.offsetX += dx;
+                editorState.offsetY += dy;
+                editorState.dragStartX = e.clientX;
+                editorState.dragStartY = e.clientY;
+                updatePreview();
+            }
+        });
+
+        document.addEventListener('mouseup', () => {
+            editorState.isDragging = false;
+        });
+    }
+
+    function confirmPhotoEdit() {
+        const canvas = document.getElementById('photoCanvas');
+        canvas.toBlob((blob) => {
+            const dataTransfer = new DataTransfer();
+            const file = new File([blob], editorState.originalFile.name, { type: 'image/png' });
+            dataTransfer.items.add(file);
+            document.getElementById('profile_photo').files = dataTransfer.files;
+            
+            // Submit the form
+            document.getElementById('photoUploadForm').submit();
+            closePhotoModal();
+        }, 'image/png');
+    }
+</script>
 
 <style>
     /* CONTAINER */
@@ -207,6 +638,10 @@
         font-weight:500;
     }
 
+    .span-2{
+        grid-column: span 2;
+    }
+
     /* HEADER WITH PLUS */
     .card-header{
         display:flex;
@@ -271,6 +706,29 @@
         color:#1f8dbd;
     }
 
+    .photo-upload-form{
+        margin-top:10px;
+        display:flex;
+        align-items:center;
+        gap:10px;
+        flex-wrap:wrap;
+    }
+
+    .photo-input{
+        max-width:220px;
+        font-size:12px;
+    }
+
+    .photo-link-btn{
+        border:none;
+        background:transparent;
+        color:#1f8dbd;
+        font-size:12px;
+        cursor:pointer;
+        padding:0;
+        text-decoration:underline;
+    }
+
     /* ITEMS */
     .item{
         display:flex;
@@ -314,6 +772,81 @@
         align-items:center;
     }
 
+    .info-list{
+        margin-top:15px;
+        display:flex;
+        flex-direction:column;
+        gap:10px;
+    }
+
+    .info-row{
+        display:flex;
+        justify-content:space-between;
+        gap:20px;
+        border-bottom:1px solid #f1f5f9;
+        padding-bottom:10px;
+    }
+
+    .info-row span{
+        color:#6b7280;
+        font-size:13px;
+    }
+
+    .info-row strong{
+        font-size:14px;
+    }
+
+    .status-badge{
+        color:#15803d;
+        background:#dcfce7;
+        padding:4px 10px;
+        border-radius:999px;
+        font-size:12px;
+    }
+
+    .form-group input,
+    .form-group textarea,
+    .form-group select{
+        width:100%;
+        padding:8px;
+        border-radius:6px;
+        border:1px solid #ddd;
+    }
+
+    .form-actions{
+        margin-top:12px;
+        display:flex;
+        justify-content:flex-end;
+    }
+
+    .btn{
+        border:none;
+        border-radius:8px;
+        padding:10px 14px;
+        cursor:pointer;
+        font-size:13px;
+    }
+
+    .btn-primary{
+        background:#2563eb;
+        color:#fff;
+    }
+
+    .security-grid{
+        display:grid;
+        grid-template-columns:repeat(3, minmax(0, 1fr));
+        gap:14px;
+    }
+
+    .audit-card{
+        font-size:13px;
+        color:#475569;
+        padding-top:14px;
+        padding-bottom:14px;
+        background:#f8fafc;
+        border:1px solid #e2e8f0;
+    }
+
     /* LINKS */
     .link{
         display:block;
@@ -331,14 +864,24 @@
         font-size:12px;
         color:#9ca3af;
     }
-</style>
 
-<?= $this->endSection() ?>
-<!-- 
-<?= $this->section('modals') ?>
+    @media (max-width: 1024px){
+        .account-grid{
+            grid-template-columns:1fr;
+        }
+
+        .span-2{
+            grid-column: span 1;
+        }
+
+        .security-grid{
+            grid-template-columns:1fr;
+        }
+    }
+</style>
 
 <?= $this->endSection() ?>
 
 <?= $this->section('scripts') ?>
-
-<?= $this->endSection() ?> -->
+<script src="<?= base_url('js/components/flash-notifications.js') ?>"></script>
+<?= $this->endSection() ?>

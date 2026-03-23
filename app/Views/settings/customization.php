@@ -55,6 +55,18 @@
                     <input type="text" id="bgColorValue" readonly>
                 </div>
             </div>
+
+            <div class="color-box">
+                <label>Sidebar Icon Mode</label>
+                <div class="mode-field">
+                    <select id="sidebarIconMode">
+                        <option value="auto">Auto</option>
+                        <option value="light">Light Icons</option>
+                        <option value="dark">Dark Icons</option>
+                        <option value="original">Original Icon Colors</option>
+                    </select>
+                </div>
+            </div>
         </div>
 
     </div>
@@ -173,6 +185,18 @@ h1 {
     background: #e5e7eb;
 }
 
+.mode-field {
+    margin-top: 8px;
+}
+
+.mode-field select {
+    width: 100%;
+    padding: 10px;
+    border-radius: 8px;
+    border: none;
+    background: #e5e7eb;
+}
+
 /* ACTIONS */
 .actions {
     margin-top: 30px;
@@ -212,6 +236,7 @@ const bgPicker = $('bgColorPicker');
 const headerVal = $('headerColorValue');
 const sidebarVal = $('sidebarColorValue');
 const bgVal = $('bgColorValue');
+const sidebarIconModeSelect = $('sidebarIconMode');
 
 const logoInput = $('logoInput');
 const logoPreview = $('logoPreview');
@@ -221,6 +246,7 @@ const fileName = $('fileName');
 let headerColor = localStorage.getItem('headerColor') || '#ffffff';
 let sidebarColor = localStorage.getItem('sidebarColor') || '#1e1e1e';
 let bgColor = localStorage.getItem('bgColor') || '#f5f6fa';
+let sidebarIconMode = localStorage.getItem('sidebarIconMode') || 'auto';
 
 // TEXT CONTRAST
 function getContrastColor(hex) {
@@ -245,7 +271,14 @@ function getIconFilter(hex) {
 
     const brightness = (r * 299 + g * 587 + b * 114) / 1000;
 
-    return brightness > 155 ? 'invert(0)' : 'invert(1)';
+    return brightness > 155 ? 'invert(1)' : 'invert(0)';
+}
+
+function getSidebarIconFilter(mode, sidebarHex) {
+    if (mode === 'light') return 'invert(0)';
+    if (mode === 'dark') return 'invert(1)';
+    if (mode === 'original') return 'none';
+    return getIconFilter(sidebarHex);
 }
 
 // ADJUST COLOR (hover/active)
@@ -266,6 +299,23 @@ function adjustColor(hex, percent) {
         Math.round(b).toString(16).padStart(2,'0');
 }
 
+function tintColor(hex, amount) {
+    hex = hex.replace('#', '');
+
+    let r = parseInt(hex.substring(0, 2), 16);
+    let g = parseInt(hex.substring(2, 4), 16);
+    let b = parseInt(hex.substring(4, 6), 16);
+
+    r = Math.round(r + (255 - r) * amount);
+    g = Math.round(g + (255 - g) * amount);
+    b = Math.round(b + (255 - b) * amount);
+
+    return "#" +
+        r.toString(16).padStart(2, '0') +
+        g.toString(16).padStart(2, '0') +
+        b.toString(16).padStart(2, '0');
+}
+
 // 🎨 APPLY COLORS
 function applyColors() {
 
@@ -279,11 +329,11 @@ function applyColors() {
     document.documentElement.style.setProperty('--sidebar-text', getContrastColor(sidebarColor));
 
     // ICONS
-    document.documentElement.style.setProperty('--sidebar-icon-filter', getIconFilter(sidebarColor));
+    document.documentElement.style.setProperty('--sidebar-icon-filter', getSidebarIconFilter(sidebarIconMode, sidebarColor));
 
     // SIDEBAR STATES
-    document.documentElement.style.setProperty('--sidebar-hover', adjustColor(sidebarColor, 0.15));
-    document.documentElement.style.setProperty('--sidebar-active', adjustColor(sidebarColor, 0.3));
+    document.documentElement.style.setProperty('--sidebar-hover', tintColor(sidebarColor, 0.14));
+    document.documentElement.style.setProperty('--sidebar-active', tintColor(sidebarColor, 0.25));
 }
 
 // INITIAL LOAD
@@ -294,6 +344,7 @@ if (bgPicker) bgPicker.value = bgColor;
 if (headerVal) headerVal.value = headerColor;
 if (sidebarVal) sidebarVal.value = sidebarColor;
 if (bgVal) bgVal.value = bgColor;
+if (sidebarIconModeSelect) sidebarIconModeSelect.value = sidebarIconMode;
 
 applyColors();
 
@@ -316,11 +367,17 @@ bgPicker?.addEventListener('input', () => {
     applyColors();
 });
 
+sidebarIconModeSelect?.addEventListener('change', () => {
+    sidebarIconMode = sidebarIconModeSelect.value;
+    applyColors();
+});
+
 // SAVE
 document.querySelector('.save-btn').addEventListener('click', () => {
     localStorage.setItem('headerColor', headerColor);
     localStorage.setItem('sidebarColor', sidebarColor);
     localStorage.setItem('bgColor', bgColor);
+    localStorage.setItem('sidebarIconMode', sidebarIconMode);
 
     alert('Changes saved!');
 });

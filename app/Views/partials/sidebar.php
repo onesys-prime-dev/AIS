@@ -74,7 +74,7 @@
     :root {
         --sidebar-bg: #1e1e1e;
         --sidebar-text: #cfcfcf;
-        --sidebar-icon-filter: invert(1);
+        --sidebar-icon-filter: invert(0);
 
         --sidebar-hover: #333;
         --sidebar-active: #555;
@@ -141,7 +141,7 @@
         text-decoration:none;
         color: var(--sidebar-text);
         font-size:11px;
-        transition:0.2s;
+        transition: background-color 0.2s, color 0.2s, transform 0.2s, box-shadow 0.2s;
     }
 
     /* ACTIVE ITEM */
@@ -153,6 +153,8 @@
     /* HOVER */
     .menu-item:hover{
         background: var(--sidebar-hover);
+        color: #ffffff;
+        transform: translateX(2px);
     }
 
     /* ICON */
@@ -166,6 +168,10 @@
     /* slightly brighter icon when active */
     .menu-item.active .icon{
         filter: brightness(1.2) var(--sidebar-icon-filter);
+    }
+
+    .menu-item:hover .icon{
+        filter: brightness(1.12) var(--sidebar-icon-filter);
     }
 
     /* BOTTOM MENU */

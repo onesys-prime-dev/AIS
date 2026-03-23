@@ -88,6 +88,13 @@ function getIconFilter(hex) {
     return brightness > 155 ? 'invert(1)' : 'invert(0)';
 }
 
+function getSidebarIconFilter(mode, sidebarHex) {
+    if (mode === 'light') return 'invert(0)';
+    if (mode === 'dark') return 'invert(1)';
+    if (mode === 'original') return 'none';
+    return getIconFilter(sidebarHex);
+}
+
 function adjustColor(hex, percent) {
     hex = hex.replace('#', '');
 
@@ -105,9 +112,27 @@ function adjustColor(hex, percent) {
         Math.round(b).toString(16).padStart(2,'0');
 }
 
+function tintColor(hex, amount) {
+    hex = hex.replace('#', '');
+
+    const r = parseInt(hex.substring(0,2), 16);
+    const g = parseInt(hex.substring(2,4), 16);
+    const b = parseInt(hex.substring(4,6), 16);
+
+    const nr = Math.round(r + (255 - r) * amount);
+    const ng = Math.round(g + (255 - g) * amount);
+    const nb = Math.round(b + (255 - b) * amount);
+
+    return "#" +
+        nr.toString(16).padStart(2, '0') +
+        ng.toString(16).padStart(2, '0') +
+        nb.toString(16).padStart(2, '0');
+}
+
 document.addEventListener("DOMContentLoaded", function () {
     const headerColor = localStorage.getItem('headerColor');
     const sidebarColor = localStorage.getItem('sidebarColor');
+    const sidebarIconMode = localStorage.getItem('sidebarIconMode') || 'auto';
 
     if (headerColor) {
         document.documentElement.style.setProperty('--header-bg', headerColor);
@@ -117,10 +142,10 @@ document.addEventListener("DOMContentLoaded", function () {
     if (sidebarColor) {
     document.documentElement.style.setProperty('--sidebar-bg', sidebarColor);
     document.documentElement.style.setProperty('--sidebar-text', getContrastColor(sidebarColor));
-    document.documentElement.style.setProperty('--sidebar-icon-filter', getIconFilter(sidebarColor));
+    document.documentElement.style.setProperty('--sidebar-icon-filter', getSidebarIconFilter(sidebarIconMode, sidebarColor));
 
-    document.documentElement.style.setProperty('--sidebar-hover', adjustColor(sidebarColor, 0.15));
-    document.documentElement.style.setProperty('--sidebar-active', adjustColor(sidebarColor, 0.3));
+    document.documentElement.style.setProperty('--sidebar-hover', tintColor(sidebarColor, 0.14));
+    document.documentElement.style.setProperty('--sidebar-active', tintColor(sidebarColor, 0.25));
 
     const panelBg = adjustColor(sidebarColor, -0.2);
     document.documentElement.style.setProperty('--panel-bg', panelBg);
