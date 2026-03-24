@@ -32,22 +32,27 @@
     .header h1{
         font-size:28px;
         font-weight:700;
+        margin-bottom: 0.25rem;
     }
 
     .request-btn{
         background:#ef4444;
         color:white;
-        padding:12px 20px;
+        padding:0.75rem;
         border-radius:10px;
         border:none;
         cursor:pointer;
         font-weight:600;
+        gap: 0.5rem;
     }
 
-    .main{
-        display:flex;
-        gap:28px;
-        height: auto;
+    .dashboard-main {
+        height: 100%;
+        position: relative;
+        display: flex;
+        flex-direction: row;
+        min-height: 0;
+        gap: 2rem;
     }
 
     .clock-card{
@@ -390,11 +395,13 @@
 <div class="dashboard">
 
         <div class="header">
-            <h1>Employee Dashboard</h1>
+            <div class="p-1">
+                <h1>Employee Dashboard</h1>
+            </div>
             <button onclick="openRequestForm()" class="request-btn">+ Request Form</button>
         </div>
 
-    <div class=" h-full relative flex flex-row min-h-0 gap-8">
+    <div class="dashboard-main">
 
         <div class="clock-card">
 

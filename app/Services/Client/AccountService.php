@@ -28,6 +28,12 @@ class AccountService
 		$user = $this->userModel->find($userId);
 		$employee = $this->employeeModel->where('user_id', $userId)->first();
 
+		// Auto-create missing employee profile to maintain data consistency
+		if (! $employee) {
+			$this->ensureEmployeeProfileExists($userId, $user);
+			$employee = $this->employeeModel->where('user_id', $userId)->first();
+		}
+
 		if (! $employee) {
 			return [
 				'identity' => [],
@@ -58,7 +64,11 @@ class AccountService
 
 		return [
 			'identity' => [
+				'first_name' => (string) ($employee['first_name'] ?? ''),
+				'middle_name' => (string) ($employee['middle_name'] ?? ''),
+				'last_name' => (string) ($employee['last_name'] ?? ''),
 				'full_name' => $fullName,
+				'username' => (string) ($user->username ?? ''),
 				'preferred_name' => (string) ($employee['first_name'] ?? ''),
 				'birthdate' => (string) ($employee['birthdate'] ?? ''),
 				'joined' => (string) ($employee['created_at'] ?? ''),
@@ -213,6 +223,163 @@ class AccountService
 		return ['ok' => true, 'message' => 'Profile photo updated.'];
 	}
 
+	public function updateUsername(int $userId, string $username): array
+	{
+		$username = trim($username);
+
+		if ($username === '') {
+			return ['ok' => false, 'message' => 'Username is required.'];
+		}
+
+		$user = $this->userModel->find($userId);
+
+		if (! $user) {
+			return ['ok' => false, 'message' => 'User account not found.'];
+		}
+
+		$existing = $this->userModel
+			->where('username', $username)
+			->where('id !=', $userId)
+			->first();
+
+		if ($existing) {
+			return ['ok' => false, 'message' => 'This username is already taken.'];
+		}
+
+		$user->username = $username;
+
+		if (! $this->userModel->save($user)) {
+			$errors = $this->userModel->errors();
+			$message = ! empty($errors) ? implode(' ', $errors) : 'Unable to update username.';
+
+			return ['ok' => false, 'message' => $message];
+		}
+
+		return ['ok' => true, 'message' => 'Username updated successfully.'];
+	}
+
+	public function updateIdentity(int $userId, array $payload): array
+	{
+		$user = $this->userModel->find($userId);
+
+		if (! $user) {
+			return ['ok' => false, 'message' => 'User account not found.'];
+		}
+
+		$employee = $this->employeeModel->where('user_id', $userId)->first();
+
+		if (! $employee) {
+			return ['ok' => false, 'message' => 'Employee profile not found.'];
+		}
+
+		$username = trim((string) ($payload['username'] ?? ''));
+
+		$existing = $this->userModel
+			->where('username', $username)
+			->where('id !=', $userId)
+			->first();
+
+		if ($existing) {
+			return ['ok' => false, 'message' => 'This username is already taken.'];
+		}
+
+		$db = \Config\Database::connect();
+		$db->transBegin();
+
+		try {
+			[$firstName, $middleName, $lastName] = $this->splitFullName(
+				trim((string) ($payload['full_name'] ?? '')),
+				(string) ($employee['last_name'] ?? 'User')
+			);
+
+			$user->username = $username;
+
+			if (! $this->userModel->save($user)) {
+				$errors = $this->userModel->errors();
+				$message = ! empty($errors) ? implode(' ', $errors) : 'Unable to update username.';
+
+				throw new \RuntimeException($message);
+			}
+
+			$updated = $this->employeeModel->update((int) $employee['id'], [
+				'first_name' => $firstName,
+				'middle_name' => $middleName,
+				'last_name' => $lastName,
+				'birthdate' => trim((string) ($payload['birthdate'] ?? '')),
+			]);
+
+			if (! $updated) {
+				$errors = $this->employeeModel->errors();
+				$message = ! empty($errors) ? implode(' ', $errors) : 'Unable to update employee identity.';
+
+				throw new \RuntimeException($message);
+			}
+
+			$db->transCommit();
+
+			return ['ok' => true, 'message' => 'Personal identity updated successfully.'];
+		} catch (\Throwable $e) {
+			$db->transRollback();
+
+			return ['ok' => false, 'message' => $e->getMessage()];
+		}
+	}
+
+	private function splitFullName(string $fullName, string $fallbackLastName = 'User'): array
+	{
+		$parts = preg_split('/\s+/', trim($fullName)) ?: [];
+
+		if (count($parts) === 0) {
+			return ['Employee', null, $fallbackLastName !== '' ? $fallbackLastName : 'User'];
+		}
+
+		if (count($parts) === 1) {
+			return [$parts[0], null, $fallbackLastName !== '' ? $fallbackLastName : 'User'];
+		}
+
+		if (count($parts) === 2) {
+			return [$parts[0], null, $parts[1]];
+		}
+
+		$first = (string) array_shift($parts);
+		$last = (string) array_pop($parts);
+		$middle = trim(implode(' ', $parts));
+
+		return [$first, $middle !== '' ? $middle : null, $last];
+	}
+
+	public function getHeaderIdentity(int $userId): array
+	{
+		$user = $this->userModel->find($userId);
+
+		if (! $user) {
+			return [
+				'photo_url' => null,
+				'display_name' => 'User',
+				'display_email' => '',
+			];
+		}
+
+		$employee = $this->employeeModel->where('user_id', $userId)->first();
+		$photoUrl = null;
+
+		if (! empty($employee['id'])) {
+			$account = $this->accountModel->where('employee_id', (int) $employee['id'])->first();
+			if (! empty($account['photo_path'])) {
+				$photoUrl = base_url((string) $account['photo_path']);
+			}
+		}
+
+		$displayName = (string) ($user->username ?: 'User');
+		$displayEmail = (string) ($user->email ?? '');
+
+		return [
+			'photo_url' => $photoUrl,
+			'display_name' => $displayName,
+			'display_email' => $displayEmail,
+		];
+	}
+
 	protected function getOrCreateAccount(int $employeeId): array
 	{
 		$account = $this->accountModel->where('employee_id', $employeeId)->first();
@@ -240,5 +407,126 @@ class AccountService
 		}
 
 		return (string) ($user->username ?: $user->email ?: ('User #' . $updatedBy));
+	}
+
+	/**
+	 * Ensures an employee profile exists for the given user.
+	 * Automatically creates a minimal profile if missing.
+	 * This guards against users logging in without an employee record.
+	 *
+	 * @param int $userId
+	 * @param object|null $user
+	 * @return void
+	 */
+	protected function ensureEmployeeProfileExists(int $userId, ?object $user = null): void
+	{
+		if (! $user) {
+			$user = $this->userModel->find($userId);
+		}
+
+		if (! $user) {
+			return;
+		}
+
+		$existingEmployee = $this->employeeModel->where('user_id', $userId)->first();
+		if ($existingEmployee) {
+			return; // Already exists
+		}
+
+		$db = \Config\Database::connect();
+		$db->transBegin();
+
+		try {
+			// Extract name parts from username or email
+			$usernameOrEmail = (string) ($user->username ?? '');
+			$parts = preg_split('/\s+/', $usernameOrEmail) ?: [];
+
+			$firstName = 'Employee';
+			$lastName = 'User';
+			$middleName = null;
+
+			if (count($parts) >= 1) {
+				$firstName = $parts[0];
+			}
+			if (count($parts) >= 2) {
+				$lastName = $parts[count($parts) - 1];
+			}
+			if (count($parts) >= 3) {
+				unset($parts[0], $parts[count($parts) - 1]);
+				$middleName = implode(' ', array_values($parts)) ?: null;
+			}
+
+			// Generate employee number
+			$employeeNumber = $this->generateEmployeeNumber();
+
+			// Create employee record
+			$employeeId = $this->employeeModel->insert([
+				'employee_number' => $employeeNumber,
+				'user_id' => $userId,
+				'first_name' => $firstName,
+				'middle_name' => $middleName,
+				'last_name' => $lastName,
+				'birthdate' => '1900-01-01',
+			]);
+
+			if (! $employeeId) {
+				throw new \RuntimeException('Failed to create employee record.');
+			}
+
+			// Create government IDs placeholder
+			$govModel = new \App\Models\Client\EmployeeGovernmentIdModel();
+			$govModel->insert([
+				'employee_id' => $employeeId,
+				'sss' => 'PENDING',
+				'tin' => 'PENDING',
+				'pagibig' => 'PENDING',
+				'philhealth' => 'PENDING',
+			]);
+
+			// Create position placeholder
+			$posModel = new \App\Models\Client\EmployeePositionModel();
+			$posModel->insert([
+				'employee_id' => $employeeId,
+				'department' => 'General',
+				'position' => 'Employee',
+				'employment_type' => 'Regular',
+			]);
+
+			$db->transCommit();
+		} catch (\Throwable $e) {
+			$db->transRollback();
+			log_message('error', 'Failed to auto-create employee profile for user {id}: {message}', [
+				'id' => $userId,
+				'message' => $e->getMessage(),
+			]);
+		}
+	}
+
+	/**
+	 * Generates the next employee number following the format EMP-YYYY-XXXX
+	 *
+	 * @return string
+	 */
+	protected function generateEmployeeNumber(): string
+	{
+		$year = date('Y');
+		$prefix = 'EMP-' . $year . '-';
+
+		$latestEmployee = $this->employeeModel
+			->select('employee_number')
+			->like('employee_number', $prefix, 'after')
+			->orderBy('employee_number', 'DESC')
+			->first();
+
+		$lastSequence = 0;
+		if (! empty($latestEmployee['employee_number'])) {
+			$parts = explode('-', (string) $latestEmployee['employee_number']);
+			$lastChunk = end($parts);
+			$lastSequence = (int) $lastChunk;
+		}
+
+		$nextSequence = $lastSequence + 1;
+
+		return $prefix . str_pad((string) $nextSequence, 4, '0', STR_PAD_LEFT);
 	}
 }

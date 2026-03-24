@@ -70,6 +70,7 @@
 <script src="<?= base_url('js/components/modal-handler.js') ?>"></script>
 <script src="<?= base_url('js/components/crud-actions.js') ?>"></script>
 <script src="<?= base_url('js/components/crud-table.js') ?>"></script>
+<script src="<?= base_url('js/components/password-toggle.js') ?>"></script>
 
 <script>
 

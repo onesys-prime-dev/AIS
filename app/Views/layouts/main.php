@@ -24,10 +24,23 @@
     <div class="flex-1 flex flex-col overflow-hidden">
 
         <!-- Header -->
-        <?= view('partials/header') ?>
+        <?php
+            $headerIdentity = [
+                'photo_url' => null,
+                'display_name' => 'User',
+                'display_email' => '',
+            ];
+
+            $headerUser = auth()->user();
+
+            if ($headerUser) {
+                $headerIdentity = (new \App\Services\Client\AccountService())->getHeaderIdentity((int) $headerUser->id);
+            }
+        ?>
+        <?= view('partials/header', ['headerIdentity' => $headerIdentity]) ?>
 
         <!-- Page Content -->
-        <main class="flex-1 overflow-y-auto ">
+        <main class="flex-1 flex flex-col min-h-0">
             <!-- Flash Toast Notifications -->
             <?php if (session()->getFlashdata('success')): ?>
             <div id="toast-success"

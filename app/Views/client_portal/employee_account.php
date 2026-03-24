@@ -34,7 +34,7 @@
                 <div class="about-avatar" style="<?= ! empty($identity['photo_url']) ? 'background-image:url(' . esc($identity['photo_url']) . ');background-size:cover;background-position:center;' : '' ?>"></div>
 
                 <div class="about-info">
-                    <div class="name"><?= esc($identity['full_name'] ?? '-') ?></div>
+                    <div class="name"><?= esc($identity['last_name'] ?? '') ?>, <?= esc($identity['first_name'] ?? '') ?> <?= esc($identity['middle_name'] ?? '') ?></div>
                     <div class="joined">Joined in <?= esc($joinedLabel) ?></div>
 
                     <form id="photoUploadForm" method="post" action="<?= site_url('client_portal/profile/photo') ?>" enctype="multipart/form-data" class="photo-upload-form">
@@ -46,10 +46,35 @@
             </div>
 
             <div class="info-list">
-                <div class="info-row"><span>Full Name</span><strong><?= esc($identity['full_name'] ?? '-') ?></strong></div>
-                <div class="info-row"><span>Preferred Name</span><strong><?= esc($identity['preferred_name'] ?? '-') ?></strong></div>
-                <div class="info-row"><span>Date of Birth</span><strong><?= esc($birthdateLabel) ?></strong></div>
-                <div class="info-row"><span>Gender</span><strong>Male</strong></div>
+                <form id="identityForm" method="post" action="<?= site_url('client_portal/profile/identity') ?>" class="identity-form">
+                    <?= csrf_field() ?>
+
+                    <div class="identity-grid">
+                        <div class="form-group">
+                            <label>Full Name</label>
+                            <input type="text" name="full_name" value="<?= esc($identity['last_name'] ?? '') ?>, <?= esc($identity['first_name'] ?? '') ?> <?= esc($identity['middle_name'] ?? '') ?>" maxlength="255" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Username</label>
+                            <input type="text" name="username" value="<?= esc($identity['username'] ?? '') ?>" minlength="3" maxlength="50" pattern="[A-Za-z0-9._-]+" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Date of Birth</label>
+                            <input type="date" name="birthdate" value="<?= esc((string) ($identity['birthdate'] ?? '')) ?>" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Gender</label>
+                            <input type="text" value="Male" disabled>
+                        </div>
+                    </div>
+
+                    <div class="form-actions identity-actions">
+                        <button type="submit" id="saveIdentityBtn" class="btn btn-primary hidden">Save Identity Changes</button>
+                    </div>
+                </form>
             </div>
         </div>
 
@@ -787,6 +812,25 @@
         padding-bottom:10px;
     }
 
+    .identity-form {
+        width: 100%;
+    }
+
+    .identity-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+    }
+
+    .identity-actions {
+        margin-top: 6px;
+        min-height: 42px;
+    }
+
+    .hidden {
+        display: none;
+    }
+
     .info-row span{
         color:#6b7280;
         font-size:13px;
@@ -877,8 +921,46 @@
         .security-grid{
             grid-template-columns:1fr;
         }
+
+        .identity-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .identity-actions {
+            justify-content: flex-start;
+        }
     }
 </style>
+
+<script>
+    (function () {
+        const form = document.getElementById('identityForm');
+        const saveBtn = document.getElementById('saveIdentityBtn');
+
+        if (!form || !saveBtn) return;
+
+        const fields = Array.from(form.querySelectorAll('input[name]'));
+        const initialValues = new Map(fields.map((field) => [field.name, (field.value || '').trim()]));
+
+        function syncSaveVisibility() {
+            const hasChanged = fields.some((field) => {
+                const initial = initialValues.get(field.name) ?? '';
+                const current = (field.value || '').trim();
+
+                return current !== initial;
+            });
+
+            saveBtn.classList.toggle('hidden', !hasChanged);
+        }
+
+        fields.forEach((field) => {
+            field.addEventListener('input', syncSaveVisibility);
+            field.addEventListener('change', syncSaveVisibility);
+        });
+
+        syncSaveVisibility();
+    })();
+</script>
 
 <?= $this->endSection() ?>
 

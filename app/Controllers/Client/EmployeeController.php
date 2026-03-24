@@ -26,7 +26,7 @@ class EmployeeController extends BaseController
         $currentUser = auth()->user();
 
         $data['employees'] = $employeeModel
-            ->select("employees.*, employee_positions.department, employee_positions.position, employee_positions.employment_type, users.active as status, COALESCE(MAX(CASE WHEN agu.group = 'client_payroll_staff' THEN 'client_payroll_staff' WHEN agu.group = 'employee' THEN 'employee' ELSE NULL END), 'employee') as account_role", false)
+            ->select("employees.id, employees.user_id, employees.first_name, employees.middle_name, employees.last_name, employees.birthdate, employees.employee_number, employee_positions.department, employee_positions.position, employee_positions.employment_type, users.active as status, COALESCE(MAX(CASE WHEN agu.group = 'client_payroll_staff' THEN 'client_payroll_staff' WHEN agu.group = 'employee' THEN 'employee' ELSE NULL END), 'employee') as account_role", false)
             ->join('employee_positions', 'employees.id = employee_positions.employee_id', 'left')
             ->join('users', 'employees.user_id = users.id', 'left')
             ->join('auth_groups_users as agu', 'employees.user_id = agu.user_id', 'left')
@@ -45,8 +45,25 @@ class EmployeeController extends BaseController
         $service = new EmployeeService();
 
         try {
+            $postData = $this->request->getPost();
+            
+            // Controller-level validation - fail fast before service processing
+            $email = trim((string) ($postData['email'] ?? ''));
+            $password = trim((string) ($postData['password'] ?? ''));
+            
+            if (empty($email)) {
+                return redirect()->back()
+                    ->withInput()
+                    ->with('error', 'Email address is required. Please enter a valid email.');
+            }
+            
+            if (empty($password)) {
+                return redirect()->back()
+                    ->withInput()
+                    ->with('error', 'Password is required. Please enter a password (minimum 8 characters).');
+            }
 
-            $service->createEmployee($this->request->getPost());
+            $service->createEmployee($postData);
 
             return redirect()->back()
                 ->with('success', 'Employee created successfully');
@@ -56,6 +73,7 @@ class EmployeeController extends BaseController
             log_message('error', $e->getMessage());
 
             return redirect()->back()
+                ->withInput()
                 ->with('error', $e->getMessage());
         }
     }
@@ -96,7 +114,7 @@ class EmployeeController extends BaseController
 
         $employeeModel = new EmployeeModel();
         $employee = $employeeModel
-            ->select("employees.*, employee_positions.department, employee_positions.position, employee_positions.employment_type, users.active as status, COALESCE(MAX(CASE WHEN agu.group = 'client_payroll_staff' THEN 'client_payroll_staff' WHEN agu.group = 'employee' THEN 'employee' ELSE NULL END), 'employee') as account_role", false)
+            ->select("employees.id, employees.user_id, employees.first_name, employees.middle_name, employees.last_name, employees.birthdate, employees.employee_number, employee_positions.department, employee_positions.position, employee_positions.employment_type, users.active as status, COALESCE(MAX(CASE WHEN agu.group = 'client_payroll_staff' THEN 'client_payroll_staff' WHEN agu.group = 'employee' THEN 'employee' ELSE NULL END), 'employee') as account_role", false)
             ->join('employee_positions', 'employees.id = employee_positions.employee_id', 'left')
             ->join('users', 'employees.user_id = users.id', 'left')
             ->join('auth_groups_users as agu', 'employees.user_id = agu.user_id', 'left')

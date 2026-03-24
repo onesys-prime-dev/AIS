@@ -661,10 +661,6 @@ video {
   margin: 0.75rem;
 }
 
-.m-4 {
-  margin: 1rem;
-}
-
 .m-auto {
   margin: auto;
 }
@@ -844,6 +840,30 @@ video {
   max-width: 28rem;
 }
 
+.max-w-\[5650px\] {
+  max-width: 5650px;
+}
+
+.max-w-\[650px\] {
+  max-width: 650px;
+}
+
+.max-w-\[620px\] {
+  max-width: 620px;
+}
+
+.max-w-\[600px\] {
+  max-width: 600px;
+}
+
+.max-w-\[690px\] {
+  max-width: 690px;
+}
+
+.max-w-\[590px\] {
+  max-width: 590px;
+}
+
 .flex-1 {
   flex: 1 1 0%;
 }
@@ -854,6 +874,14 @@ video {
 
 .flex-shrink-0 {
   flex-shrink: 0;
+}
+
+.shrink {
+  flex-shrink: 1;
+}
+
+.grow {
+  flex-grow: 1;
 }
 
 .-translate-x-1\/2 {
@@ -896,12 +924,24 @@ video {
   grid-template-columns: 2fr 1.5fr 1.5fr 1.2fr 1fr 1fr 1fr;
 }
 
+.grid-cols-\[2fr_1\.5fr_1\.5fr_1\] {
+  grid-template-columns: 2fr 1.5fr 1.5fr 1;
+}
+
+.grid-cols-\[2fr_1\.5fr_1fr\] {
+  grid-template-columns: 2fr 1.5fr 1fr;
+}
+
 .flex-row {
   flex-direction: row;
 }
 
 .flex-col {
   flex-direction: column;
+}
+
+.flex-wrap {
+  flex-wrap: wrap;
 }
 
 .items-center {
@@ -984,6 +1024,10 @@ video {
 
 .rounded-xl {
   border-radius: 0.75rem;
+}
+
+.rounded-\[\] {
+  border-radius: ;
 }
 
 .rounded-l-full {
@@ -1166,6 +1210,30 @@ video {
 .bg-yellow-200 {
   --tw-bg-opacity: 1;
   background-color: rgb(254 240 138 / var(--tw-bg-opacity, 1));
+}
+
+.bg-\[\#8e8e8e\] {
+  --tw-bg-opacity: 1;
+  background-color: rgb(142 142 142 / var(--tw-bg-opacity, 1));
+}
+
+.bg-\[\#5d5d5d\] {
+  --tw-bg-opacity: 1;
+  background-color: rgb(93 93 93 / var(--tw-bg-opacity, 1));
+}
+
+.bg-\[\#690404\] {
+  --tw-bg-opacity: 1;
+  background-color: rgb(105 4 4 / var(--tw-bg-opacity, 1));
+}
+
+.bg-\[\#454545\] {
+  --tw-bg-opacity: 1;
+  background-color: rgb(69 69 69 / var(--tw-bg-opacity, 1));
+}
+
+.bg-\[\#FFFFF\] {
+  background-color: #FFFFF;
 }
 
 .bg-cover {
@@ -1581,6 +1649,30 @@ video {
 .hover\:bg-purple-700:hover {
   --tw-bg-opacity: 1;
   background-color: rgb(126 34 206 / var(--tw-bg-opacity, 1));
+}
+
+.hover\:bg-\[\#d7d4d4d6\]:hover {
+  background-color: #d7d4d4d6;
+}
+
+.hover\:bg-\[\#b31c1cd6\]:hover {
+  background-color: #b31c1cd6;
+}
+
+.hover\:bg-\[\#dcdcdcd6\]:hover {
+  background-color: #dcdcdcd6;
+}
+
+.hover\:bg-\[\#868686d6\]:hover {
+  background-color: #868686d6;
+}
+
+.hover\:bg-\[\#868686c8\]:hover {
+  background-color: #868686c8;
+}
+
+.hover\:bg-\[\#b6b5b5c8\]:hover {
+  background-color: #b6b5b5c8;
 }
 
 .hover\:text-black:hover {

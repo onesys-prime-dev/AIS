@@ -5,7 +5,6 @@ namespace App\Services\Client;
 use App\Models\Client\EmployeeGovernmentIdModel;
 use App\Models\Client\EmployeeModel;
 use App\Models\Client\EmployeePositionModel;
-use CodeIgniter\Shield\Entities\User;
 use CodeIgniter\Shield\Models\UserModel;
 
 class EmployeeService
@@ -29,11 +28,26 @@ class EmployeeService
         $db->transBegin();
 
         try {
-            $email = $data['email'];
-            $password = $data['password'];
+            $email = trim((string) ($data['email'] ?? ''));
+            $password = trim((string) ($data['password'] ?? ''));
 
-            if (empty($email) || empty($password)) {
-                throw new \Exception('Email and password are required.');
+            // Validate email and password are provided and not empty
+            if (empty($email)) {
+                throw new \Exception('Email is required and cannot be empty.');
+            }
+
+            if (empty($password)) {
+                throw new \Exception('Password is required and cannot be empty.');
+            }
+
+            // Validate email format
+            if (! filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                throw new \Exception('Please provide a valid email address.');
+            }
+
+            // Check minimum password length
+            if (strlen($password) < 8) {
+                throw new \Exception('Password must be at least 8 characters long.');
             }
 
             $existingUser = $this->userModel
@@ -41,30 +55,36 @@ class EmployeeService
                 ->first();
 
             if ($existingUser) {
-                throw new \Exception('Email already exists.');
+                throw new \Exception('This email is already registered. Please use a different email.');
             }
 
-            $user = new User([
-                // In this project, users table stores login in username (no email column).
-                'username' => $email,
+            // Use Shield's provider flow to guarantee proper email identity creation.
+            $users = auth()->getProvider();
+            $user = $users->createNewUser([
+                'email' => $email,
                 'password' => $password,
-                'active' => 1,
-                'status' => 'active',
             ]);
 
-            if (! $this->userModel->save($user)) {
-                throw new \Exception(json_encode($this->userModel->errors()));
+            if (! $users->save($user)) {
+                throw new \Exception(json_encode($users->errors()));
             }
 
-            $userId = (int) ($user->id ?? $this->userModel->getInsertID());
+            $userId = (int) ($user->id ?? $users->getInsertID());
 
             if ($userId <= 0) {
                 throw new \Exception('Unable to determine created user.');
             }
 
+            // Keep username aligned to email for existing app conventions.
+            $this->userModel->update($userId, [
+                'username' => $email,
+                'active' => 1,
+                'status' => 'active',
+            ]);
+
             $savedUser = $this->userModel->find($userId);
 
-            if (! $savedUser instanceof User) {
+            if (! $savedUser) {
                 throw new \Exception('Unable to load created user for group assignment.');
             }
 
@@ -294,14 +314,34 @@ class EmployeeService
                 ]);
             }
 
-            $positionModel
+            // Check if position record exists, if not create it
+            $existingPosition = $positionModel
                 ->where('employee_id', $employeeId)
-                ->set([
+                ->first();
+
+            if ($existingPosition) {
+                // Update existing position record
+                $positionModel
+                    ->where('employee_id', $employeeId)
+                    ->set([
+                        'department' => $data['department'],
+                        'position' => $data['position'],
+                        'employment_type' => $data['employment_type'],
+                    ])
+                    ->update();
+            } else {
+                // Insert new position record if it doesn't exist
+                $positionModel->insert([
+                    'employee_id' => $employeeId,
                     'department' => $data['department'],
                     'position' => $data['position'],
                     'employment_type' => $data['employment_type'],
-                ])
-                ->update();
+                ]);
+
+                if ($positionModel->errors()) {
+                    throw new \Exception(json_encode($positionModel->errors()));
+                }
+            }
 
             $db->transCommit();
 

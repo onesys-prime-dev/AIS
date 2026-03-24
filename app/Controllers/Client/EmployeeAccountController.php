@@ -56,6 +56,65 @@ class EmployeeAccountController extends BaseController
         return redirect()->back()->with('success', 'Contact information updated successfully.');
     }
 
+    public function updateUsername()
+    {
+        $user = auth()->user();
+
+        if (! $user) {
+            return redirect()->to('/login');
+        }
+
+        $rules = [
+            'username' => 'required|min_length[3]|max_length[50]|regex_match[/^[A-Za-z0-9._-]+$/]',
+        ];
+
+        if (! $this->validateData($this->request->getPost(), $rules)) {
+            return redirect()->back()->withInput()->with('error', implode(' ', $this->validator->getErrors()));
+        }
+
+        $result = $this->accountService->updateUsername(
+            (int) $user->id,
+            trim((string) $this->request->getPost('username'))
+        );
+
+        if (! $result['ok']) {
+            return redirect()->back()->with('error', $result['message']);
+        }
+
+        return redirect()->back()->with('success', 'Username updated successfully.');
+    }
+
+    public function updateIdentity()
+    {
+        $user = auth()->user();
+
+        if (! $user) {
+            return redirect()->to('/login');
+        }
+
+        $rules = [
+            'full_name' => 'required|max_length[255]',
+            'username' => 'required|min_length[3]|max_length[50]|regex_match[/^[A-Za-z0-9._-]+$/]',
+            'birthdate' => 'required|valid_date[Y-m-d]',
+        ];
+
+        if (! $this->validateData($this->request->getPost(), $rules)) {
+            return redirect()->back()->withInput()->with('error', implode(' ', $this->validator->getErrors()));
+        }
+
+        $result = $this->accountService->updateIdentity((int) $user->id, [
+            'full_name' => trim((string) $this->request->getPost('full_name')),
+            'username' => trim((string) $this->request->getPost('username')),
+            'birthdate' => trim((string) $this->request->getPost('birthdate')),
+        ]);
+
+        if (! $result['ok']) {
+            return redirect()->back()->withInput()->with('error', $result['message']);
+        }
+
+        return redirect()->back()->with('success', 'Personal identity updated successfully.');
+    }
+
     public function updatePhoto()
     {
         $user = auth()->user();

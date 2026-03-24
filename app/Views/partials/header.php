@@ -47,13 +47,25 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
         <!-- USER -->
         <div class="user-wrapper">
             <?php $user = auth()->user(); ?>
+            <?php
+                $headerIdentity = $headerIdentity ?? [];
+                $photoUrl = (string) ($headerIdentity['photo_url'] ?? '');
+                $displayName = (string) ($headerIdentity['display_name'] ?? ($user->username ?? 'User'));
+                $displayEmail = (string) ($headerIdentity['display_email'] ?? ($user->email ?? ''));
+                $avatarSource = trim((string) ($displayName !== '' ? $displayName : $displayEmail));
+                $avatarInitials = strtoupper(substr($avatarSource !== '' ? $avatarSource : 'U', 0, 2));
+            ?>
             <div class="user-profile" onclick="toggleUserMenu()">
-                <div class="avatar">
-                    <?= strtoupper(substr($user->username ?? $user->email,0,2)) ?>
-                </div>
+                <?php if ($photoUrl !== ''): ?>
+                    <div class="avatar avatar-photo" style="background-image:url('<?= esc($photoUrl) ?>');" aria-label="Profile photo"></div>
+                <?php else: ?>
+                    <div class="avatar">
+                        <?= esc($avatarInitials) ?>
+                    </div>
+                <?php endif; ?>
                 <div class="user-info">
-                    <div class="user-name"><?= esc($user->username ?? 'User') ?></div>
-                    <div class="user-email"><?= esc($user->email) ?></div>
+                    <div class="user-name"><?= esc($displayName !== '' ? $displayName : 'User') ?></div>
+                    <div class="user-email"><?= esc($displayEmail) ?></div>
                 </div>
                 <i class="fa-solid fa-chevron-down dropdown-icon"></i>
             </div>
@@ -235,6 +247,12 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
     align-items:center;
     justify-content:center;
     font-weight:600;
+}
+
+.avatar-photo {
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
 }
 
 .user-info{

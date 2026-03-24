@@ -15,8 +15,8 @@
         <div class="flex items-center gap-4">
             <!-- Month Picker -->
             <button 
-                data-modal-open="timesheetsModal"
-                class="bg-[#FFFFFF] hover:bg-[#bbbbbbd6] text-white px-3 py-3 rounded-lg shadow flex items-center gap-2">
+                data-modal-open="viewTimesheetHistoryModal"
+                class="bg-[#FFFFFF] hover:bg-[#b6b5b5c8] text-white px-3 py-3 rounded-lg shadow flex items-center gap-2">
                     <div id="add-icon" class="w-7 h-7 cursor-pointer">
                         <img src="<?php echo base_url('icons/alarms.png'); ?>" alt="Add"/>
                     </div>
@@ -58,6 +58,15 @@
         echo view('components/modal', [
             'id' => 'editTimesheetModal',
             'title' => 'Timesheets Management',
+            'content' => $content
+        ]);
+    ?>
+
+    <?php
+        $content = view('client_portal/modals/view_timesheet_history');
+        echo view('components/view_modal', [
+            'id' => 'viewTimesheetHistoryModal',
+            'title' => 'Timesheets History',
             'content' => $content
         ]);
     ?>
