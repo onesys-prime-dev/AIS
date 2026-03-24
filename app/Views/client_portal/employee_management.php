@@ -91,11 +91,26 @@ const DELETE_URL = "<?= site_url('client_portal/employees/delete') ?>";
     }
 
     function employeeRowTemplate(p) {
+        // Generate display name: "LastName, FirstName"
+        const displayName = `${htmlEsc(p.last_name)}, ${htmlEsc(p.first_name)}${p.middle_name ? ' ' + htmlEsc(p.middle_name) : ''}`;
+        
+        // Generate initials
+        const avatarSource = displayName.trim();
+        const avatarInitials = avatarSource ? avatarSource.substring(0, 2).toUpperCase() : 'U';
+        
+        // Photo URL if available
+        const photoUrl = p.photo_path ? p.photo_path : '';
+        
+        // Avatar HTML
+        const avatarHtml = photoUrl 
+            ? `<div class="w-10 h-10 rounded-full" style="background-image:url('${photoUrl}');background-size:cover;background-position:center;"></div>`
+            : `<div class="w-10 h-10 bg-gray-300 rounded-full flex items-center justify-center text-xs font-bold text-gray-700">${avatarInitials}</div>`;
+        
         return `
             <div class="grid grid-cols-[2fr_1.5fr_1.5fr_1.2fr_1fr_1fr_1fr] items-center border-b hover:bg-gray-50">
 
                 <div class="p-4 flex items-center gap-3">
-                    <div class="w-10 h-10 bg-gray-300 rounded-full"></div>
+                    ${avatarHtml}
                     <span class="font-medium">
                         ${htmlEsc(p.last_name)}, 
                         ${htmlEsc(p.first_name)}

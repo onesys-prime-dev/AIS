@@ -102,7 +102,6 @@
                 <div class="form-group">
                     <label>Primary Email (CI4 Shield)</label>
                     <input type="email" value="<?= esc($contact['primary_email'] ?? '') ?>" disabled>
-                    <small class="muted">Primary login email is managed by account registration and authentication.</small>
                 </div>
 
                 <div class="form-group">
@@ -121,7 +120,7 @@
                 </div>
 
                 <div class="form-actions">
-                    <button type="submit" class="btn btn-primary">Save Contact Info</button>
+                    <button type="submit" id="saveContactBtn" class="btn btn-primary hidden">Save Contact Info</button>
                 </div>
             </form>
         </div>
@@ -153,7 +152,7 @@
                 </div>
 
                 <div class="form-actions">
-                    <button type="submit" class="btn btn-primary">Save Emergency Contact</button>
+                    <button type="submit" id="saveEmergencyBtn" class="btn btn-primary hidden">Save Emergency Contact</button>
                 </div>
             </form>
         </div>
@@ -435,162 +434,7 @@
     .btn-cancel:hover {
         background: #d1d5db;
     }
-</style>
 
-<script>
-    let editorState = {
-        image: null,
-        zoom: 1,
-        rotate: 0,
-        offsetX: 0,
-        offsetY: 0,
-        isDragging: false,
-        dragStartX: 0,
-        dragStartY: 0,
-        originalFile: null,
-        dragListenersBound: false
-    };
-
-    // Handle file input change
-    document.getElementById('profile_photo').addEventListener('change', function(e) {
-        const file = e.target.files[0];
-        if (file) {
-            editorState.originalFile = file;
-            const reader = new FileReader();
-            reader.onload = function(event) {
-                const img = new Image();
-                img.onload = function() {
-                    editorState.image = img;
-                    editorState.zoom = 1;
-                    editorState.rotate = 0;
-                    editorState.offsetX = 0;
-                    editorState.offsetY = 0;
-                    document.getElementById('zoomSlider').value = '1';
-                    document.getElementById('zoomValue').textContent = '100%';
-                    document.getElementById('rotateValue').textContent = '0°';
-                    updatePreview();
-                    openPhotoModal();
-                };
-                img.src = event.target.result;
-            };
-            reader.readAsDataURL(file);
-        }
-    });
-
-    function openPhotoModal() {
-        document.getElementById('photoEditorModal').classList.remove('hidden');
-        setupCanvasDragListener();
-    }
-
-    function setZoom(value) {
-        editorState.zoom = Number.parseFloat(value) || 1;
-        updatePreview();
-    }
-
-    function closePhotoModal() {
-        document.getElementById('photoEditorModal').classList.add('hidden');
-        document.getElementById('profile_photo').value = '';
-        editorState.originalFile = null;
-    }
-
-    function updatePreview() {
-        const canvas = document.getElementById('photoCanvas');
-        const ctx = canvas.getContext('2d');
-        
-        if (!editorState.image) return;
-
-        // Update zoom display
-        document.getElementById('zoomValue').textContent = Math.round(editorState.zoom * 100) + '%';
-
-        // Set canvas size
-        canvas.width = 400;
-        canvas.height = 400;
-
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-        // Save context state
-        ctx.save();
-        
-        // Apply transformations
-        ctx.translate(canvas.width / 2, canvas.height / 2);
-        ctx.rotate((editorState.rotate * Math.PI) / 180);
-        ctx.scale(editorState.zoom, editorState.zoom);
-        ctx.translate(editorState.offsetX, editorState.offsetY);
-        
-        // Draw image centered
-        const imgWidth = editorState.image.width;
-        const imgHeight = editorState.image.height;
-        const scale = Math.min(canvas.width / imgWidth, canvas.height / imgHeight);
-        ctx.drawImage(
-            editorState.image,
-            -(imgWidth * scale) / 2,
-            -(imgHeight * scale) / 2,
-            imgWidth * scale,
-            imgHeight * scale
-        );
-
-        ctx.restore();
-    }
-
-    function rotateImage(degrees) {
-        editorState.rotate = (editorState.rotate + degrees) % 360;
-        document.getElementById('rotateValue').textContent = editorState.rotate + '°';
-        updatePreview();
-    }
-
-    function resetPosition() {
-        editorState.offsetX = 0;
-        editorState.offsetY = 0;
-        updatePreview();
-    }
-
-    function setupCanvasDragListener() {
-        if (editorState.dragListenersBound) {
-            return;
-        }
-
-        editorState.dragListenersBound = true;
-        const canvas = document.getElementById('photoCanvas');
-        
-        canvas.addEventListener('mousedown', (e) => {
-            editorState.isDragging = true;
-            editorState.dragStartX = e.clientX;
-            editorState.dragStartY = e.clientY;
-        });
-
-        document.addEventListener('mousemove', (e) => {
-            if (editorState.isDragging && editorState.image) {
-                const dx = (e.clientX - editorState.dragStartX) / editorState.zoom;
-                const dy = (e.clientY - editorState.dragStartY) / editorState.zoom;
-                editorState.offsetX += dx;
-                editorState.offsetY += dy;
-                editorState.dragStartX = e.clientX;
-                editorState.dragStartY = e.clientY;
-                updatePreview();
-            }
-        });
-
-        document.addEventListener('mouseup', () => {
-            editorState.isDragging = false;
-        });
-    }
-
-    function confirmPhotoEdit() {
-        const canvas = document.getElementById('photoCanvas');
-        canvas.toBlob((blob) => {
-            const dataTransfer = new DataTransfer();
-            const file = new File([blob], editorState.originalFile.name, { type: 'image/png' });
-            dataTransfer.items.add(file);
-            document.getElementById('profile_photo').files = dataTransfer.files;
-            
-            // Submit the form
-            document.getElementById('photoUploadForm').submit();
-            closePhotoModal();
-        }, 'image/png');
-    }
-</script>
-
-<style>
     /* CONTAINER */
     .account-container{
         font-family:Segoe UI, Arial;
@@ -933,11 +777,223 @@
 </style>
 
 <script>
+    let editorState = {
+        image: null,
+        zoom: 1,
+        rotate: 0,
+        offsetX: 0,
+        offsetY: 0,
+        isDragging: false,
+        dragStartX: 0,
+        dragStartY: 0,
+        originalFile: null,
+        dragListenersBound: false
+    };
+
+    // Handle file input change
+    document.getElementById('profile_photo').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (file) {
+            editorState.originalFile = file;
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const img = new Image();
+                img.onload = function() {
+                    editorState.image = img;
+                    editorState.zoom = 1;
+                    editorState.rotate = 0;
+                    editorState.offsetX = 0;
+                    editorState.offsetY = 0;
+                    document.getElementById('zoomSlider').value = '1';
+                    document.getElementById('zoomValue').textContent = '100%';
+                    document.getElementById('rotateValue').textContent = '0°';
+                    updatePreview();
+                    openPhotoModal();
+                };
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+
+    function openPhotoModal() {
+        document.getElementById('photoEditorModal').classList.remove('hidden');
+        setupCanvasDragListener();
+    }
+
+    function setZoom(value) {
+        editorState.zoom = Number.parseFloat(value) || 1;
+        updatePreview();
+    }
+
+    function closePhotoModal() {
+        document.getElementById('photoEditorModal').classList.add('hidden');
+        document.getElementById('profile_photo').value = '';
+        editorState.originalFile = null;
+    }
+
+    function updatePreview() {
+        const canvas = document.getElementById('photoCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        if (!editorState.image) return;
+
+        // Update zoom display
+        document.getElementById('zoomValue').textContent = Math.round(editorState.zoom * 100) + '%';
+
+        // Set canvas size
+        canvas.width = 400;
+        canvas.height = 400;
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Save context state
+        ctx.save();
+        
+        // Apply transformations
+        ctx.translate(canvas.width / 2, canvas.height / 2);
+        ctx.rotate((editorState.rotate * Math.PI) / 180);
+        ctx.scale(editorState.zoom, editorState.zoom);
+        ctx.translate(editorState.offsetX, editorState.offsetY);
+        
+        // Draw image centered
+        const imgWidth = editorState.image.width;
+        const imgHeight = editorState.image.height;
+        const scale = Math.min(canvas.width / imgWidth, canvas.height / imgHeight);
+        ctx.drawImage(
+            editorState.image,
+            -(imgWidth * scale) / 2,
+            -(imgHeight * scale) / 2,
+            imgWidth * scale,
+            imgHeight * scale
+        );
+
+        ctx.restore();
+    }
+
+    function rotateImage(degrees) {
+        editorState.rotate = (editorState.rotate + degrees) % 360;
+        document.getElementById('rotateValue').textContent = editorState.rotate + '°';
+        updatePreview();
+    }
+
+    function resetPosition() {
+        editorState.offsetX = 0;
+        editorState.offsetY = 0;
+        updatePreview();
+    }
+
+    function setupCanvasDragListener() {
+        if (editorState.dragListenersBound) {
+            return;
+        }
+
+        editorState.dragListenersBound = true;
+        const canvas = document.getElementById('photoCanvas');
+        
+        canvas.addEventListener('mousedown', (e) => {
+            editorState.isDragging = true;
+            editorState.dragStartX = e.clientX;
+            editorState.dragStartY = e.clientY;
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (editorState.isDragging && editorState.image) {
+                const dx = (e.clientX - editorState.dragStartX) / editorState.zoom;
+                const dy = (e.clientY - editorState.dragStartY) / editorState.zoom;
+                editorState.offsetX += dx;
+                editorState.offsetY += dy;
+                editorState.dragStartX = e.clientX;
+                editorState.dragStartY = e.clientY;
+                updatePreview();
+            }
+        });
+
+        document.addEventListener('mouseup', () => {
+            editorState.isDragging = false;
+        });
+    }
+
+    function confirmPhotoEdit() {
+        const canvas = document.getElementById('photoCanvas');
+        canvas.toBlob((blob) => {
+            const dataTransfer = new DataTransfer();
+            const file = new File([blob], editorState.originalFile.name, { type: 'image/png' });
+            dataTransfer.items.add(file);
+            document.getElementById('profile_photo').files = dataTransfer.files;
+            
+            // Submit the form
+            document.getElementById('photoUploadForm').submit();
+            closePhotoModal();
+        }, 'image/png');
+    }
+
+    // Change detection for Identity Form
     (function () {
         const form = document.getElementById('identityForm');
         const saveBtn = document.getElementById('saveIdentityBtn');
 
         if (!form || !saveBtn) return;
+
+        const fields = Array.from(form.querySelectorAll('input[name]'));
+        const initialValues = new Map(fields.map((field) => [field.name, (field.value || '').trim()]));
+
+        function syncSaveVisibility() {
+            const hasChanged = fields.some((field) => {
+                const initial = initialValues.get(field.name) ?? '';
+                const current = (field.value || '').trim();
+
+                return current !== initial;
+            });
+
+            saveBtn.classList.toggle('hidden', !hasChanged);
+        }
+
+        fields.forEach((field) => {
+            field.addEventListener('input', syncSaveVisibility);
+            field.addEventListener('change', syncSaveVisibility);
+        });
+
+        syncSaveVisibility();
+    })();
+
+    // Change detection for Contact Form
+    (function () {
+        const saveBtn = document.getElementById('saveContactBtn');
+        if (!saveBtn) return;
+
+        const form = saveBtn.closest('form');
+        if (!form) return;
+
+        const fields = Array.from(form.querySelectorAll('input[name], textarea[name]'));
+        const initialValues = new Map(fields.map((field) => [field.name, (field.value || '').trim()]));
+
+        function syncSaveVisibility() {
+            const hasChanged = fields.some((field) => {
+                const initial = initialValues.get(field.name) ?? '';
+                const current = (field.value || '').trim();
+
+                return current !== initial;
+            });
+
+            saveBtn.classList.toggle('hidden', !hasChanged);
+        }
+
+        fields.forEach((field) => {
+            field.addEventListener('input', syncSaveVisibility);
+            field.addEventListener('change', syncSaveVisibility);
+        });
+
+        syncSaveVisibility();
+    })();
+
+    // Change detection for Emergency Contact Form
+    (function () {
+        const saveBtn = document.getElementById('saveEmergencyBtn');
+        if (!saveBtn) return;
+
+        const form = saveBtn.closest('form');
+        if (!form) return;
 
         const fields = Array.from(form.querySelectorAll('input[name]'));
         const initialValues = new Map(fields.map((field) => [field.name, (field.value || '').trim()]));
