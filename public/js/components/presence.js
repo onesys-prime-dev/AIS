@@ -8,9 +8,9 @@
  */
 
 const Presence = (() => {
-    const HEARTBEAT_INTERVAL_MS  = 5 * 60 * 1000;  // 5 minutes
+    const HEARTBEAT_INTERVAL_MS  = 60 * 1000;  // 1 minute
     const IDLE_THRESHOLD_MS      = 10 * 60 * 1000;  // 10 minutes → Away
-    const BADGE_POLL_INTERVAL_MS = 30 * 1000;        // 30 seconds
+    const BADGE_POLL_INTERVAL_MS = 15 * 1000;        // 30 seconds
 
     const HEARTBEAT_URL = window.PRESENCE_HEARTBEAT_URL || '/client_portal/presence/heartbeat';
     const STATUSES_URL  = window.PRESENCE_STATUSES_URL  || '/client_portal/presence/statuses';
