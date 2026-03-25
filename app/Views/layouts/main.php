@@ -2,6 +2,7 @@
 <html lang="en" class="h-full">
 <head>
     <meta charset="UTF-8">
+    <meta name="csrf-token" content="<?= csrf_hash() ?>">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= esc($title ?? 'Dashboard') ?> | Your Company</title>
     
@@ -172,6 +173,14 @@ document.addEventListener("DOMContentLoaded", function () {
 <?= $this->renderSection('modals') ?>
 
 <?= $this->renderSection('scripts') ?>
+
+<?php if (auth()->loggedIn()): ?>
+<script>
+    window.PRESENCE_HEARTBEAT_URL = "<?= site_url('client_portal/presence/heartbeat') ?>";
+    window.PRESENCE_STATUSES_URL  = "<?= site_url('client_portal/presence/statuses') ?>";
+</script>
+<script src="<?= base_url('js/components/presence.js') ?>"></script>
+<?php endif; ?>
 
 </body>
 </html>

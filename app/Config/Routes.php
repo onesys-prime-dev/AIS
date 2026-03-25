@@ -27,6 +27,8 @@ $routes->group('client_portal', ['filter' => 'auth'], function($routes){
     $routes->post('profile/contact', 'Client\EmployeeAccountController::updateContact');
     $routes->post('profile/emergency', 'Client\EmployeeAccountController::updateEmergency');
     $routes->post('profile/password', 'Client\EmployeeAccountController::updatePassword');
+    $routes->post('presence/heartbeat', 'Client\PresenceController::heartbeat');
+    $routes->get('presence/statuses',   'Client\PresenceController::statuses');
 });
 
 $routes->get('client_portal/time-in', 'Client\AttendanceController::timeIn');

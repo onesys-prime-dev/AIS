@@ -125,9 +125,22 @@ const DELETE_URL = "<?= site_url('client_portal/employees/delete') ?>";
                 <div class="p-4">${htmlEsc(p.employment_type) || '---'}</div>
 
                 <div class="p-4">
-                    ${p.status == 1
-                        ? '<span class="bg-green-200 text-green-700 px-3 py-1 rounded-full text-xs font-semibold">Active</span>'
-                        : '<span class="bg-red-200 text-red-600 px-3 py-1 rounded-full text-xs font-semibold">Inactive</span>'}
+                    ${(() => {
+                        const isActive = p.status == 1;
+                        if (!isActive) {
+                            return '<span class="bg-red-200 text-red-600 px-3 py-1 rounded-full text-xs font-semibold">Inactive</span>';
+                        }
+                        const presence = p.online_status ?? 'Offline';
+                        const badgeColors = {
+                            Online:  'bg-green-200 text-green-700',
+                            Away:    'bg-yellow-200 text-yellow-700',
+                            Offline: 'bg-gray-200 text-gray-500',
+                        };
+                        const color = badgeColors[presence] ?? badgeColors['Offline'];
+                        return `<span class="${color} px-3 py-1 rounded-full text-xs font-semibold"
+                                    data-presence-badge="${p.id}"
+                                    data-current-status="${presence}">${presence}</span>`;
+                    })()}
                 </div>
 
                 <div class="p-4 flex justify-center gap-4">

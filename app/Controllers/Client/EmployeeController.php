@@ -26,7 +26,7 @@ class EmployeeController extends BaseController
         $currentUser = auth()->user();
 
         $employees = $employeeModel
-            ->select("employees.id, employees.user_id, employees.first_name, employees.middle_name, employees.last_name, employees.birthdate, employees.employee_number, employee_positions.department, employee_positions.position, employee_positions.employment_type, users.active as status, COALESCE(MAX(CASE WHEN agu.group = 'client_payroll_staff' THEN 'client_payroll_staff' WHEN agu.group = 'employee' THEN 'employee' ELSE NULL END), 'employee') as account_role, MAX(ea.photo_path) as photo_path", false)
+            ->select("employees.id, employees.user_id, employees.first_name, employees.middle_name, employees.last_name, employees.birthdate, employees.employee_number, employee_positions.department, employee_positions.position, employee_positions.employment_type, users.active as status, users.online_status, COALESCE(MAX(CASE WHEN agu.group = 'client_payroll_staff' THEN 'client_payroll_staff' WHEN agu.group = 'employee' THEN 'employee' ELSE NULL END), 'employee') as account_role, MAX(ea.photo_path) as photo_path", false)
             ->join('employee_positions', 'employees.id = employee_positions.employee_id', 'left')
             ->join('users', 'employees.user_id = users.id', 'left')
             ->join('employee_accounts as ea', 'employees.id = ea.employee_id', 'left')
@@ -124,7 +124,7 @@ class EmployeeController extends BaseController
 
         $employeeModel = new EmployeeModel();
         $employee = $employeeModel
-            ->select("employees.id, employees.user_id, employees.first_name, employees.middle_name, employees.last_name, employees.birthdate, employees.employee_number, employee_positions.department, employee_positions.position, employee_positions.employment_type, users.active as status, COALESCE(MAX(CASE WHEN agu.group = 'client_payroll_staff' THEN 'client_payroll_staff' WHEN agu.group = 'employee' THEN 'employee' ELSE NULL END), 'employee') as account_role", false)
+            ->select("employees.id, employees.user_id, employees.first_name, employees.middle_name, employees.last_name, employees.birthdate, employees.employee_number, employee_positions.department, employee_positions.position, employee_positions.employment_type, users.active as status, users.online_status, COALESCE(MAX(CASE WHEN agu.group = 'client_payroll_staff' THEN 'client_payroll_staff' WHEN agu.group = 'employee' THEN 'employee' ELSE NULL END), 'employee') as account_role", false)
             ->join('employee_positions', 'employees.id = employee_positions.employee_id', 'left')
             ->join('users', 'employees.user_id = users.id', 'left')
             ->join('auth_groups_users as agu', 'employees.user_id = agu.user_id', 'left')

@@ -24,11 +24,22 @@ class ClientAuthController extends LoginController
                 ->with('error', 'Your account has been deactivated. Please contact your administrator.');
         }
 
+        // set online immediately on successful login
+        if (auth()->loggedIn()) {
+            (new \App\Models\PresenceModel())->updatePresence((int) auth()->user()->id, 'Online');
+        }
+
         return $response;
     }
 
     public function logout(): RedirectResponse
     {
+        $user = auth()->user();
+
+        if ($user) {
+            (new \App\Models\PresenceModel())->setOffline((int) $user->id);
+        }
+
         auth()->logout();
 
         return redirect()->to('/login')->with('info', 'You have been logged out successfully.');
