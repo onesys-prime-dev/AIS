@@ -10,15 +10,21 @@ body{
     margin:0;
 }
 
-/* DASHBOARD */
+/* CENTER CONTENT WIDTH */
 .dashboard{
-    height:calc(100vh - 60px);
+    min-height:100vh;
     display:flex;
     flex-direction:column;
-    overflow:hidden;
-    padding-left:2rem;
-    padding-right:2rem;
-    padding-bottom:2rem;
+    align-items:center; /* center everything */
+    padding:20px;
+    box-sizing:border-box;
+}
+
+/* LIMIT CONTENT WIDTH */
+.header,
+.dashboard-main{
+    width:100%;
+    max-width:1300px; /* same width for header and content */
 }
 
 /* HEADER */
@@ -26,41 +32,52 @@ body{
     display:flex;
     justify-content:space-between;
     align-items:center;
-    margin-top:1rem;
-    margin-bottom:1rem;
+    margin-bottom:15px;
 }
 
-    .header h1{
-        font-size:28px;
-        font-weight:700;
-    }
+/* TITLE */
+.header h1{
+    font-size:clamp(20px, 2.5vw, 28px);
+    font-weight:700;
+    margin:0;
+}
 
-    .request-btn{
-        background:#ef4444;
-        color:white;
-        padding:12px 20px;
-        border-radius:10px;
-        border:none;
-        cursor:pointer;
-        font-weight:600;
-    }
+/* BUTTON */
+.request-btn{
+    background:#ef4444;
+    color:white;
+    padding:10px 18px;
+    border-radius:10px;
+    border:none;
+    cursor:pointer;
+    font-weight:600;
+    box-shadow:0 2px 6px rgba(0,0,0,0.15);
+}
 
-    .main{
-        display:flex;
-        gap:28px;
-        height: auto;
-    }
+.request-btn:hover{
+    background:#dc2626;
+}
 
-/* LEFT CARD */
+/* MAIN LAYOUT */
+.dashboard-main{
+    display:flex;
+    justify-content:center;
+    gap:20px;
+    flex-wrap:wrap;
+}
+
+/* CLOCK CARD */
 .clock-card{
-    flex:2;
+    flex:1 1 600px;
+    max-width:900px;
     background:white;
     display:flex;
     flex-direction:column;
     border-radius:16px;
-    padding:20px 30px;
+    padding:20px;
     box-shadow:0 6px 18px rgba(0,0,0,0.1);
     border:1px solid #e5e7eb;
+    justify-content:flex-start;
 }
 
 /* TITLE */
@@ -69,19 +86,21 @@ body{
     color:#ef4444;
     font-weight:700;
     margin-bottom:10px;
-    font-size:22px;
+    font-size:clamp(18px, 2vw, 22px);
 }
 
 /* INNER BOX */
 .clock-inner{
-    flex:1;
     display:flex;
     flex-direction:column;
     justify-content:center;
     align-items:center;
     background:#e5e7eb;
     border-radius:12px;
-    padding:20px;
+    padding:25px;
+    margin-bottom:10px;
+    text-align:center;
+    flex:0; /* IMPORTANT - removes big gap */
 }
 
 /* STATUS */
@@ -101,8 +120,8 @@ body{
 
 /* CLOCK */
 .clock{
-    width:240px;
-    height:240px;
+    width:clamp(180px, 25vw, 240px);
+    height:clamp(180px, 25vw, 240px);
     position:relative;
     display:flex;
     align-items:center;
@@ -118,7 +137,7 @@ body{
 
 .shift-time{
     position:absolute;
-    font-size:40px;
+    font-size:clamp(28px, 4vw, 40px);
     font-weight:700;
 }
 
@@ -127,47 +146,62 @@ body{
     font-size:14px;
     color:#4b5563;
     font-weight:500;
-    margin-top:5px;
+    margin-top:8px;
 }
 
 /* BUTTONS */
 .buttons{
     display:flex;
     gap:12px;
-    margin-top:15px;
     align-items:center;
+    width:100%;
+    margin-top:5px;
 }
 
 .buttons form{
     flex:1;
-    display:flex;
+    margin:0;
 }
 
 .clockout{
     width:100%;
-    height:46px;
+    height:48px;
     background:#ef4444;
     border:none;
     color:white;
-    border-radius:10px;
+    border-radius:12px;
     font-weight:600;
     cursor:pointer;
     box-shadow:0 2px 6px rgba(0,0,0,0.15);
+    display:block;
 }
 
-/* ICON BUTTONS */
+.clockout:hover{
+    background:#dc2626;
+}
+
+/* ICON BUTTON */
 .icon-btn{
-    width:46px;
-    height:46px;
+    width:48px;
+    height:48px;
+    min-width:48px;
     border:none;
-    border-radius:10px;
+    border-radius:12px;
     background:#f3f4f6;
     background-repeat:no-repeat;
     background-position:center;
     background-size:22px;
     cursor:pointer;
+    display:flex;
+    align-items:center;
+    justify-content:center;
 }
 
+.icon-btn:hover{
+    background:#e5e7eb;
+}
+
+/* ICONS */
 .coffee{
     background-image:url("<?= base_url('icons/coffee.png') ?>");
 }
@@ -176,20 +210,21 @@ body{
     background-image:url("<?= base_url('icons/add_notes.png') ?>");
 }
 
-/* BREAK ACTIVE */
 .on-break{
     background-color:#fb923c !important;
 }
 
-/* RIGHT CARD */
+/* NOTIFICATIONS */
 .notifications{
-    flex:1;
+    flex:1 1 280px;
+    max-width:380px;
     background:white;
     border-radius:16px;
     padding:18px;
     box-shadow:0 6px 18px rgba(0,0,0,0.1);
     border:1px solid #e5e7eb;
     overflow-y:auto;
+    max-height:520px;
 }
 
 /* NOTIFICATION TITLE */
@@ -230,7 +265,17 @@ body{
 .error-icon{background:#ef4444;}
 .error-icon::before{content:'!';}
 
-/* MODAL OVERLAY */
+.notif-title{
+    font-weight:700;
+    font-size:13px;
+}
+
+.notif-desc{
+    font-size:12px;
+    color:#6b7280;
+}
+
+/* MODAL */
 .modal-overlay{
     position:fixed;
     top:0;
@@ -244,35 +289,24 @@ body{
     z-index:9999;
 }
 
-/* MODAL BOX */
 .modal{
     background:white;
-    width:420px;
+    width:90%;
+    max-width:420px;
     border-radius:14px;
-    padding:20px 20px 15px 20px;
+    padding:20px;
     box-shadow:0 25px 50px rgba(0,0,0,0.25);
     animation:modalPop 0.2s ease;
 }
 
-/* MODAL HEADER */
 .modal-header{
     display:flex;
     justify-content:space-between;
     align-items:center;
     margin-bottom:15px;
     font-weight:600;
-    font-size:16px;
 }
 
-/* CLOSE BUTTON */
-.modal-header button{
-    border:none;
-    background:none;
-    font-size:18px;
-    cursor:pointer;
-}
-
-/* INPUTS */
 .modal input,
 .modal select,
 .modal textarea{
@@ -281,30 +315,17 @@ body{
     border:1px solid #d1d5db;
     border-radius:8px;
     margin-bottom:12px;
-    font-size:14px;
 }
 
-/* SELECT ARROW */
-.modal select{
-    appearance:none;
-    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236b7280' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
-    background-repeat:no-repeat;
-    background-position:right 10px center;
-    padding-right:30px;
-}
-
-/* TEXTAREA */
 .modal textarea{
     height:80px;
     resize:none;
 }
 
-/* FOOTER BUTTONS */
 .modal-footer{
     display:flex;
     justify-content:flex-end;
     gap:10px;
-    margin-top:5px;
 }
 
 .cancel-btn{
@@ -313,7 +334,6 @@ body{
     padding:8px 14px;
     border-radius:6px;
     cursor:pointer;
-    color:#374151;
 }
 
 .submit-btn{
@@ -325,18 +345,27 @@ body{
     cursor:pointer;
 }
 
-/* POP ANIMATION */
 @keyframes modalPop{
-    from{
-        transform:scale(0.95);
-        opacity:0;
-    }
-    to{
-        transform:scale(1);
-        opacity:1;
-    }
+    from{ transform:scale(0.95); opacity:0; }
+    to{ transform:scale(1); opacity:1; }
 }
 
+/* MOBILE */
+@media (max-width: 900px){
+    .dashboard-main{
+        flex-direction:column;
+        align-items:center;
+    }
+
+    .notifications{
+        max-width:900px;
+        width:100%;
+    }
+
+    .clock-card{
+        width:100%;
+    }
+}
 </style>
 
 <div class="dashboard">
