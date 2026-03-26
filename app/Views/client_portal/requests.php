@@ -17,10 +17,10 @@
 }
 
 .page-title {
-    font-size: 1.875rem;   /* text-3xl */
+    font-size: 1.875rem;   
     line-height: 2.25rem;
-    font-weight: 700;      /* font-bold */
-    color: #1f2937;        /* text-gray-800 */
+    font-weight: 700;      
+    color: #1f2937;       
     margin-bottom: 0.25rem;
 }
 
@@ -77,6 +77,28 @@
 
 .request-name {
     font-weight: 600;
+}
+
+.request-person {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.request-avatar {
+    width: 50px;
+    height: 50px;
+    border-radius: 999px;
+    background-color: #e5e7eb;
+    background-size: cover;
+    background-position: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 700;
+    color: #374151;
+    border: 1px solid #d1d5db;
 }
 
 .request-date {
@@ -178,6 +200,10 @@
     gap: 0.5rem;
 }
 
+.duration{
+    margin-left: 5px;
+}
+
 </style>
 
 
@@ -199,32 +225,37 @@
         </div>
     </div>
 
-    <!-- <div class="flex justify-between items-center my-4">
-        
-        <div class="p-1">
-            <h1 class="text-3xl font-bold text-gray-800 mb-1">Employee Requests</h1>
-            <p class="text-gray-500 text-sm">Keep track of employees status.</p>
-        </div>
-
-        <div class="flex items-center gap-4">
-            <select id="statusFilter" class="bg-[#FF2D2D] hover:bg-[#ff2d2dd2] text-white px-3 py-3 rounded-lg shadow flex items-center gap-2">
-                <option value="all">All Requests</option>
-                <option value="pending">Pending</option>
-                <option value="approved">Approved</option>
-                <option value="rejected">Rejected</option>
-            </select>
-        </div>
-    </div> -->
-
     <div class="request-cards-container scroll-bar">
         <div class="request-grid">
             <?php foreach ($requests as $request): ?>
             <div class="request-card" data-status="<?= $request['status'] ?>">
 
+                <?php
+                    $startDate = ! empty($request['start_date']) ? date('F j, Y', strtotime($request['start_date'])) : 'N/A';
+                    $endDate = ! empty($request['end_date']) ? date('F j, Y', strtotime($request['end_date'])) : null;
+                    $dateText = $startDate;
+                    if ($endDate !== null && $endDate !== $startDate) {
+                        $dateText .= ' to ' . $endDate;
+                    }
+                    $duration = (int) ($request['duration'] ?? 1);
+                    $displayName = (string) ($request['requested_by_name'] ?? (string) ($request['requested_by'] ?? 'U'));
+                    $initialsSource = trim($displayName);
+                    $avatarInitials = strtoupper(substr($initialsSource !== '' ? $initialsSource : 'U', 0, 2));
+                ?>
+
                 <div class="request-header <?= $request['status'] ?>">
-                    <div>
-                        <div class="request-name"><?= esc($request['requested_by']) ?></div>
-                        <div class="request-date"><?= esc(date('F j, Y', strtotime($request['date']))) ?></div>
+                    <div class="request-person">
+                        <?php if(auth()->user()->inGroup('client_payroll_staff')): ?>
+                            <?php if (! empty($request['photo_path'])): ?>
+                                <div class="request-avatar" style="background-image:url('<?= esc($request['photo_path']) ?>');"></div>
+                            <?php else: ?>
+                                <div class="request-avatar"><?= esc($avatarInitials) ?></div>
+                            <?php endif; ?>
+                        <?php endif; ?>
+                        <div>
+                            <div class="request-name"><?= esc($request['requested_by_name'] ?? (string) $request['requested_by']) ?></div>
+                            <div class="request-date">Employee No: <?= esc($request['employee_number'] ?? 'N/A') ?></div>
+                        </div>
                     </div>
 
                     <div class="request-actions">
@@ -254,10 +285,22 @@
                         <span class="value"><?= ucfirst($request['request_type']) ?></span>
                     </div>
 
+                     <div class="request-row">
+                        <span class="label">Duration:</span>
+                        <p class="message"><?= esc($dateText) ?>
+                            <span class="duration">(<?= esc((string) $duration) ?> day<?= $duration !== 1 ? 's' : '' ?>)</span>
+                        </p>
+                    </div>
+
                     <div class="request-row">
                         <span class="label">Message:</span>
                         <p class="message"><?= esc($request['reason']) ?></p>
                     </div>
+
+                    <!-- <div class="request-row">
+                        <span class="label">Approval Code:</span>
+                        <span class="value"><?= esc($request['approval_code'] ?? 'N/A') ?></span>
+                    </div> -->
                 </div>
 
             </div>

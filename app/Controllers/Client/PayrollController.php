@@ -14,22 +14,42 @@ class PayrollController extends BaseController
         $payrollModel = new PayrollModel();
         $employeeModel = new EmployeeModel();
 
-        // Get selected month from query string, default to current month
         $month = $this->request->getGet('month') ?? date('Y-m');
         $data['selected_month'] = $month;
 
-        // Fetch payroll records for the selected month with employee name
+        // FirstName M. LastName
         $data['payrolls'] = $payrollModel
-            ->select('payroll.*, 
-                    CONCAT(employees.last_name, ", ", employees.first_name, " ", LEFT(employees.middle_name, 1), ".") as employee_name,
-                    employees.employee_number')
+            ->select("
+                payroll.*,
+                CONCAT(
+                    TRIM(employees.first_name), ' ',
+                    IF(
+                        COALESCE(TRIM(employees.middle_name), '') = '',
+                        '',
+                        CONCAT(UPPER(LEFT(TRIM(employees.middle_name), 1)), '. ')
+                    ),
+                    TRIM(employees.last_name)
+                ) AS employee_name,
+                employees.employee_number
+            ")
             ->join('employees', 'employees.id = payroll.employee_id', 'left')
             ->where('payroll.month_year', $month)
             ->findAll();
 
-        // Fetch active employees for dropdown
+        // FirstName M. LastName
         $data['employees'] = $employeeModel
-            ->select('employees.id, CONCAT(first_name, " ", last_name) as full_name')
+            ->select("
+                employees.id,
+                CONCAT(
+                    TRIM(employees.first_name), ' ',
+                    IF(
+                        COALESCE(TRIM(employees.middle_name), '') = '',
+                        '',
+                        CONCAT(UPPER(LEFT(TRIM(employees.middle_name), 1)), '. ')
+                    ),
+                    TRIM(employees.last_name)
+                ) AS full_name
+            ")
             ->join('users', 'users.id = employees.user_id', 'left')
             ->where('users.active', 1)
             ->findAll();
@@ -85,5 +105,40 @@ class PayrollController extends BaseController
         $payrollModel = new PayrollModel();
         $payroll = $payrollModel->find($id);
         return $this->response->setJSON($payroll);
+    }
+
+    public function getEmployees()
+    {
+        $employeeModel = new EmployeeModel();
+
+        $rows = $employeeModel
+            ->select("
+                employees.id,
+                TRIM(employees.first_name) AS first_name,
+                TRIM(employees.last_name) AS last_name,
+                TRIM(COALESCE(employees.middle_name, '')) AS middle_name
+            ")
+            ->join('users', 'users.id = employees.user_id', 'left')
+            ->where('users.active', 1)
+            ->orderBy('employees.first_name', 'ASC')
+            ->orderBy('employees.last_name', 'ASC')
+            ->findAll();
+
+        $employees = array_map(static function ($row) {
+            $first = $row['first_name'] ?? '';
+            $last  = $row['last_name'] ?? '';
+            $mid   = $row['middle_name'] ?? '';
+            $mi    = $mid !== '' ? strtoupper(substr($mid, 0, 1)) . '.' : '';
+
+            $name = trim($first . ' ' . ($mi !== '' ? $mi . ' ' : '') . $last);
+
+            return [
+                'id'    => (string)($row['id'] ?? ''),
+                'name'  => $name,
+                'label' => $name,
+            ];
+        }, $rows);
+
+        return $this->response->setJSON($employees);
     }
 }

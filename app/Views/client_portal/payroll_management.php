@@ -14,7 +14,7 @@
             <div class="section">
                 <h3>Personal Details</h3>
                 <p class="subtitle">Please complete the employee data</p>
-                <input type="text" placeholder="Search Employee" class="full-input">
+                <input type="text" placeholder="Search Employee" class="full-input input">
             </div>
 
             <!-- GROSS SALARY -->
@@ -22,10 +22,10 @@
                 <h3>Gross Salary</h3>
                 <p class="subtitle">Please complete the employee data</p>
                 <div class="grid-4">
-                    <input type="text" placeholder="Monthly">
-                    <input type="text" placeholder="Semi-Monthly">
-                    <input type="text" placeholder="Daily">
-                    <input type="text" placeholder="Hourly">
+                    <input type="text" placeholder="Monthly" class="input">
+                    <input type="text" placeholder="Semi-Monthly" class="input">
+                    <input type="text" placeholder="Daily" class="input">
+                    <input type="text" placeholder="Hourly" class="input">
                 </div>
             </div>
 
@@ -34,9 +34,9 @@
                 <h3>De Minimis Benefit</h3>
                 <p class="subtitle">Please complete the employee data</p>
                 <div class="grid-3">
-                    <input type="text" placeholder="Rice Subsidy">
-                    <input type="text" placeholder="Uniform Clothing Allowance">
-                    <input type="text" placeholder="Laundry Allowance">
+                    <input type="text" placeholder="Rice Subsidy" class="input">
+                    <input type="text" placeholder="Uniform Clothing Allowance" class="input">
+                    <input type="text" placeholder="Laundry Allowance" class="input">
                 </div>
             </div>
 
@@ -46,8 +46,8 @@
                     <h3>SSS Loan</h3>
                     <p class="subtitle">Please complete the employee data</p>
                     <div class="grid-2">
-                        <input type="text" placeholder="Salary">
-                        <input type="text" placeholder="Deductibility">
+                        <input type="text" placeholder="Salary" class="input">
+                        <input type="text" placeholder="Deductibility" class="input">
                     </div>
                 </div>
 
@@ -55,8 +55,8 @@
                     <h3>Advances to Employees</h3>
                     <p class="subtitle">Please complete the employee data</p>
                     <div class="grid-2">
-                        <input type="text" placeholder="Salary">
-                        <input type="text" placeholder="Deductibility">
+                        <input type="text" placeholder="Salary" class="input">
+                        <input type="text" placeholder="Deductibility" class="input">
                     </div>
                 </div>
             </div>
@@ -67,8 +67,8 @@
                     <h3>Undertime</h3>
                     <p class="subtitle">Please complete the employee data</p>
                     <div class="grid-2">
-                        <input type="text" placeholder="Hours">
-                        <input type="text" placeholder="PHP Equivalent">
+                        <input type="text" placeholder="Hours" class="input">
+                        <input type="text" placeholder="PHP Equivalent" class="input">
                     </div>
                 </div>
 
@@ -76,8 +76,8 @@
                     <h3>Absent</h3>
                     <p class="subtitle">Please complete the employee data</p>
                     <div class="grid-2">
-                        <input type="text" placeholder="Day(s)">
-                        <input type="text" placeholder="PHP Equivalent">
+                        <input type="text" placeholder="Day(s)" class="input">
+                        <input type="text" placeholder="PHP Equivalent" class="input">
                     </div>
                 </div>
             </div>
@@ -92,8 +92,8 @@
                     <h4>Overtime</h4>
                     <p class="subtitle">Please complete the employee data</p>
                     <div class="grid-2">
-                        <input type="text" placeholder="Hours">
-                        <input type="text" placeholder="PHP Equivalent">
+                        <input type="text" placeholder="Hours" class="input">
+                        <input type="text" placeholder="PHP Equivalent" class="input">
                     </div>
                 </div>
 
@@ -101,8 +101,8 @@
                     <h4>Night Differential 10PM - 6AM</h4>
                     <p class="subtitle">Please complete the employee data</p>
                     <div class="grid-2">
-                        <input type="text" placeholder="Day(s)">
-                        <input type="text" placeholder="PHP Equivalent">
+                        <input type="text" placeholder="Day(s)" class="input">
+                        <input type="text" placeholder="PHP Equivalent" class="input">
                     </div>
                 </div>
             </div>
@@ -116,9 +116,9 @@
                 <h4>Overtime</h4>
                 <p class="subtitle">Please complete the employee data</p>
                 <div class="grid-3">
-                    <input type="text" placeholder="Hours">
-                    <input type="text" placeholder="Excess 8 Hours">
-                    <input type="text" placeholder="PHP Equivalent">
+                    <input type="text" placeholder="Hours" class="input">
+                    <input type="text" placeholder="Excess 8 Hours" class="input">
+                    <input type="text" placeholder="PHP Equivalent" class="input">
                 </div>
             </div>
 
@@ -126,8 +126,8 @@
                 <h4>Night Differential 10PM - 6AM</h4>
                 <p class="subtitle">Please complete the employee data</p>
                 <div class="grid-2">
-                    <input type="text" placeholder="Day(s)">
-                    <input type="text" placeholder="PHP Equivalent">
+                    <input type="text" placeholder="Day(s)" class="input">
+                    <input type="text" placeholder="PHP Equivalent" class="input">
                 </div>
             </div>
 
@@ -221,7 +221,7 @@
 }
 
 /* INPUT */
-input{
+.input{
     height: 38px;
     border-radius: 6px;
     border: 1px solid #cfcfcf;
@@ -231,7 +231,7 @@ input{
     outline: none;
 }
 
-input:focus{
+.input:focus{
     background: #ffffff;
     border: 1px solid #7b5cff;
 }

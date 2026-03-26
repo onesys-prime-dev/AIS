@@ -13,6 +13,7 @@
     $birthdateLabel = ! empty($identity['birthdate']) ? date('F j, Y', strtotime((string) $identity['birthdate'])) : '-';
     $hireDateLabel = ! empty($employment['hire_date']) ? date('F j, Y', strtotime((string) $employment['hire_date'])) : '-';
     $auditLabel = ! empty($audit['updated_at']) ? date('F j, Y g:i A', strtotime((string) $audit['updated_at'])) : '-';
+    $middleInitial = ! empty($identity['middle_name']) ? strtoupper(substr(trim((string) $identity['middle_name']), 0, 1)) . '.' : '';
 ?>
 
 <!-- ACCOUNT PAGE -->
@@ -52,7 +53,7 @@
                     <div class="identity-grid">
                         <div class="form-group">
                             <label>Full Name</label>
-                            <input type="text" name="full_name" value="<?= esc($identity['last_name'] ?? '') ?>, <?= esc($identity['first_name'] ?? '') ?> <?= esc($identity['middle_name'] ?? '') ?>" maxlength="255" required>
+                            <input type="text" name="full_name" value="<?= esc($identity['last_name'] ?? '') ?>, <?= esc($identity['first_name'] ?? '') ?> <?= esc($middleInitial) ?>" maxlength="255" placeholder="Dela Cruz, Juan Miguel Santos" title="Use format: Lastname, FirstName(s) MiddleName" required>
                         </div>
 
                         <div class="form-group">
@@ -934,6 +935,26 @@
         const saveBtn = document.getElementById('saveIdentityBtn');
 
         if (!form || !saveBtn) return;
+
+        form.addEventListener('submit', function (e) {
+            const fullNameInput = form.querySelector('input[name="full_name"]');
+            const fullName = (fullNameInput?.value || '').trim();
+            const nameFormat = /^[^,]+,\s*[^,]+$/;
+
+            if (!nameFormat.test(fullName)) {
+                e.preventDefault();
+                alert('Full Name must follow this format: Lastname, FirstName(s) MiddleName');
+                fullNameInput?.focus();
+                return;
+            }
+
+            const [lastName, given] = fullName.split(',', 2).map((part) => part.trim());
+            if (!lastName || !given) {
+                e.preventDefault();
+                alert('Please provide both last name and first name(s).');
+                fullNameInput?.focus();
+            }
+        });
 
         const fields = Array.from(form.querySelectorAll('input[name]'));
         const initialValues = new Map(fields.map((field) => [field.name, (field.value || '').trim()]));

@@ -327,12 +327,39 @@ class AccountService
 
 	private function splitFullName(string $fullName, string $fallbackLastName = 'User'): array
 	{
-		$parts = preg_split('/\s+/', trim($fullName)) ?: [];
+		$fullName = trim(preg_replace('/\s+/', ' ', $fullName) ?? '');
 
-		if (count($parts) === 0) {
+		if ($fullName === '') {
 			return ['Employee', null, $fallbackLastName !== '' ? $fallbackLastName : 'User'];
 		}
 
+		// Standard profile input format: "Lastname, FirstName(s) MiddleName"
+		if (str_contains($fullName, ',')) {
+			[$lastRaw, $givenRaw] = array_pad(explode(',', $fullName, 2), 2, '');
+			$lastName = trim($lastRaw);
+			$givenNames = trim($givenRaw);
+
+			if ($lastName === '' || $givenNames === '') {
+				throw new \RuntimeException('Full name must follow this format: Lastname, FirstName(s) MiddleName.');
+			}
+
+			$givenParts = preg_split('/\s+/', $givenNames) ?: [];
+			if (count($givenParts) === 0) {
+				throw new \RuntimeException('Full name must include at least one first name after the comma.');
+			}
+
+			if (count($givenParts) === 1) {
+				return [$givenParts[0], null, $lastName];
+			}
+
+			$middle = (string) array_pop($givenParts);
+			$first = trim(implode(' ', $givenParts));
+
+			return [$first !== '' ? $first : 'Employee', $middle !== '' ? $middle : null, $lastName];
+		}
+
+		// Backward compatibility for old "First Middle Last" values.
+		$parts = preg_split('/\s+/', $fullName) ?: [];
 		if (count($parts) === 1) {
 			return [$parts[0], null, $fallbackLastName !== '' ? $fallbackLastName : 'User'];
 		}

@@ -172,6 +172,8 @@ document.addEventListener("DOMContentLoaded", function () {
 
 <?= $this->renderSection('modals') ?>
 
+<script src="<?= base_url('js/components/flash-notifications.js') ?>"></script>
+
 <?= $this->renderSection('scripts') ?>
 
 <?php if (auth()->loggedIn()): ?>

@@ -24,7 +24,9 @@ $routes->group('client_portal', ['filter' => 'auth'], function($routes){
     $routes->get('timesheets/delete/(:num)', 'Client\TimesheetController::delete/$1');
     $routes->get('profile', 'Client\EmployeeAccountController::index');
     $routes->post('profile/photo', 'Client\EmployeeAccountController::updatePhoto');
+    $routes->post('profile/identity', 'Client\EmployeeAccountController::updateIdentity');
     $routes->post('profile/contact', 'Client\EmployeeAccountController::updateContact');
+    $routes->post('profile/username', 'Client\EmployeeAccountController::updateUsername');
     $routes->post('profile/emergency', 'Client\EmployeeAccountController::updateEmergency');
     $routes->post('profile/password', 'Client\EmployeeAccountController::updatePassword');
     $routes->post('presence/heartbeat', 'Client\PresenceController::heartbeat');
@@ -45,6 +47,7 @@ $routes->get('settings/customization', 'SettingsController::customization');
 
 $routes->group('client_portal', ['namespace' => 'App\Controllers\Client'], function($routes) {
     $routes->get('payroll', 'PayrollController::payrollView');
+    $routes->get('payroll/employees_json', 'PayrollController::getEmployees');
     $routes->post('payroll/create', 'PayrollController::createPayroll');
     $routes->post('payroll/update/(:num)', 'PayrollController::updatePayroll/$1');
     $routes->get('payroll/delete/(:num)', 'PayrollController::deletePayroll/$1');

@@ -4,7 +4,7 @@
 
     <!-- Header -->
     <div class="flex justify-between items-center mb-5">
-        <h2 class="text-lg font-semibold text-gray-700">
+        <h2 class="text-xl font-bold text-gray-700">
             <?= esc($title ?? 'Records') ?>
         </h2>
 
@@ -105,7 +105,7 @@
         <!-- HEAD -->
         <div class="grid <?= esc($grid) ?> bg-[#DCDCDC] text-[#737373] border border-[#9E9E9E] rounded-lg overflow-hidden text-sm font-medium">
             <?php foreach ($columns as $col): ?>
-            <div class="p-4 <?= $col === 'Action' ? 'text-center' : '' ?>">
+            <div class="p-4 text-base font-bold <?= $col === 'Action' ? 'text-center' : '' ?>">
                 <?= esc($col) ?>
             </div>
             <?php endforeach; ?>

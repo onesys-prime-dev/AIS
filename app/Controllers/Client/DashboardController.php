@@ -36,7 +36,7 @@ class DashboardController extends BaseController
         if ($user->inGroup('client_payroll_staff')) {
 
             $requests = $requestModel
-                ->select('requests.created_at, users.username, requests.request_type, requests.date, requests.reason, requests.status')
+                ->select('requests.created_at, users.username, requests.request_type, requests.start_date, requests.end_date, requests.duration, requests.approval_code, requests.reason, requests.status')
                 ->join('users', 'users.id = requests.requested_by')
                 ->orderBy('requests.created_at', 'DESC')
                 ->findAll();

@@ -52,6 +52,9 @@ body{
     cursor:pointer;
     font-weight:600;
     box-shadow:0 2px 6px rgba(0,0,0,0.15);
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
 }
 
 .request-btn:hover{
@@ -197,9 +200,9 @@ body{
     justify-content:center;
 }
 
-.icon-btn:hover{
-    background:#e5e7eb;
-}
+/* .icon-btn:hover{
+    filter: var(--sidebar-icon-filter);
+} */
 
 /* ICONS */
 .coffee{
@@ -291,8 +294,9 @@ body{
 
 .modal{
     background:white;
-    width:90%;
-    max-width:420px;
+    width:100%;
+    max-width:460px;
+    max-height: auto;
     border-radius:14px;
     padding:20px;
     box-shadow:0 25px 50px rgba(0,0,0,0.25);
@@ -314,6 +318,7 @@ body{
     padding:10px;
     border:1px solid #d1d5db;
     border-radius:8px;
+    margin-top: 5px;
     margin-bottom:12px;
 }
 
@@ -345,6 +350,110 @@ body{
     cursor:pointer;
 }
 
+.button-holder{
+    display:flex;
+    align-items:center;
+    gap: 10px;
+}
+
+.btn-icon{
+    width:26px;
+    height:26px;
+    object-fit:contain;
+}
+
+/* ANNOUNCEMENT MODAL (OWN STYLES) */
+.announcement-modal{
+    max-width:920px;
+    width:min(92vw, 920px);
+    max-height:90vh;
+    padding:0;
+    overflow:hidden;
+    border-radius:16px;
+}
+
+.announcement-form{
+    display:flex;
+    flex-direction:column;
+    max-height:90vh;
+}
+
+.announcement-form .modal-header{
+    padding:16px 20px;
+    margin-bottom:0;
+    border-bottom:1px solid #e5e7eb;
+}
+
+.announcement-body{
+    flex:1;
+    min-height:0;
+    padding:14px 18px;
+    overflow-y:auto;
+}
+
+.announcement-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:10px 12px;
+}
+
+.announcement-field{
+    display:flex;
+    flex-direction:column;
+}
+
+.announcement-field.full-span{
+    grid-column:1 / -1;
+}
+
+.announcement-field label{
+    font-size:13px;
+    color:#374151;
+    font-weight:600;
+}
+
+.announcement-field input,
+.announcement-field select,
+.announcement-field textarea{
+    width:100%;
+    border:1px solid #d1d5db;
+    border-radius:8px;
+}
+
+.announcement-field textarea{
+    resize:vertical;
+    min-height:84px;
+}
+
+.announcement-counter{
+    text-align:right;
+    font-size:12px;
+    color:#6b7280;
+}
+
+.announcement-check{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    font-size:13px;
+    color:#4b5563;
+}
+
+.announcement-check input{
+    width:auto;
+    margin:0;
+    padding:0;
+    border:none;
+    border-radius:0;
+}
+
+.announcement-form .modal-footer{
+    flex-shrink:0;
+    padding:14px 20px;
+    border-top:1px solid #e5e7eb;
+    background:#f9fafb;
+}
+
 @keyframes modalPop{
     from{ transform:scale(0.95); opacity:0; }
     to{ transform:scale(1); opacity:1; }
@@ -365,6 +474,10 @@ body{
     .clock-card{
         width:100%;
     }
+
+    .announcement-grid{
+        grid-template-columns:1fr;
+    }
 }
 </style>
 
@@ -374,9 +487,17 @@ body{
             <div class="p-1">
                 <h1>Employee Dashboard</h1>
             </div>
-            <button onclick="openRequestForm()" class="request-btn">+ Request Form</button>
+            <div class="button-holder">
+                <button onclick="openAnnouncementForm()" class="request-btn">
+                    <img src="<?= base_url('icons/announcement.png') ?>" alt="Announcement" class="btn-icon">
+                    <span>Announcement</span>
+                </button>
+                <button onclick="openRequestForm()" class="request-btn">
+                    <img src="<?= base_url('icons/Requests.png') ?>" alt="Request" class="btn-icon">
+                    <span>Request Form</span>
+                </button>
+            </div>
         </div>
-
     <div class="dashboard-main">
 
         <div class="clock-card">
@@ -518,22 +639,118 @@ body{
                     <button type="button" onclick="closeRequestForm()">✕</button>
                 </div>
 
-                <label>Select Form *</label>
+                <label>Select Form</label>
                 <select name="request_type" required>
                     <option value="leave">Leave Request</option>
                     <option value="overtime">Overtime Request</option>
                     <option value="undertime">Undertime Request</option>
                 </select>
 
-                <label>Date *</label>
-                <input type="date" name="date" required>
+                <label>Start Date</label>
+                <input type="date" name="start_date" required>
+
+                <label>End Date</label>
+                <input type="date" name="end_date">
+
+                <label>Approval Code</label>
+                <input type="text" name="approval_code">
 
                 <label>Message</label>
-                <textarea name="reason"></textarea>
+                <textarea name="reason" required></textarea>
 
                 <div class="modal-footer">
                     <button type="button" class="cancel-btn" onclick="closeRequestForm()">Cancel</button>
                     <button type="submit" class="submit-btn">Submit</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ANNOUNCEMENT MODAL -->
+    <div class="modal-overlay" id="announcementModal">
+        <div class="modal announcement-modal">
+            <form id="announcementForm" action="#" method="post" class="announcement-form">
+                <div class="modal-header">
+                    <span>Create Announcement</span>
+                    <button type="button" onclick="closeAnnouncementForm()">✕</button>
+                </div>
+
+                <div class="announcement-body scroll-bar">
+                    <div class="announcement-grid">
+                        <div class="announcement-field full-span">
+                            <label>Announcement Title *</label>
+                            <input type="text" name="title" maxlength="120" placeholder="e.g. Payroll Release Schedule - April 2026" required>
+                        </div>
+
+                        <div class="announcement-field">
+                            <label>Category *</label>
+                            <select name="category" required>
+                                <option value="">Select category</option>
+                                <option value="general">General Update</option>
+                                <option value="policy">Policy Notice</option>
+                                <option value="event">Event</option>
+                                <option value="maintenance">System Maintenance</option>
+                                <option value="emergency">Urgent Alert</option>
+                            </select>
+                        </div>
+
+                        <div class="announcement-field">
+                            <label>Audience *</label>
+                            <select id="announcementAudience" name="audience" onchange="toggleAnnouncementAudience()" required>
+                                <option value="">Select audience</option>
+                                <option value="all">All Employees</option>
+                                <option value="payroll">Payroll Staff</option>
+                                <option value="department">Specific Department</option>
+                            </select>
+                        </div>
+
+                        <div id="announcementDepartmentWrap" class="announcement-field" style="display:none;">
+                            <label>Department *</label>
+                            <input id="announcementDepartment" type="text" name="department" placeholder="e.g. Finance">
+                        </div>
+
+                        <div class="announcement-field">
+                            <label>Priority *</label>
+                            <select name="priority" required>
+                                <option value="normal">Normal</option>
+                                <option value="high">High</option>
+                                <option value="urgent">Urgent</option>
+                            </select>
+                        </div>
+
+                        <div class="announcement-field">
+                            <label>Publish On *</label>
+                            <input type="datetime-local" name="publish_at" required>
+                        </div>
+
+                        <div class="announcement-field">
+                            <label>Visible Until</label>
+                            <input type="datetime-local" name="expires_at">
+                        </div>
+
+                        <div class="announcement-field full-span">
+                            <label>Short Summary *</label>
+                            <textarea id="announcementSummary" name="summary" maxlength="180" placeholder="One-line summary visible in dashboard cards" required></textarea>
+                            <div class="announcement-counter"><span id="announcementSummaryCount">0</span>/180</div>
+                        </div>
+
+                        <div class="announcement-field full-span">
+                            <label>Announcement Details *</label>
+                            <textarea name="details" style="min-height:120px;" placeholder="Write complete announcement details here." required></textarea>
+                        </div>
+
+                        <div class="announcement-field full-span">
+                            <label class="announcement-check">
+                                <input type="checkbox" name="require_acknowledgement" value="1">
+                                Require employee acknowledgement
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="cancel-btn" onclick="closeAnnouncementForm()">Cancel</button>
+                    <button type="submit" class="submit-btn">Publish</button>
                 </div>
             </form>
         </div>
@@ -579,12 +796,49 @@ body{
     }
 
     function openRequestForm(){
-    document.getElementById("requestModal").style.display="flex";
+        document.getElementById("requestModal").style.display="flex";
     }
 
     function closeRequestForm(){
-    document.getElementById("requestModal").style.display="none";
+        document.getElementById("requestModal").style.display="none";
     }
+
+    function openAnnouncementForm() {
+        document.getElementById("announcementModal").style.display="flex";
+    }
+
+    function closeAnnouncementForm() {
+        document.getElementById("announcementModal").style.display="none";
+        document.getElementById("announcementForm").reset();
+        toggleAnnouncementAudience();
+        updateAnnouncementSummaryCount();
+
+    }
+
+    function toggleAnnouncementAudience() {
+        const audience = document.getElementById("announcementAudience").value;
+        const wrap = document.getElementById("announcementDepartmentWrap");
+        const input = document.getElementById("announcementDepartment");
+
+        if (audience === "department") {
+            wrap.style.display = "block";
+            input.required = true;
+        } else {
+            wrap.style.display = "none";
+            input.required = false;
+            input.value = "";
+        }
+    }
+
+    function updateAnnouncementSummaryCount() {
+        const summary = document.getElementById("announcementSummary");
+        const counter = document.getElementById("announcementSummaryCount");
+        if (!summary || !counter) return;
+        counter.innerText = summary.value.length;
+    }
+
+    document.getElementById("announcementSummary")?.addEventListener("input", updateAnnouncementSummaryCount);
+    updateAnnouncementSummaryCount();
 
     /* CLOCK SYSTEM */
 

@@ -61,9 +61,14 @@ class EmployeeService
             // Use Shield's provider flow to guarantee proper email identity creation.
             $users = auth()->getProvider();
             $user = $users->createNewUser([
+                'username' => $email,
                 'email' => $email,
                 'password' => $password,
             ]);
+
+            if (trim((string) ($user->username ?? '')) === '') {
+                $user->username = $email;
+            }
 
             if (! $users->save($user)) {
                 throw new \Exception(json_encode($users->errors()));
