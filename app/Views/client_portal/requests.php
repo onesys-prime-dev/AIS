@@ -1,7 +1,7 @@
 <?= $this->extend('layouts/main') ?>
 <?= $this->section('content') ?>
 <style>
-.requests-container { /* Create global css for this default alignment of content in the main*/
+.requests-container {
     height: 100%;
     display: flex;
     flex-direction: column;
@@ -52,6 +52,10 @@
     border-radius: 1.25rem;
     height: 100%;
     border: 1px solid rgb(156 163 175 / 1);
+
+    /* ADDED SCROLL */
+    overflow-y: auto;
+    min-height: 0;
 }
 
 /* Header */
@@ -222,7 +226,6 @@
 .duration{
     margin-left: 5px;
 }
-
 </style>
 
 
@@ -315,11 +318,6 @@
                         <span class="label">Message:</span>
                         <p class="message"><?= esc($request['reason']) ?></p>
                     </div>
-
-                    <!-- <div class="request-row">
-                        <span class="label">Approval Code:</span>
-                        <span class="value"><?= esc($request['approval_code'] ?? 'N/A') ?></span>
-                    </div> -->
                 </div>
 
             </div>

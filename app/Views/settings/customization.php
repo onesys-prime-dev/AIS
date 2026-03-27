@@ -102,12 +102,14 @@ h1 {
     gap: 25px;
 }
 
-/* CARD */
+/* CARD - with scroll and reduced max-height */
 .card {
     background: #ffffff;
     border-radius: 18px;
     padding: 25px;
     box-shadow: 0 8px 25px rgba(0,0,0,0.08);
+    overflow-y: auto;
+    max-height: 400px;   /* reduced from 500px to bring buttons up */
 }
 
 .card h3 {
