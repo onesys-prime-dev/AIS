@@ -5,23 +5,26 @@ namespace App\Services\Client;
 use App\Models\Client\AnnouncementModel;
 use App\Models\Client\EmployeeModel;
 use App\Models\Client\EmployeePositionModel;
+use App\Services\ActivityLogger;
 
 class AnnouncementService
 {
     protected AnnouncementModel $announcementModel;
     protected EmployeeModel $employeeModel;
     protected EmployeePositionModel $employeePositionModel;
+    protected ActivityLogger $logger;
 
     public function __construct()
     {
         $this->announcementModel = new AnnouncementModel();
         $this->employeeModel = new EmployeeModel();
         $this->employeePositionModel = new EmployeePositionModel();
+        $this->logger = service('activityLogger');
     }
 
     public function createAnnouncement(int $createdBy, array $data): bool
     {
-        return (bool) $this->announcementModel->insert([
+        $this->announcementModel->insert([
             'title' => $data['title'],
             'category' => $data['category'],
             'audience' => $data['audience'],
@@ -34,6 +37,16 @@ class AnnouncementService
             'require_acknowledgement' => $data['require_acknowledgement'] ? 1 : 0,
             'created_by' => $createdBy,
         ]);
+
+        $id = $this->announcementModel->getInsertID();
+
+        if (! $id) {
+            return false;
+        }
+
+        $this->logger->announcementPublished($id, $data);
+
+        return true;
     }
 
     public function getVisibleAnnouncementsForUser(object $user, int $limit = 15): array

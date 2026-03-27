@@ -33,10 +33,18 @@ class AttendanceController extends BaseController
             return redirect()->back()->with('error', 'Already timed in!');
         }
 
+        $timeIn = date('H:i:s');
+        $date   = date('Y-m-d');
+
         $this->attendanceModel->insert([
             'user_id' => $userId,
-            'date' => date('Y-m-d'),
-            'time_in' => date('H:i:s'),
+            'date'    => $date,
+            'time_in' => $timeIn,
+        ]);
+
+        service('activityLogger')->attendanceClockedIn($this->attendanceModel->getInsertID(), [
+            'date'    => $date,
+            'time_in' => $timeIn,
         ]);
 
         return redirect()->back()->with('success', 'Time in recorded!');
@@ -44,7 +52,7 @@ class AttendanceController extends BaseController
 
     public function timeOut($id)
     {
-        $user = auth()->user();
+        $user   = auth()->user();
         $userId = $user->id;
 
         $attendance = $this->attendanceModel
@@ -61,36 +69,33 @@ class AttendanceController extends BaseController
         $date   = $attendance['date'];
 
         $start = strtotime($date . ' ' . $timeIn);
-        $end   = time(); // default current time
+        $end   = time();
 
-        // compute total hours worked so far
-        $totalHours = ($end - $start) / 3600;
-
-        // check break duration
+        $totalHours    = ($end - $start) / 3600;
         $breakDuration = $attendance['break_duration'] ?? 0;
+        $workedHours   = $totalHours - $breakDuration;
+        $cappedHours   = min($workedHours, 8);
 
-        // if break is less than 1 hour, automatically add up to 1 hour
-        /*  if ($breakDuration < 1) {
-            $breakDuration = 1.0;
-        } */
-
-        // subtract break from total hours
-        $workedHours = $totalHours - $breakDuration;
-
-        // cap worked hours to 8
-        $cappedHours = min($workedHours, 8);
-
-        // adjust time_out if they "forgot" to clock out
         $timeOutTimestamp = $start + ($cappedHours + $breakDuration) * 3600;
-        $timeOut = date('H:i:s', $timeOutTimestamp);
+        $timeOut          = date('H:i:s', $timeOutTimestamp);
 
-        // update attendance record
+        // Capture state before the update
+        $before = [
+            'time_out'    => $attendance['time_out'],
+            'total_hours' => $attendance['total_hours'],
+        ];
+
         $this->attendanceModel->update($attendance['id'], [
             'time_out'       => $timeOut,
             'total_hours'    => round($cappedHours, 2),
-            'break_duration' => $breakDuration, // ensure 1 hour minimum
+            'break_duration' => $breakDuration,
             'break_end'      => $attendance['break_start'] ? date('Y-m-d H:i:s') : $attendance['break_end'] ?? null,
-            'break_start'    => null, // clear break_start
+            'break_start'    => null,
+        ]);
+
+        service('activityLogger')->attendanceClockedOut($attendance['id'], $before, [
+            'time_out'    => $timeOut,
+            'total_hours' => round($cappedHours, 2),
         ]);
 
         return redirect()->back()
@@ -102,7 +107,7 @@ class AttendanceController extends BaseController
 
     public function toggleBreak($id)
     {
-        $user = auth()->user();
+        $user   = auth()->user();
         $userId = $user->id;
 
         $attendance = $this->attendanceModel
@@ -115,30 +120,58 @@ class AttendanceController extends BaseController
         }
 
         if (empty($attendance['break_start'])) {
-            // start break
+            // Start break
             if ($attendance['break_duration'] >= 1) {
                 return redirect()->back()->with('error', "You've used up your 1 hour break!");
             }
 
+            $breakStartTime = date('Y-m-d H:i:s');
+
             $this->attendanceModel->update($id, [
-                'break_start' => date('Y-m-d H:i:s')
+                'break_start' => $breakStartTime,
             ]);
+
+            service('activityLogger')->attendanceBreakRecorded($id,
+                [
+                    'break_start'    => null,
+                    'break_end'      => $attendance['break_end'],
+                    'break_duration' => $attendance['break_duration'],
+                ],
+                [
+                    'break_start'    => $breakStartTime,
+                    'break_end'      => $attendance['break_end'],
+                    'break_duration' => $attendance['break_duration'],
+                ]
+            );
 
             return redirect()->back()->with('success', 'Break started!');
         } else {
-            // end break
+            // End break
             $breakStart = strtotime($attendance['break_start']);
-            $breakEnd = time();
+            $breakEnd   = time();
             $breakHours = ($breakEnd - $breakStart) / 3600;
-
-            // break duration caps at 1 hour
             $totalBreak = min($attendance['break_duration'] + $breakHours, 1.0);
 
+            $breakEndTime = date('Y-m-d H:i:s');
+
             $this->attendanceModel->update($id, [
-                'break_start' => null,
-                'break_end' => date('Y-m-d H:i:s'),
+                'break_start'    => null,
+                'break_end'      => $breakEndTime,
                 'break_duration' => $totalBreak,
             ]);
+
+            service('activityLogger')->attendanceBreakRecorded($id,
+                [
+                    'break_start'    => $attendance['break_start'],
+                    'break_end'      => null,
+                    'break_duration' => $attendance['break_duration'],
+                ],
+                [
+                    'break_start'    => null,
+                    'break_end'      => $breakEndTime,
+                    'break_duration' => round($totalBreak, 2),
+                ]
+            );
 
             return redirect()->back()
                 ->with('success', 'Break ended!')

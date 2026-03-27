@@ -19,24 +19,24 @@ class TaskController extends BaseController
         $this->savedTasksModel = new SavedTasksModel();
         $this->attendanceModel = new AttendanceModel();
     }
-    
+
     public function showLogTaskForm()
     {
-        $user = auth()->user();
+        $user   = auth()->user();
         $userId = $user->id;
 
-        // get current active attendance
+        // Get current active attendance
         $currentAttendance = $this->attendanceModel
             ->where('user_id', $userId)
             ->where('time_out', null)
             ->first();
 
-        // if not timed in, do not show form
+        // If not timed in, do not show form
         if (!$currentAttendance) {
             return redirect()->back()->with('error', 'You must be timed in to log tasks!');
         }
 
-        // fetch saved tasks for dropdown
+        // Fetch saved tasks for dropdown
         $savedTasks = $this->savedTasksModel
             ->where('user_id', $userId)
             ->orderBy('saved_at', 'DESC')
@@ -44,16 +44,13 @@ class TaskController extends BaseController
 
         return view('client/log_task', [
             'currentAttendance' => $currentAttendance,
-            'savedTasks' => $savedTasks,
+            'savedTasks'        => $savedTasks,
         ]);
     }
 
-    
-    // handle submission of a task
-    
     public function submitTask()
     {
-        $user = auth()->user();
+        $user   = auth()->user();
         $userId = $user->id;
 
         $attendance = $this->attendanceModel
@@ -65,16 +62,13 @@ class TaskController extends BaseController
             return redirect()->back()->with('error', 'You must be timed in to log tasks!');
         }
 
-        $post = $this->request->getPost();
+        $post          = $this->request->getPost();
         $taskPerformed = trim($post['task_performed']);
         $startTime     = $post['start_time'];
         $endTime       = $post['end_time'];
-        $saveTask      = isset($post['save_task']); // checkbox toggle
+        $saveTask      = isset($post['save_task']);
 
-        $timeIn  = $attendance['time_in'];
-        $now     = date('Y-m-d H:i:s');
-
-        // task time validation
+        // Task time validation
         if ($startTime < $attendance['time_in']) {
             return redirect()->back()->with('error', 'Task start time cannot be before your clock-in time!');
         }
@@ -83,7 +77,8 @@ class TaskController extends BaseController
             return redirect()->back()->with('error', 'Task end time cannot be before start time!');
         }
 
-        // insert task
+        $now = date('Y-m-d H:i:s');
+
         $this->tasksModel->insert([
             'attendance_id'  => $attendance['id'],
             'user_id'        => $userId,
@@ -93,9 +88,18 @@ class TaskController extends BaseController
             'saved_at'       => $now,
         ]);
 
-        // optionally save to saved_tasks
+        service('activityLogger')->taskLogged(
+            $this->tasksModel->getInsertID(),
+            $attendance['id'],
+            [
+                'start_time'     => $startTime,
+                'end_time'       => $endTime,
+                'task_performed' => $taskPerformed,
+            ]
+        );
+
         if ($saveTask) {
-            // avoid duplicates
+            // Avoid duplicates
             $exists = $this->savedTasksModel
                 ->where('user_id', $userId)
                 ->where('task_performed', $taskPerformed)
@@ -107,16 +111,20 @@ class TaskController extends BaseController
                     'task_performed' => $taskPerformed,
                     'saved_at'       => $now,
                 ]);
+
+                service('activityLogger')->savedTaskCreated(
+                    $this->savedTasksModel->getInsertID(),
+                    $taskPerformed
+                );
             }
         }
 
         return redirect()->back()->with('success', 'Task logged successfully!');
     }
 
-
     public function getSavedTasks()
     {
-        $user = auth()->user();
+        $user   = auth()->user();
         $userId = $user->id;
 
         $tasks = $this->savedTasksModel
