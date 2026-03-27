@@ -198,6 +198,14 @@
     display: flex;              
     align-items: center;        
     gap: 0.5rem;
+    cursor: pointer;
+    transition:all 0.2s ease;
+}
+
+.filter-dropdown:hover{
+    background:#dc2626;
+    transform:translateY(-2px);
+    box-shadow:0 6px 12px rgba(239, 68, 68, 0.3);
 }
 
 .filter-dropdown option {

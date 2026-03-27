@@ -55,10 +55,13 @@ body{
     display:inline-flex;
     align-items:center;
     gap:8px;
+    transition:all 0.2s ease;
 }
 
 .request-btn:hover{
     background:#dc2626;
+    transform:translateY(-2px);
+    box-shadow:0 6px 12px rgba(239, 68, 68, 0.3);
 }
 
 /* MAIN LAYOUT */
@@ -177,10 +180,13 @@ body{
     cursor:pointer;
     box-shadow:0 2px 6px rgba(0,0,0,0.15);
     display:block;
+    transition:all 0.2s ease;
 }
 
 .clockout:hover{
     background:#dc2626;
+    transform:translateY(-2px);
+    box-shadow:0 6px 12px rgba(239, 68, 68, 0.3);
 }
 
 /* ICON BUTTON */
@@ -198,11 +204,13 @@ body{
     display:flex;
     align-items:center;
     justify-content:center;
+    transition:all 0.2s ease;
 }
 
-/* .icon-btn:hover{
-    filter: var(--sidebar-icon-filter);
-} */
+.icon-btn:hover{
+    background-color:#e5e7eb;
+    transform:scale(1.08);
+}
 
 /* ICONS */
 .coffee{
@@ -216,6 +224,7 @@ body{
 .on-break{
     background-color:#fb923c !important;
 }
+
 
 /* NOTIFICATIONS */
 .notifications{
@@ -287,6 +296,12 @@ body{
     display:flex;
     align-items:center;
     gap:7px;
+    transition:all 0.2s ease;
+}
+
+.notifications-tab:hover{
+    background:#ddd6fe;
+    transform:translateY(-1px);
 }
 
 .notifications-tab.active{
@@ -505,6 +520,12 @@ body{
     padding:8px 14px;
     border-radius:6px;
     cursor:pointer;
+    transition:all 0.2s ease;
+}
+
+.cancel-btn:hover{
+    background:#d1d5db;
+    transform:translateY(-2px);
 }
 
 .submit-btn{
@@ -514,6 +535,13 @@ body{
     padding:8px 16px;
     border-radius:6px;
     cursor:pointer;
+    transition:all 0.2s ease;
+}
+
+.submit-btn:hover{
+    background:#7c3aed;
+    transform:translateY(-2px);
+    box-shadow:0 4px 12px rgba(139, 92, 246, 0.3);
 }
 
 .button-holder{
@@ -605,6 +633,24 @@ body{
     padding:0;
     border:none;
     border-radius:0;
+}
+
+.checkbox-container{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    font-size:13px;
+    color:#4b5563;
+    padding: 10px 0px;
+}
+
+.checkbox-container input[type="checkbox"]{
+    width:15px;
+    height:15px;
+    cursor:pointer;
+    margin:0;
+    padding:0;
+    accent-color:#8b5cf6;
 }
 
 @keyframes modalPop{
@@ -910,24 +956,26 @@ body{
             </div>
 
             <form id="taskLogForm" action="<?= site_url('client_portal/tasks/submit') ?>" method="post">
-                <label>Select Preset Task</label>
-                <select id="savedTasksDropdown">
-                    <option value="">-- Write your task manually --</option>
-                </select>
+                <div class="modal-body">
+                    <label>Select Preset Task</label>
+                    <select id="savedTasksDropdown">
+                        <option value="">-- Write your task manually --</option>
+                    </select>
 
-                <label>Or write your task *</label>
-                <textarea id="taskPerformed" name="task_performed" required></textarea>
+                    <label>Or write your task *</label>
+                    <textarea id="taskPerformed" name="task_performed" required></textarea>
 
-                <label>Start Time *</label>
-                <input type="time" name="start_time" required>
+                    <label>Start Time *</label>
+                    <input type="time" name="start_time" required>
 
-                <label>End Time *</label>
-                <input type="time" name="end_time" required>
+                    <label>End Time *</label>
+                    <input type="time" name="end_time" required>
 
-                <label class="checkbox-container">
-                    <input type="checkbox" name="save_task" id="saveTaskToggle">
-                    Save this task as a preset
-                </label>
+                    <label class="checkbox-container">
+                        <input type="checkbox" name="save_task" id="saveTaskToggle">
+                        Save this task as a preset
+                    </label>
+                </div>  
 
                 <div class="modal-footer">
                     <button type="button" class="cancel-btn" onclick="closeTaskLog()">Cancel</button>

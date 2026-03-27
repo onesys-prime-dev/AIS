@@ -23,7 +23,7 @@
             </button>
             <button 
                 data-modal-open="timesheetsModal"
-                class="bg-[#FF2D2D] hover:bg-[#ff2d2dd2] text-white px-3 py-3 rounded-lg shadow flex items-center gap-2">
+                class="bg-[#FF2D2D] hover:bg-[#dc2626] text-white px-3 py-3 rounded-lg shadow hover:shadow-[0_6px_12px_rgba(239,68,68,0.3)] flex items-center gap-2 transition hover:translate-y-[-2px]">
                     <div id="add-icon" class="w-7 h-7 cursor-pointer">
                         <img src="<?php echo base_url('icons/payslip.png'); ?>" alt="Add"/>
                     </div>
