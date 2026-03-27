@@ -6,6 +6,7 @@ use App\Models\Client\AttendanceModel;
 use App\Models\Client\RequestModel;
 use App\Models\Client\TasksModel;
 use App\Models\Client\SavedTasksModel;
+use App\Services\Client\AnnouncementService;
 use App\Controllers\BaseController;
 
 class DashboardController extends BaseController
@@ -23,6 +24,7 @@ class DashboardController extends BaseController
         $attendanceModel = new AttendanceModel();
         $requestModel = new RequestModel();
         $savedTasksModel = new SavedTasksModel();
+        $announcementService = new AnnouncementService();
 
         // check if user currently timed in
         $currentAttendance = $attendanceModel
@@ -48,10 +50,42 @@ class DashboardController extends BaseController
             ->orderBy('saved_at', 'DESC')
             ->findAll();
 
+        $announcements = $announcementService->getVisibleAnnouncementsForUser($user);
+        $unpublishedAnnouncements = [];
+
+        if ($user->inGroup('client_payroll_staff')) {
+            $unpublishedAnnouncements = $announcementService->getUnpublishedAnnouncementsForPayroll();
+        }
+
+        $publishedNotifications = array_map(static function (array $announcement): array {
+            $isUrgent = in_array(($announcement['priority'] ?? 'normal'), ['high', 'urgent'], true);
+
+            return [
+                'type' => $isUrgent ? 'error' : 'success',
+                'title' => (string) ($announcement['title'] ?? 'Announcement'),
+                'message' => (string) ($announcement['summary'] ?? ''),
+                'publish_at' => (string) ($announcement['publish_at'] ?? ''),
+            ];
+        }, $announcements);
+
+        $unpublishedNotifications = array_map(static function (array $announcement): array {
+            $isUrgent = in_array(($announcement['priority'] ?? 'normal'), ['high', 'urgent'], true);
+
+            return [
+                'type' => $isUrgent ? 'error' : 'success',
+                'title' => (string) ($announcement['title'] ?? 'Announcement'),
+                'message' => (string) ($announcement['summary'] ?? ''),
+                'publish_at' => (string) ($announcement['publish_at'] ?? ''),
+            ];
+        }, $unpublishedAnnouncements);
+
         return view('client_portal/dashboard', [
             'currentAttendance' => $currentAttendance,
             'requests' => $requests,
-            'savedTasks' => $savedTasks
+            'savedTasks' => $savedTasks,
+            'announcements' => $announcements,
+            'publishedNotifications' => $publishedNotifications,
+            'unpublishedNotifications' => $unpublishedNotifications,
         ]);
     }
 }

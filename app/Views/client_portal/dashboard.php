@@ -221,61 +221,221 @@ body{
 .notifications{
     flex:1 1 280px;
     max-width:380px;
-    background:white;
+    background:#f4f4f4;
     border-radius:16px;
-    padding:18px;
-    box-shadow:0 6px 18px rgba(0,0,0,0.1);
-    border:1px solid #e5e7eb;
+    padding:18px 14px;
+    box-shadow:0 6px 18px rgba(0,0,0,0.08);
+    border:1px solid #ececec;
     overflow-y:auto;
     max-height:520px;
 }
 
 /* NOTIFICATION TITLE */
 .notifications-title{
-    color:#ef4444;
+    color:#232323;
+    font-size:22px;
     font-weight:700;
-    margin-bottom:10px;
+}
+
+.notifications-top{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:14px;
+}
+
+.notifications-clear{
+    border:none;
+    background:transparent;
+    color:#444;
+    font-size:12px;
+    font-weight:600;
+    cursor:pointer;
+    padding:0;
+    display:flex;
+    align-items:center;
+    gap:2px;
+}
+
+.notifications-clear .dot{
+    width:23px;
+    height:23px;
+}
+
+.notifications-clear:hover{
+    color:#222;
+    opacity:0.8;
+    transform:scale(1.05);
+}
+
+.notifications-tabs{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    margin-bottom:14px;
+}
+
+.notifications-tab{
+    border:none;
+    background:transparent;
+    font-size:12px;
+    font-weight:600;
+    color:#4b4b4b;
+    border-radius:999px;
+    padding:9px 14px;
+    cursor:pointer;
+    display:flex;
+    align-items:center;
+    gap:7px;
+}
+
+.notifications-tab.active{
+    background:#EBE5FF;
+    color:#1f2937;
+}
+
+.notifications-badge{
+    background:#7E23FD;
+    color:#fff;
+    font-size:11px;
+    font-weight:700;
+    border-radius:999px;
+    padding:2px 8px;
+    line-height:1.4;
+}
+
+.notifications-divider-title{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    font-size:11px;
+    font-weight:700;
+    color:#6b7280;
+    margin:12px 0 10px;
+}
+
+.notifications-divider-title::after{
+    content:'';
+    flex:1;
+    height:1px;
+    background:#dedede;
+}
+
+.notifications-empty{
+    font-size:11px;
+    color:#7d7d7d;
+    margin:2px 0 10px;
+}
+
+.notif-meta{
+    margin-top:2px;
+    font-size:11px;
+    color:#6b7280;
+}
+
+.notifications-group{
+    display:none;
+}
+
+.notifications-group.active{
+    display:block;
 }
 
 /* NOTIFICATION ITEM */
 .notif{
     display:flex;
+    align-items:center;
     gap:10px;
-    padding:10px;
-    border-radius:10px;
-    background:#f3f4f6;
-    margin-bottom:10px;
+    padding:8px 4px;
+    border-radius:12px;
+    margin-bottom:8px;
 }
 
-.notif.success{
-    background:#ede9fe;
+.notif::before{
+    content:'';
+    width:10px;
+    height:10px;
+    border-radius:50%;
+    background:#7E23FD;
+    flex-shrink:0;
 }
 
-.notif-icon{
-    width:26px;
-    height:26px;
+.notif-avatar{
+    width:44px;
+    height:44px;
     border-radius:50%;
     display:flex;
     align-items:center;
     justify-content:center;
-    color:white;
-    font-weight:bold;
+    background:#111827;
+    color:#fff;
+    font-weight:700;
+    font-size:13px;
+    flex-shrink:0;
 }
 
-.success-icon{background:#8b5cf6;}
-.success-icon::before{content:'✓';}
+.notif-content{
+    flex:1;
+    min-width:0;
+}
 
-.error-icon{background:#ef4444;}
-.error-icon::before{content:'!';}
+.notif-title-row{
+    display:flex;
+    align-items:baseline;
+    gap:7px;
+}
+
+.notif-time{
+    font-size:11px;
+    color:#6b7280;
+    font-weight:600;
+    white-space:nowrap;
+}
+
+.notif-thumb{
+    width:58px;
+    height:58px;
+    border-radius:14px;
+    background:linear-gradient(140deg, #f4d03f, #16a085);
+    position:relative;
+    overflow:hidden;
+    flex-shrink:0;
+}
+
+.notif-thumb::after{
+    content:'+';
+    position:absolute;
+    right:4px;
+    bottom:4px;
+    width:18px;
+    height:18px;
+    border-radius:50%;
+    background:#ef4444;
+    color:#fff;
+    font-size:12px;
+    color:white;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-weight:700;
+}
 
 .notif-title{
     font-weight:700;
-    font-size:13px;
+    font-size:14px;
+    color:#262626;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
 }
 
 .notif-desc{
-    font-size:12px;
+    font-size:11px;
     color:#6b7280;
+    margin-top:2px;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
 }
 
 /* MODAL */
@@ -298,7 +458,6 @@ body{
     max-width:460px;
     max-height: auto;
     border-radius:14px;
-    padding:20px;
     box-shadow:0 25px 50px rgba(0,0,0,0.25);
     animation:modalPop 0.2s ease;
 }
@@ -308,7 +467,11 @@ body{
     justify-content:space-between;
     align-items:center;
     margin-bottom:15px;
-    font-weight:600;
+    font-size: 20px;
+    font-weight: 700;
+    padding:16px 20px;
+    margin-bottom:0;
+    border-bottom:1px solid #e5e7eb;
 }
 
 .modal input,
@@ -319,7 +482,7 @@ body{
     border:1px solid #d1d5db;
     border-radius:8px;
     margin-top: 5px;
-    margin-bottom:12px;
+    margin-bottom:10px;
 }
 
 .modal textarea{
@@ -331,6 +494,9 @@ body{
     display:flex;
     justify-content:flex-end;
     gap:10px;
+    flex-shrink:0;
+    padding:14px 20px;
+    border-top:1px solid #e5e7eb;
 }
 
 .cancel-btn{
@@ -378,23 +544,17 @@ body{
     max-height:90vh;
 }
 
-.announcement-form .modal-header{
-    padding:16px 20px;
-    margin-bottom:0;
-    border-bottom:1px solid #e5e7eb;
-}
-
-.announcement-body{
+.modal-body{
     flex:1;
     min-height:0;
-    padding:14px 18px;
+    padding: 16px 20px;
     overflow-y:auto;
 }
 
 .announcement-grid{
     display:grid;
     grid-template-columns:1fr 1fr;
-    gap:10px 12px;
+    gap: 0px 20px;
 }
 
 .announcement-field{
@@ -406,8 +566,8 @@ body{
     grid-column:1 / -1;
 }
 
-.announcement-field label{
-    font-size:13px;
+.modal-body label{
+    font-size:15px;
     color:#374151;
     font-weight:600;
 }
@@ -447,13 +607,6 @@ body{
     border-radius:0;
 }
 
-.announcement-form .modal-footer{
-    flex-shrink:0;
-    padding:14px 20px;
-    border-top:1px solid #e5e7eb;
-    background:#f9fafb;
-}
-
 @keyframes modalPop{
     from{ transform:scale(0.95); opacity:0; }
     to{ transform:scale(1); opacity:1; }
@@ -488,10 +641,12 @@ body{
                 <h1>Employee Dashboard</h1>
             </div>
             <div class="button-holder">
+                <?php if ($user->inGroup('client_payroll_staff')): ?>
                 <button onclick="openAnnouncementForm()" class="request-btn">
                     <img src="<?= base_url('icons/announcement.png') ?>" alt="Announcement" class="btn-icon">
                     <span>Announcement</span>
                 </button>
+                <?php endif; ?>
                 <button onclick="openRequestForm()" class="request-btn">
                     <img src="<?= base_url('icons/Requests.png') ?>" alt="Request" class="btn-icon">
                     <span>Request Form</span>
@@ -572,24 +727,176 @@ body{
 
         </div>
 
-        <div class="notifications">
-            <div class="notifications-title">
-                Notifications ●
-            </div>
-            <?php foreach($notifications ?? [] as $n): ?>
-            <div class="notif <?= $n['type']=='success'?'success':'' ?>">
-                <div class="notif-icon <?= $n['type']=='success'?'success-icon':'error-icon' ?>"></div>
-                <div>
-                    <div class="notif-title">
-                        <?= esc($n['title']) ?>
-                    </div>
+        <?php
+            $publishedItems = $publishedNotifications ?? [];
+            $unpublishedItems = $unpublishedNotifications ?? [];
 
-                    <div class="notif-desc">
-                        <?= esc($n['message']) ?>
-                    </div>
-                </div>
+            $splitByDay = static function (array $items): array {
+                $today = [];
+                $yesterday = [];
+
+                foreach ($items as $item) {
+                    $stamp = strtotime((string) ($item['publish_at'] ?? ''));
+                    $dayKey = $stamp ? date('Y-m-d', $stamp) : date('Y-m-d');
+                    $todayKey = date('Y-m-d');
+                    $yesterdayKey = date('Y-m-d', strtotime('-1 day'));
+
+                    if ($dayKey === $todayKey) {
+                        $today[] = $item;
+                    } elseif ($dayKey === $yesterdayKey) {
+                        $yesterday[] = $item;
+                    } else {
+                        $yesterday[] = $item;
+                    }
+                }
+
+                return ['today' => $today, 'yesterday' => $yesterday];
+            };
+
+            $timeAgo = static function (string $dateTime): string {
+                $stamp = strtotime($dateTime);
+                if (! $stamp) {
+                    return 'just now';
+                }
+
+                $diff = time() - $stamp;
+                if ($diff < 60) {
+                    return $diff . ' sec ago';
+                }
+                if ($diff < 3600) {
+                    return floor($diff / 60) . ' min ago';
+                }
+                if ($diff < 86400) {
+                    return floor($diff / 3600) . ' hr ago';
+                }
+
+                return floor($diff / 86400) . ' d ago';
+            };
+
+            $initials = static function (string $title): string {
+                $clean = trim($title);
+                if ($clean === '') {
+                    return 'AN';
+                }
+
+                $parts = preg_split('/\s+/', $clean) ?: [];
+                $letters = '';
+
+                foreach ($parts as $part) {
+                    if ($part !== '') {
+                        $letters .= strtoupper(substr($part, 0, 1));
+                    }
+                    if (strlen($letters) >= 2) {
+                        break;
+                    }
+                }
+
+                return str_pad(substr($letters, 0, 2), 2, 'N');
+            };
+
+            $publishedByDay = $splitByDay($publishedItems);
+            $unpublishedByDay = $splitByDay($unpublishedItems);
+        ?>
+
+        <div class="notifications">
+            <div class="notifications-top">
+                <div class="notifications-title">Notification</div>
+                <button type="button" class="notifications-clear" onclick="clearNotificationsView()"><img class="dot" src="<?= base_url('icons/Clear.png') ?>">Clear all</button>
             </div>
-            <?php endforeach; ?>
+
+            <div class="notifications-tabs">
+                <button type="button" id="tabPublished" class="notifications-tab active" onclick="toggleNotificationsGroup('published')">
+                    Published
+                    <span class="notifications-badge"><?= count($publishedItems) ?></span>
+                </button>
+
+                <?php if ($user->inGroup('client_payroll_staff')): ?>
+                <button type="button" id="tabUnpublished" class="notifications-tab" onclick="toggleNotificationsGroup('unpublished')">
+                    Unpublished
+                    <span class="notifications-badge"><?= count($unpublishedItems) ?></span>
+                </button>
+                <?php endif; ?>
+            </div>
+
+            <div id="publishedGroup" class="notifications-group active">
+                <div class="notifications-divider-title">Today</div>
+                <?php foreach (($publishedByDay['today'] ?? []) as $n): ?>
+                <div class="notif">
+                    <div class="notif-avatar"><?= esc($initials((string) ($n['title'] ?? ''))) ?></div>
+                    <div class="notif-content">
+                        <div class="notif-title-row">
+                            <div class="notif-title"><?= esc($n['title']) ?></div>
+                            <div class="notif-time"><?= esc($timeAgo((string) ($n['publish_at'] ?? ''))) ?></div>
+                        </div>
+                        <div class="notif-desc"><?= esc($n['message']) ?></div>
+                    </div>
+                    <!-- <div class="notif-thumb"></div> -->
+                </div>
+                <?php endforeach; ?>
+                <?php if (empty($publishedByDay['today'] ?? [])): ?>
+                <div class="notifications-empty">No today notifications.</div>
+                <?php endif; ?>
+
+                <div class="notifications-divider-title">Yesterday</div>
+                <?php foreach (($publishedByDay['yesterday'] ?? []) as $n): ?>
+                <div class="notif">
+                    <div class="notif-avatar"><?= esc($initials((string) ($n['title'] ?? ''))) ?></div>
+                    <div class="notif-content">
+                        <div class="notif-title-row">
+                            <div class="notif-title"><?= esc($n['title']) ?></div>
+                            <div class="notif-time"><?= esc($timeAgo((string) ($n['publish_at'] ?? ''))) ?></div>
+                        </div>
+                        <div class="notif-desc"><?= esc($n['message']) ?></div>
+                    </div>
+                    <!-- <div class="notif-thumb"></div> -->
+                </div>
+                <?php endforeach; ?>
+                <?php if (empty($publishedByDay['yesterday'] ?? [])): ?>
+                <div class="notifications-empty">No older notifications.</div>
+                <?php endif; ?>
+            </div>
+
+            <?php if ($user->inGroup('client_payroll_staff')): ?>
+            <div id="unpublishedGroup" class="notifications-group">
+                <div class="notifications-divider-title">Today</div>
+                <?php foreach (($unpublishedByDay['today'] ?? []) as $n): ?>
+                <div class="notif">
+                    <div class="notif-avatar"><?= esc($initials((string) ($n['title'] ?? ''))) ?></div>
+                    <div class="notif-content">
+                        <div class="notif-title-row">
+                            <div class="notif-title"><?= esc($n['title']) ?></div>
+                            <div class="notif-time"><?= esc($timeAgo((string) ($n['publish_at'] ?? ''))) ?></div>
+                        </div>
+                        <div class="notif-desc"><?= esc($n['message']) ?></div>
+                        <div class="notif-meta">Publish on <?= esc(date('M d, Y h:i A', strtotime((string) ($n['publish_at'] ?? 'now')))) ?></div>
+                    </div>
+                    <!-- <div class="notif-thumb"></div> -->
+                </div>
+                <?php endforeach; ?>
+                <?php if (empty($unpublishedByDay['today'] ?? [])): ?>
+                <div class="notifications-empty">No today unpublished notifications.</div>
+                <?php endif; ?>
+
+                <div class="notifications-divider-title">Yesterday</div>
+                <?php foreach (($unpublishedByDay['yesterday'] ?? []) as $n): ?>
+                <div class="notif">
+                    <div class="notif-avatar"><?= esc($initials((string) ($n['title'] ?? ''))) ?></div>
+                    <div class="notif-content">
+                        <div class="notif-title-row">
+                            <div class="notif-title"><?= esc($n['title']) ?></div>
+                            <div class="notif-time"><?= esc($timeAgo((string) ($n['publish_at'] ?? ''))) ?></div>
+                        </div>
+                        <div class="notif-desc"><?= esc($n['message']) ?></div>
+                        <div class="notif-meta">Publish on <?= esc(date('M d, Y h:i A', strtotime((string) ($n['publish_at'] ?? 'now')))) ?></div>
+                    </div>
+                    <!-- <div class="notif-thumb"></div> -->
+                </div>
+                <?php endforeach; ?>
+                <?php if (empty($unpublishedByDay['yesterday'] ?? [])): ?>
+                <div class="notifications-empty">No older unpublished notifications.</div>
+                <?php endif; ?>
+            </div>
+            <?php endif; ?>
         </div>
     </div>
 </div>
@@ -639,24 +946,26 @@ body{
                     <button type="button" onclick="closeRequestForm()">✕</button>
                 </div>
 
-                <label>Select Form</label>
-                <select name="request_type" required>
-                    <option value="leave">Leave Request</option>
-                    <option value="overtime">Overtime Request</option>
-                    <option value="undertime">Undertime Request</option>
-                </select>
+                <div class="modal-body">
+                    <label>Select Form</label>
+                    <select name="request_type" required>
+                        <option value="leave">Leave Request</option>
+                        <option value="overtime">Overtime Request</option>
+                        <option value="undertime">Undertime Request</option>
+                    </select>
 
-                <label>Start Date</label>
-                <input type="date" name="start_date" required>
+                    <label>Start Date</label>
+                    <input type="date" name="start_date" required>
 
-                <label>End Date</label>
-                <input type="date" name="end_date">
+                    <label>End Date</label>
+                    <input type="date" name="end_date">
 
-                <label>Approval Code</label>
-                <input type="text" name="approval_code">
+                    <label>Approval Code</label>
+                    <input type="text" name="approval_code" placeholder="Approval code entry...">
 
-                <label>Message</label>
-                <textarea name="reason" required></textarea>
+                    <label>Message</label>
+                    <textarea row="3" name="reason" placeholder="Enter your reason..."></textarea>
+                </div> 
 
                 <div class="modal-footer">
                     <button type="button" class="cancel-btn" onclick="closeRequestForm()">Cancel</button>
@@ -669,13 +978,13 @@ body{
     <!-- ANNOUNCEMENT MODAL -->
     <div class="modal-overlay" id="announcementModal">
         <div class="modal announcement-modal">
-            <form id="announcementForm" action="#" method="post" class="announcement-form">
+            <form id="announcementForm" action="<?= site_url('client_portal/announcements/store') ?>" method="post" class="announcement-form">
                 <div class="modal-header">
                     <span>Create Announcement</span>
                     <button type="button" onclick="closeAnnouncementForm()">✕</button>
                 </div>
 
-                <div class="announcement-body scroll-bar">
+                <div class="modal-body scroll-bar">
                     <div class="announcement-grid">
                         <div class="announcement-field full-span">
                             <label>Announcement Title *</label>
@@ -837,8 +1146,46 @@ body{
         counter.innerText = summary.value.length;
     }
 
+    function toggleNotificationsGroup(target = "published") {
+        const tabPublished = document.getElementById("tabPublished");
+        const tabUnpublished = document.getElementById("tabUnpublished");
+        const publishedGroup = document.getElementById("publishedGroup");
+        const unpublishedGroup = document.getElementById("unpublishedGroup");
+
+        if (!publishedGroup) return;
+
+        if (target === "unpublished" && unpublishedGroup) {
+            publishedGroup.classList.remove("active");
+            unpublishedGroup.classList.add("active");
+            if (tabPublished) tabPublished.classList.remove("active");
+            if (tabUnpublished) tabUnpublished.classList.add("active");
+            return;
+        }
+
+        publishedGroup.classList.add("active");
+        if (unpublishedGroup) {
+            unpublishedGroup.classList.remove("active");
+        }
+        if (tabPublished) tabPublished.classList.add("active");
+        if (tabUnpublished) tabUnpublished.classList.remove("active");
+    }
+
+    function clearNotificationsView() {
+        const publishedGroup = document.getElementById("publishedGroup");
+        const unpublishedGroup = document.getElementById("unpublishedGroup");
+
+        if (publishedGroup) {
+            publishedGroup.innerHTML = '<div class="notifications-empty">Notifications cleared from view.</div>';
+        }
+
+        if (unpublishedGroup) {
+            unpublishedGroup.innerHTML = '<div class="notifications-empty">Notifications cleared from view.</div>';
+        }
+    }
+
     document.getElementById("announcementSummary")?.addEventListener("input", updateAnnouncementSummaryCount);
     updateAnnouncementSummaryCount();
+    toggleNotificationsGroup("published");
 
     /* CLOCK SYSTEM */
 

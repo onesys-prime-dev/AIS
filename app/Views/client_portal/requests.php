@@ -200,6 +200,17 @@
     gap: 0.5rem;
 }
 
+.filter-dropdown option {
+    background-color: #ffffff;
+    color: #1f2937;
+    padding: 10px;
+}
+
+.filter-dropdown option:checked {
+    background-color: #ed4b4b;
+    color: #ffffff;
+}
+
 .duration{
     margin-left: 5px;
 }
