@@ -2,7 +2,7 @@
     <?= csrf_field() ?>
     <input type="hidden" name="id" value="">
     <input type="hidden" name="employee_id" id="edit_employee_id" value="">
-
+ 
     <div class="mb-4">
         <label for="edit_employee_name" class="block text-sm font-medium text-gray-700 mb-1">Employee</label>
         <input type="text" name="employee_name" id="edit_employee_name" class="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500">

@@ -51,7 +51,7 @@ label{
     margin-bottom:5px;
     display:block;
 }
-input, select{
+.section input, .section select{
     background:#e9e9e9;
     border:1px solid #cfcfcf;
     height:40px;

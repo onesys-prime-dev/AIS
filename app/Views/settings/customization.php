@@ -3,7 +3,10 @@
 
 <div class="customization-page">
 
-    <h1>Customization</h1>
+    <div class="tabs">
+        <div class="tab active">Customization</div>
+    </div>
+    <!-- <h1>Customization</h1> -->
 
     <div class="grid">
 
@@ -69,14 +72,11 @@
             </div>
         </div>
 
+        <div class="actions">
+            <button class="discard-btn">Discard Changes</button>
+            <button class="save-btn">Apply & Save</button>
+        </div>
     </div>
-
-    <!-- ACTIONS -->
-    <div class="actions">
-        <button class="discard-btn">Discard Changes</button>
-        <button class="save-btn">Apply & Save</button>
-    </div>
-
 </div>
 
 <style>
@@ -86,8 +86,13 @@ body {
 
 /* PAGE */
 .customization-page {
-    padding: 40px;
     font-family: 'Segoe UI', sans-serif;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-height: 0;
+    background-color: #e5e7eb;
 }
 
 h1 {
@@ -97,9 +102,13 @@ h1 {
 
 /* GRID */
 .grid {
-    display: grid;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    display:grid;
     grid-template-columns: 1fr 1fr;
-    gap: 25px;
+    gap:25px;
+    padding: 2rem;
 }
 
 /* CARD - with scroll and reduced max-height */
@@ -109,7 +118,7 @@ h1 {
     padding: 25px;
     box-shadow: 0 8px 25px rgba(0,0,0,0.08);
     overflow-y: auto;
-    max-height: 400px;   /* reduced from 500px to bring buttons up */
+    max-height: auto;   /* reduced from 500px to bring buttons up */
 }
 
 .card h3 {
@@ -201,10 +210,13 @@ h1 {
 
 /* ACTIONS */
 .actions {
-    margin-top: 30px;
     display: flex;
     justify-content: flex-end;
+    height: auto;
     gap: 15px;
+    padding: 1rem 0px;
+    grid-column: 2 / 3;
+    justify-self: end;
 }
 
 .discard-btn {
@@ -222,6 +234,42 @@ h1 {
     border-radius: 10px;
     cursor: pointer;
 }
+
+/* TABS */
+    .tabs{
+        display:flex;
+        align-items:center;
+        gap:30px;
+        background:#2E2E2E;
+        color:white;
+        padding:15px 25px;
+        min-height:70px;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        flex-shrink: 0;
+    }
+
+    .tab{
+        cursor:pointer;
+        opacity:0.8;
+    }
+
+    .tab.active{
+        font-weight:600;
+        opacity:1;
+        position:relative;
+    }
+
+    .tab.active::after{
+        content:'';
+        position:absolute;
+        bottom:-24px;
+        left:0;
+        width:100%;
+        height:3px;
+        background:white;
+    }
 </style>
 
 <script>

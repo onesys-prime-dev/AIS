@@ -12,27 +12,30 @@ body{
 
 /* CENTER CONTENT WIDTH */
 .dashboard{
-    min-height:100vh;
-    display:flex;
-    flex-direction:column;
-    align-items:center; /* center everything */
-    padding:20px;
-    box-sizing:border-box;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    padding: 0 2rem 2rem 2rem;
+    width: 100%;
+    min-height: calc(100vh - 80px);
+    box-sizing: border-box;
 }
 
 /* LIMIT CONTENT WIDTH */
 .header,
 .dashboard-main{
     width:100%;
-    max-width:1300px; /* same width for header and content */
+    max-width:none;
+    height:auto;
 }
 
 /* HEADER */
 .header{
-    display:flex;
-    justify-content:space-between;
-    align-items:center;
-    margin-bottom:15px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 1rem;
+    margin-bottom: 1rem;
 }
 
 /* TITLE */
@@ -44,55 +47,59 @@ body{
 
 /* BUTTON */
 .request-btn{
-    background:#ef4444;
-    color:white;
-    padding:10px 18px;
-    border-radius:10px;
-    border:none;
-    cursor:pointer;
-    font-weight:600;
-    box-shadow:0 2px 6px rgba(0,0,0,0.15);
-    display:inline-flex;
-    align-items:center;
-    gap:8px;
-    transition:all 0.2s ease;
+    background: #ef4444;
+    color: white;
+    padding: 10px 18px;
+    border-radius: 10px;
+    border: none;
+    cursor: pointer;
+    font-weight: 600;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s ease;
 }
 
 .request-btn:hover{
-    background:#dc2626;
-    transform:translateY(-2px);
-    box-shadow:0 6px 12px rgba(239, 68, 68, 0.3);
+    background: #dc2626;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(239, 68, 68, 0.3);
 }
 
 /* MAIN LAYOUT */
 .dashboard-main{
-    display:flex;
-    justify-content:center;
-    gap:20px;
-    flex-wrap:wrap;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) clamp(400px, 34vw, 500px);
+    align-items: stretch;
+    gap: 25px;
+    width: 100%;
+    flex: 1;
+    min-height: 0;
 }
 
 /* CLOCK CARD */
 .clock-card{
-    flex:1 1 600px;
-    max-width:900px;
-    background:white;
-    display:flex;
-    flex-direction:column;
-    border-radius:16px;
-    padding:20px;
-    box-shadow:0 6px 18px rgba(0,0,0,0.1);
-    border:1px solid #e5e7eb;
-    justify-content:flex-start;
+    min-width: 0;
+    max-width: none;
+    background: white;
+    display: flex;
+    flex-direction: column;
+    border-radius: 16px;
+    padding: 20px;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.1);
+    border: 1px solid #e5e7eb;
+    justify-content: flex-start;
+    height:100%;
 }
 
 /* TITLE */
 .clock-title{
-    text-align:center;
-    color:#ef4444;
-    font-weight:700;
-    margin-bottom:10px;
-    font-size:clamp(18px, 2vw, 22px);
+    text-align: center;
+    color: #ef4444;
+    font-weight: 700;
+    margin-bottom: 10px;
+    font-size: clamp(18px, 2vw, 22px);
 }
 
 /* INNER BOX */
@@ -106,7 +113,8 @@ body{
     padding:25px;
     margin-bottom:10px;
     text-align:center;
-    flex:0; /* IMPORTANT - removes big gap */
+    flex:1;
+    min-height:320px;
 }
 
 /* STATUS */
@@ -161,7 +169,7 @@ body{
     gap:12px;
     align-items:center;
     width:100%;
-    margin-top:5px;
+    margin-top:12px;
 }
 
 .buttons form{
@@ -228,15 +236,16 @@ body{
 
 /* NOTIFICATIONS */
 .notifications{
-    flex:1 1 280px;
-    max-width:380px;
-    background:#f4f4f4;
+    width:100%;
+    max-width:none;
+    background: white;
     border-radius:16px;
     padding:18px 14px;
     box-shadow:0 6px 18px rgba(0,0,0,0.08);
     border:1px solid #ececec;
     overflow-y:auto;
-    max-height:520px;
+    max-height:none;
+    height:100%;
 }
 
 /* NOTIFICATION TITLE */
@@ -350,6 +359,7 @@ body{
 
 .notifications-group{
     display:none;
+    padding: 0px 10px;
 }
 
 .notifications-group.active{
@@ -582,7 +592,7 @@ body{
 .announcement-grid{
     display:grid;
     grid-template-columns:1fr 1fr;
-    gap: 0px 20px;
+    gap: 0px 15px;
 }
 
 .announcement-field{
@@ -610,12 +620,13 @@ body{
 
 .announcement-field textarea{
     resize:vertical;
-    min-height:84px;
+    min-height: 82px;
 }
 
 .announcement-counter{
     text-align:right;
     font-size:12px;
+    padding: 0;
     color:#6b7280;
 }
 
@@ -661,17 +672,18 @@ body{
 /* MOBILE */
 @media (max-width: 900px){
     .dashboard-main{
-        flex-direction:column;
-        align-items:center;
+        grid-template-columns:1fr;
+        flex:none;
     }
 
     .notifications{
-        max-width:900px;
         width:100%;
+        height:auto;
     }
 
     .clock-card{
         width:100%;
+        height:auto;
     }
 
     .announcement-grid{
@@ -683,7 +695,7 @@ body{
 <div class="dashboard">
 
         <div class="header">
-            <div class="p-1">
+            <div class="p-2">
                 <h1>Employee Dashboard</h1>
             </div>
             <div class="button-holder">

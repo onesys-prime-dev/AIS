@@ -22,11 +22,15 @@ class TimesheetController extends BaseController
             return redirect()->to('/login');
         }
 
-        $timesheet = $this->timesheetsService->listByUserId((int) $user->id);
+        $userId = (int) $user->id;
+
+        $timesheet = $this->timesheetsService->listCurrentCutoffByUserId($userId);
+        $timesheetHistory = $this->timesheetsService->listCutoffHistoryByUserId($userId);
 
         return view('client_portal/timesheet', [
             'timesheet' => $timesheet,
-            'currentUserId' => (int) $user->id,
+            'timesheetHistory' => $timesheetHistory,
+            'currentUserId' => $userId,
         ]);
     }
 

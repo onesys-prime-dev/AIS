@@ -22,7 +22,7 @@
     <!-- TOP TABS -->
     <div class="tabs">
         <div class="tab active">Account</div>
-     </div>
+    </div>
 
     <!-- GRID -->
     <div class="account-grid scroll-bar">

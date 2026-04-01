@@ -31,7 +31,7 @@ window.createCrudTable = function ({
 
         if (!list.length) {
             body.innerHTML = `
-                <div class="flex items-center justify-center h-full text-gray-400">
+                <div class="flex items-center justify-center w-full my-auto text-gray-400">
                     <div class="flex flex-col items-center gap-3">
                         <i class="fa-solid fa-users text-4xl opacity-40"></i>
                         <span class="text-lg font-medium">No records found</span>

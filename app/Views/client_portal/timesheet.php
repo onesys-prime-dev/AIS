@@ -6,12 +6,10 @@
 
     <!-- Page Header -->
     <div class="flex justify-between items-center my-4">
-        
         <div class="p-1">
             <h1 class="text-3xl font-bold text-gray-800 mb-1">Timesheets</h1>
             <p class="text-gray-500 text-sm">Manage timesheets here.</p>
         </div>
-
         <div class="flex items-center gap-4">
             <!-- Month Picker -->
             <button 
@@ -22,15 +20,14 @@
                     </div>
             </button>
             <button 
-                data-modal-open="timesheetsModal"
+                data-modal-open="viewPayslipModal"
                 class="bg-[#FF2D2D] hover:bg-[#dc2626] text-white px-3 py-3 rounded-lg shadow hover:shadow-[0_6px_12px_rgba(239,68,68,0.3)] flex items-center gap-2 transition hover:translate-y-[-2px]">
-                    <div id="add-icon" class="w-7 h-7 cursor-pointer">
+                     <div id="add-icon" class="w-7 h-7 cursor-pointer">
                         <img src="<?php echo base_url('icons/payslip.png'); ?>" alt="Add"/>
                     </div>
                 View Payslip
             </button>
         </div>
-
     </div>
 
     <?= view('components/crud_table', [
@@ -71,6 +68,15 @@
         ]);
     ?>
 
+    <?php
+        $content = view('client_portal/modals/view_payslip');
+        echo view('components/view_modal', [
+            'id' => 'viewPayslipModal',
+            'title' => 'Payslip',
+            'content' => $content
+        ]);
+    ?> 
+
 <?= $this->endSection() ?>
 
 <?= $this->section('scripts') ?>
@@ -83,6 +89,7 @@
 <script>
 
 const TIMESHEETS = <?= json_encode($timesheet) ?>;
+const TIMESHEET_HISTORY = <?= json_encode($timesheetHistory ?? []) ?>;
 const CURRENT_USER_ID = <?= (int) ($currentUserId ?? 0) ?>;
 const EDIT_ICON = "<?= base_url('icons/edit.png') ?>";
 const DELETE_ICON = "<?= base_url('icons/delete.png') ?>";
@@ -123,6 +130,25 @@ const DELETE_URL = "<?= site_url('client_portal/timesheets/delete') ?>";
             .replace(/"/g, '&quot;')
             .replace(/</g, '&lt;')
             .replace(/>/g, '&gt;');
+    }
+
+    function formatPeriodRange(start, end) {
+        if (!start || !end) return '---';
+
+        const startDate = new Date(start);
+        const endDate = new Date(end);
+
+        if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+            return `${htmlEsc(start)} - ${htmlEsc(end)}`;
+        }
+
+        const fmt = new Intl.DateTimeFormat('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+        });
+
+        return `${fmt.format(startDate)} - ${fmt.format(endDate)}`;
     }
 
     function timesheetsRowTemplate(p) {
@@ -173,6 +199,28 @@ const DELETE_URL = "<?= site_url('client_portal/timesheets/delete') ?>";
             `;
         }
 
+    function historyRowTemplate(item) {
+        const period = formatPeriodRange(item.period_start, item.period_end);
+        const hours = Number(item.total_hours ?? 0).toFixed(2);
+        const entriesCount = Number(item.entries_count ?? 0);
+        const daysCovered = Number(item.days_covered ?? 0);
+
+        return `
+            <div class="grid grid-cols-[2fr_1.5fr_1fr] items-center border-b hover:bg-gray-50">
+                <div class="p-4">${period}</div>
+                <div class="p-4">
+                    <div class="font-semibold text-gray-800">${hours} hrs</div>
+                    <div class="text-xs text-gray-500">${entriesCount} entries • ${daysCovered} days</div>
+                </div>
+                <div class="p-4 text-center">
+                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-violet-100 text-violet-700">
+                        Cutoff Saved
+                    </span>
+                </div>
+            </div>
+        `;
+    }
+
     configureTimesheetFilterUi();
 
     createCrudTable({
@@ -206,6 +254,28 @@ const DELETE_URL = "<?= site_url('client_portal/timesheets/delete') ?>";
                 left = String(a[sortBy] ?? '').toLowerCase();
                 right = String(b[sortBy] ?? '').toLowerCase();
             }
+
+            if (left < right) return sortOrder === 'asc' ? -1 : 1;
+            if (left > right) return sortOrder === 'asc' ? 1 : -1;
+            return 0;
+        }
+    });
+
+    createCrudTable({
+        tableId: 'timesheetHistoryTable',
+        data: Array.isArray(TIMESHEET_HISTORY) ? TIMESHEET_HISTORY : [],
+        renderRow: historyRowTemplate,
+        search: (item, q) =>
+            `${item.period_start ?? ''} ${item.period_end ?? ''} ${item.total_hours ?? ''}`
+                .toLowerCase()
+                .includes(q),
+        filters: ({ item, query }) => {
+            const haystack = `${item.period_start ?? ''} ${item.period_end ?? ''} ${item.total_hours ?? ''}`.toLowerCase();
+            return !query || haystack.includes(query);
+        },
+        sort: ({ a, b, sortOrder }) => {
+            const left = toSortableDate(a.period_start);
+            const right = toSortableDate(b.period_start);
 
             if (left < right) return sortOrder === 'asc' ? -1 : 1;
             if (left > right) return sortOrder === 'asc' ? 1 : -1;
