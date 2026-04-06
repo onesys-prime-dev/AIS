@@ -5,6 +5,7 @@ module.exports = {
     './app/Controllers/**/*.php',
     './app/Cells/**/*.php',
     './app/Libraries/**/*.php',
+    './public/js/**/*.js',
   ],
   theme: {
     extend: {},

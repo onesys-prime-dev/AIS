@@ -31,11 +31,11 @@ window.createCrudTable = function ({
 
         if (!list.length) {
             body.innerHTML = `
-                <div class="flex items-center justify-center w-full my-auto text-gray-400">
-                    <div class="flex flex-col items-center gap-3">
+                <div class="min-h-full flex items-center justify-center px-6 py-10 text-gray-400">
+                    <div class="flex max-w-md flex-col items-center gap-3 rounded-2xl border border-dashed border-gray-300 bg-gray-50 px-8 py-10 text-center shadow-sm">
                         <i class="fa-solid fa-users text-4xl opacity-40"></i>
-                        <span class="text-lg font-medium">No records found</span>
-                        <span class="text-sm">Try adjusting your search or filters</span>
+                        <span class="text-lg font-semibold text-gray-500">No records found</span>
+                        <span class="text-sm leading-6 text-gray-400">Try adjusting your search or filters</span>
                     </div>
                 </div>
             `;
