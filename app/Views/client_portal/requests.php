@@ -630,13 +630,13 @@ function configureCodesFilterUi() {
 }
 
 function approvalCodeRowTemplate(row) {
-    const statusBadge = row.is_used
-        ? `<span style="background:#6b7280;color:#fff;padding:3px 10px;border-radius:20px;font-size:13px;">Used</span>`
-        : `<span style="background:#16a34a;color:#fff;padding:3px 10px;border-radius:20px;font-size:13px;">Active</span>`;
+    const statusBadge = row.is_used == 1 
+    ? `<span style="background:#6b7280;color:#fff;padding:3px 10px;border-radius:20px;font-size:13px;">Used</span>`
+    : `<span style="background:#16a34a;color:#fff;padding:3px 10px;border-radius:20px;font-size:13px;">Unused</span>`;
 
-    const usedBy = row.is_used
-        ? htmlEsc(row.used_by_name || '—')
-        : '<span style="color:#9ca3af;">—</span>';
+        const usedBy = row.is_used == 1
+            ? htmlEsc(row.used_by_name || '—')
+            : '<span style="color:#9ca3af;">—</span>';
 
     return `
         <div class="approval-codes-grid items-center border-b hover:bg-gray-50">
