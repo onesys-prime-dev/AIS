@@ -8,7 +8,8 @@
     </div>
     <!-- <h1>Customization</h1> -->
 
-    <div class="grid">
+    <form class="grid" method="post" action="<?= site_url('settings/customization/save') ?>" enctype="multipart/form-data">
+        <?= csrf_field() ?>
 
         <!-- LOGO -->
         <div class="card">
@@ -16,14 +17,16 @@
 
             <div class="upload-box">
                 <div class="upload-inner">
-                    <div class="logo-circle" id="logoPreview">Logo</div>
+                    <div class="logo-circle" id="logoPreview" style="<?= !empty($logoUrl) ? 'background-image:url(\'' . esc($logoUrl, 'attr') . '\');' : '' ?>">
+                        <?= empty($logoUrl) ? 'Logo' : '' ?>
+                    </div>
 
                     <p class="drag-text">Drag and drop your file</p>
-                    <small id="fileName">No file selected</small>
+                    <small id="fileName"><?= !empty($branding['logo_original_name']) ? esc((string) $branding['logo_original_name']) : 'No file selected' ?></small>
 
                     <label class="upload-btn">
                         Upload Files
-                        <input type="file" id="logoInput" hidden accept="image/*">
+                        <input type="file" id="logoInput" name="company_logo" hidden accept=".png,.jpg,.jpeg,.svg,image/png,image/jpeg,image/svg+xml">
                     </label>
 
                     <span class="format">Formats: PNG, JPG, or SVG Only</span>
@@ -38,7 +41,7 @@
             <div class="color-box">
                 <label>Sidebar Color</label>
                 <div class="color-field">
-                    <input type="color" id="sidebarColorPicker">
+                    <input type="color" id="sidebarColorPicker" name="sidebar_color">
                     <input type="text" id="sidebarColorValue" readonly>
                 </div>
             </div>
@@ -46,7 +49,7 @@
             <div class="color-box">
                 <label>Topbar Color</label>
                 <div class="color-field">
-                    <input type="color" id="headerColorPicker">
+                    <input type="color" id="headerColorPicker" name="header_color">
                     <input type="text" id="headerColorValue" readonly>
                 </div>
             </div>
@@ -54,7 +57,7 @@
             <div class="color-box">
                 <label>Background Color</label>
                 <div class="color-field">
-                    <input type="color" id="bgColorPicker">
+                    <input type="color" id="bgColorPicker" name="background_color">
                     <input type="text" id="bgColorValue" readonly>
                 </div>
             </div>
@@ -62,7 +65,7 @@
             <div class="color-box">
                 <label>Sidebar Icon Mode</label>
                 <div class="mode-field">
-                    <select id="sidebarIconMode">
+                    <select id="sidebarIconMode" name="sidebar_icon_mode">
                         <option value="auto">Auto</option>
                         <option value="light">Light Icons</option>
                         <option value="dark">Dark Icons</option>
@@ -73,10 +76,10 @@
         </div>
 
         <div class="actions">
-            <button class="discard-btn">Discard Changes</button>
-            <button class="save-btn">Apply & Save</button>
+            <button type="button" class="discard-btn">Discard Changes</button>
+            <button type="submit" class="save-btn">Apply & Save</button>
         </div>
-    </div>
+    </form>
 </div>
 
 <style>
@@ -291,12 +294,21 @@ const sidebarIconModeSelect = $('sidebarIconMode');
 const logoInput = $('logoInput');
 const logoPreview = $('logoPreview');
 const fileName = $('fileName');
+const customizationForm = document.querySelector('.grid');
 
-// LOAD SAVED
-let headerColor = localStorage.getItem('headerColor') || '#ffffff';
-let sidebarColor = localStorage.getItem('sidebarColor') || '#1e1e1e';
-let bgColor = localStorage.getItem('bgColor') || '#f5f6fa';
-let sidebarIconMode = localStorage.getItem('sidebarIconMode') || 'auto';
+const serverBranding = {
+    headerColor: '<?= esc((string) ($branding['header_color'] ?? '#ffffff'), 'js') ?>',
+    sidebarColor: '<?= esc((string) ($branding['sidebar_color'] ?? '#1e1e1e'), 'js') ?>',
+    bgColor: '<?= esc((string) ($branding['background_color'] ?? '#f5f6fa'), 'js') ?>',
+    sidebarIconMode: '<?= esc((string) ($branding['sidebar_icon_mode'] ?? 'auto'), 'js') ?>',
+    logoUrl: '<?= esc((string) ($logoUrl ?? ''), 'js') ?>',
+};
+
+// LOAD CURRENT
+let headerColor = serverBranding.headerColor || '#ffffff';
+let sidebarColor = serverBranding.sidebarColor || '#1e1e1e';
+let bgColor = serverBranding.bgColor || '#f5f6fa';
+let sidebarIconMode = serverBranding.sidebarIconMode || 'auto';
 
 // TEXT CONTRAST
 function getContrastColor(hex) {
@@ -366,6 +378,19 @@ function tintColor(hex, amount) {
         b.toString(16).padStart(2, '0');
 }
 
+function getHeaderDividerColor(hex) {
+    const baseHex = hex.startsWith('#') ? hex : `#${hex}`;
+    const cleanHex = baseHex.replace('#', '');
+
+    const r = parseInt(cleanHex.substring(0,2), 16);
+    const g = parseInt(cleanHex.substring(2,4), 16);
+    const b = parseInt(cleanHex.substring(4,6), 16);
+
+    const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+
+    return brightness > 155 ? adjustColor(baseHex, -0.22) : tintColor(baseHex, 0.22);
+}
+
 // 🎨 APPLY COLORS
 function applyColors() {
 
@@ -376,12 +401,14 @@ function applyColors() {
 
     // AUTO TEXT
     document.documentElement.style.setProperty('--header-text', getContrastColor(headerColor));
+    document.documentElement.style.setProperty('--header-divider', getHeaderDividerColor(headerColor));
     document.documentElement.style.setProperty('--sidebar-text', getContrastColor(sidebarColor));
 
     // ICONS
     document.documentElement.style.setProperty('--sidebar-icon-filter', getSidebarIconFilter(sidebarIconMode, sidebarColor));
 
     // SIDEBAR STATES
+    document.documentElement.style.setProperty('--sidebar-divider', tintColor(sidebarColor, 0.18));
     document.documentElement.style.setProperty('--sidebar-hover', tintColor(sidebarColor, 0.14));
     document.documentElement.style.setProperty('--sidebar-active', tintColor(sidebarColor, 0.25));
 }
@@ -423,19 +450,23 @@ sidebarIconModeSelect?.addEventListener('change', () => {
 });
 
 // SAVE
-document.querySelector('.save-btn').addEventListener('click', () => {
+customizationForm?.addEventListener('submit', () => {
+    // Keep localStorage in sync for immediate UI paint while navigating.
     localStorage.setItem('headerColor', headerColor);
     localStorage.setItem('sidebarColor', sidebarColor);
     localStorage.setItem('bgColor', bgColor);
     localStorage.setItem('sidebarIconMode', sidebarIconMode);
-
-    alert('Changes saved!');
 });
 
 // DISCARD
 document.querySelector('.discard-btn').addEventListener('click', () => {
     location.reload();
 });
+
+if (serverBranding.logoUrl && logoPreview) {
+    logoPreview.style.backgroundImage = `url(${serverBranding.logoUrl})`;
+    logoPreview.textContent = '';
+}
 
 // LOGO PREVIEW
 logoInput?.addEventListener('change', function () {

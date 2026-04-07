@@ -143,29 +143,51 @@ function tintColor(hex, amount) {
         nb.toString(16).padStart(2, '0');
 }
 
+function getHeaderDividerColor(hex) {
+    const baseHex = hex.startsWith('#') ? hex : `#${hex}`;
+    const cleanHex = baseHex.replace('#', '');
+
+    const r = parseInt(cleanHex.substring(0,2), 16);
+    const g = parseInt(cleanHex.substring(2,4), 16);
+    const b = parseInt(cleanHex.substring(4,6), 16);
+
+    const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+
+    return brightness > 155 ? adjustColor(baseHex, -0.22) : tintColor(baseHex, 0.22);
+}
+
 document.addEventListener("DOMContentLoaded", function () {
-    const headerColor = localStorage.getItem('headerColor');
-    const sidebarColor = localStorage.getItem('sidebarColor');
-    const sidebarIconMode = localStorage.getItem('sidebarIconMode') || 'auto';
+    const serverBranding = <?= json_encode($activeCompanyBranding ?? []) ?>;
+
+    const headerColor = serverBranding.header_color || localStorage.getItem('headerColor');
+    const sidebarColor = serverBranding.sidebar_color || localStorage.getItem('sidebarColor');
+    const sidebarIconMode = serverBranding.sidebar_icon_mode || localStorage.getItem('sidebarIconMode') || 'auto';
+    const bgColor = serverBranding.background_color || localStorage.getItem('bgColor');
 
     if (headerColor) {
         document.documentElement.style.setProperty('--header-bg', headerColor);
         document.documentElement.style.setProperty('--header-text', getContrastColor(headerColor));
+        document.documentElement.style.setProperty('--header-divider', getHeaderDividerColor(headerColor));
     }
 
     if (sidebarColor) {
-    document.documentElement.style.setProperty('--sidebar-bg', sidebarColor);
-    document.documentElement.style.setProperty('--sidebar-text', getContrastColor(sidebarColor));
-    document.documentElement.style.setProperty('--sidebar-icon-filter', getSidebarIconFilter(sidebarIconMode, sidebarColor));
+        document.documentElement.style.setProperty('--sidebar-bg', sidebarColor);
+        document.documentElement.style.setProperty('--sidebar-text', getContrastColor(sidebarColor));
+        document.documentElement.style.setProperty('--sidebar-icon-filter', getSidebarIconFilter(sidebarIconMode, sidebarColor));
+        document.documentElement.style.setProperty('--sidebar-divider', tintColor(sidebarColor, 0.18));
 
-    document.documentElement.style.setProperty('--sidebar-hover', tintColor(sidebarColor, 0.14));
-    document.documentElement.style.setProperty('--sidebar-active', tintColor(sidebarColor, 0.25));
+        document.documentElement.style.setProperty('--sidebar-hover', tintColor(sidebarColor, 0.14));
+        document.documentElement.style.setProperty('--sidebar-active', tintColor(sidebarColor, 0.25));
 
-    const panelBg = adjustColor(sidebarColor, -0.2);
-    document.documentElement.style.setProperty('--panel-bg', panelBg);
-    document.documentElement.style.setProperty('--panel-text', getContrastColor(panelBg));
-    document.documentElement.style.setProperty('--panel-icon-filter', getIconFilter(panelBg));
-}
+        const panelBg = adjustColor(sidebarColor, -0.2);
+        document.documentElement.style.setProperty('--panel-bg', panelBg);
+        document.documentElement.style.setProperty('--panel-text', getContrastColor(panelBg));
+        document.documentElement.style.setProperty('--panel-icon-filter', getIconFilter(panelBg));
+    }
+
+    if (bgColor) {
+        document.documentElement.style.setProperty('--bg-color', bgColor);
+    }
 });
 
 </script>

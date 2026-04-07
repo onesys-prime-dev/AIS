@@ -85,8 +85,6 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
 :root {
     --header-bg: #ffffff;
     --header-text: #000000;
-
-    --header-border: #e5e7eb;
     --header-shadow: 0 4px 12px rgba(0,0,0,0.1);
 
     --search-bg: #DAD7D7;
@@ -99,16 +97,14 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
 
 /* HEADER */
 .app-header{
-    height:80px;
+    height:100px;
     background: var(--header-bg);
-    border-bottom:1px solid var(--header-border);
     display:flex;
     align-items:center;
     justify-content:space-between;
     padding:0 35px;
     font-family:Segoe UI, Arial;
     box-shadow: var(--header-shadow);
-
     position:relative;
     z-index:1000;
 }

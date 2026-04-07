@@ -3,7 +3,8 @@
 
         <!-- LOGO -->
         <div class="logo-box">
-            <div class="logo"></div>
+            <?php $logoUrl = $activeCompanyBranding['logo_url'] ?? null; ?>
+            <div class="logo<?= !empty($logoUrl) ? ' has-image' : '' ?>"<?= !empty($logoUrl) ? ' style="background-image:url(\'' . esc((string) $logoUrl, 'attr') . '\');"' : '' ?>></div>
         </div>
 
         <!-- MAIN MENU -->
@@ -75,6 +76,7 @@
         --sidebar-bg: #1e1e1e;
         --sidebar-text: #cfcfcf;
         --sidebar-icon-filter: invert(0);
+        --sidebar-divider: #2c2c2c;
 
         --sidebar-hover: #333;
         --sidebar-active: #555;
@@ -82,13 +84,12 @@
 
     /* SIDEBAR */
     .sidebar{
-        width:95px;
+        width:100px;
         background: var(--sidebar-bg);
         min-height:100vh;
         display:flex;
         flex-direction:column;
         align-items:center;
-        border-right:1px solid #2c2c2c;
         font-family:Segoe UI, Arial;
         flex-shrink:0;
     }
@@ -104,18 +105,25 @@
 
     /* LOGO */
     .logo-box{
-        padding:25px 0;
-        border-bottom:1px solid #2c2c2c;
+        padding: 15px 0px;
+        border-bottom: 1px solid var(--sidebar-divider);
         width:100%;
         display:flex;
         justify-content:center;
     }
 
     .logo{
-        width:50px;
-        height:50px;
+        width:70px;
+        height:70px;
         background:#d9d9d9;
         border-radius:4px;
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
+    }
+
+    .logo.has-image {
+        background-color: transparent;
     }
 
     /* MAIN MENU */
@@ -123,7 +131,7 @@
         display:flex;
         flex-direction:column;
         gap:10px;
-        padding-top:15px;
+        padding:15px 0px;
         align-items:center;
         width:100%;
     }

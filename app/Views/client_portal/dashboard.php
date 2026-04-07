@@ -17,7 +17,9 @@ body{
     align-items: stretch;
     padding: 0 2rem 2rem 2rem;
     width: 100%;
-    min-height: calc(100vh - 80px);
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
     box-sizing: border-box;
 }
 
