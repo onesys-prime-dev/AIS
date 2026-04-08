@@ -4,10 +4,11 @@
 
 <div class="h-full flex flex-col min-h-0 overflow-hidden">
 
-    <!-- TOP TABS -->
+    <!-- TOP TABS (three tabs) -->
     <div class="tabs">
         <button type="button" class="tab active" data-tab="payroll-status">Payroll Status</button>
         <button type="button" class="tab" data-tab="generate-payslip">Generate Payslip</button>
+        <button type="button" class="tab" data-tab="payroll-settings">Payroll Settings</button>
     </div>
 
     <div class="tab-panel h-full flex flex-col min-h-0 overflow-hidden px-8 pb-8" data-panel="payroll-status">
@@ -15,7 +16,11 @@
     </div>
 
     <div class="tab-panel h-full flex flex-col min-h-0 overflow-hidden px-8 pb-8" data-panel="generate-payslip">
-        <?= view('client_portal/payroll_management')?>
+        <?= view('client_portal/payroll_management') ?>
+    </div>
+
+    <div class="tab-panel h-full flex flex-col min-h-0 overflow-hidden px-8 pb-8" data-panel="payroll-settings">
+        <?= view('client_portal/payroll_settings_panel') ?>
     </div>
 
 </div>
@@ -68,7 +73,6 @@
 <?= $this->endSection() ?>
 
 <?= $this->section('modals') ?>
-
     <?php
         $content = view('client_portal/modals/add_payroll_form');
         echo view('components/modal', [
@@ -77,7 +81,6 @@
             'content' => $content
         ]);
     ?>
-
     <?php
         $content = view('client_portal/modals/edit_payroll_form');
         echo view('components/modal', [
@@ -86,11 +89,9 @@
             'content' => $content
         ]);
     ?>
-
 <?= $this->endSection() ?>
 
 <?= $this->section('scripts') ?>
-
 <script src="<?= base_url('js/components/crud-table.js') ?>"></script>
 <script src="<?= base_url('js/components/flash-notifications.js') ?>"></script>
 <script src="<?= base_url('js/components/modal-handler.js') ?>"></script>
@@ -122,68 +123,31 @@
     function payrollRowTemplate(p) {
         return `
         <div class="grid grid-cols-[2fr_1.5fr_1.5fr_1.2fr_1fr_1fr_1fr] items-center border-b hover:bg-gray-50">
-
             <div class="p-4 flex items-center gap-3">
                 <div class="w-10 h-10 bg-gray-300 rounded-full"></div>
                 <span class="font-medium">${htmlEsc(p.employee_name || '---')}</span>
             </div>
-
             <div class="p-4">${htmlEsc(p.phone || '---')}</div>
-
-            <div class="p-4">
-                ${p.currency === 'USD' ? '$' : 'PHP '} ${money(p.daily_rate)}
-            </div>
-
+            <div class="p-4">${p.currency === 'USD' ? '$' : 'PHP '} ${money(p.daily_rate)}</div>
             <div class="p-4">${Number(p.dst) === 1 ? 'Yes' : 'No'}</div>
-
             <div class="p-4">${htmlEsc(p.currency || 'PHP')}</div>
-
-            <div class="p-4">
-                ${p.status === 'Paid'
-                    ? '<span class="bg-green-200 text-green-700 px-3 py-1 rounded-full text-xs font-semibold">Paid</span>'
-                    : '<span class="bg-yellow-200 text-yellow-700 px-3 py-1 rounded-full text-xs font-semibold">Pending</span>'}
-            </div>
-
+            <div class="p-4">${p.status === 'Paid' ? '<span class="bg-green-200 text-green-700 px-3 py-1 rounded-full text-xs font-semibold">Paid</span>' : '<span class="bg-yellow-200 text-yellow-700 px-3 py-1 rounded-full text-xs font-semibold">Pending</span>'}</div>
             <div class="p-4 flex justify-center gap-4">
-                <div
-                    class="cursor-pointer w-7 h-7 hover:scale-110 transition"
-                    data-action="edit"
-                    data-modal="editPayrollModal"
-                    data-update-url="${UPDATE_URL}"
-                    data-id="${htmlEsc(p.id)}"
-                    data-employee_id="${htmlEsc(p.employee_id)}"
-                    data-employee_name="${htmlEsc(p.employee_name)}"
-                    data-phone="${htmlEsc(p.phone)}"
-                    data-daily_rate="${htmlEsc(p.daily_rate)}"
-                    data-dst="${htmlEsc(p.dst)}"
-                    data-currency="${htmlEsc(p.currency)}"
-                    data-status="${htmlEsc(p.status ?? 'Pending')}">
-
+                <div class="cursor-pointer w-7 h-7 hover:scale-110 transition" data-action="edit" data-modal="editPayrollModal" data-update-url="${UPDATE_URL}" data-id="${htmlEsc(p.id)}" data-employee_id="${htmlEsc(p.employee_id)}" data-employee_name="${htmlEsc(p.employee_name)}" data-phone="${htmlEsc(p.phone)}" data-daily_rate="${htmlEsc(p.daily_rate)}" data-dst="${htmlEsc(p.dst)}" data-currency="${htmlEsc(p.currency)}" data-status="${htmlEsc(p.status ?? 'Pending')}">
                     <img src="${EDIT_ICON}" class="w-7 h-7" alt="Edit">
                 </div>
-
-                <div
-                    class="cursor-pointer w-7 h-7 hover:scale-110 transition"
-                    data-action="delete"
-                    data-delete-url="${DELETE_URL}"
-                    data-id="${htmlEsc(p.id)}">
-
+                <div class="cursor-pointer w-7 h-7 hover:scale-110 transition" data-action="delete" data-delete-url="${DELETE_URL}" data-id="${htmlEsc(p.id)}">
                     <img src="${DELETE_ICON}" class="w-7 h-7" alt="Delete">
                 </div>
             </div>
-
-        </div>
-        `;
+        </div>`;
     }
 
     createCrudTable({
         tableId: "payrollTable",
         data: Array.isArray(PAYROLLS) ? PAYROLLS : [],
         renderRow: payrollRowTemplate,
-        search: (item, q) =>
-            `${item.employee_name ?? ''} ${item.phone ?? ''} ${item.currency ?? ''} ${item.status ?? ''}`
-                .toLowerCase()
-                .includes(q)
+        search: (item, q) => `${item.employee_name ?? ''} ${item.phone ?? ''} ${item.currency ?? ''} ${item.status ?? ''}`.toLowerCase().includes(q)
     });
 
     document.getElementById('monthPicker')?.addEventListener('change', function () {
@@ -191,9 +155,7 @@
         url.searchParams.set('month', this.value);
         window.location.href = url.toString();
     });
-</script>
 
-<script>
     document.addEventListener('DOMContentLoaded', function () {
         const tabs = document.querySelectorAll('.tab[data-tab]');
         const panels = document.querySelectorAll('.tab-panel[data-panel]');
@@ -202,7 +164,6 @@
             tabs.forEach(tab => {
                 tab.classList.toggle('active', tab.dataset.tab === tabKey);
             });
-
             panels.forEach(panel => {
                 panel.classList.toggle('hidden', panel.dataset.panel !== tabKey);
             });

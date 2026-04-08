@@ -57,3 +57,11 @@ $routes->group('client_portal', ['namespace' => 'App\Controllers\Client'], funct
     $routes->get('payroll/delete/(:num)', 'PayrollController::deletePayroll/$1');
     $routes->get('payroll/get/(:num)', 'PayrollController::getPayroll/$1');
 });
+
+$routes->group('client_portal/payroll', ['namespace' => 'App\Controllers\Client'], function($routes) {
+    $routes->get('getTimesheet/(:num)/(:any)/(:any)', 'PayrollController::getTimesheet/$1/$2/$3');
+    $routes->post('importCSV', 'PayrollController::importCSV');
+    $routes->get('exportCSV/(:any)', 'PayrollController::exportCSV/$1');
+    $routes->post('saveSettings', 'PayrollController::saveSettings');
+    $routes->get('getSettings', 'PayrollController::getSettings');
+});
