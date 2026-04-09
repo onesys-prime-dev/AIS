@@ -51,7 +51,7 @@ label{
     margin-bottom:5px;
     display:block;
 }
-.section input, .section select{
+input, select{
     background:#e9e9e9;
     border:1px solid #cfcfcf;
     height:40px;
@@ -90,7 +90,7 @@ label{
     margin-top:30px;
     margin-bottom: 50px;
 }
-.next-btn, .compute-btn, .final-btn{
+.next-btn, .compute-btn, .final-btn, .auto-fill-btn{
     background:#7b5cff;
     color:white;
     padding:10px 28px;
@@ -100,9 +100,9 @@ label{
     font-weight:500;
     transition:0.2s;
 }
-.next-btn:hover, .compute-btn:hover, .final-btn:hover{ background:#6249e0; }
+.next-btn:hover, .compute-btn:hover, .final-btn:hover, .auto-fill-btn:hover{ background:#6249e0; }
 
-/* Payslip card layout (matching image) */
+/* Payslip card layout */
 .payslip-card {
     background: #f7f7f7;
     border-radius: 6px;
@@ -149,12 +149,8 @@ label{
     gap: 10px;
     margin-bottom: 20px;
 }
-.btn-purple {
-    background: #7b5cff;
-}
-.btn-red {
-    background: #ff3b3b;
-}
+.btn-purple { background: #7b5cff; }
+.btn-red { background: #ff3b3b; }
 .card-container {
     display: grid;
     grid-template-columns: 2fr 1.2fr 1.2fr;
@@ -195,7 +191,7 @@ label{
     font-size: 11px;
 }
 
-/* Final modal - exact payslip style */
+/* Final modal */
 .modal-overlay {
     position: fixed;
     top:0; left:0; width:100%; height:100%;
@@ -216,9 +212,7 @@ label{
     box-shadow:0 10px 25px rgba(0,0,0,0.2);
     border:1px solid #000;
 }
-.payslip-modal {
-    width:100%;
-}
+.payslip-modal { width:100%; }
 .payslip-modal .header {
     text-align: center;
     padding: 10px;
@@ -240,26 +234,64 @@ label{
     padding: 4px;
     vertical-align: top;
 }
-.payslip-modal .no-border {
-    border: none;
-}
+.payslip-modal .no-border { border: none; }
 .payslip-modal .section-title {
     font-weight: bold;
     text-align: center;
     background: #f0f0f0;
 }
-.payslip-modal .right {
-    text-align: right;
-}
-.payslip-modal .bold {
-    font-weight: bold;
-}
+.payslip-modal .right { text-align: right; }
+.payslip-modal .bold { font-weight: bold; }
 .payslip-modal .net-pay {
     background: #f8d7da;
     font-weight: bold;
 }
-.payslip-modal .signature {
-    height: 40px;
+.payslip-modal .signature { height: 40px; }
+
+/* Employee search dropdown */
+.employee-search-container {
+    position: relative;
+}
+.employee-suggestions {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: white;
+    border: 1px solid #cfcfcf;
+    border-radius: 8px;
+    max-height: 200px;
+    overflow-y: auto;
+    z-index: 20;
+    display: none;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+.employee-suggestion-item {
+    padding: 8px 12px;
+    cursor: pointer;
+    font-size: 13px;
+    border-bottom: 1px solid #eee;
+}
+.employee-suggestion-item:last-child {
+    border-bottom: none;
+}
+.employee-suggestion-item:hover {
+    background: #f0f0f0;
+}
+.bulk-employee-list {
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid #cfcfcf;
+    border-radius: 8px;
+    padding: 8px;
+    background: white;
+}
+.bulk-employee-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 0;
+    font-size: 13px;
 }
 </style>
 </head>
@@ -276,18 +308,48 @@ label{
 
     <div class="flex flex-col flex-1 overflow-hidden">
 
-        <!-- ================= RAW SHEET (unchanged) ================= -->
+        <!-- ================= RAW SHEET ================= -->
         <div class="tab-content active scroll-area" id="raw">
+            <!-- Mode Switch -->
             <div class="mode-switch">
                 <button type="button" class="mode-btn active" onclick="switchMode('individual', event)">Individual</button>
                 <button type="button" class="mode-btn" onclick="switchMode('bulk', event)">Bulk Send</button>
             </div>
+
+            <!-- Employee Selection Area -->
+            <div class="section">
+                <h3 class="font-semibold">Employee Selection</h3>
+                <div id="employee-search-area">
+                    <!-- Individual mode search -->
+                    <div id="individual-employee-select" class="employee-search-container">
+                        <label>Employee Name</label>
+                        <input type="text" id="empSearchInput" placeholder="Type to search..." autocomplete="off">
+                        <div id="employeeSuggestions" class="employee-suggestions"></div>
+                        <input type="hidden" id="selectedEmployeeId" value="">
+                    </div>
+                    <!-- Bulk mode multi-select -->
+                    <div id="bulk-employee-select" style="display:none;">
+                        <label>Select Employees</label>
+                        <div id="bulkEmployeeList" class="bulk-employee-list"></div>
+                        <div class="mt-2 text-sm text-gray-600">Selected employees will appear in the name field.</div>
+                    </div>
+                </div>
+                <div class="mt-3">
+                    <label>Selected Employee(s)</label>
+                    <input type="text" id="empName" placeholder="e.g. 51 T" readonly value="51 T" class="bg-gray-200">
+                </div>
+            </div>
+
+            <!-- Auto-fill Button -->
+            <div class="flex justify-end mb-4">
+                <button type="button" class="auto-fill-btn" onclick="autoFillRawSheet()">Auto-fill from Employee</button>
+            </div>
+
             <div id="individual-mode">
                 <div class="section">
                     <h3 class="font-semibold">Personal Details</h3>
                     <p class="subtitle">Employee & payroll period</p>
                     <div class="grid-2">
-                        <div><label>Employee Name</label><input type="text" id="empName" placeholder="e.g. 51 T" value="51 T"></div>
                         <div><label>Position</label><input type="text" id="empPosition" placeholder="Service Desk Analyst L-1" value="Service Desk Analyst L-1"></div>
                         <div><label>Pay Period Start</label><input type="date" id="periodStart" value="2025-12-16"></div>
                         <div><label>Pay Period End</label><input type="date" id="periodEnd" value="2025-12-31"></div>
@@ -303,8 +365,12 @@ label{
                     </div>
                 </div>
             </div>
+
             <div id="bulk-mode" style="display:none;">
-                <div class="section"><h3 class="font-semibold">Select Recipient Group</h3><p class="subtitle">Bulk send placeholder</p><select><option>Create custom list</option></select></div>
+                <div class="section">
+                    <h3 class="font-semibold">Bulk Processing Options</h3>
+                    <p class="subtitle">The selected employees above will be processed together.</p>
+                </div>
             </div>
 
             <!-- DE MINIMIS BENEFIT -->
@@ -342,33 +408,67 @@ label{
 
             <!-- LOANS + ADVANCES -->
             <div class="grid-2 section">
-                <div><h3 class="font-semibold">SSS Loan</h3><div><label>Salary Loan</label><input type="number" id="sssSalaryLoan" value="0"></div><div class="mt-2"><label>Calamity</label><input type="number" id="sssCalamityLoan" value="0"></div></div>
-                <div><h3 class="font-semibold">Advances to Employees</h3><div><label>Salary Advance</label><input type="number" id="advSalary" value="0"></div><div class="mt-2"><label>Calamity Advance</label><input type="number" id="advCalamity" value="0"></div></div>
+                <div>
+                    <h3 class="font-semibold">SSS Loan</h3>
+                    <div><label>Salary Loan</label><input type="number" id="sssSalaryLoan" value="0"></div>
+                    <div class="mt-2"><label>Calamity</label><input type="number" id="sssCalamityLoan" value="0"></div>
+                </div>
+                <div>
+                    <h3 class="font-semibold">Advances to Employees</h3>
+                    <div><label>Salary Advance</label><input type="number" id="advSalary" value="0"></div>
+                    <div class="mt-2"><label>Calamity Advance</label><input type="number" id="advCalamity" value="0"></div>
+                </div>
             </div>
 
             <!-- UNDERTIME / ABSENT -->
             <div class="grid-2 section">
-                <div><h3 class="font-semibold">Undertime</h3><div><label>Hours</label><input type="number" id="utHours" value="0"></div><div><label>PHP Equivalent</label><input type="number" id="utPhp" value="0"></div></div>
-                <div><h3 class="font-semibold">Absent</h3><div><label>Day(s)</label><input type="number" id="absentDays" value="0"></div><div><label>PHP Equivalent</label><input type="number" id="absentPhp" value="0"></div></div>
+                <div>
+                    <h3 class="font-semibold">Undertime</h3>
+                    <div><label>Hours</label><input type="number" id="utHours" value="0"></div>
+                    <div><label>PHP Equivalent</label><input type="number" id="utPhp" value="0"></div>
+                </div>
+                <div>
+                    <h3 class="font-semibold">Absent</h3>
+                    <div><label>Day(s)</label><input type="number" id="absentDays" value="0"></div>
+                    <div><label>PHP Equivalent</label><input type="number" id="absentPhp" value="0"></div>
+                </div>
             </div>
 
             <!-- WORKDAYS OVERTIME -->
             <div class="section">
                 <h3 class="font-semibold">Workdays Overtime</h3>
                 <div class="grid-2">
-                    <div><label>Hours (Regular OT)</label><input type="number" id="workdayOtHours" value="0"><label class="mt-2">PHP Equivalent</label><input type="number" id="workdayOtPhp" value="0"></div>
-                    <div><label>Night Differential 10PM-6AM (Days)</label><input type="number" id="workdayNightDiffDays" value="17"><label class="mt-2">PHP Equivalent</label><input type="number" id="workdayNightDiffPhp" value="214.94"></div>
+                    <div>
+                        <label>Hours (Regular OT)</label>
+                        <input type="number" id="workdayOtHours" value="0">
+                        <label class="mt-2">PHP Equivalent</label>
+                        <input type="number" id="workdayOtPhp" value="0">
+                    </div>
+                    <div>
+                        <label>Night Differential 10PM-6AM (Days)</label>
+                        <input type="number" id="workdayNightDiffDays" value="17">
+                        <label class="mt-2">PHP Equivalent</label>
+                        <input type="number" id="workdayNightDiffPhp" value="214.94">
+                    </div>
                 </div>
             </div>
             <!-- SATURDAY OVERTIME -->
             <div class="section">
                 <h3 class="font-semibold">Saturday Overtime</h3>
-                <div class="grid-3"><div><label>Hours (<=10hrs)</label><input type="number" id="satOtHours" value="0"></div><div><label>Excess 8 Hours</label><input type="number" id="satOtExcess" value="0"></div><div><label>PHP Equivalent</label><input type="number" id="satOtPhp" value="0"></div></div>
+                <div class="grid-3">
+                    <div><label>Hours (<=10hrs)</label><input type="number" id="satOtHours" value="0"></div>
+                    <div><label>Excess 8 Hours</label><input type="number" id="satOtExcess" value="0"></div>
+                    <div><label>PHP Equivalent</label><input type="number" id="satOtPhp" value="0"></div>
+                </div>
             </div>
             <!-- SUNDAY OVERTIME -->
             <div class="section">
                 <h3 class="font-semibold">Sunday / Holiday Overtime</h3>
-                <div class="grid-3"><div><label>Sun OT Hours</label><input type="number" id="sunOtHours" value="0"></div><div><label>Sun OT PHP</label><input type="number" id="sunOtPhp" value="0"></div><div><label>Hol OT PHP</label><input type="number" id="holOtPhp" value="0"></div></div>
+                <div class="grid-3">
+                    <div><label>Sun OT Hours</label><input type="number" id="sunOtHours" value="0"></div>
+                    <div><label>Sun OT PHP</label><input type="number" id="sunOtPhp" value="0"></div>
+                    <div><label>Hol OT PHP</label><input type="number" id="holOtPhp" value="0"></div>
+                </div>
             </div>
             <div class="button-container">
                 <button type="button" class="next-btn" onclick="nextTab('register')">Next → Register</button>
@@ -558,7 +658,11 @@ label{
 </div>
 
 <script>
-// Tab navigation
+// ================= GLOBAL VARIABLES =================
+let employeesList = []; // Populated from server
+let selectedEmployeeIds = new Set(); // For bulk mode
+
+// ================= TAB NAVIGATION =================
 function nextTab(tabId){
     document.querySelectorAll('.tab-content').forEach(t=>t.classList.remove('active'));
     document.getElementById(tabId).classList.add('active');
@@ -570,14 +674,203 @@ document.querySelectorAll('.sub-tab').forEach(btn=>{
     btn.onclick = () => nextTab(btn.dataset.tab);
 });
 
+// ================= MODE SWITCH (Individual/Bulk) =================
 function switchMode(mode, e){
     document.getElementById('individual-mode').style.display = mode === 'individual' ? 'block' : 'none';
     document.getElementById('bulk-mode').style.display = mode === 'bulk' ? 'block' : 'none';
+    document.getElementById('individual-employee-select').style.display = mode === 'individual' ? 'block' : 'none';
+    document.getElementById('bulk-employee-select').style.display = mode === 'bulk' ? 'block' : 'none';
     document.querySelectorAll('.mode-btn').forEach(b=>b.classList.remove('active'));
     e.target.classList.add('active');
+    
+    if (mode === 'individual') {
+        selectedEmployeeIds.clear();
+        updateSelectedEmployeeDisplay();
+        document.getElementById('selectedEmployeeId').value = '';
+        document.getElementById('empSearchInput').value = '';
+    } else {
+        renderBulkEmployeeList();
+    }
 }
 
-// Collect values from Raw + Register
+// ================= FETCH EMPLOYEES =================
+async function loadEmployees() {
+    try {
+        console.log('Fetching employees from server...');
+        const url = '<?= site_url('client_portal/payroll/employees_json') ?>';
+        console.log('URL:', url);
+        
+        const response = await fetch(url);
+        console.log('Response status:', response.status);
+        
+        if (!response.ok) {
+            const text = await response.text();
+            console.error('Server response:', text);
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        console.log('Employees loaded:', data);
+        
+        if (!Array.isArray(data)) {
+            throw new Error('Invalid data format: expected array');
+        }
+        
+        employeesList = data;
+        renderBulkEmployeeList();
+        initSearchSuggestions();
+    } catch (error) {
+        console.error('Failed to load employees:', error);
+        // Fallback dummy data for testing
+        employeesList = [
+            { id: '1', name: 'Test Employee 1', label: 'Test Employee 1' },
+            { id: '2', name: 'Test Employee 2', label: 'Test Employee 2' }
+        ];
+        renderBulkEmployeeList();
+        initSearchSuggestions();
+        alert('Using dummy employee data. Check console for server error.');
+    }
+}
+
+// ================= BULK LIST RENDERING =================
+function renderBulkEmployeeList() {
+    const container = document.getElementById('bulkEmployeeList');
+    if (!container) return;
+    let html = '';
+    employeesList.forEach(emp => {
+        html += `<div class="bulk-employee-item">
+            <input type="checkbox" id="bulk_emp_${emp.id}" value="${emp.id}" onchange="toggleBulkEmployee(${emp.id}, this.checked)">
+            <label for="bulk_emp_${emp.id}">${emp.name}</label>
+        </div>`;
+    });
+    container.innerHTML = html;
+}
+
+// ================= BULK SELECTION HANDLING =================
+function toggleBulkEmployee(id, checked) {
+    if (checked) {
+        selectedEmployeeIds.add(id);
+    } else {
+        selectedEmployeeIds.delete(id);
+    }
+    updateSelectedEmployeeDisplay();
+}
+
+function updateSelectedEmployeeDisplay() {
+    const nameField = document.getElementById('empName');
+    if (selectedEmployeeIds.size === 0) {
+        nameField.value = '';
+        return;
+    }
+    const names = [];
+    selectedEmployeeIds.forEach(id => {
+        const emp = employeesList.find(e => e.id == id);
+        if (emp) names.push(emp.name);
+    });
+    nameField.value = names.join(', ');
+}
+
+// ================= INDIVIDUAL SEARCH SUGGESTIONS =================
+function initSearchSuggestions() {
+    const searchInput = document.getElementById('empSearchInput');
+    const suggestionsDiv = document.getElementById('employeeSuggestions');
+    const selectedIdHidden = document.getElementById('selectedEmployeeId');
+    
+    if (!searchInput || !suggestionsDiv) {
+        console.warn('Search input or suggestions div not found');
+        return;
+    }
+
+    searchInput.addEventListener('input', function() {
+        const query = this.value.trim().toLowerCase();
+        console.log('Search query:', query);
+        if (query.length === 0) {
+            suggestionsDiv.style.display = 'none';
+            return;
+        }
+        const matches = employeesList.filter(emp => emp.name.toLowerCase().includes(query));
+        console.log('Matches found:', matches.length);
+        if (matches.length === 0) {
+            suggestionsDiv.style.display = 'none';
+            return;
+        }
+        let html = '';
+        matches.forEach(emp => {
+            html += `<div class="employee-suggestion-item" data-id="${emp.id}" data-name="${emp.name}">${emp.name}</div>`;
+        });
+        suggestionsDiv.innerHTML = html;
+        suggestionsDiv.style.display = 'block';
+    });
+
+    suggestionsDiv.addEventListener('click', function(e) {
+        const item = e.target.closest('.employee-suggestion-item');
+        if (!item) return;
+        const id = item.dataset.id;
+        const name = item.dataset.name;
+        console.log('Selected employee:', id, name);
+        searchInput.value = name;
+        selectedIdHidden.value = id;
+        document.getElementById('empName').value = name;
+        selectedEmployeeIds.clear();
+        selectedEmployeeIds.add(id);
+        suggestionsDiv.style.display = 'none';
+    });
+
+    document.addEventListener('click', function(e) {
+        if (!searchInput.contains(e.target) && !suggestionsDiv.contains(e.target)) {
+            suggestionsDiv.style.display = 'none';
+        }
+    });
+}
+
+// ================= AUTO-FILL RAW SHEET =================
+async function autoFillRawSheet() {
+    let employeeId = null;
+    const mode = document.querySelector('.mode-btn.active').textContent.includes('Individual') ? 'individual' : 'bulk';
+    
+    if (mode === 'individual') {
+        employeeId = document.getElementById('selectedEmployeeId').value;
+        if (!employeeId) {
+            alert('Please select an employee first.');
+            return;
+        }
+    } else {
+        if (selectedEmployeeIds.size === 0) {
+            alert('Please select at least one employee.');
+            return;
+        }
+        employeeId = Array.from(selectedEmployeeIds)[0];
+    }
+    
+    try {
+        console.log('Fetching details for employee ID:', employeeId);
+        const response = await fetch(`<?= site_url('client_portal/payroll/employee_details') ?>/${employeeId}`);
+        if (!response.ok) {
+            throw new Error('Employee details not found');
+        }
+        const data = await response.json();
+        console.log('Employee details:', data);
+        
+        document.getElementById('empPosition').value = data.position || 'Service Desk Analyst L-1';
+        document.getElementById('monthlySalary').value = data.monthly_salary || '22000.00';
+        const monthly = parseFloat(data.monthly_salary) || 22000;
+        document.getElementById('semiMonthlySalary').value = (monthly / 2).toFixed(2);
+        document.getElementById('dailyRate').value = data.daily_rate || (monthly / 22).toFixed(2);
+        document.getElementById('hourlyRate').value = data.hourly_rate || (monthly / 160).toFixed(2);
+        
+        if (mode === 'bulk') {
+            const emp = employeesList.find(e => e.id == employeeId);
+            if (emp) document.getElementById('empName').value = emp.name;
+        }
+        
+        alert('Raw sheet populated with employee data.');
+    } catch (error) {
+        console.error('Auto-fill failed:', error);
+        alert('Could not fetch employee details. Please ensure the endpoint is implemented.');
+    }
+}
+
+// ================= ORIGINAL PAYSLIP FUNCTIONS =================
 function getComputedPayslipValues(){
     let monthly = parseFloat(document.getElementById('monthlySalary')?.value) || 0;
     let semiMonthly = parseFloat(document.getElementById('semiMonthlySalary')?.value) || 0;
@@ -634,7 +927,6 @@ function getComputedPayslipValues(){
              regOtLe10, satOtLe10, sunOtLe10, holOtLe10, taxableOther, nonTaxable, grossPay, sssDed, phicDed, hdmfDed, withholdingTax, totalDeductions, netPay };
 }
 
-// Build the payslip UI
 function buildPayslipTable() {
     let d = getComputedPayslipValues();
     document.getElementById('payslipEmpName').value = d.empName;
@@ -642,7 +934,6 @@ function buildPayslipTable() {
     document.getElementById('payslipPeriodStart').value = d.pStart;
     document.getElementById('payslipPeriodEnd').value = d.pEnd;
 
-    // Regular Earnings rows
     const regRows = [
         { label: 'Basic Pay', id: 'edit_basicPay', days: '-', val: d.basicPay },
         { label: 'Rate per hour', id: 'edit_ratePerHour', days: '-', val: d.ratePerHour },
@@ -668,7 +959,6 @@ function buildPayslipTable() {
     });
     document.getElementById('regularEarningsBody').innerHTML = regHtml;
 
-    // Taxable Other Earnings (left)
     const taxableRows = [
         { desc: 'Salary Adjustment', id: 'edit_taxAdj', val: (parseFloat(document.getElementById('salaryAdjustment')?.value)||0) },
         { desc: 'Override', id: 'edit_taxOverride', val: (parseFloat(document.getElementById('overrideAmount')?.value)||0) },
@@ -682,7 +972,6 @@ function buildPayslipTable() {
     });
     document.getElementById('taxableLeftBody').innerHTML = taxableLeftHtml;
 
-    // Non-Taxable Other Earnings (right)
     const nonTaxRows = [
         { desc: 'Year End Gifts', id: 'edit_nonYearEnd', val: (parseFloat(document.getElementById('yearEndGifts')?.value)||0) },
         { desc: 'Rice Subsidy', id: 'edit_riceSubsidy', val: (parseFloat(document.getElementById('riceSubsidy')?.value)||0) },
@@ -696,7 +985,6 @@ function buildPayslipTable() {
     });
     document.getElementById('taxableRightBody').innerHTML = nonTaxHtml;
 
-    // Deductions
     const dedRows = [
         { label: 'SSS', id: 'edit_sss', val: d.sssDed },
         { label: 'Philhealth', id: 'edit_phic', val: d.phicDed },
@@ -709,7 +997,6 @@ function buildPayslipTable() {
     });
     document.getElementById('deductionsBody').innerHTML = dedHtml;
 
-    // Loans/Advances
     const loanRows = [
         { desc: 'Salary Advance', id: 'edit_advSalary', val: parseFloat(document.getElementById('advSalary')?.value)||0 },
         { desc: 'Calamity Advance', id: 'edit_advCalam', val: parseFloat(document.getElementById('advCalamity')?.value)||0 },
@@ -722,7 +1009,6 @@ function buildPayslipTable() {
     });
     document.getElementById('loansBody').innerHTML = loanHtml;
 
-    // Attach recalc listeners
     const allEditIds = ['edit_basicPay','edit_ratePerHour','edit_hoursWorked','edit_nightPremium','edit_absentAmt','edit_undertimeAmt',
         'edit_regOtLe10','edit_regOtGt10','edit_regNightPrem','edit_satOtLe10','edit_satOtGt10','edit_satNightPrem',
         'edit_sunOtLe10','edit_sunOtGt10','edit_holOtLe10','edit_holOtGt10','edit_holNightPrem',
@@ -737,7 +1023,6 @@ function buildPayslipTable() {
 }
 
 function recalcTotals() {
-    // Sum regular earnings
     let regularSum = 0;
     const regIds = ['edit_basicPay','edit_nightPremium','edit_regOtLe10','edit_regOtGt10','edit_regNightPrem',
         'edit_satOtLe10','edit_satOtGt10','edit_satNightPrem','edit_sunOtLe10','edit_sunOtGt10',
@@ -803,19 +1088,15 @@ function autoFillPayslip() {
 }
 function setNum(id, val) { let el = document.getElementById(id); if(el) el.value = val.toFixed(2); }
 
-// NEW: Final modal with exact payslip layout from example
 function showFinalPayslip() {
-    // Helper to get values
     let get = (id) => parseFloat(document.getElementById(id)?.value) || 0;
     
-    // Employee info
     let emp = document.getElementById('payslipEmpName')?.value || 'N/A';
     let pos = document.getElementById('payslipPosition')?.value || 'N/A';
     let start = document.getElementById('payslipPeriodStart')?.value || '';
     let end = document.getElementById('payslipPeriodEnd')?.value || '';
     let period = start && end ? `${start} to ${end}` : 'N/A';
     
-    // Regular earnings rows (all fields from payslip)
     const regLabels = [
         'Basic Pay', 'Rate per hour', 'No. of Hours Worked', 'Night Premium',
         'Less Absences', 'Late/Undertime', 'Reg OT <= 10 Hrs', 'Reg OT > 10 Hrs',
@@ -830,53 +1111,43 @@ function showFinalPayslip() {
         'edit_holOtLe10','edit_holOtGt10','edit_holNightPrem'
     ];
     
-    // Taxable rows
     const taxableLabels = ['Salary Adjustment', 'Override', 'NED', 'Holiday Pay', 'Gross Compensation'];
     const taxableIds = ['edit_taxAdj','edit_taxOverride','edit_taxNed','edit_taxHol','edit_taxGrossComp'];
     
-    // Non-taxable rows
     const nonTaxLabels = ['Year End Gifts', 'Rice Subsidy', 'Uniform Allowance', 'Laundry Allowance', 'Medical Allowance'];
     const nonTaxIds = ['edit_nonYearEnd','edit_riceSubsidy','edit_uniformAllow','edit_laundryAllow','edit_medicalAllow'];
     
-    // Deductions
     const dedLabels = ['SSS', 'Philhealth', 'HDMF', 'Withholding tax'];
-    const dedIds = ['edit_sss','edit_phic','edit_hdmf','edit_wtax'];  // note: we don't have wtax in the UI? actually we have edit_wtax? In current UI we don't have a field for withholding tax in the payslip card, but we have edit_wtax in the total calculation? Wait, we have edit_wtax? Actually we didn't include it in the deductions card. We'll add it.
-    // We need to ensure the withholding tax is present. Since the earlier code had 'edit_wtax' but not in the card, we'll fetch from the register's wtPayable.
+    const dedIds = ['edit_sss','edit_phic','edit_hdmf','edit_wtax'];
     let withholding = parseFloat(document.getElementById('wtPayable')?.value) || 0;
-    // Also loans
+    
     const loanLabels = ['SSS Loan', 'Salary Advance', 'Calamity Advance', 'Other Loan', 'Other Advance'];
     const loanIds = ['edit_sssLoan','edit_advSalary','edit_advCalam','edit_otherLoan','edit_otherAdv'];
     
-    // Build regular earnings table rows (sub-table)
     let regHtml = '';
     for (let i=0; i<regLabels.length; i++) {
         let val = get(regIds[i]);
-        // For Less Absences and Late/Undertime, display as negative? we'll show as positive with minus sign
         let displayVal = val;
         if (regLabels[i] === 'Less Absences' || regLabels[i] === 'Late/Undertime') {
             displayVal = -val;
         }
         regHtml += `<tr><td>${regLabels[i]}</td><td>-</td><td class="right">${displayVal.toFixed(2)}</td></tr>`;
     }
-    // Add net basic pay row (calculated as basic - absences - late + night premium)
     let netBasic = get('edit_basicPay') - get('edit_absentAmt') - get('edit_undertimeAmt') + get('edit_nightPremium');
     regHtml += `<tr class="bold"><td>Net basic pay</td><td></td><td class="right">${netBasic.toFixed(2)}</td></tr>`;
     
-    // Taxable other table
     let taxableHtml = '';
     for (let i=0; i<taxableLabels.length; i++) {
         let val = get(taxableIds[i]);
         taxableHtml += `<tr><td>${taxableLabels[i]}</td><td class="right">${val.toFixed(2)}</td></tr>`;
     }
     
-    // Non-taxable table
     let nonTaxHtml = '';
     for (let i=0; i<nonTaxLabels.length; i++) {
         let val = get(nonTaxIds[i]);
         nonTaxHtml += `<tr><td>${nonTaxLabels[i]}</td><td class="right">${val.toFixed(2)}</td></tr>`;
     }
     
-    // Deductions table
     let dedHtml = '';
     for (let i=0; i<dedLabels.length; i++) {
         let val = (dedIds[i] === 'edit_wtax') ? withholding : get(dedIds[i]);
@@ -885,7 +1156,6 @@ function showFinalPayslip() {
     let totalDed = get('totalDeductions') ? get('totalDeductions') : (get('edit_sss')+get('edit_phic')+get('edit_hdmf')+withholding + get('edit_sssLoan')+get('edit_advSalary')+get('edit_advCalam')+get('edit_otherLoan')+get('edit_otherAdv'));
     dedHtml += `<tr class="bold"><td>TOTAL DEDUCTIONS</td><td class="right">${totalDed.toFixed(2)}</td></tr>`;
     
-    // Loans table
     let loanHtml = '';
     for (let i=0; i<loanLabels.length; i++) {
         let val = get(loanIds[i]);
@@ -963,11 +1233,29 @@ function showFinalPayslip() {
     });
 }
 
-document.getElementById('autoFillBtn')?.addEventListener('click', autoFillPayslip);
-document.getElementById('generateBtn')?.addEventListener('click', showFinalPayslip);
+// ================= INITIALIZATION =================
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM fully loaded');
+    loadEmployees();
+    
+    // Set default dates
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    document.getElementById('periodStart').value = `${year}-${month}-01`;
+    const lastDay = new Date(year, today.getMonth() + 1, 0).getDate();
+    document.getElementById('periodEnd').value = `${year}-${month}-${String(lastDay).padStart(2, '0')}`;
+    
+    // Attach event listeners for auto-fill and generate buttons
+    document.getElementById('autoFillBtn')?.addEventListener('click', autoFillPayslip);
+    document.getElementById('generateBtn')?.addEventListener('click', showFinalPayslip);
+});
+
+// Make functions globally accessible
 window.switchMode = switchMode;
 window.nextTab = nextTab;
-setTimeout(()=>{ if(document.getElementById('payslip').classList.contains('active')) buildPayslipTable(); }, 100);
+window.toggleBulkEmployee = toggleBulkEmployee;
+window.autoFillRawSheet = autoFillRawSheet;
 </script>
 </body>
 </html>
