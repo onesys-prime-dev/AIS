@@ -242,12 +242,15 @@ body{
     max-width:none;
     background: white;
     border-radius:16px;
-    padding:18px 14px;
     box-shadow:0 6px 18px rgba(0,0,0,0.08);
     border:1px solid #ececec;
     overflow-y:auto;
     max-height:none;
     height:100%;
+}
+
+.notifications-divider{
+    border: 2px solid #e5e7eb;
 }
 
 /* NOTIFICATION TITLE */
@@ -261,7 +264,7 @@ body{
     display:flex;
     align-items:center;
     justify-content:space-between;
-    margin-bottom:14px;
+    margin: 20px;
 }
 
 .notifications-clear{
@@ -292,7 +295,7 @@ body{
     display:flex;
     align-items:center;
     gap:10px;
-    margin-bottom:14px;
+    margin: 15px 20px;
 }
 
 .notifications-tab{
@@ -337,7 +340,7 @@ body{
     font-size:11px;
     font-weight:700;
     color:#6b7280;
-    margin:12px 0 10px;
+    margin:15px 0px;
 }
 
 .notifications-divider-title::after{
@@ -350,7 +353,8 @@ body{
 .notifications-empty{
     font-size:11px;
     color:#7d7d7d;
-    margin:2px 0 10px;
+    margin:10px;
+    text-align: center;
 }
 
 .notif-meta{
@@ -361,7 +365,7 @@ body{
 
 .notifications-group{
     display:none;
-    padding: 0px 10px;
+    padding: 0px 20px;
 }
 
 .notifications-group.active{
@@ -372,10 +376,22 @@ body{
 .notif{
     display:flex;
     align-items:center;
-    gap:10px;
-    padding:8px 4px;
-    border-radius:12px;
-    margin-bottom:8px;
+    gap:15px;
+    padding:20px;
+    margin:10px 0px;
+    background: #FFFFFF;
+    border-radius: 10px;
+    cursor:pointer;
+    box-shadow: 0 10px 12px #bfbfbf;
+    transition:background-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.notif:hover{
+    background:#EBE5FF;
+    transform:translateY(-1px);
+    box-shadow:0 6px 12px #dbc0fc;
+;
+
 }
 
 .notif::before{
@@ -385,6 +401,12 @@ body{
     border-radius:50%;
     background:#7E23FD;
     flex-shrink:0;
+    transition:transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.notif:hover::before{
+    transform:scale(1.2);
+    box-shadow:0 0 0 4px rgba(126, 35, 253, 0.15);
 }
 
 .notif-avatar{
@@ -416,7 +438,7 @@ body{
     font-size:11px;
     color:#6b7280;
     font-weight:600;
-    white-space:nowrap;
+    white-space: nowrap;
 }
 
 .notif-thumb{
@@ -487,6 +509,45 @@ body{
     border-radius:14px;
     box-shadow:0 25px 50px rgba(0,0,0,0.25);
     animation:modalPop 0.2s ease;
+}
+
+#viewNotificationsModal .modal {
+    max-width: 640px;
+}
+
+.view-notification-body {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.view-notification-meta {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px 14px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+}
+
+.view-notification-meta p {
+    margin: 0;
+    font-size: 12px;
+    color: #475569;
+}
+
+.view-notification-meta strong {
+    color: #0f172a;
+}
+
+.view-notification-content {
+    margin: 0;
+    font-size: 14px;
+    line-height: 1.6;
+    color: #334155;
+    white-space: pre-wrap;
+    word-break: break-word;
 }
 
 .modal-header{
@@ -691,6 +752,10 @@ body{
     .announcement-grid{
         grid-template-columns:1fr;
     }
+
+    .view-notification-meta {
+        grid-template-columns: 1fr;
+    }
 }
 </style>
 
@@ -791,26 +856,36 @@ body{
             $publishedItems = $publishedNotifications ?? [];
             $unpublishedItems = $unpublishedNotifications ?? [];
 
-            $splitByDay = static function (array $items): array {
-                $today = [];
-                $yesterday = [];
+            $groupNotificationsByPeriod = static function (array $items): array {
+                $today = new DateTimeImmutable('today');
+
+                $buckets = [
+                    'today' => [],
+                    'older' => [],
+                ];
 
                 foreach ($items as $item) {
                     $stamp = strtotime((string) ($item['publish_at'] ?? ''));
-                    $dayKey = $stamp ? date('Y-m-d', $stamp) : date('Y-m-d');
-                    $todayKey = date('Y-m-d');
-                    $yesterdayKey = date('Y-m-d', strtotime('-1 day'));
+                    $date = $stamp ? (new DateTimeImmutable())->setTimestamp($stamp) : $today;
 
-                    if ($dayKey === $todayKey) {
-                        $today[] = $item;
-                    } elseif ($dayKey === $yesterdayKey) {
-                        $yesterday[] = $item;
-                    } else {
-                        $yesterday[] = $item;
+                    if ($date->format('Y-m-d') === $today->format('Y-m-d')) {
+                        $buckets['today'][] = $item;
+                        continue;
                     }
+
+                    $buckets['older'][] = $item;
                 }
 
-                return ['today' => $today, 'yesterday' => $yesterday];
+                return [
+                    'today' => [
+                        'title' => 'Today',
+                        'items' => $buckets['today'],
+                    ],
+                    'older' => [
+                        'title' => 'Older',
+                        'items' => $buckets['older'],
+                    ],
+                ];
             };
 
             $timeAgo = static function (string $dateTime): string {
@@ -821,16 +896,16 @@ body{
 
                 $diff = time() - $stamp;
                 if ($diff < 60) {
-                    return $diff . ' sec ago';
+                    return $diff . 'sec ago';
                 }
                 if ($diff < 3600) {
-                    return floor($diff / 60) . ' min ago';
+                    return floor($diff / 60) . 'min ago';
                 }
                 if ($diff < 86400) {
-                    return floor($diff / 3600) . ' hr ago';
+                    return floor($diff / 3600) . 'hr ago';
                 }
 
-                return floor($diff / 86400) . ' d ago';
+                return floor($diff / 604800) . 'w ago';
             };
 
             $initials = static function (string $title): string {
@@ -854,8 +929,59 @@ body{
                 return str_pad(substr($letters, 0, 2), 2, 'N');
             };
 
-            $publishedByDay = $splitByDay($publishedItems);
-            $unpublishedByDay = $splitByDay($unpublishedItems);
+            $renderNotificationItem = static function (array $n, callable $initials, callable $timeAgo, bool $showMeta = false): void {
+                $title = (string) ($n['title'] ?? 'Untitled Notification');
+                $summary = (string) ($n['summary'] ?? $n['message'] ?? '');
+                $details = (string) ($n['details'] ?? $summary);
+                $publishedAt = (string) ($n['publish_at'] ?? '');
+                $publishedOn = $publishedAt !== '' ? date('M d, Y h:i A', strtotime($publishedAt)) : 'N/A';
+                $category = (string) ($n['category'] ?? 'General');
+                $priority = (string) ($n['priority'] ?? 'Normal');
+                $audience = (string) ($n['audience'] ?? 'All Employees');
+                ?>
+                <div
+                    class="notif"
+                    role="button"
+                    tabindex="0"
+                    data-title="<?= esc($title, 'attr') ?>"
+                    data-summary="<?= esc($summary, 'attr') ?>"
+                    data-details="<?= esc($details, 'attr') ?>"
+                    data-publish="<?= esc($publishedOn, 'attr') ?>"
+                    data-category="<?= esc($category, 'attr') ?>"
+                    data-priority="<?= esc(ucfirst($priority), 'attr') ?>"
+                    data-audience="<?= esc(ucfirst($audience), 'attr') ?>"
+                    onclick="openNotificationModal(this)"
+                    onkeydown="handleNotificationKey(event, this)">
+                    <div class="notif-avatar"><?= esc($initials((string) ($n['title'] ?? ''))) ?></div>
+                    <div class="notif-content">
+                        <div class="notif-title-row">
+                            <div class="notif-title"><?= esc($title) ?></div>
+                            <div class="notif-time"><?= esc($timeAgo((string) ($n['publish_at'] ?? ''))) ?></div>
+                        </div>
+                        <div class="notif-desc"><?= esc($summary) ?></div>
+                        <?php if ($showMeta): ?>
+                        <div class="notif-meta">Publish on <?= esc(date('M d, Y h:i A', strtotime((string) ($n['publish_at'] ?? 'now')))) ?></div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+                <?php
+            };
+
+            $renderNotificationSection = static function (string $title, array $items, callable $renderItem, callable $initials, callable $timeAgo, bool $showMeta = false): void {
+                ?>
+                <div class="notifications-divider-title"><?= esc($title) ?></div>
+                <?php if (! empty($items)): ?>
+                    <?php foreach ($items as $n): ?>
+                        <?php $renderItem($n, $initials, $timeAgo, $showMeta); ?>
+                    <?php endforeach; ?>
+                <?php else: ?>
+                <div class="notifications-empty">No <?= strtolower($title) ?> notifications.</div>
+                <?php endif; ?>
+                <?php
+            };
+
+            $publishedBuckets = $groupNotificationsByPeriod($publishedItems);
+            $unpublishedBuckets = $groupNotificationsByPeriod($unpublishedItems);
         ?>
 
         <div class="notifications">
@@ -863,6 +989,8 @@ body{
                 <div class="notifications-title">Notification</div>
                 <button type="button" class="notifications-clear" onclick="clearNotificationsView()"><img class="dot" src="<?= base_url('icons/Clear.png') ?>">Clear all</button>
             </div>
+
+            <div class="notifications-divider"></div>
 
             <div class="notifications-tabs">
                 <button type="button" id="tabPublished" class="notifications-tab active" onclick="toggleNotificationsGroup('published')">
@@ -879,82 +1007,18 @@ body{
             </div>
 
             <div id="publishedGroup" class="notifications-group active">
-                <div class="notifications-divider-title">Today</div>
-                <?php foreach (($publishedByDay['today'] ?? []) as $n): ?>
-                <div class="notif">
-                    <div class="notif-avatar"><?= esc($initials((string) ($n['title'] ?? ''))) ?></div>
-                    <div class="notif-content">
-                        <div class="notif-title-row">
-                            <div class="notif-title"><?= esc($n['title']) ?></div>
-                            <div class="notif-time"><?= esc($timeAgo((string) ($n['publish_at'] ?? ''))) ?></div>
-                        </div>
-                        <div class="notif-desc"><?= esc($n['message']) ?></div>
-                    </div>
-                    <!-- <div class="notif-thumb"></div> -->
-                </div>
-                <?php endforeach; ?>
-                <?php if (empty($publishedByDay['today'] ?? [])): ?>
-                <div class="notifications-empty">No today notifications.</div>
-                <?php endif; ?>
-
-                <div class="notifications-divider-title">Yesterday</div>
-                <?php foreach (($publishedByDay['yesterday'] ?? []) as $n): ?>
-                <div class="notif">
-                    <div class="notif-avatar"><?= esc($initials((string) ($n['title'] ?? ''))) ?></div>
-                    <div class="notif-content">
-                        <div class="notif-title-row">
-                            <div class="notif-title"><?= esc($n['title']) ?></div>
-                            <div class="notif-time"><?= esc($timeAgo((string) ($n['publish_at'] ?? ''))) ?></div>
-                        </div>
-                        <div class="notif-desc"><?= esc($n['message']) ?></div>
-                    </div>
-                    <!-- <div class="notif-thumb"></div> -->
-                </div>
-                <?php endforeach; ?>
-                <?php if (empty($publishedByDay['yesterday'] ?? [])): ?>
-                <div class="notifications-empty">No older notifications.</div>
-                <?php endif; ?>
+                <?php
+                    $renderNotificationSection($publishedBuckets['today']['title'], $publishedBuckets['today']['items'], $renderNotificationItem, $initials, $timeAgo);
+                    $renderNotificationSection($publishedBuckets['older']['title'], $publishedBuckets['older']['items'], $renderNotificationItem, $initials, $timeAgo);
+                ?>
             </div>
 
             <?php if ($user->inGroup('client_payroll_staff')): ?>
             <div id="unpublishedGroup" class="notifications-group">
-                <div class="notifications-divider-title">Today</div>
-                <?php foreach (($unpublishedByDay['today'] ?? []) as $n): ?>
-                <div class="notif">
-                    <div class="notif-avatar"><?= esc($initials((string) ($n['title'] ?? ''))) ?></div>
-                    <div class="notif-content">
-                        <div class="notif-title-row">
-                            <div class="notif-title"><?= esc($n['title']) ?></div>
-                            <div class="notif-time"><?= esc($timeAgo((string) ($n['publish_at'] ?? ''))) ?></div>
-                        </div>
-                        <div class="notif-desc"><?= esc($n['message']) ?></div>
-                        <div class="notif-meta">Publish on <?= esc(date('M d, Y h:i A', strtotime((string) ($n['publish_at'] ?? 'now')))) ?></div>
-                    </div>
-                    <!-- <div class="notif-thumb"></div> -->
-                </div>
-                <?php endforeach; ?>
-                <?php if (empty($unpublishedByDay['today'] ?? [])): ?>
-                <div class="notifications-empty">No today unpublished notifications.</div>
-                <?php endif; ?>
-
-                <div class="notifications-divider-title">Yesterday</div>
-                <?php foreach (($unpublishedByDay['yesterday'] ?? []) as $n): ?>
-                <div class="notif">
-                    <div class="notif-avatar"><?= esc($initials((string) ($n['title'] ?? ''))) ?></div>
-                    <div class="notif-content">
-                        <div class="notif-title-row">
-                            <div class="notif-title"><?= esc($n['title']) ?></div>
-                            <div class="notif-time"><?= esc($timeAgo((string) ($n['publish_at'] ?? ''))) ?></div>
-                        </div>
-                        <div class="notif-desc"><?= esc($n['message']) ?></div>
-                        <div class="notif-meta">Publish on <?= esc(date('M d, Y h:i A', strtotime((string) ($n['publish_at'] ?? 'now')))) ?></div>
-                    </div>
-                    <!-- <div class="notif-thumb"></div> -->
-                </div>
-                <?php endforeach; ?>
-                <?php if (empty($unpublishedByDay['yesterday'] ?? [])): ?>
-                <div class="notifications-empty">No older unpublished notifications.</div>
-                <?php endif; ?>
+                <?php
+                    $renderNotificationSection($unpublishedBuckets['today']['title'], $unpublishedBuckets['today']['items'], $renderNotificationItem, $initials, $timeAgo, true);
+                    $renderNotificationSection($unpublishedBuckets['older']['title'], $unpublishedBuckets['older']['items'], $renderNotificationItem, $initials, $timeAgo, true);
+                ?>
             </div>
             <?php endif; ?>
         </div>
@@ -1127,6 +1191,32 @@ body{
         </div>
     </div>
 
+    <!-- View notifications modal -->
+    <div class="modal-overlay" id="viewNotificationsModal">
+        <div class="modal">
+            <div class="modal-header">
+                <span id="viewNotificationTitle">Notification</span>
+                <button type="button" onclick="closeNotificationModal()">✕</button>
+            </div>
+
+            <div class="modal-body view-notification-body">
+                <div class="view-notification-meta">
+                    <p><strong>Published:</strong> <span id="viewNotificationPublished">N/A</span></p>
+                    <p><strong>Category:</strong> <span id="viewNotificationCategory">General</span></p>
+                    <p><strong>Priority:</strong> <span id="viewNotificationPriority">Normal</span></p>
+                    <p><strong>Audience:</strong> <span id="viewNotificationAudience">All Employees</span></p>
+                </div>
+
+                <p class="view-notification-content" id="viewNotificationSummary"></p>
+                <p class="view-notification-content" id="viewNotificationDetails"></p>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="cancel-btn" onclick="closeNotificationModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
 <script>
     const attendance = <?= json_encode($currentAttendance ?? null) ?>;
 
@@ -1244,6 +1334,42 @@ body{
             unpublishedGroup.innerHTML = '<div class="notifications-empty">Notifications cleared from view.</div>';
         }
     }
+
+    function handleNotificationKey(event, el) {
+        if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            openNotificationModal(el);
+        }
+    }
+
+    function openNotificationModal(el) {
+        if (!el) return;
+
+        const modal = document.getElementById('viewNotificationsModal');
+        if (!modal) return;
+
+        document.getElementById('viewNotificationTitle').innerText = el.dataset.title || 'Notification';
+        document.getElementById('viewNotificationPublished').innerText = el.dataset.publish || 'N/A';
+        document.getElementById('viewNotificationCategory').innerText = el.dataset.category || 'General';
+        document.getElementById('viewNotificationPriority').innerText = el.dataset.priority || 'Normal';
+        document.getElementById('viewNotificationAudience').innerText = el.dataset.audience || 'All Employees';
+        document.getElementById('viewNotificationSummary').innerText = el.dataset.summary || '';
+        document.getElementById('viewNotificationDetails').innerText = el.dataset.details || '';
+
+        modal.style.display = 'flex';
+    }
+
+    function closeNotificationModal() {
+        const modal = document.getElementById('viewNotificationsModal');
+        if (!modal) return;
+        modal.style.display = 'none';
+    }
+
+    document.getElementById('viewNotificationsModal')?.addEventListener('click', function (e) {
+        if (e.target === this) {
+            closeNotificationModal();
+        }
+    });
 
     document.getElementById("announcementSummary")?.addEventListener("input", updateAnnouncementSummaryCount);
     updateAnnouncementSummaryCount();

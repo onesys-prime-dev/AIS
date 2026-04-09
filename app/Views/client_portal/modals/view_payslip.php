@@ -1,7 +1,6 @@
 <div class="payslip-sheet">
     <div class="payslip-toolbar">
         <div class="payslip-toolbar-left">
-            <button type="button" class="payslip-back modal-close" aria-label="Close payslip modal">&larr;</button>
             <h2 class="payslip-title">Timesheet</h2>
         </div>
 
@@ -19,21 +18,27 @@
                 <span aria-hidden="true">&#11015;</span>
                 <span>Download PDF</span>
             </button>
+
+            <button type="button" class="payslip-back modal-close" aria-label="Close payslip modal">
+                ✕
+            </button>
         </div>
     </div>
 
     <div class="payslip-card">
         <div class="payslip-company">
-            <div class="payslip-meta">
-                <p><span>Payroll Period</span><br>December 2025</p>
-                <p><span>Payment Date</span><br>January 6, 2025</p>
-            </div>
+            <div class="payslip-date-holder">
+                <div class="payslip-meta">
+                    <p><span>Payroll Period</span><br>December 2025</p>
+                    <p><span>Payment Date</span><br>January 6, 2025</p>
+                </div>
 
-            <div class="payslip-brand">
-                <h3>ECOVIS Eintax Philippines</h3>
-                <p>
-                    Unit 1802, The Peak Tower, Salcedo Village, 107 L.P. Leviste Street, Makati City, 1227 Metro Manila
-                </p>
+                <div class="payslip-brand">
+                    <h3>ECOVIS Eintax Philippines</h3>
+                    <p>
+                        Unit 1802, The Peak Tower, Salcedo Village, 107 L.P. Leviste Street, Makati City, 1227 Metro Manila
+                    </p>
+                </div>
             </div>
 
             <div class="payslip-logo-wrap">
@@ -43,7 +48,7 @@
 
         <hr class="payslip-divider">
 
-        <div class="payslip-preview">
+        <div class="payslip-preview scroll-bar">
             <img src="<?= base_url('icons/payslip-sample.png'); ?>" alt="Payslip preview">
         </div>
     </div>
@@ -99,6 +104,7 @@
         font-size: 30px;
         font-weight: 700;
         color: #1f2937;
+        padding-left: 5px;
     }
 
     .payslip-controls {
@@ -145,8 +151,12 @@
     .payslip-company {
         display: grid;
         grid-template-columns: auto 1fr auto;
-        gap: 24px;
-        align-items: start;
+        align-items: center;
+    }
+
+    .payslip-date-holder{
+        display: flex;
+        flex-direction: column;
     }
 
     .payslip-meta {
@@ -156,14 +166,14 @@
 
     .payslip-meta p {
         margin: 0;
-        font-size: 25px;
+        font-size: 22px;
         line-height: 1.25;
         color: #18181b;
     }
 
     .payslip-meta p span {
         color: #6b7280;
-        font-size: 20px;
+        font-size: 18px;
     }
 
     .payslip-brand {
@@ -172,7 +182,7 @@
 
     .payslip-brand h3 {
         margin: 12px 0 6px;
-        font-size: 41px;
+        font-size: 38px;
         line-height: 1.15;
         font-weight: 700;
         color: #1f2937;
@@ -193,12 +203,14 @@
         display: flex;
         align-items: center;
         justify-content: center;
+        justify-self: center;
+        align-self: center;
         overflow: hidden;
     }
 
     .payslip-logo {
-        width: 100%;
-        height: 100%;
+        width: 100px;
+        height: 100px;
         object-fit: contain;
     }
 
