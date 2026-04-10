@@ -112,5 +112,11 @@ class Filters extends BaseFilters
      *
      * @var array<string, array<string, list<string>>>
      */
-    public array $filters = [];
+ public $csrf = [
+    'except' => [
+        'client_portal/payroll/compute',
+        'client_portal/payroll/sendPdf',
+        'client_portal/payroll/send/*'
+    ]
+];
 }

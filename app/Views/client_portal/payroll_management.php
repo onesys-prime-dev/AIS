@@ -27,7 +27,7 @@ body{ font-family: 'Segoe UI', Arial, sans-serif; background: #f0f2f5; }
 /* Scroll area */
 .scroll-area{
     overflow-y:auto;
-    height:100%;
+    height:350px;
     padding-right:12px;
     margin-bottom: 20px;
 }
@@ -90,7 +90,7 @@ input, select{
     margin-top:30px;
     margin-bottom: 50px;
 }
-.next-btn, .compute-btn, .final-btn, .auto-fill-btn{
+.next-btn, .auto-fill-btn, .generate-payslip-btn{
     background:#7b5cff;
     color:white;
     padding:10px 28px;
@@ -100,9 +100,9 @@ input, select{
     font-weight:500;
     transition:0.2s;
 }
-.next-btn:hover, .compute-btn:hover, .final-btn:hover, .auto-fill-btn:hover{ background:#6249e0; }
+.next-btn:hover, .auto-fill-btn:hover, .generate-payslip-btn:hover{ background:#6249e0; }
 
-/* Payslip card layout */
+/* Payslip card layout (editable preview) */
 .payslip-card {
     background: #f7f7f7;
     border-radius: 6px;
@@ -191,63 +191,6 @@ input, select{
     font-size: 11px;
 }
 
-/* Final modal */
-.modal-overlay {
-    position: fixed;
-    top:0; left:0; width:100%; height:100%;
-    background:rgba(0,0,0,0.5);
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    z-index:1000;
-}
-.modal-card {
-    background:white;
-    border-radius:0;
-    max-width:900px;
-    width:90%;
-    max-height:85vh;
-    overflow-y:auto;
-    padding:0;
-    box-shadow:0 10px 25px rgba(0,0,0,0.2);
-    border:1px solid #000;
-}
-.payslip-modal { width:100%; }
-.payslip-modal .header {
-    text-align: center;
-    padding: 10px;
-    border-bottom: 1px solid #000;
-}
-.payslip-modal .title {
-    text-align: center;
-    font-weight: bold;
-    padding: 5px;
-    border-bottom: 1px solid #000;
-}
-.payslip-modal table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 12px;
-}
-.payslip-modal td, .payslip-modal th {
-    border: 1px solid #000;
-    padding: 4px;
-    vertical-align: top;
-}
-.payslip-modal .no-border { border: none; }
-.payslip-modal .section-title {
-    font-weight: bold;
-    text-align: center;
-    background: #f0f0f0;
-}
-.payslip-modal .right { text-align: right; }
-.payslip-modal .bold { font-weight: bold; }
-.payslip-modal .net-pay {
-    background: #f8d7da;
-    font-weight: bold;
-}
-.payslip-modal .signature { height: 40px; }
-
 /* Employee search dropdown */
 .employee-search-container {
     position: relative;
@@ -293,6 +236,54 @@ input, select{
     padding: 4px 0;
     font-size: 13px;
 }
+
+/* Modal for static payslip */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 9999;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(0,0,0,0.6);
+}
+.modal-content {
+    background-color: #fefefe;
+    margin: 2% auto;
+    padding: 20px;
+    border: 1px solid #888;
+    width: 950px;
+    max-width: 95%;
+    border-radius: 10px;
+    position: relative;
+}
+.close-modal {
+    color: #aaa;
+    float: right;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+    position: absolute;
+    right: 15px;
+    top: 5px;
+}
+.close-modal:hover {
+    color: black;
+}
+.send-pdf-btn {
+    background: #28a745;
+    color: white;
+    border: none;
+    padding: 10px 24px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 500;
+}
+.send-pdf-btn:hover {
+    background: #218838;
+}
 </style>
 </head>
 <body class="p-6">
@@ -320,14 +311,12 @@ input, select{
             <div class="section">
                 <h3 class="font-semibold">Employee Selection</h3>
                 <div id="employee-search-area">
-                    <!-- Individual mode search -->
                     <div id="individual-employee-select" class="employee-search-container">
                         <label>Employee Name</label>
                         <input type="text" id="empSearchInput" placeholder="Type to search..." autocomplete="off">
                         <div id="employeeSuggestions" class="employee-suggestions"></div>
                         <input type="hidden" id="selectedEmployeeId" value="">
                     </div>
-                    <!-- Bulk mode multi-select -->
                     <div id="bulk-employee-select" style="display:none;">
                         <label>Select Employees</label>
                         <div id="bulkEmployeeList" class="bulk-employee-list"></div>
@@ -336,11 +325,10 @@ input, select{
                 </div>
                 <div class="mt-3">
                     <label>Selected Employee(s)</label>
-                    <input type="text" id="empName" placeholder="e.g. 51 T" readonly value="51 T" class="bg-gray-200">
+                    <input type="text" id="empName" placeholder="e.g. 51 T" readonly class="bg-gray-200">
                 </div>
             </div>
 
-            <!-- Auto-fill Button -->
             <div class="flex justify-end mb-4">
                 <button type="button" class="auto-fill-btn" onclick="autoFillRawSheet()">Auto-fill from Employee</button>
             </div>
@@ -452,7 +440,6 @@ input, select{
                     </div>
                 </div>
             </div>
-            <!-- SATURDAY OVERTIME -->
             <div class="section">
                 <h3 class="font-semibold">Saturday Overtime</h3>
                 <div class="grid-3">
@@ -461,7 +448,6 @@ input, select{
                     <div><label>PHP Equivalent</label><input type="number" id="satOtPhp" value="0"></div>
                 </div>
             </div>
-            <!-- SUNDAY OVERTIME -->
             <div class="section">
                 <h3 class="font-semibold">Sunday / Holiday Overtime</h3>
                 <div class="grid-3">
@@ -470,6 +456,7 @@ input, select{
                     <div><label>Hol OT PHP</label><input type="number" id="holOtPhp" value="0"></div>
                 </div>
             </div>
+
             <div class="button-container">
                 <button type="button" class="next-btn" onclick="nextTab('register')">Next → Register</button>
             </div>
@@ -570,7 +557,7 @@ input, select{
             </div>
         </div>
 
-        <!-- ================= PAYSLIP ================= -->
+        <!-- ================= PAYSLIP TAB (Editable Preview + Generate Button) ================= -->
         <div class="tab-content scroll-area" id="payslip">
             <h3 class="font-semibold">Payslip Details</h3>
             <div class="sub-text">Please complete the employee data</div>
@@ -597,33 +584,28 @@ input, select{
 
             <div class="button-area">
                 <button class="btn-purple btn" id="autoFillBtn" style="border:none; padding:8px 18px; border-radius:6px; color:#fff; cursor:pointer;">Auto-fill</button>
-                <button class="btn-red btn" id="generateBtn" style="border:none; padding:8px 18px; border-radius:6px; color:#fff; cursor:pointer;">Generate Payslip</button>
+                <button class="generate-payslip-btn" id="generateStaticBtn" style="border:none; padding:8px 18px; border-radius:6px; color:#fff; cursor:pointer;">Generate Payslip</button>
             </div>
 
             <div class="card-container">
-                <!-- Regular Earnings Card -->
                 <div class="payslip-card">
                     <h4>Regular Earnings</h4>
                     <table class="payslip-table">
-                        <thead> <tr><th>Type</th><th>Days/Hours</th><th>Amount</th></tr> </thead>
+                        <thead><tr><th>Type</th><th>Days/Hours</th><th>Amount</th></tr></thead>
                         <tbody id="regularEarningsBody"></tbody>
                     </table>
                 </div>
-
-                <!-- Taxable Other Earnings (left) -->
                 <div class="payslip-card">
                     <h4>Taxable Other Earnings</h4>
                     <table class="payslip-table">
-                        <thead> <tr><th>Type</th><th>Amount</th></tr> </thead>
+                        <thead><tr><th>Type</th><th>Amount</th></tr></thead>
                         <tbody id="taxableLeftBody"></tbody>
                     </table>
                 </div>
-
-                <!-- Non-Taxable Other Earnings (right) -->
                 <div class="payslip-card">
                     <h4>Non-Taxable Other Earnings</h4>
                     <table class="payslip-table">
-                        <thead> <tr><th>Type</th><th>Amount</th></tr> </thead>
+                        <thead><tr><th>Type</th><th>Amount</th></tr></thead>
                         <tbody id="taxableRightBody"></tbody>
                     </table>
                 </div>
@@ -633,14 +615,14 @@ input, select{
                 <div class="payslip-card">
                     <h4>Regular Deductions</h4>
                     <table class="payslip-table">
-                        <thead> <tr><th>Type</th><th>Amount</th></tr> </thead>
+                        <thead><tr><th>Type</th><th>Amount</th></tr></thead>
                         <tbody id="deductionsBody"></tbody>
                     </table>
                 </div>
                 <div class="payslip-card">
                     <h4>Loans/Advances</h4>
                     <table class="payslip-table">
-                        <thead> <tr><th>Type</th><th>Amount</th></tr> </thead>
+                        <thead><tr><th>Type</th><th>Amount</th></tr></thead>
                         <tbody id="loansBody"></tbody>
                     </table>
                 </div>
@@ -657,10 +639,21 @@ input, select{
     </div>
 </div>
 
+<!-- ================= MODAL FOR STATIC PAYSLIP ================= -->
+<div id="staticPayslipModal" class="modal">
+    <div class="modal-content">
+        <span class="close-modal">&times;</span>
+        <div id="staticPayslipContent"></div>
+        <div style="text-align: center; margin-top: 20px;">
+            <button class="send-pdf-btn" id="sendPdfBtn">Send Payslip to Employee</button>
+        </div>
+    </div>
+</div>
+
 <script>
 // ================= GLOBAL VARIABLES =================
-let employeesList = []; // Populated from server
-let selectedEmployeeIds = new Set(); // For bulk mode
+let employeesList = [];
+let selectedEmployeeIds = new Set();
 
 // ================= TAB NAVIGATION =================
 function nextTab(tabId){
@@ -674,7 +667,7 @@ document.querySelectorAll('.sub-tab').forEach(btn=>{
     btn.onclick = () => nextTab(btn.dataset.tab);
 });
 
-// ================= MODE SWITCH (Individual/Bulk) =================
+// ================= MODE SWITCH =================
 function switchMode(mode, e){
     document.getElementById('individual-mode').style.display = mode === 'individual' ? 'block' : 'none';
     document.getElementById('bulk-mode').style.display = mode === 'bulk' ? 'block' : 'none';
@@ -696,32 +689,15 @@ function switchMode(mode, e){
 // ================= FETCH EMPLOYEES =================
 async function loadEmployees() {
     try {
-        console.log('Fetching employees from server...');
         const url = '<?= site_url('client_portal/payroll/employees_json') ?>';
-        console.log('URL:', url);
-        
         const response = await fetch(url);
-        console.log('Response status:', response.status);
-        
-        if (!response.ok) {
-            const text = await response.text();
-            console.error('Server response:', text);
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-        
+        if (!response.ok) throw new Error('Failed to load employees');
         const data = await response.json();
-        console.log('Employees loaded:', data);
-        
-        if (!Array.isArray(data)) {
-            throw new Error('Invalid data format: expected array');
-        }
-        
         employeesList = data;
         renderBulkEmployeeList();
         initSearchSuggestions();
     } catch (error) {
         console.error('Failed to load employees:', error);
-        // Fallback dummy data for testing
         employeesList = [
             { id: '1', name: 'Test Employee 1', label: 'Test Employee 1' },
             { id: '2', name: 'Test Employee 2', label: 'Test Employee 2' }
@@ -732,7 +708,6 @@ async function loadEmployees() {
     }
 }
 
-// ================= BULK LIST RENDERING =================
 function renderBulkEmployeeList() {
     const container = document.getElementById('bulkEmployeeList');
     if (!container) return;
@@ -746,13 +721,9 @@ function renderBulkEmployeeList() {
     container.innerHTML = html;
 }
 
-// ================= BULK SELECTION HANDLING =================
 function toggleBulkEmployee(id, checked) {
-    if (checked) {
-        selectedEmployeeIds.add(id);
-    } else {
-        selectedEmployeeIds.delete(id);
-    }
+    if (checked) selectedEmployeeIds.add(id);
+    else selectedEmployeeIds.delete(id);
     updateSelectedEmployeeDisplay();
 }
 
@@ -770,26 +741,19 @@ function updateSelectedEmployeeDisplay() {
     nameField.value = names.join(', ');
 }
 
-// ================= INDIVIDUAL SEARCH SUGGESTIONS =================
 function initSearchSuggestions() {
     const searchInput = document.getElementById('empSearchInput');
     const suggestionsDiv = document.getElementById('employeeSuggestions');
     const selectedIdHidden = document.getElementById('selectedEmployeeId');
-    
-    if (!searchInput || !suggestionsDiv) {
-        console.warn('Search input or suggestions div not found');
-        return;
-    }
+    if (!searchInput || !suggestionsDiv) return;
 
     searchInput.addEventListener('input', function() {
         const query = this.value.trim().toLowerCase();
-        console.log('Search query:', query);
         if (query.length === 0) {
             suggestionsDiv.style.display = 'none';
             return;
         }
         const matches = employeesList.filter(emp => emp.name.toLowerCase().includes(query));
-        console.log('Matches found:', matches.length);
         if (matches.length === 0) {
             suggestionsDiv.style.display = 'none';
             return;
@@ -807,7 +771,6 @@ function initSearchSuggestions() {
         if (!item) return;
         const id = item.dataset.id;
         const name = item.dataset.name;
-        console.log('Selected employee:', id, name);
         searchInput.value = name;
         selectedIdHidden.value = id;
         document.getElementById('empName').value = name;
@@ -841,16 +804,27 @@ async function autoFillRawSheet() {
         }
         employeeId = Array.from(selectedEmployeeIds)[0];
     }
-    
+
+    const periodStart = document.getElementById('periodStart').value;
+    if (!periodStart) {
+        alert('Please set a valid Pay Period Start date.');
+        return;
+    }
+    const month = periodStart.substring(0, 7);
+
     try {
-        console.log('Fetching details for employee ID:', employeeId);
-        const response = await fetch(`<?= site_url('client_portal/payroll/employee_details') ?>/${employeeId}`);
+        const url = `<?= site_url('client_portal/payroll/employee_details') ?>/${employeeId}?month=${month}`;
+        const response = await fetch(url);
         if (!response.ok) {
-            throw new Error('Employee details not found');
+            let errorMsg = `HTTP ${response.status}`;
+            try {
+                const errorData = await response.json();
+                errorMsg = errorData.error || errorMsg;
+            } catch(e) {}
+            throw new Error(errorMsg);
         }
         const data = await response.json();
-        console.log('Employee details:', data);
-        
+
         document.getElementById('empPosition').value = data.position || 'Service Desk Analyst L-1';
         document.getElementById('monthlySalary').value = data.monthly_salary || '22000.00';
         const monthly = parseFloat(data.monthly_salary) || 22000;
@@ -862,18 +836,23 @@ async function autoFillRawSheet() {
             const emp = employeesList.find(e => e.id == employeeId);
             if (emp) document.getElementById('empName').value = emp.name;
         }
-        
-        alert('Raw sheet populated with employee data.');
+        alert('Raw sheet populated with employee data from Payroll Status.');
     } catch (error) {
         console.error('Auto-fill failed:', error);
-        alert('Could not fetch employee details. Please ensure the endpoint is implemented.');
+        alert(error.message);
     }
 }
 
-// ================= ORIGINAL PAYSLIP FUNCTIONS =================
-function getComputedPayslipValues(){
-    let monthly = parseFloat(document.getElementById('monthlySalary')?.value) || 0;
-    let semiMonthly = parseFloat(document.getElementById('semiMonthlySalary')?.value) || 0;
+// ================= SAFE NUMBER PARSING =================
+function safeParseFloat(value, defaultValue = 0) {
+    let num = parseFloat(value);
+    return isNaN(num) ? defaultValue : num;
+}
+
+// ================= COMPUTE PAYSLIP DATA FROM RAW SHEET =================
+function computePayslipData() {
+    let monthly = safeParseFloat(document.getElementById('monthlySalary')?.value, 0);
+    let semiMonthly = safeParseFloat(document.getElementById('semiMonthlySalary')?.value, 0);
     let basicPay = semiMonthly > 0 ? semiMonthly : (monthly / 2);
     if(basicPay <= 0 && monthly > 0) basicPay = monthly/2;
     let monthlyBase = monthly || (basicPay*2);
@@ -881,48 +860,297 @@ function getComputedPayslipValues(){
     let hoursWorked = ratePerHour > 0 ? basicPay / ratePerHour : 84;
     hoursWorked = Math.round(hoursWorked * 100)/100;
     
-    let nightPremium = parseFloat(document.getElementById('workdayNightDiffPhp')?.value) || 0;
-    let absentAmt = parseFloat(document.getElementById('absentPhp')?.value) || 0;
-    let undertimeAmt = parseFloat(document.getElementById('utPhp')?.value) || 0;
+    let nightPremium = safeParseFloat(document.getElementById('workdayNightDiffPhp')?.value);
+    let absentAmt = safeParseFloat(document.getElementById('absentPhp')?.value);
+    let undertimeAmt = safeParseFloat(document.getElementById('utPhp')?.value);
     
-    let regOtLe10 = parseFloat(document.getElementById('workdayOtPhp')?.value) || 0;
-    let satOtLe10 = parseFloat(document.getElementById('satOtPhp')?.value) || 0;
-    let sunOtLe10 = parseFloat(document.getElementById('sunOtPhp')?.value) || 0;
-    let holOtLe10 = parseFloat(document.getElementById('holOtPhp')?.value) || 0;
+    let regOt = safeParseFloat(document.getElementById('workdayOtPhp')?.value);
+    let satOt = safeParseFloat(document.getElementById('satOtPhp')?.value);
+    let sunOt = safeParseFloat(document.getElementById('sunOtPhp')?.value);
+    let holOt = safeParseFloat(document.getElementById('holOtPhp')?.value);
     
-    let taxableOther = (parseFloat(document.getElementById('salaryAdjustment')?.value) || 0) +
-                       (parseFloat(document.getElementById('overrideAmount')?.value) || 0) +
-                       (parseFloat(document.getElementById('nedAmount')?.value) || 0) +
-                       (parseFloat(document.getElementById('holidayPay')?.value) || 0) +
-                       (parseFloat(document.getElementById('grossComp')?.value) || 0);
+    let taxableOther = safeParseFloat(document.getElementById('salaryAdjustment')?.value) +
+                       safeParseFloat(document.getElementById('overrideAmount')?.value) +
+                       safeParseFloat(document.getElementById('nedAmount')?.value) +
+                       safeParseFloat(document.getElementById('holidayPay')?.value) +
+                       safeParseFloat(document.getElementById('grossComp')?.value);
     
-    let nonTaxable = (parseFloat(document.getElementById('yearEndGifts')?.value) || 0) +
-                     (parseFloat(document.getElementById('riceSubsidy')?.value) || 0) +
-                     (parseFloat(document.getElementById('uniformAllowance')?.value) || 0) +
-                     (parseFloat(document.getElementById('laundryAllowance')?.value) || 0) +
-                     (parseFloat(document.getElementById('luxuryAllowance')?.value) || 0) +
-                     (parseFloat(document.getElementById('medicalAllowance')?.value) || 0) +
-                     (parseFloat(document.getElementById('medicalAllowanceAdd')?.value) || 0);
+    let nonTaxable = safeParseFloat(document.getElementById('yearEndGifts')?.value) +
+                     safeParseFloat(document.getElementById('riceSubsidy')?.value) +
+                     safeParseFloat(document.getElementById('uniformAllowance')?.value) +
+                     safeParseFloat(document.getElementById('laundryAllowance')?.value) +
+                     safeParseFloat(document.getElementById('luxuryAllowance')?.value) +
+                     safeParseFloat(document.getElementById('medicalAllowance')?.value) +
+                     safeParseFloat(document.getElementById('medicalAllowanceAdd')?.value);
     
     let netBasicPay = basicPay - (absentAmt + undertimeAmt) + nightPremium;
     if(netBasicPay < 0) netBasicPay = basicPay;
     
-    let totalOvertime = regOtLe10 + satOtLe10 + sunOtLe10 + holOtLe10;
+    let totalOvertime = regOt + satOt + sunOt + holOt;
     let grossPay = netBasicPay + totalOvertime + taxableOther;
     
-    let sssDed = parseFloat(document.getElementById('sssEE')?.value) || 0;
-    let phicDed = parseFloat(document.getElementById('phicEE')?.value) || 0;
-    let hdmfDed = parseFloat(document.getElementById('hdmfEE')?.value) || 0;
-    let withholdingTax = parseFloat(document.getElementById('wtPayable')?.value) || 0;
+    let sssDed = safeParseFloat(document.getElementById('sssEE')?.value);
+    let phicDed = safeParseFloat(document.getElementById('phicEE')?.value);
+    let hdmfDed = safeParseFloat(document.getElementById('hdmfEE')?.value);
+    let withholdingTax = safeParseFloat(document.getElementById('wtPayable')?.value);
     let totalDeductions = sssDed + phicDed + hdmfDed + withholdingTax;
     let netPay = grossPay - totalDeductions;
     
-    let empName = document.getElementById('empName')?.value || '51 T';
-    let position = document.getElementById('empPosition')?.value || 'Service Desk Analyst L-1';
-    let pStart = document.getElementById('periodStart')?.value || '2025-12-16';
-    let pEnd = document.getElementById('periodEnd')?.value || '2025-12-31';
-    let periodStr = `${pStart} to ${pEnd}`;
+    let empName = document.getElementById('empName')?.value || '';
+    if (!empName || empName.trim() === '') empName = 'Not Selected';
+    let position = document.getElementById('empPosition')?.value || 'N/A';
+    let pStart = document.getElementById('periodStart')?.value || '';
+    let pEnd = document.getElementById('periodEnd')?.value || '';
     
+    const formatDate = (dateStr) => {
+        if (!dateStr) return '';
+        let d = new Date(dateStr);
+        return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    };
+    
+    return {
+        empName, position, periodStart: pStart, periodEnd: pEnd,
+        basicPay, ratePerHour, hoursWorked, nightPremium, absentAmt, undertimeAmt,
+        netBasicPay, regOt, satOt, sunOt, holOt, taxableOther, nonTaxable,
+        grossPay, sssDed, phicDed, hdmfDed, withholdingTax, totalDeductions, netPay,
+        formatStart: formatDate(pStart), formatEnd: formatDate(pEnd)
+    };
+}
+
+// ================= GENERATE STATIC PAYSLIP (POPUP MODAL) =================
+function generateStaticPayslip() {
+    const d = computePayslipData();
+    if (!d.empName || d.empName === 'Not Selected') {
+        alert('Please select an employee and fill in the Raw Sheet first.');
+        return;
+    }
+    
+    const html = `
+        <div style="font-family: Arial, sans-serif; background: #fff; border: 1px solid #000; padding: 20px; width: 100%; box-sizing: border-box;">
+            <h2 style="text-align: center; margin: 5px 0 10px;">PAY SLIP</h2>
+            <table style="width:100%; border-collapse: collapse; font-size:13px;">
+                <tr>
+                    <td style="border:1px solid #000; padding:5px;"><strong>Employee:</strong></td>
+                    <td style="border:1px solid #000; padding:5px;">${escapeHtml(d.empName)}</td>
+                    <td style="border:1px solid #000; padding:5px;"></td>
+                    <td style="border:1px solid #000; padding:5px;"><strong>Payroll period:</strong></td>
+                    <td style="border:1px solid #000; padding:5px;">${d.formatStart}</td>
+                    <td style="border:1px solid #000; padding:5px;">${d.formatEnd}</td>
+                </tr>
+                <tr>
+                    <td style="border:1px solid #000; padding:5px;"><strong>Position:</strong></td>
+                    <td colspan="5" style="border:1px solid #000; padding:5px;">${escapeHtml(d.position)}</td>
+                </tr>
+            </table>
+            
+            <table style="width:100%; border-collapse: collapse; font-size:13px; margin-top:10px;">
+                <tr>
+                    <th style="border:1px solid #000; padding:5px; background:#eee; text-align:center;">REGULAR EARNINGS</th>
+                    <th style="border:1px solid #000; padding:5px; background:#eee; text-align:center;">TAXABLE OTHER EARNINGS</th>
+                    <th style="border:1px solid #000; padding:5px; background:#eee; text-align:center;">NON-TAXABLE OTHER EARNINGS</th>
+                </tr>
+                <tr>
+                    <td style="border:1px solid #000; padding:5px; vertical-align:top;">
+                        <table style="width:100%;">
+                            <tr><td>Basic pay:</td><td style="text-align:right;">${d.basicPay.toFixed(2)}</td></tr>
+                            <tr><td>Rate per hour:</td><td style="text-align:right;">${d.ratePerHour.toFixed(2)}</td></tr>
+                            <tr><td>No. of hours Worked:</td><td style="text-align:right;">${d.hoursWorked.toFixed(2)}</td></tr>
+                            <tr><td>Night premium:</td><td style="text-align:right;">${d.nightPremium.toFixed(2)}</td></tr>
+                            <tr><td>Less: Absences</td><td style="text-align:right;">${d.absentAmt.toFixed(2)}</td></tr>
+                            <tr><td>Late/Undertime</td><td style="text-align:right;">${d.undertimeAmt.toFixed(2)}</td></tr>
+                            <tr class="bold"><td><strong>Net basic pay</strong></td><td style="text-align:right;"><strong>${d.netBasicPay.toFixed(2)}</strong></td></tr>
+                            <tr><td>Reg. OT</td><td style="text-align:right;">${d.regOt.toFixed(2)}</td></tr>
+                            <tr><td>Sat OT</td><td style="text-align:right;">${d.satOt.toFixed(2)}</td></tr>
+                            <tr><td>Sun OT</td><td style="text-align:right;">${d.sunOt.toFixed(2)}</td></tr>
+                            <tr><td>Holiday OT</td><td style="text-align:right;">${d.holOt.toFixed(2)}</td></tr>
+                        </table>
+                    </td>
+                    <td style="border:1px solid #000; padding:5px; vertical-align:top;">
+                        <table style="width:100%;">
+                            <tr><td>Salary Adjustment</td><td style="text-align:right;">${safeParseFloat(document.getElementById('salaryAdjustment')?.value).toFixed(2)}</td></tr>
+                            <tr><td>Override</td><td style="text-align:right;">${safeParseFloat(document.getElementById('overrideAmount')?.value).toFixed(2)}</td></tr>
+                            <tr><td>NED</td><td style="text-align:right;">${safeParseFloat(document.getElementById('nedAmount')?.value).toFixed(2)}</td></tr>
+                            <tr><td>Holiday Pay</td><td style="text-align:right;">${safeParseFloat(document.getElementById('holidayPay')?.value).toFixed(2)}</td></tr>
+                            <tr><td>Gross Compensation</td><td style="text-align:right;">${safeParseFloat(document.getElementById('grossComp')?.value).toFixed(2)}</td></tr>
+                        </table>
+                    </td>
+                    <td style="border:1px solid #000; padding:5px; vertical-align:top;">
+                        <table style="width:100%;">
+                            <tr><td>De Minimis Benefit</td><td style="text-align:right;">${d.nonTaxable.toFixed(2)}</td></tr>
+                        </table>
+                    </td>
+                </tr>
+                <tr>
+                    <td colspan="2" style="border:1px solid #000; padding:5px; text-align:right;"><strong>GROSS PAY</strong></td>
+                    <td style="border:1px solid #000; padding:5px; text-align:right;"><strong>${d.grossPay.toFixed(2)}</strong></td>
+                </tr>
+            </table>
+            
+            <table style="width:100%; border-collapse: collapse; font-size:13px; margin-top:10px;">
+                <tr>
+                    <th style="border:1px solid #000; padding:5px; background:#eee; text-align:center;">REGULAR DEDUCTIONS</th>
+                    <th style="border:1px solid #000; padding:5px; background:#eee; text-align:center;">LOANS/ADVANCES</th>
+                </tr>
+                <tr>
+                    <td style="border:1px solid #000; padding:5px; vertical-align:top;">
+                        <table style="width:100%;">
+                            <tr><td>SSS</td><td style="text-align:right;">${d.sssDed.toFixed(2)}</td></tr>
+                            <tr><td>Philhealth</td><td style="text-align:right;">${d.phicDed.toFixed(2)}</td></tr>
+                            <tr><td>Pag-IBIG</td><td style="text-align:right;">${d.hdmfDed.toFixed(2)}</td></tr>
+                            <tr><td>Withholding tax</td><td style="text-align:right;">${d.withholdingTax.toFixed(2)}</td></tr>
+                        </table>
+                    </td>
+                    <td style="border:1px solid #000; padding:5px; vertical-align:top;">
+                        <table style="width:100%;">
+                            <tr><td>Salary Loan</td><td style="text-align:right;">${safeParseFloat(document.getElementById('sssSalaryLoan')?.value).toFixed(2)}</td></tr>
+                            <tr><td>Calamity Loan</td><td style="text-align:right;">${safeParseFloat(document.getElementById('sssCalamityLoan')?.value).toFixed(2)}</td></tr>
+                            <tr><td>Salary Advance</td><td style="text-align:right;">${safeParseFloat(document.getElementById('advSalary')?.value).toFixed(2)}</td></tr>
+                            <tr><td>Calamity Advance</td><td style="text-align:right;">${safeParseFloat(document.getElementById('advCalamity')?.value).toFixed(2)}</td></tr>
+                        </table>
+                    </td>
+                </tr>
+                <tr>
+                    <td colspan="2" style="border:1px solid #000; padding:5px; text-align:right;"><strong>TOTAL DEDUCTIONS</strong></td>
+                    <td style="border:1px solid #000; padding:5px; text-align:right;"><strong>${d.totalDeductions.toFixed(2)}</strong></td>
+                </tr>
+            </table>
+            
+            <table style="width:100%; border-collapse: collapse; font-size:13px; margin-top:10px;">
+                <tr>
+                    <td style="border:1px solid #000; padding:5px;">Employee signature:</td>
+                    <td style="border:1px solid #000; padding:5px; height:40px;"></td>
+                    <td style="border:1px solid #000; padding:5px; text-align:right;"><strong>NET PAY:</strong></td>
+                    <td style="border:1px solid #000; padding:5px; text-align:right; background:#f8d7da;"><strong>${d.netPay.toFixed(2)}</strong></td>
+                </tr>
+            </table>
+        </div>
+    `;
+    
+    document.getElementById('staticPayslipContent').innerHTML = html;
+    document.getElementById('staticPayslipModal').style.display = 'block';
+    window.currentPayslipData = d;
+}
+
+// Close modal
+document.querySelector('.close-modal')?.addEventListener('click', function() {
+    document.getElementById('staticPayslipModal').style.display = 'none';
+});
+window.onclick = function(event) {
+    const modal = document.getElementById('staticPayslipModal');
+    if (event.target == modal) modal.style.display = 'none';
+}
+
+// ================= SEND PDF TO EMPLOYEE =================
+async function sendPdfToEmployee() {
+    if (!window.currentPayslipData) {
+        alert('Please generate the payslip first (click "Generate Payslip").');
+        return;
+    }
+    const employeeId = document.getElementById('selectedEmployeeId').value;
+    if (!employeeId) {
+        alert('Please select an employee first.');
+        return;
+    }
+    
+    const payload = {
+        employee_id: employeeId,
+        period_start: window.currentPayslipData.periodStart,
+        period_end: window.currentPayslipData.periodEnd,
+        basic_pay: window.currentPayslipData.basicPay,
+        overtime_pay: window.currentPayslipData.regOt + window.currentPayslipData.satOt + window.currentPayslipData.sunOt + window.currentPayslipData.holOt,
+        night_diff_pay: window.currentPayslipData.nightPremium,
+        holiday_pay: safeParseFloat(document.getElementById('holidayPay')?.value),
+        de_minimis: window.currentPayslipData.nonTaxable,
+        other_earnings_taxable: window.currentPayslipData.taxableOther,
+        other_earnings_non_taxable: 0,
+        sss_ee: window.currentPayslipData.sssDed,
+        phic_ee: window.currentPayslipData.phicDed,
+        hdmf_ee: window.currentPayslipData.hdmfDed,
+        withholding_tax: window.currentPayslipData.withholdingTax,
+        sss_loan: safeParseFloat(document.getElementById('sssSalaryLoan')?.value),
+        calamity_loan: safeParseFloat(document.getElementById('sssCalamityLoan')?.value),
+        salary_advance: safeParseFloat(document.getElementById('advSalary')?.value),
+        other_deductions: safeParseFloat(document.getElementById('advCalamity')?.value),
+        net_pay: window.currentPayslipData.netPay,
+        employee_name: window.currentPayslipData.empName,
+        position: window.currentPayslipData.position
+    };
+    
+    try {
+        const response = await fetch('<?= site_url('client_portal/payroll/sendPdf') ?>', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const result = await response.json();
+        if (result.success) {
+            alert('PDF payslip sent successfully to employee email.');
+        } else {
+            alert('Error sending PDF: ' + (result.error || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Send PDF error:', error);
+        alert('Could not send email. Please check server logs.');
+    }
+}
+
+function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/[&<>]/g, function(m) {
+        if (m === '&') return '&amp;';
+        if (m === '<') return '&lt;';
+        if (m === '>') return '&gt;';
+        return m;
+    });
+}
+
+// ================= EDITABLE PAYSLIP PREVIEW FUNCTIONS =================
+function getComputedPayslipValues(){
+    let monthly = safeParseFloat(document.getElementById('monthlySalary')?.value);
+    let semiMonthly = safeParseFloat(document.getElementById('semiMonthlySalary')?.value);
+    let basicPay = semiMonthly > 0 ? semiMonthly : (monthly / 2);
+    if(basicPay <= 0 && monthly > 0) basicPay = monthly/2;
+    let monthlyBase = monthly || (basicPay*2);
+    let ratePerHour = monthlyBase > 0 ? monthlyBase / 160 : 126.44;
+    let hoursWorked = ratePerHour > 0 ? basicPay / ratePerHour : 84;
+    hoursWorked = Math.round(hoursWorked * 100)/100;
+    
+    let nightPremium = safeParseFloat(document.getElementById('workdayNightDiffPhp')?.value);
+    let absentAmt = safeParseFloat(document.getElementById('absentPhp')?.value);
+    let undertimeAmt = safeParseFloat(document.getElementById('utPhp')?.value);
+    let regOtLe10 = safeParseFloat(document.getElementById('workdayOtPhp')?.value);
+    let satOtLe10 = safeParseFloat(document.getElementById('satOtPhp')?.value);
+    let sunOtLe10 = safeParseFloat(document.getElementById('sunOtPhp')?.value);
+    let holOtLe10 = safeParseFloat(document.getElementById('holOtPhp')?.value);
+    
+    let taxableOther = safeParseFloat(document.getElementById('salaryAdjustment')?.value) +
+                       safeParseFloat(document.getElementById('overrideAmount')?.value) +
+                       safeParseFloat(document.getElementById('nedAmount')?.value) +
+                       safeParseFloat(document.getElementById('holidayPay')?.value) +
+                       safeParseFloat(document.getElementById('grossComp')?.value);
+    
+    let nonTaxable = safeParseFloat(document.getElementById('yearEndGifts')?.value) +
+                     safeParseFloat(document.getElementById('riceSubsidy')?.value) +
+                     safeParseFloat(document.getElementById('uniformAllowance')?.value) +
+                     safeParseFloat(document.getElementById('laundryAllowance')?.value) +
+                     safeParseFloat(document.getElementById('luxuryAllowance')?.value) +
+                     safeParseFloat(document.getElementById('medicalAllowance')?.value) +
+                     safeParseFloat(document.getElementById('medicalAllowanceAdd')?.value);
+    
+    let netBasicPay = basicPay - (absentAmt + undertimeAmt) + nightPremium;
+    if(netBasicPay < 0) netBasicPay = basicPay;
+    let totalOvertime = regOtLe10 + satOtLe10 + sunOtLe10 + holOtLe10;
+    let grossPay = netBasicPay + totalOvertime + taxableOther;
+    let sssDed = safeParseFloat(document.getElementById('sssEE')?.value);
+    let phicDed = safeParseFloat(document.getElementById('phicEE')?.value);
+    let hdmfDed = safeParseFloat(document.getElementById('hdmfEE')?.value);
+    let withholdingTax = safeParseFloat(document.getElementById('wtPayable')?.value);
+    let totalDeductions = sssDed + phicDed + hdmfDed + withholdingTax;
+    let netPay = grossPay - totalDeductions;
+    let empName = document.getElementById('empName')?.value || 'Not Selected';
+    let position = document.getElementById('empPosition')?.value || 'N/A';
+    let pStart = document.getElementById('periodStart')?.value || '';
+    let pEnd = document.getElementById('periodEnd')?.value || '';
     return { empName, position, pStart, pEnd, basicPay, ratePerHour, hoursWorked, nightPremium, absentAmt, undertimeAmt, netBasicPay,
              regOtLe10, satOtLe10, sunOtLe10, holOtLe10, taxableOther, nonTaxable, grossPay, sssDed, phicDed, hdmfDed, withholdingTax, totalDeductions, netPay };
 }
@@ -942,16 +1170,9 @@ function buildPayslipTable() {
         { label: 'Less Absences', id: 'edit_absentAmt', days: '-', val: d.absentAmt },
         { label: 'Late/Undertime', id: 'edit_undertimeAmt', days: '-', val: d.undertimeAmt },
         { label: 'Reg OT <= 10 Hrs', id: 'edit_regOtLe10', days: '-', val: d.regOtLe10 },
-        { label: 'Reg OT > 10 Hrs', id: 'edit_regOtGt10', days: '-', val: 0 },
-        { label: 'Reg Night Premium', id: 'edit_regNightPrem', days: '-', val: 0 },
         { label: 'Sat OT <= 10 Hrs', id: 'edit_satOtLe10', days: '-', val: d.satOtLe10 },
-        { label: 'Sat OT > 10 Hrs', id: 'edit_satOtGt10', days: '-', val: 0 },
-        { label: 'Sat Night Premium', id: 'edit_satNightPrem', days: '-', val: 0 },
         { label: 'Sun OT <= 10 Hrs', id: 'edit_sunOtLe10', days: '-', val: d.sunOtLe10 },
-        { label: 'Sun OT > 10 Hrs', id: 'edit_sunOtGt10', days: '-', val: 0 },
-        { label: 'Hol OT <= 10 Hrs', id: 'edit_holOtLe10', days: '-', val: d.holOtLe10 },
-        { label: 'Hol OT > 10 Hrs', id: 'edit_holOtGt10', days: '-', val: 0 },
-        { label: 'Hol Night Premium', id: 'edit_holNightPrem', days: '-', val: 0 }
+        { label: 'Hol OT <= 10 Hrs', id: 'edit_holOtLe10', days: '-', val: d.holOtLe10 }
     ];
     let regHtml = '';
     regRows.forEach(row => {
@@ -960,11 +1181,11 @@ function buildPayslipTable() {
     document.getElementById('regularEarningsBody').innerHTML = regHtml;
 
     const taxableRows = [
-        { desc: 'Salary Adjustment', id: 'edit_taxAdj', val: (parseFloat(document.getElementById('salaryAdjustment')?.value)||0) },
-        { desc: 'Override', id: 'edit_taxOverride', val: (parseFloat(document.getElementById('overrideAmount')?.value)||0) },
-        { desc: 'NED', id: 'edit_taxNed', val: (parseFloat(document.getElementById('nedAmount')?.value)||0) },
-        { desc: 'Holiday Pay', id: 'edit_taxHol', val: (parseFloat(document.getElementById('holidayPay')?.value)||0) },
-        { desc: 'Gross Compensation', id: 'edit_taxGrossComp', val: (parseFloat(document.getElementById('grossComp')?.value)||0) }
+        { desc: 'Salary Adjustment', id: 'edit_taxAdj', val: safeParseFloat(document.getElementById('salaryAdjustment')?.value) },
+        { desc: 'Override', id: 'edit_taxOverride', val: safeParseFloat(document.getElementById('overrideAmount')?.value) },
+        { desc: 'NED', id: 'edit_taxNed', val: safeParseFloat(document.getElementById('nedAmount')?.value) },
+        { desc: 'Holiday Pay', id: 'edit_taxHol', val: safeParseFloat(document.getElementById('holidayPay')?.value) },
+        { desc: 'Gross Compensation', id: 'edit_taxGrossComp', val: safeParseFloat(document.getElementById('grossComp')?.value) }
     ];
     let taxableLeftHtml = '';
     taxableRows.forEach(row => {
@@ -973,11 +1194,11 @@ function buildPayslipTable() {
     document.getElementById('taxableLeftBody').innerHTML = taxableLeftHtml;
 
     const nonTaxRows = [
-        { desc: 'Year End Gifts', id: 'edit_nonYearEnd', val: (parseFloat(document.getElementById('yearEndGifts')?.value)||0) },
-        { desc: 'Rice Subsidy', id: 'edit_riceSubsidy', val: (parseFloat(document.getElementById('riceSubsidy')?.value)||0) },
-        { desc: 'Uniform Allowance', id: 'edit_uniformAllow', val: (parseFloat(document.getElementById('uniformAllowance')?.value)||0) },
-        { desc: 'Laundry Allowance', id: 'edit_laundryAllow', val: (parseFloat(document.getElementById('laundryAllowance')?.value)||0) },
-        { desc: 'Medical Allowance', id: 'edit_medicalAllow', val: (parseFloat(document.getElementById('medicalAllowance')?.value)||0)+(parseFloat(document.getElementById('medicalAllowanceAdd')?.value)||0) }
+        { desc: 'Year End Gifts', id: 'edit_nonYearEnd', val: safeParseFloat(document.getElementById('yearEndGifts')?.value) },
+        { desc: 'Rice Subsidy', id: 'edit_riceSubsidy', val: safeParseFloat(document.getElementById('riceSubsidy')?.value) },
+        { desc: 'Uniform Allowance', id: 'edit_uniformAllow', val: safeParseFloat(document.getElementById('uniformAllowance')?.value) },
+        { desc: 'Laundry Allowance', id: 'edit_laundryAllow', val: safeParseFloat(document.getElementById('laundryAllowance')?.value) },
+        { desc: 'Medical Allowance', id: 'edit_medicalAllow', val: safeParseFloat(document.getElementById('medicalAllowance')?.value) + safeParseFloat(document.getElementById('medicalAllowanceAdd')?.value) }
     ];
     let nonTaxHtml = '';
     nonTaxRows.forEach(row => {
@@ -989,7 +1210,7 @@ function buildPayslipTable() {
         { label: 'SSS', id: 'edit_sss', val: d.sssDed },
         { label: 'Philhealth', id: 'edit_phic', val: d.phicDed },
         { label: 'Pagibig', id: 'edit_hdmf', val: d.hdmfDed },
-        { label: 'SSS Loan', id: 'edit_sssLoan', val: parseFloat(document.getElementById('sssSalaryLoan')?.value)||0 }
+        { label: 'SSS Loan', id: 'edit_sssLoan', val: safeParseFloat(document.getElementById('sssSalaryLoan')?.value) }
     ];
     let dedHtml = '';
     dedRows.forEach(row => {
@@ -998,8 +1219,8 @@ function buildPayslipTable() {
     document.getElementById('deductionsBody').innerHTML = dedHtml;
 
     const loanRows = [
-        { desc: 'Salary Advance', id: 'edit_advSalary', val: parseFloat(document.getElementById('advSalary')?.value)||0 },
-        { desc: 'Calamity Advance', id: 'edit_advCalam', val: parseFloat(document.getElementById('advCalamity')?.value)||0 },
+        { desc: 'Salary Advance', id: 'edit_advSalary', val: safeParseFloat(document.getElementById('advSalary')?.value) },
+        { desc: 'Calamity Advance', id: 'edit_advCalam', val: safeParseFloat(document.getElementById('advCalamity')?.value) },
         { desc: 'Other Loan', id: 'edit_otherLoan', val: 0 },
         { desc: 'Other Advance', id: 'edit_otherAdv', val: 0 }
     ];
@@ -1010,8 +1231,7 @@ function buildPayslipTable() {
     document.getElementById('loansBody').innerHTML = loanHtml;
 
     const allEditIds = ['edit_basicPay','edit_ratePerHour','edit_hoursWorked','edit_nightPremium','edit_absentAmt','edit_undertimeAmt',
-        'edit_regOtLe10','edit_regOtGt10','edit_regNightPrem','edit_satOtLe10','edit_satOtGt10','edit_satNightPrem',
-        'edit_sunOtLe10','edit_sunOtGt10','edit_holOtLe10','edit_holOtGt10','edit_holNightPrem',
+        'edit_regOtLe10','edit_satOtLe10','edit_sunOtLe10','edit_holOtLe10',
         'edit_taxAdj','edit_taxOverride','edit_taxNed','edit_taxHol','edit_taxGrossComp',
         'edit_nonYearEnd','edit_riceSubsidy','edit_uniformAllow','edit_laundryAllow','edit_medicalAllow',
         'edit_sss','edit_phic','edit_hdmf','edit_sssLoan','edit_advSalary','edit_advCalam','edit_otherLoan','edit_otherAdv'];
@@ -1024,27 +1244,25 @@ function buildPayslipTable() {
 
 function recalcTotals() {
     let regularSum = 0;
-    const regIds = ['edit_basicPay','edit_nightPremium','edit_regOtLe10','edit_regOtGt10','edit_regNightPrem',
-        'edit_satOtLe10','edit_satOtGt10','edit_satNightPrem','edit_sunOtLe10','edit_sunOtGt10',
-        'edit_holOtLe10','edit_holOtGt10','edit_holNightPrem'];
-    regIds.forEach(id => { regularSum += parseFloat(document.getElementById(id)?.value) || 0; });
-    let absent = parseFloat(document.getElementById('edit_absentAmt')?.value) || 0;
-    let undertime = parseFloat(document.getElementById('edit_undertimeAmt')?.value) || 0;
+    const regIds = ['edit_basicPay','edit_nightPremium','edit_regOtLe10','edit_satOtLe10','edit_sunOtLe10','edit_holOtLe10'];
+    regIds.forEach(id => { regularSum += safeParseFloat(document.getElementById(id)?.value); });
+    let absent = safeParseFloat(document.getElementById('edit_absentAmt')?.value);
+    let undertime = safeParseFloat(document.getElementById('edit_undertimeAmt')?.value);
     let netRegular = regularSum - (absent + undertime);
     
     let taxableSum = 0;
     ['edit_taxAdj','edit_taxOverride','edit_taxNed','edit_taxHol','edit_taxGrossComp'].forEach(id => {
-        taxableSum += parseFloat(document.getElementById(id)?.value) || 0;
+        taxableSum += safeParseFloat(document.getElementById(id)?.value);
     });
     let nonTaxableSum = 0;
     ['edit_nonYearEnd','edit_riceSubsidy','edit_uniformAllow','edit_laundryAllow','edit_medicalAllow'].forEach(id => {
-        nonTaxableSum += parseFloat(document.getElementById(id)?.value) || 0;
+        nonTaxableSum += safeParseFloat(document.getElementById(id)?.value);
     });
     let gross = netRegular + taxableSum + nonTaxableSum;
     
     let dedSum = 0;
     ['edit_sss','edit_phic','edit_hdmf','edit_sssLoan','edit_advSalary','edit_advCalam','edit_otherLoan','edit_otherAdv'].forEach(id => {
-        dedSum += parseFloat(document.getElementById(id)?.value) || 0;
+        dedSum += safeParseFloat(document.getElementById(id)?.value);
     });
     let netPay = gross - dedSum;
     
@@ -1065,180 +1283,32 @@ function autoFillPayslip() {
     setNum('edit_satOtLe10', d.satOtLe10);
     setNum('edit_sunOtLe10', d.sunOtLe10);
     setNum('edit_holOtLe10', d.holOtLe10);
-    setNum('edit_taxAdj', parseFloat(document.getElementById('salaryAdjustment')?.value)||0);
-    setNum('edit_taxOverride', parseFloat(document.getElementById('overrideAmount')?.value)||0);
-    setNum('edit_taxNed', parseFloat(document.getElementById('nedAmount')?.value)||0);
-    setNum('edit_taxHol', parseFloat(document.getElementById('holidayPay')?.value)||0);
-    setNum('edit_taxGrossComp', parseFloat(document.getElementById('grossComp')?.value)||0);
-    setNum('edit_nonYearEnd', parseFloat(document.getElementById('yearEndGifts')?.value)||0);
-    setNum('edit_riceSubsidy', parseFloat(document.getElementById('riceSubsidy')?.value)||0);
-    setNum('edit_uniformAllow', parseFloat(document.getElementById('uniformAllowance')?.value)||0);
-    setNum('edit_laundryAllow', parseFloat(document.getElementById('laundryAllowance')?.value)||0);
-    let med = (parseFloat(document.getElementById('medicalAllowance')?.value)||0)+(parseFloat(document.getElementById('medicalAllowanceAdd')?.value)||0);
+    setNum('edit_taxAdj', safeParseFloat(document.getElementById('salaryAdjustment')?.value));
+    setNum('edit_taxOverride', safeParseFloat(document.getElementById('overrideAmount')?.value));
+    setNum('edit_taxNed', safeParseFloat(document.getElementById('nedAmount')?.value));
+    setNum('edit_taxHol', safeParseFloat(document.getElementById('holidayPay')?.value));
+    setNum('edit_taxGrossComp', safeParseFloat(document.getElementById('grossComp')?.value));
+    setNum('edit_nonYearEnd', safeParseFloat(document.getElementById('yearEndGifts')?.value));
+    setNum('edit_riceSubsidy', safeParseFloat(document.getElementById('riceSubsidy')?.value));
+    setNum('edit_uniformAllow', safeParseFloat(document.getElementById('uniformAllowance')?.value));
+    setNum('edit_laundryAllow', safeParseFloat(document.getElementById('laundryAllowance')?.value));
+    let med = safeParseFloat(document.getElementById('medicalAllowance')?.value) + safeParseFloat(document.getElementById('medicalAllowanceAdd')?.value);
     setNum('edit_medicalAllow', med);
-    setNum('edit_sss', parseFloat(document.getElementById('sssEE')?.value)||0);
-    setNum('edit_phic', parseFloat(document.getElementById('phicEE')?.value)||0);
-    setNum('edit_hdmf', parseFloat(document.getElementById('hdmfEE')?.value)||0);
-    setNum('edit_sssLoan', parseFloat(document.getElementById('sssSalaryLoan')?.value)||0);
-    setNum('edit_advSalary', parseFloat(document.getElementById('advSalary')?.value)||0);
-    setNum('edit_advCalam', parseFloat(document.getElementById('advCalamity')?.value)||0);
+    setNum('edit_sss', safeParseFloat(document.getElementById('sssEE')?.value));
+    setNum('edit_phic', safeParseFloat(document.getElementById('phicEE')?.value));
+    setNum('edit_hdmf', safeParseFloat(document.getElementById('hdmfEE')?.value));
+    setNum('edit_sssLoan', safeParseFloat(document.getElementById('sssSalaryLoan')?.value));
+    setNum('edit_advSalary', safeParseFloat(document.getElementById('advSalary')?.value));
+    setNum('edit_advCalam', safeParseFloat(document.getElementById('advCalamity')?.value));
     setNum('edit_otherLoan', 0);
     setNum('edit_otherAdv', 0);
     recalcTotals();
 }
 function setNum(id, val) { let el = document.getElementById(id); if(el) el.value = val.toFixed(2); }
 
-function showFinalPayslip() {
-    let get = (id) => parseFloat(document.getElementById(id)?.value) || 0;
-    
-    let emp = document.getElementById('payslipEmpName')?.value || 'N/A';
-    let pos = document.getElementById('payslipPosition')?.value || 'N/A';
-    let start = document.getElementById('payslipPeriodStart')?.value || '';
-    let end = document.getElementById('payslipPeriodEnd')?.value || '';
-    let period = start && end ? `${start} to ${end}` : 'N/A';
-    
-    const regLabels = [
-        'Basic Pay', 'Rate per hour', 'No. of Hours Worked', 'Night Premium',
-        'Less Absences', 'Late/Undertime', 'Reg OT <= 10 Hrs', 'Reg OT > 10 Hrs',
-        'Reg Night Premium', 'Sat OT <= 10 Hrs', 'Sat OT > 10 Hrs', 'Sat Night Premium',
-        'Sun OT <= 10 Hrs', 'Sun OT > 10 Hrs', 'Hol OT <= 10 Hrs', 'Hol OT > 10 Hrs',
-        'Hol Night Premium'
-    ];
-    const regIds = [
-        'edit_basicPay','edit_ratePerHour','edit_hoursWorked','edit_nightPremium',
-        'edit_absentAmt','edit_undertimeAmt','edit_regOtLe10','edit_regOtGt10','edit_regNightPrem',
-        'edit_satOtLe10','edit_satOtGt10','edit_satNightPrem','edit_sunOtLe10','edit_sunOtGt10',
-        'edit_holOtLe10','edit_holOtGt10','edit_holNightPrem'
-    ];
-    
-    const taxableLabels = ['Salary Adjustment', 'Override', 'NED', 'Holiday Pay', 'Gross Compensation'];
-    const taxableIds = ['edit_taxAdj','edit_taxOverride','edit_taxNed','edit_taxHol','edit_taxGrossComp'];
-    
-    const nonTaxLabels = ['Year End Gifts', 'Rice Subsidy', 'Uniform Allowance', 'Laundry Allowance', 'Medical Allowance'];
-    const nonTaxIds = ['edit_nonYearEnd','edit_riceSubsidy','edit_uniformAllow','edit_laundryAllow','edit_medicalAllow'];
-    
-    const dedLabels = ['SSS', 'Philhealth', 'HDMF', 'Withholding tax'];
-    const dedIds = ['edit_sss','edit_phic','edit_hdmf','edit_wtax'];
-    let withholding = parseFloat(document.getElementById('wtPayable')?.value) || 0;
-    
-    const loanLabels = ['SSS Loan', 'Salary Advance', 'Calamity Advance', 'Other Loan', 'Other Advance'];
-    const loanIds = ['edit_sssLoan','edit_advSalary','edit_advCalam','edit_otherLoan','edit_otherAdv'];
-    
-    let regHtml = '';
-    for (let i=0; i<regLabels.length; i++) {
-        let val = get(regIds[i]);
-        let displayVal = val;
-        if (regLabels[i] === 'Less Absences' || regLabels[i] === 'Late/Undertime') {
-            displayVal = -val;
-        }
-        regHtml += `<tr><td>${regLabels[i]}</td><td>-</td><td class="right">${displayVal.toFixed(2)}</td></tr>`;
-    }
-    let netBasic = get('edit_basicPay') - get('edit_absentAmt') - get('edit_undertimeAmt') + get('edit_nightPremium');
-    regHtml += `<tr class="bold"><td>Net basic pay</td><td></td><td class="right">${netBasic.toFixed(2)}</td></tr>`;
-    
-    let taxableHtml = '';
-    for (let i=0; i<taxableLabels.length; i++) {
-        let val = get(taxableIds[i]);
-        taxableHtml += `<tr><td>${taxableLabels[i]}</td><td class="right">${val.toFixed(2)}</td></tr>`;
-    }
-    
-    let nonTaxHtml = '';
-    for (let i=0; i<nonTaxLabels.length; i++) {
-        let val = get(nonTaxIds[i]);
-        nonTaxHtml += `<tr><td>${nonTaxLabels[i]}</td><td class="right">${val.toFixed(2)}</td></tr>`;
-    }
-    
-    let dedHtml = '';
-    for (let i=0; i<dedLabels.length; i++) {
-        let val = (dedIds[i] === 'edit_wtax') ? withholding : get(dedIds[i]);
-        dedHtml += `<tr><td>${dedLabels[i]}</td><td class="right">${val.toFixed(2)}</td></tr>`;
-    }
-    let totalDed = get('totalDeductions') ? get('totalDeductions') : (get('edit_sss')+get('edit_phic')+get('edit_hdmf')+withholding + get('edit_sssLoan')+get('edit_advSalary')+get('edit_advCalam')+get('edit_otherLoan')+get('edit_otherAdv'));
-    dedHtml += `<tr class="bold"><td>TOTAL DEDUCTIONS</td><td class="right">${totalDed.toFixed(2)}</td></tr>`;
-    
-    let loanHtml = '';
-    for (let i=0; i<loanLabels.length; i++) {
-        let val = get(loanIds[i]);
-        loanHtml += `<tr><td>${loanLabels[i]}</td><td class="right">${val.toFixed(2)}</td></tr>`;
-    }
-    
-    let gross = get('totalGross') ? get('totalGross') : (netBasic + get('edit_regOtLe10')+get('edit_satOtLe10')+get('edit_sunOtLe10')+get('edit_holOtLe10') + get('edit_taxAdj')+get('edit_taxOverride')+get('edit_taxNed')+get('edit_taxHol')+get('edit_taxGrossComp') + get('edit_nonYearEnd')+get('edit_riceSubsidy')+get('edit_uniformAllow')+get('edit_laundryAllow')+get('edit_medicalAllow'));
-    let netPay = get('totalNet') ? get('totalNet') : gross - totalDed;
-    
-    let modalHtml = `
-    <div class="modal-overlay" id="finalModalOverlay">
-        <div class="modal-card payslip-modal">
-            <div class="header">
-                <div style="font-size: 20px; font-weight: bold;">COMPANY NAME</div>
-                <div style="font-size: 12px;">Employee Payslip</div>
-            </div>
-            <div class="title">PAY SLIP</div>
-            <table>
-                <tr>
-                    <td>Employee:</td>
-                    <td>${emp}</td>
-                    <td class="no-border"></td>
-                    <td>Payroll period:</td>
-                    <td colspan="2">${period}</td>
-                </tr>
-                <tr>
-                    <td>Position:</td>
-                    <td colspan="2">${pos}</td>
-                    <td class="no-border"></td>
-                    <td colspan="3"></td>
-                </tr>
-            </table>
-            <table>
-                <tr>
-                    <th class="section-title">REGULAR EARNINGS</th>
-                    <th class="section-title">TAXABLE OTHER EARNINGS</th>
-                    <th class="section-title">NON-TAXABLE OTHER EARNINGS</th>
-                </tr>
-                <tr>
-                    <td><table style="width:100%">${regHtml}</table></td>
-                    <td><table style="width:100%"><tr><td class="bold">GROSS PAY</td><td class="right bold">${gross.toFixed(2)}</td></tr>${taxableHtml}</table></td>
-                    <td><table style="width:100%">${nonTaxHtml}</table></td>
-                </tr>
-            </table>
-            <table>
-                <tr>
-                    <th class="section-title">REGULAR DEDUCTIONS</th>
-                    <th class="section-title">LOANS/ADVANCES</th>
-                </tr>
-                <tr>
-                    <td><table style="width:100%">${dedHtml}</table></td>
-                    <td><table style="width:100%">${loanHtml}</table></td>
-                </tr>
-            </table>
-            <table>
-                <tr>
-                    <td class="signature">Employee signature: ___________________________</td>
-                    <td class="right net-pay">NET PAY: ${netPay.toFixed(2)}</td>
-                </tr>
-            </table>
-            <div class="flex justify-end mt-3 gap-3 p-2">
-                <button id="sendFinalBtn" style="background:#7b5cff; color:white; padding:8px 20px; border-radius:6px;">Send Payslip</button>
-                <button id="closeModalBtn2" style="background:#aaa; padding:8px 20px; border-radius:6px;">Close</button>
-            </div>
-        </div>
-    </div>`;
-    
-    document.body.insertAdjacentHTML('beforeend', modalHtml);
-    let overlay = document.getElementById('finalModalOverlay');
-    let close = () => overlay?.remove();
-    document.getElementById('closeModalBtn2')?.addEventListener('click', close);
-    document.getElementById('sendFinalBtn')?.addEventListener('click', () => {
-        alert(`Payslip sent to ${emp} (simulated). Net pay: PHP ${netPay.toFixed(2)}`);
-        close();
-    });
-}
-
 // ================= INITIALIZATION =================
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('DOM fully loaded');
     loadEmployees();
-    
-    // Set default dates
     const today = new Date();
     const year = today.getFullYear();
     const month = String(today.getMonth() + 1).padStart(2, '0');
@@ -1246,16 +1316,10 @@ document.addEventListener('DOMContentLoaded', function() {
     const lastDay = new Date(year, today.getMonth() + 1, 0).getDate();
     document.getElementById('periodEnd').value = `${year}-${month}-${String(lastDay).padStart(2, '0')}`;
     
-    // Attach event listeners for auto-fill and generate buttons
     document.getElementById('autoFillBtn')?.addEventListener('click', autoFillPayslip);
-    document.getElementById('generateBtn')?.addEventListener('click', showFinalPayslip);
+    document.getElementById('generateStaticBtn')?.addEventListener('click', generateStaticPayslip);
+    document.getElementById('sendPdfBtn')?.addEventListener('click', sendPdfToEmployee);
 });
-
-// Make functions globally accessible
-window.switchMode = switchMode;
-window.nextTab = nextTab;
-window.toggleBulkEmployee = toggleBulkEmployee;
-window.autoFillRawSheet = autoFillRawSheet;
 </script>
 </body>
 </html>
