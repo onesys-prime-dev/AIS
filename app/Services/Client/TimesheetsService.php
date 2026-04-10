@@ -30,6 +30,15 @@ class TimesheetsService
             ->findAll();
     }
 
+	public function listDailyTimeLogByUserId(int $userId): array
+	{
+		return $this->attendanceModel
+			->select('id, user_id, date, time_in, break_start, break_end, break_duration, time_out, total_hours')
+			->where('user_id', $userId)
+			->orderBy('date', 'DESC')
+			->findAll();
+	}
+
     public function listCurrentCutoffByUserId(int $userId): array
 	{
 		$now = date('Y-m-d');

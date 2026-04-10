@@ -89,8 +89,9 @@ class AttendanceController extends BaseController
             'time_out'       => $timeOut,
             'total_hours'    => round($cappedHours, 2),
             'break_duration' => $breakDuration,
-            'break_end'      => $attendance['break_start'] ? date('Y-m-d H:i:s') : $attendance['break_end'] ?? null,
-            'break_start'    => null,
+            'break_end'      => (!empty($attendance['break_start']) && empty($attendance['break_end']))
+                ? date('Y-m-d H:i:s')
+                : ($attendance['break_end'] ?? null),
         ]);
 
         service('activityLogger')->attendanceClockedOut($attendance['id'], $before, [
@@ -119,7 +120,11 @@ class AttendanceController extends BaseController
             return redirect()->back()->with('error', 'No active attendance found!');
         }
 
-        if (empty($attendance['break_start'])) {
+        if (!empty($attendance['break_start']) && !empty($attendance['break_end'])) {
+            return redirect()->back()->with('error', "You've already used your 1 hour break!");
+        }
+
+        if (empty($attendance['break_start']) && empty($attendance['break_end'])) {
             // Start break
             if ($attendance['break_duration'] >= 1) {
                 return redirect()->back()->with('error', "You've used up your 1 hour break!");
@@ -155,7 +160,6 @@ class AttendanceController extends BaseController
             $breakEndTime = date('Y-m-d H:i:s');
 
             $this->attendanceModel->update($id, [
-                'break_start'    => null,
                 'break_end'      => $breakEndTime,
                 'break_duration' => $totalBreak,
             ]);

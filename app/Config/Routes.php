@@ -22,6 +22,7 @@ $routes->group('client_portal', ['filter' => 'auth'], function($routes){
     $routes->post('employees/delete/(:num)', 'Client\EmployeeController::deleteEmployee/$1');
     $routes->post('timesheets/update/(:num)', 'Client\TimesheetController::update/$1');
     $routes->get('timesheets/delete/(:num)', 'Client\TimesheetController::delete/$1');
+    $routes->get('timesheets/daily-log', 'Client\TimesheetController::dailyTimeLog');
     $routes->get('profile', 'Client\EmployeeAccountController::index');
     $routes->post('profile/photo', 'Client\EmployeeAccountController::updatePhoto');
     $routes->post('profile/identity', 'Client\EmployeeAccountController::updateIdentity');

@@ -10,7 +10,7 @@
         <div class="flex items-center gap-3">
 
             <!-- Month Picker -->
-            <div class="month-picker flex items-center bg-white border border-gray-200 rounded-lg shadow-sm px-3 py-3" id="monthPickerContainer">
+            <div class="month-picker flex items-center h-12 bg-white border border-gray-200 rounded-lg shadow-sm px-3" id="monthPickerContainer">
                 <button type="button" class="month-picker-icon mr-2" aria-label="Open month picker" onclick="openMonthPicker()">
                     <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10m-11 9h12a2 2 0 002-2V7a2 2 0 00-2-2H6a2 2 0 00-2 2v11a2 2 0 002 2z"/>
@@ -34,7 +34,7 @@
             <!-- New Payroll Button -->
             <button 
                 data-modal-open="payrollModal"
-                class="bg-[#FF2D2D] hover:bg-[#dc2626] text-white px-3 py-3 rounded-lg shadow hover:shadow-[0_6px_12px_rgba(239,68,68,0.3)] flex items-center gap-2 transition hover:translate-y-[-2px]">
+                class="h-12 bg-[#FF2D2D] hover:bg-[#dc2626] text-white px-3 rounded-lg shadow hover:shadow-[0_6px_12px_rgba(239,68,68,0.3)] flex items-center gap-2 transition hover:translate-y-[-2px]">
 
                 <img src="<?php echo base_url('icons/add.png'); ?>" class="w-5 h-5" alt="Add"/>
                 <span class="font-medium">New Payroll Entry</span>
@@ -82,7 +82,9 @@
         padding: 0;
         color: #374151;
         font-size: 0.95rem;
-        line-height: 1.2;
+        line-height: 1.5rem;
+        display: inline-flex;
+        align-items: center;
         cursor: pointer;
         min-width: 110px;
         text-align: center;

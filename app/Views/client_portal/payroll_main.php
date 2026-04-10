@@ -26,48 +26,9 @@
 </div>
 
 <style>
-    .tabs{
-        display:flex;
-        align-items:center;
-        gap:30px;
-        background:#2E2E2E;
-        color:white;
-        padding:15px 25px;
-        min-height:70px;
-        position: sticky;
-        top: 0;
-        z-index: 10;
-        flex-shrink: 0;
-    }
-
-    .tab{
-        cursor:pointer;
-        opacity:0.8;
-        background:transparent;
-        border:0;
-        color:inherit;
-        font:inherit;
-    }
-
-    .tab.active{
-        font-weight:600;
-        opacity:1;
-        position:relative;
-    }
-
-    .tab.active::after{
-        content:'';
-        position:absolute;
-        bottom:-24px;
-        left:0;
-        width:100%;
-        height:3px;
-        background:white;
-    }
-
-    .hidden {
+    /* .hidden {
         display: none;
-    }
+    }  */
 </style>
 
 <?= $this->endSection() ?>

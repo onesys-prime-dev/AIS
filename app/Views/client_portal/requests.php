@@ -410,6 +410,11 @@
                 <button class="tab-btn active" id="tabBtnRequests"     onclick="switchTab('requests')">Requests</button>
                 <button class="tab-btn"         id="tabBtnCodes"        onclick="switchTab('codes')">Approval Codes</button>
             </div>
+
+            <!-- <div class="tabs">
+                <button class="tab active" id="tabBtnRequests" data-tab="payroll-status">Requests</button>
+                <button  class="tab" onclick="switchTab('codes')" data-tab="generate-payslip">Approval Codes</button>
+            </div> -->
             <?php endif; ?>
 
             <!-- Per-tab controls -->

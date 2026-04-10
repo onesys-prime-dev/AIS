@@ -26,10 +26,12 @@ class TimesheetController extends BaseController
 
         $timesheet = $this->timesheetsService->listCurrentCutoffByUserId($userId);
         $timesheetHistory = $this->timesheetsService->listCutoffHistoryByUserId($userId);
+        $dailyTimeLog = $this->timesheetsService->listDailyTimeLogByUserId($userId);
 
         return view('client_portal/timesheet', [
             'timesheet' => $timesheet,
             'timesheetHistory' => $timesheetHistory,
+            'dailyTimeLog' => $dailyTimeLog,
             'currentUserId' => $userId,
         ]);
     }
@@ -96,5 +98,21 @@ class TimesheetController extends BaseController
         }
 
         return redirect()->back()->with('success', 'Timesheet deleted successfully.');
+    }
+
+    public function dailyTimeLog()
+    {
+        $user = auth()->user();
+
+        if (!$user) {
+            return $this->response->setStatusCode(401)->setJSON([
+                'success' => false,
+                'message' => 'Unauthenticated.',
+            ]);
+        }
+
+        $dailyTimeLog = $this->timesheetsService->listDailyTimeLogByUserId((int) $user->id);
+
+        return $this->response->setJSON($dailyTimeLog);
     }
 }
