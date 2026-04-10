@@ -14,7 +14,7 @@
             <!-- Activity logs -->
             <button 
                 data-modal-open="viewDailyTimeLog"
-                class="bg-[#FFFFFF] hover:bg-[#b6b5b5c8] text-white px-3 py-3 rounded-lg shadow flex items-center gap-2">
+                class="bg-[#6b56ca] hover:bg-[#b6b5b5c8] text-white px-3 py-3 rounded-lg shadow flex items-center gap-2">
                     <div id="add-icon" class="w-7 h-7 cursor-pointer">
                         <img src="<?php echo base_url('icons/activity.png'); ?>" alt="Add"/>
                     </div>
