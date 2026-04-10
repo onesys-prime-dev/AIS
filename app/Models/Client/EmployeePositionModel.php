@@ -8,16 +8,9 @@ class EmployeePositionModel extends Model
 {
     protected $table = 'employee_positions';
     protected $primaryKey = 'id';
-
     protected $returnType = 'array';
     protected $useAutoIncrement = true;
-
-    protected $protectFields = true;
-
     protected $allowedFields = [
-        'employee_id',
-        'department',
-        'position',
-        'employment_type',
+        'employee_id', 'department', 'position', 'employment_type',
     ];
 }

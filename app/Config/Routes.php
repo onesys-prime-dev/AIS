@@ -45,18 +45,21 @@ $routes->post('client_portal/announcements/store', 'Client\AnnouncementControlle
 $routes->post('client_portal/tasks/submit', 'Client\TaskController::submitTask');
 $routes->get('client_portal/tasks/saved', 'Client\TaskController::getSavedTasks');
 $routes->get('client_portal/timesheet', 'Client\TimesheetController::index');
-$routes->get('settings/customization', 'SettingsController::customization', ['filter' => 'auth']);
-$routes->post('settings/customization/save', 'SettingsController::saveCustomization', ['filter' => 'auth']);
 $routes->get('settings/customization', 'SettingsController::customization');
-$routes->post('client_portal/requests/generate-code', 'Client\RequestController::generateApprovalCode');
 
 $routes->group('client_portal', ['namespace' => 'App\Controllers\Client'], function($routes) {
     $routes->get('payroll', 'PayrollController::payrollView');
     $routes->get('payroll/employees_json', 'PayrollController::getEmployees');
+    $routes->get('payroll/employee_details/(:num)', 'PayrollController::getEmployeeDetails/$1');
     $routes->post('payroll/create', 'PayrollController::createPayroll');
     $routes->post('payroll/update/(:num)', 'PayrollController::updatePayroll/$1');
     $routes->get('payroll/delete/(:num)', 'PayrollController::deletePayroll/$1');
     $routes->get('payroll/get/(:num)', 'PayrollController::getPayroll/$1');
+    
+    // NEW – must be AFTER the above to avoid conflict
+    $routes->post('payroll/compute', 'PayrollController::computeAndSave');
+    $routes->get('payroll/generate/(:num)', 'PayrollController::generatePayslip/$1');
+    $routes->post('payroll/send/(:num)', 'PayrollController::sendPayslip/$1');
 });
 
 $routes->group('client_portal/payroll', ['namespace' => 'App\Controllers\Client'], function($routes) {
@@ -65,4 +68,20 @@ $routes->group('client_portal/payroll', ['namespace' => 'App\Controllers\Client'
     $routes->get('exportCSV/(:any)', 'PayrollController::exportCSV/$1');
     $routes->post('saveSettings', 'PayrollController::saveSettings');
     $routes->get('getSettings', 'PayrollController::getSettings');
+});
+
+$routes->group('client_portal', ['namespace' => 'App\Controllers\Client'], function($routes) {
+    $routes->post('payroll/compute', 'PayrollController::computeAndSave');
+    $routes->get('payroll/employees_json', 'PayrollController::getEmployees');
+    $routes->get('payroll/employee_details/(:num)', 'PayrollController::getEmployeeDetails/$1');
+    $routes->post('payroll/create', 'PayrollController::createPayroll');
+    $routes->post('payroll/update/(:num)', 'PayrollController::updatePayroll/$1');
+    $routes->get('payroll/delete/(:num)', 'PayrollController::deletePayroll/$1');
+    $routes->get('payroll/get/(:num)', 'PayrollController::getPayroll/$1');
+    $routes->get('payroll/generate/(:num)', 'PayrollController::generatePayslip/$1');
+    $routes->post('payroll/send/(:num)', 'PayrollController::sendPayslip/$1');
+    
+    $routes->get('payroll', 'PayrollController::payrollView');
+    $routes->post('client_portal/payroll/sendStatic', 'Client\PayrollController::sendStatic');
+    $routes->post('client_portal/payroll/sendPdf', 'Client\PayrollController::sendPdf');
 });
