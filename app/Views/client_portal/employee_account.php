@@ -89,7 +89,28 @@
                 <div class="info-row"><span>Job Title</span><strong><?= esc($employment['position'] ?? '-') ?></strong></div>
                 <div class="info-row"><span>Employment Type</span><strong><?= esc($employment['employment_type'] ?? '-') ?></strong></div>
                 <div class="info-row"><span>Hire Date</span><strong><?= esc($hireDateLabel) ?></strong></div>
-                <div class="info-row"><span>Status</span><strong class="status-badge"><?= esc($employment['status'] ?? 'Inactive') ?></strong></div>
+                <div class="info-row">
+                    <span>Status</span>
+                    <?php
+                        $accountActive  = ($employment['status'] ?? '') === 'Active';
+                        $onlineStatus   = $employment['online_status'] ?? 'Offline';
+                        $presenceBadges = [
+                            'Online'  => 'bg-green-200 text-green-700',
+                            'Away'    => 'bg-yellow-200 text-yellow-700',
+                            'Offline' => 'bg-gray-200 text-gray-500',
+                        ];
+                        $badgeClass = $accountActive
+                            ? ($presenceBadges[$onlineStatus] ?? $presenceBadges['Offline'])
+                            : 'bg-red-200 text-red-600';
+                        $badgeText  = $accountActive ? $onlineStatus : 'Inactive';
+                        $employeeId = $employment['employee_id'] ?? '';
+                    ?>
+                    <strong
+                        class="<?= $badgeClass ?> px-3 py-1 rounded-full text-xs font-semibold"
+                        <?= $accountActive ? "data-presence-badge=\"{$employeeId}\" data-current-status=\"{$onlineStatus}\"" : '' ?>>
+                        <?= esc($badgeText) ?>
+                    </strong>
+                </div>
                 <div class="info-row"><span>Reports To</span><strong><?= esc($employment['reports_to'] ?? '-') ?></strong></div>
             </div>
         </div>
@@ -683,14 +704,6 @@
 
     .info-row strong{
         font-size:14px;
-    }
-
-    .status-badge{
-        color:#15803d;
-        background:#dcfce7;
-        padding:4px 10px;
-        border-radius:999px;
-        font-size:12px;
     }
 
     .form-group input,

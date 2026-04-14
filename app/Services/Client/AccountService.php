@@ -75,10 +75,12 @@ class AccountService
                 'photo_url'      => ! empty($account['photo_path']) ? base_url((string) $account['photo_path']) : null,
             ],
             'employment' => [
+                'employee_id'     => (int) ($employee['id'] ?? 0),
                 'employee_number' => (string) ($employee['employee_number'] ?? ''),
                 'department'      => (string) ($position['department'] ?? ''),
                 'position'        => (string) ($position['position'] ?? ''),
                 'employment_type' => (string) ($position['employment_type'] ?? ''),
+                'online_status'   => (string) ($user->online_status ?? 'Offline'),
                 'status'          => (isset($user->active) && (int) $user->active === 1) ? 'Active' : 'Inactive',
                 'hire_date'       => (string) ($employee['created_at'] ?? ''),
                 'reports_to'      => '-',
