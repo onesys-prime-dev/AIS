@@ -6,35 +6,11 @@
     <div class="tabs">
         <div class="tab active">Customization</div>
     </div>
-    <!-- <h1>Customization</h1> -->
 
     <form class="grid" method="post" action="<?= site_url('settings/customization/save') ?>" enctype="multipart/form-data">
         <?= csrf_field() ?>
 
-        <!-- LOGO -->
-        <div class="card">
-            <h3>Company Logo</h3>
-
-            <div class="upload-box">
-                <div class="upload-inner">
-                    <div class="logo-circle" id="logoPreview" style="<?= !empty($logoUrl) ? 'background-image:url(\'' . esc($logoUrl, 'attr') . '\');' : '' ?>">
-                        <?= empty($logoUrl) ? 'Logo' : '' ?>
-                    </div>
-
-                    <p class="drag-text">Drag and drop your file</p>
-                    <small id="fileName"><?= !empty($branding['logo_original_name']) ? esc((string) $branding['logo_original_name']) : 'No file selected' ?></small>
-
-                    <label class="upload-btn">
-                        Upload Files
-                        <input type="file" id="logoInput" name="company_logo" hidden accept=".png,.jpg,.jpeg,.svg,image/png,image/jpeg,image/svg+xml">
-                    </label>
-
-                    <span class="format">Formats: PNG, JPG, or SVG Only</span>
-                </div>
-            </div>
-        </div>
-
-        <!-- COLORS -->
+        <!-- COLORS — always column 1 -->
         <div class="card">
             <h3>Company Colors</h3>
 
@@ -75,6 +51,31 @@
             </div>
         </div>
 
+        <!-- LOGO — column 2, only for client_payroll_staff -->
+        <?php if ($canManageLogo): ?>
+        <div class="card">
+            <h3>Company Logo</h3>
+
+            <div class="upload-box">
+                <div class="upload-inner">
+                    <div class="logo-circle" id="logoPreview" style="<?= !empty($logoUrl) ? 'background-image:url(\'' . esc($logoUrl, 'attr') . '\');' : '' ?>">
+                        <?= empty($logoUrl) ? 'Logo' : '' ?>
+                    </div>
+
+                    <p class="drag-text">Drag and drop your file</p>
+                    <small id="fileName"><?= !empty($branding['logo_original_name']) ? esc((string) $branding['logo_original_name']) : 'No file selected' ?></small>
+
+                    <label class="upload-btn">
+                        Upload Files
+                        <input type="file" id="logoInput" name="company_logo" hidden accept=".png,.jpg,.jpeg,.svg,image/png,image/jpeg,image/svg+xml">
+                    </label>
+
+                    <span class="format">Formats: PNG, JPG, or SVG Only</span>
+                </div>
+            </div>
+        </div>
+        <?php endif; ?>
+
         <div class="actions">
             <button type="button" class="discard-btn">Discard Changes</button>
             <button type="submit" class="save-btn">Apply & Save</button>
@@ -103,15 +104,16 @@ h1 {
     margin-bottom: 25px;
 }
 
-/* GRID */
+/* GRID - always two columns */
 .grid {
     flex: 1;
     min-height: 0;
     overflow-y: auto;
-    display:grid;
+    display: grid;
     grid-template-columns: 1fr 1fr;
-    gap:25px;
+    gap: 25px;
     padding: 2rem;
+    align-content: start;
 }
 
 /* CARD - with scroll and reduced max-height */
@@ -215,10 +217,10 @@ h1 {
 .actions {
     display: flex;
     justify-content: flex-end;
-    height: auto;
+    align-items: center;
     gap: 15px;
-    padding: 1rem 0px;
-    grid-column: 2 / 3;
+    padding: 1rem 0;
+    grid-column: 1 / -1;
     justify-self: end;
 }
 
