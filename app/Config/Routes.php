@@ -47,6 +47,7 @@ $routes->get('client_portal/tasks/saved', 'Client\TaskController::getSavedTasks'
 $routes->get('client_portal/timesheet', 'Client\TimesheetController::index');
 $routes->get('settings/customization', 'SettingsController::customization');
 $routes->post('settings/customization/save', 'SettingsController::saveCustomization');
+$routes->post('client_portal/requests/generate-code', 'Client\RequestController::generateApprovalCode');
 
 $routes->group('client_portal', ['namespace' => 'App\Controllers\Client'], function($routes) {
     $routes->get('payroll', 'PayrollController::payrollView');
