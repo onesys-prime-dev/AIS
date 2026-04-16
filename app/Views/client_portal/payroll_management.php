@@ -27,7 +27,7 @@ body{ font-family: 'Segoe UI', Arial, sans-serif; background: #f0f2f5; }
 /* Scroll area */
 .scroll-area{
     overflow-y:auto;
-    height:350px;
+    height:600px;
     padding-right:12px;
     margin-bottom: 20px;
 }
