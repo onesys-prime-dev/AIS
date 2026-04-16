@@ -359,8 +359,11 @@ class PayrollController extends BaseController
 
             $employeeModel = new EmployeeModel();
             $employee = $employeeModel->find($payroll['employee_id']);
-            $userModel = model('App\Models\UserModel');
-            $user = $userModel->find($employee['user_id']);
+            $emailAddress = $this->getUserEmail($employee['user_id']);
+
+            if (!$emailAddress) {
+                throw new \Exception('Employee email not found');
+            }
 
             $data = [
                 'payroll' => $payroll,
@@ -383,7 +386,7 @@ class PayrollController extends BaseController
             file_put_contents($tempPath . $filename, $pdfOutput);
 
             $email = service('email');
-            $email->setTo($user['email']);
+            $email->setTo($emailAddress);
             $email->setSubject("Payslip for period {$payroll['period_start']} to {$payroll['period_end']}");
             $email->setMessage("Dear {$employee['first_name']},<br><br>Please find attached your payslip.<br><br>Regards,<br>Payroll Team");
             $email->attach($tempPath . $filename);
@@ -488,14 +491,17 @@ class PayrollController extends BaseController
         $employee = $employeeModel->find($employeeId);
         if (!$employee) throw new \Exception('Employee not found');
         
-        $userModel = model('App\Models\UserModel');
-        $user = $userModel->find($employee['user_id']);
+        $emailAddress = $this->getUserEmail($employee['user_id']);
+
+        if (!$emailAddress) {
+            throw new \Exception('Employee email not found');
+        }
         
         // Generate a simple HTML email with the payslip data
         $html = view('client_portal/email_payslip', ['data' => $data, 'employee' => $employee]);
         
         $email = service('email');
-        $email->setTo($user['email']);
+        $email->setTo($emailAddress);
         $email->setSubject("Payslip for period {$data['period_start']} to {$data['period_end']}");
         $email->setMessage($html);
         
@@ -507,50 +513,78 @@ class PayrollController extends BaseController
     } catch (\Exception $e) {
         return $this->response->setJSON(['error' => $e->getMessage()])->setStatusCode(500);
     }
-}public function sendPdf()
+}
+
+public function sendPdf()
 {
     try {
         $data = $this->request->getJSON(true);
         $employeeId = $data['employee_id'];
-        
+
         $employeeModel = new \App\Models\Client\EmployeeModel();
         $employee = $employeeModel->find($employeeId);
         if (!$employee) throw new \Exception('Employee not found');
-        
-        $userModel = model('App\Models\UserModel');
-        $user = $userModel->find($employee['user_id']);
-        if (!$user || empty($user['email'])) throw new \Exception('Employee email not found');
-        
+
+        $emailAddress = $this->getUserEmail($employee['user_id']);
+        if (!$emailAddress) {
+            throw new \Exception('Employee email not found');
+        }
+        $password = $employee['employee_number'] . date('Ymd', strtotime($employee['birthdate']));
+
         // Build HTML for PDF
         $html = $this->buildPayslipHtmlForPdf($data, $employee);
-        
+
         $options = new \Dompdf\Options();
         $options->set('defaultFont', 'Courier');
         $dompdf = new \Dompdf\Dompdf($options);
         $dompdf->loadHtml($html);
         $dompdf->setPaper('A4', 'portrait');
         $dompdf->render();
+
+        // Password = EMPNO + YYYYMMDD
+        $password = $employee['employee_number'] . date('Ymd', strtotime($employee['birthdate']));
+
+        // Apply PDF encryption
+        $dompdf->getCanvas()
+            ->get_cpdf()
+            ->setEncryption($password, "owner-password", ['print']);
+
         $pdfOutput = $dompdf->output();
-        
+
         $filename = "payslip_{$employee['employee_number']}_{$data['period_start']}.pdf";
         $tempPath = WRITEPATH . 'uploads/payslips/';
         if (!is_dir($tempPath)) mkdir($tempPath, 0777, true);
         file_put_contents($tempPath . $filename, $pdfOutput);
-        
+
         $email = service('email');
-        $email->setTo($user['email']);
-        $email->setSubject("Payslip for period {$data['period_start']} to {$data['period_end']}");
-        $email->setMessage("Dear {$data['employee_name']},<br><br>Please find attached your payslip.<br><br>Regards,<br>Payroll Team");
-        $email->attach($tempPath . $filename);
+        // ✅ Set mail type FIRST before anything else
         $email->setMailType('html');
-        
+        $email->setTo($emailAddress);
+        $email->setSubject("Payslip for period {$data['period_start']} to {$data['period_end']}");
+        $email->setMessage("
+            Dear {$data['employee_name']},<br><br>
+            Please find attached your payslip.<br><br>
+
+            <strong>PDF Password:</strong><br>
+            Your Employee Number + Birthdate (YYYYMMDD)<br>
+            Example: EMP-XXXX-ZZZZYYYYMMDD<br><br>
+
+            Regards,<br>
+            Payroll Team
+            ");
+        $email->attach($tempPath . $filename);
+
         if ($email->send()) {
             unlink($tempPath . $filename);
             return $this->response->setJSON(['success' => true]);
         } else {
-            throw new \Exception('Failed to send email');
+            // ✅ Capture the actual mailer error for debugging
+            $debugInfo = $email->printDebugger(['headers', 'subject', 'body']);
+            log_message('error', 'sendPdf email failed: ' . $debugInfo);
+            throw new \Exception('Failed to send email. Check logs for details.');
         }
     } catch (\Exception $e) {
+        log_message('error', 'sendPdf exception: ' . $e->getMessage());
         return $this->response->setJSON(['error' => $e->getMessage()])->setStatusCode(500);
     }
 }
@@ -632,5 +666,19 @@ private function buildPayslipHtmlForPdf($data, $employee)
     return $html;
 }
 
+
+private function getUserEmail($userId)
+{
+    $db = \Config\Database::connect();
+
+    $row = $db->table('auth_identities')
+        ->select('secret')
+        ->where('user_id', $userId)
+        ->where('type', 'email_password')
+        ->get()
+        ->getRowArray();
+
+    return $row['secret'] ?? null;
+}
 
 }

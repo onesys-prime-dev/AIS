@@ -1082,15 +1082,20 @@ async function sendPdfToEmployee() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
+
+        // ✅ Always parse JSON regardless of status code
         const result = await response.json();
-        if (result.success) {
-            alert('PDF payslip sent successfully to employee email.');
-        } else {
-            alert('Error sending PDF: ' + (result.error || 'Unknown error'));
+
+        if (!response.ok || !result.success) {
+            // This now shows the REAL error from the server (e.g. "Employee email not found")
+            alert('Error sending PDF: ' + (result.error || `Server error ${response.status}`));
+            return;
         }
+
+        alert('PDF payslip sent successfully to employee email.');
     } catch (error) {
         console.error('Send PDF error:', error);
-        alert('Could not send email. Please check server logs.');
+        alert('Network error — could not reach server. Check console for details.');
     }
 }
 

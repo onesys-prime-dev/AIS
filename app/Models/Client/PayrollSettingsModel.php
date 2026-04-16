@@ -1,298 +1,56 @@
 <?php
 
-namespace App\Controllers\Client;
+namespace App\Models\Client;
 
-use App\Controllers\BaseController;
-use App\Models\Client\PayrollModel;
-use App\Models\Client\EmployeeModel;
-use App\Models\Client\PayrollSettingsModel;
-use App\Services\Client\PayrollService;
-use App\Models\AttendanceModel;
-use App\Models\Client\EmployeePositionModel; // Add this if you have a positions model
+use CodeIgniter\Model;
 
-class PayrollController extends BaseController
+class PayrollSettingsModel extends Model
 {
-    // ================= EXISTING METHODS (keep as is) =================
-    
-    public function payrollView()
-    {
-        $payrollModel = new PayrollModel();
-        $employeeModel = new EmployeeModel();
-
-        $month = $this->request->getGet('month') ?? date('Y-m');
-        $data['selected_month'] = $month;
-
-        // FirstName M. LastName
-        $data['payrolls'] = $payrollModel
-            ->select("
-                payroll.*,
-                CONCAT(
-                    TRIM(employees.first_name), ' ',
-                    IF(
-                        COALESCE(TRIM(employees.middle_name), '') = '',
-                        '',
-                        CONCAT(UPPER(LEFT(TRIM(employees.middle_name), 1)), '. ')
-                    ),
-                    TRIM(employees.last_name)
-                ) AS employee_name,
-                employees.employee_number
-            ")
-            ->join('employees', 'employees.id = payroll.employee_id', 'left')
-            ->where('payroll.month_year', $month)
-            ->findAll();
-
-        // FirstName M. LastName
-        $data['employees'] = $employeeModel
-            ->select("
-                employees.id,
-                CONCAT(
-                    TRIM(employees.first_name), ' ',
-                    IF(
-                        COALESCE(TRIM(employees.middle_name), '') = '',
-                        '',
-                        CONCAT(UPPER(LEFT(TRIM(employees.middle_name), 1)), '. ')
-                    ),
-                    TRIM(employees.last_name)
-                ) AS full_name
-            ")
-            ->join('users', 'users.id = employees.user_id', 'left')
-            ->where('users.active', 1)
-            ->findAll();
-
-        return view('client_portal/payroll_main', $data);
-    }
-
-    public function createPayroll()
-    {
-        $service = new PayrollService();
-
-        try {
-            $service->createPayroll($this->request->getPost());
-            return redirect()->back()
-                ->with('success', 'Payroll record created successfully');
-        } catch (\Throwable $e) {
-            log_message('error', $e->getMessage());
-            return redirect()->back()
-                ->with('error', $e->getMessage());
-        }
-    }
-
-    public function updatePayroll($id)
-    {
-        $service = new PayrollService();
-
-        try {
-            $service->updatePayroll($id, $this->request->getPost());
-            return redirect()->back()
-                ->with('success', 'Payroll record updated successfully');
-        } catch (\Throwable $e) {
-            return redirect()->back()
-                ->with('error', $e->getMessage());
-        }
-    }
-
-    public function deletePayroll($id)
-    {
-        $service = new PayrollService();
-
-        try {
-            $service->deletePayroll($id);
-            return redirect()->back()
-                ->with('success', 'Payroll record deleted successfully');
-        } catch (\Throwable $e) {
-            return redirect()->back()
-                ->with('error', $e->getMessage());
-        }
-    }
-
-    public function getPayroll($id)
-    {
-        $payrollModel = new PayrollModel();
-        $payroll = $payrollModel->find($id);
-        return $this->response->setJSON($payroll);
-    }
-
-    public function getEmployees()
-    {
-        $employeeModel = new EmployeeModel();
-
-        $rows = $employeeModel
-            ->select("
-                employees.id,
-                TRIM(employees.first_name) AS first_name,
-                TRIM(employees.last_name) AS last_name,
-                TRIM(COALESCE(employees.middle_name, '')) AS middle_name
-            ")
-            ->join('users', 'users.id = employees.user_id', 'left')
-            ->where('users.active', 1)
-            ->orderBy('employees.first_name', 'ASC')
-            ->orderBy('employees.last_name', 'ASC')
-            ->findAll();
-
-        $employees = array_map(static function ($row) {
-            $first = $row['first_name'] ?? '';
-            $last  = $row['last_name'] ?? '';
-            $mid   = $row['middle_name'] ?? '';
-            $mi    = $mid !== '' ? strtoupper(substr($mid, 0, 1)) . '.' : '';
-
-            $name = trim($first . ' ' . ($mi !== '' ? $mi . ' ' : '') . $last);
-
-            return [
-                'id'    => (string)($row['id'] ?? ''),
-                'name'  => $name,
-                'label' => $name,
-            ];
-        }, $rows);
-
-        return $this->response->setJSON($employees);
-    }
-
-    // ================= NEW METHOD =================
+    protected $table            = 'payroll_settings';
+    protected $primaryKey       = 'id';
+    protected $useAutoIncrement = false; // ← not auto-incremented
+    protected $allowedFields    = ['id', 'client_id', 'setting_key', 'setting_value'];
+    protected $useTimestamps    = true;
+    protected $createdField     = 'created_at';
+    protected $updatedField     = 'updated_at';
 
     /**
-     * Get detailed information for a specific employee (used for auto-fill)
+     * Get a setting value for the current client.
      */
-    public function getEmployeeDetails($id)
+    public function getSetting(string $key, $default = null)
     {
-        $employeeModel = new EmployeeModel();
-        $positionModel = new EmployeePositionModel();
+        $clientId = session()->get('client_id');
 
-        // Fetch employee basic info
-        $employee = $employeeModel->find($id);
-        if (!$employee) {
-            return $this->response->setStatusCode(404)->setJSON(['error' => 'Employee not found']);
-        }
+        $row = $this->where('client_id', $clientId)
+                    ->where('setting_key', $key)
+                    ->first();
 
-        // Fetch position and department
-        $position = $positionModel->where('employee_id', $id)->first();
-        
-        // Build full name (with middle initial)
-        $first = trim($employee['first_name'] ?? '');
-        $last  = trim($employee['last_name'] ?? '');
-        $mid   = trim($employee['middle_name'] ?? '');
-        $mi    = $mid !== '' ? strtoupper(substr($mid, 0, 1)) . '.' : '';
-        $fullName = trim($first . ' ' . ($mi !== '' ? $mi . ' ' : '') . $last);
-
-        // Determine salary values – adjust according to your actual data structure
-        // Option 1: If you have a salary column in employee_positions
-        $monthlySalary = $position['monthly_salary'] ?? 22000.00;
-        
-        // Option 2: Alternatively, you might fetch from a salary table or payroll settings
-        // For demonstration, we'll use default values if not present
-        $dailyRate = $monthlySalary / 22; // assuming 22 working days
-        $hourlyRate = $monthlySalary / 160; // assuming 160 working hours per month
-
-        $data = [
-            'id'             => $employee['id'],
-            'name'           => $fullName,
-            'position'       => $position['position'] ?? 'Not Assigned',
-            'department'     => $position['department'] ?? '',
-            'monthly_salary' => $monthlySalary,
-            'daily_rate'     => round($dailyRate, 2),
-            'hourly_rate'    => round($hourlyRate, 2),
-        ];
-
-        return $this->response->setJSON($data);
-    }
-
-    // ================= REMAINING EXISTING METHODS =================
-
-    /**
-     * Get timesheet data for an employee for a given period
-     */
-    public function getTimesheet($employeeId, $startDate, $endDate)
-    {
-        $attendanceModel = new AttendanceModel();
-        $data = $attendanceModel
-            ->select("date, time_in, time_out, break_duration, total_hours")
-            ->where('user_id', function($builder) use ($employeeId) {
-                $builder->select('user_id')->from('employees')->where('id', $employeeId);
-            })
-            ->where('date >=', $startDate)
-            ->where('date <=', $endDate)
-            ->orderBy('date', 'ASC')
-            ->findAll();
-        return $this->response->setJSON($data);
+        return $row ? $row['setting_value'] : $default;
     }
 
     /**
-     * Import CSV for payroll data (e.g., overtime, adjustments)
+     * Insert or update a setting for the current client.
      */
-    public function importCSV()
+    public function setSetting(string $key, $value): void
     {
-        $file = $this->request->getFile('csv_file');
-        if (!$file || !$file->isValid()) {
-            return redirect()->back()->with('error', 'Invalid CSV file.');
-        }
-        $csvData = array_map('str_getcsv', file($file->getTempName()));
-        $headers = array_shift($csvData);
-        // Store in session for use in payslip generation
-        session()->set('imported_payroll_data', $csvData);
-        return redirect()->back()->with('success', 'CSV imported. Use data in Payslip tab.');
-    }
+        $clientId = session()->get('client_id');
 
-    /**
-     * Export current payroll register to CSV
-     */
-    public function exportCSV($month = null)
-    {
-        $month = $month ?? date('Y-m');
-        $payrollModel = new PayrollModel();
-        $payrolls = $payrollModel
-            ->select("payroll.*, CONCAT(employees.first_name,' ',employees.last_name) as employee_name")
-            ->join('employees', 'employees.id = payroll.employee_id')
-            ->where('month_year', $month)
-            ->findAll();
+        $existing = $this->where('client_id', $clientId)
+                         ->where('setting_key', $key)
+                         ->first();
 
-        $filename = "payroll_export_{$month}.csv";
-        header('Content-Type: text/csv');
-        header('Content-Disposition: attachment; filename="' . $filename . '"');
-        $output = fopen('php://output', 'w');
-        fputcsv($output, ['ID', 'Employee', 'Phone', 'Daily Rate', 'DST', 'Currency', 'Status', 'Month']);
-        foreach ($payrolls as $row) {
-            fputcsv($output, [
-                $row['id'],
-                $row['employee_name'],
-                $row['phone'],
-                $row['daily_rate'],
-                $row['dst'],
-                $row['currency'],
-                $row['status'],
-                $row['month_year']
+        if ($existing) {
+            $this->update($existing['id'], ['setting_value' => $value]);
+        } else {
+            // Generate id manually since there's no auto-increment
+            $nextId = $this->selectMax('id')->get()->getRow()->id + 1;
+
+            $this->insert([
+                'id'            => $nextId,
+                'client_id'     => $clientId,
+                'setting_key'   => $key,
+                'setting_value' => $value,
             ]);
         }
-        fclose($output);
-        exit();
-    }
-
-    /**
-     * Save payroll settings
-     */
-    public function saveSettings()
-    {
-        $settingsModel = new PayrollSettingsModel();
-        $data = $this->request->getPost();
-        foreach ($data as $key => $value) {
-            if (strpos($key, 'setting_') === 0) {
-                $realKey = substr($key, 8);
-                $settingsModel->setSetting($realKey, $value);
-            }
-        }
-        return redirect()->back()->with('success', 'Payroll settings saved.');
-    }
-
-    /**
-     * Get current payroll settings as JSON
-     */
-    public function getSettings()
-    {
-        $settingsModel = new PayrollSettingsModel();
-        $keys = ['monthly_hours', 'night_diff_start', 'night_diff_end', 'night_diff_rate', 
-                 'ot_regular_rate', 'ot_rest_rate', 'ot_holiday_rate', 'sss_table', 'phic_rate', 'hdmf_rate'];
-        $settings = [];
-        foreach ($keys as $key) {
-            $settings[$key] = $settingsModel->getSetting($key);
-        }
-        return $this->response->setJSON($settings);
     }
 }
