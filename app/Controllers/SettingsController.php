@@ -4,16 +4,20 @@ namespace App\Controllers;
 
 use App\Models\Client\CompanyBrandingModel;
 use App\Models\Client\UserSettingsModel;
+use App\Services\CompreFaceService;
+use Throwable;
 
 class SettingsController extends BaseController
 {
     protected CompanyBrandingModel $brandingModel;
     protected UserSettingsModel    $userSettingsModel;
+    protected CompreFaceService    $compreFaceService;
 
     public function __construct()
     {
         $this->brandingModel      = new CompanyBrandingModel();
         $this->userSettingsModel  = new UserSettingsModel();
+        $this->compreFaceService  = new CompreFaceService();
     }
 
     public function customization()
@@ -137,6 +141,77 @@ class SettingsController extends BaseController
         }
 
         return redirect()->to(site_url('settings/customization'))->with('success', 'Customization updated successfully.');
+    }
+
+    public function faceRecognition()
+    {
+        $user = auth()->user();
+        if (! $user) {
+            return redirect()->to('/login');
+        }
+
+        $health = $this->compreFaceService->getHealthStatus();
+
+        return view('settings/face_recognition', [
+            'title' => 'Face Recognition',
+            'verificationUrl' => site_url('settings/face-recognition/enroll'),
+            'currentTab' => 'face-recognition',
+            'statusUrl' => site_url('settings/face-recognition/status'),
+            'compreFaceHealth' => $health,
+        ]);
+    }
+
+    public function enrollFace()
+    {
+        $user = auth()->user();
+        if (! $user) {
+            return $this->response->setStatusCode(401)->setJSON([
+                'status' => 'error',
+                'message' => 'Please sign in again before enrolling your face.',
+            ]);
+        }
+
+        $image = (string) $this->request->getPost('image');
+        if ($image === '') {
+            return $this->response->setStatusCode(422)->setJSON([
+                'status' => 'error',
+                'message' => 'Please capture an image before saving your face.',
+            ]);
+        }
+
+        try {
+            $this->compreFaceService->assertAvailable();
+            $result = $this->compreFaceService->enrollFace($image, (string) $user->id);
+        } catch (Throwable $e) {
+            log_message('error', 'Face enrollment failed for user {userId}: {message}', [
+                'userId' => (int) $user->id,
+                'message' => $e->getMessage(),
+            ]);
+
+            return $this->response->setStatusCode(502)->setJSON([
+                'status' => 'error',
+                'message' => 'Face enrollment is unavailable: ' . $e->getMessage(),
+            ]);
+        }
+
+        return $this->response->setJSON([
+            'status' => 'success',
+            'message' => 'Your face has been enrolled successfully.',
+            'result' => $result,
+        ]);
+    }
+
+    public function faceRecognitionStatus()
+    {
+        $user = auth()->user();
+        if (! $user) {
+            return $this->response->setStatusCode(401)->setJSON([
+                'ok' => false,
+                'message' => 'Please sign in again.',
+            ]);
+        }
+
+        return $this->response->setJSON($this->compreFaceService->getHealthStatus());
     }
 
     private function getOrCreateBranding(int $companyId): array

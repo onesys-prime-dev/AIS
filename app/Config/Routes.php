@@ -7,6 +7,8 @@ use CodeIgniter\Router\RouteCollection;
  */
 $routes->get('/logout', 'Auth\ClientAuthController::logout');
 $routes->post('login', 'Auth\ClientAuthController::loginAction');
+$routes->get('face-verify', 'Auth\FaceAuthController::index', ['filter' => 'auth']);
+$routes->post('face-verify', 'Auth\FaceAuthController::verify', ['filter' => 'auth']);
 
 service('auth')->routes($routes, ['except' => ['register']]);
 
@@ -47,6 +49,9 @@ $routes->get('client_portal/tasks/saved', 'Client\TaskController::getSavedTasks'
 $routes->get('client_portal/timesheet', 'Client\TimesheetController::index');
 $routes->get('settings/customization', 'SettingsController::customization');
 $routes->post('settings/customization/save', 'SettingsController::saveCustomization');
+$routes->get('settings/face-recognition', 'SettingsController::faceRecognition');
+$routes->post('settings/face-recognition/enroll', 'SettingsController::enrollFace');
+$routes->get('settings/face-recognition/status', 'SettingsController::faceRecognitionStatus');
 $routes->post('client_portal/requests/generate-code', 'Client\RequestController::generateApprovalCode');
 
 $routes->group('client_portal', ['namespace' => 'App\Controllers\Client'], function($routes) {
@@ -86,4 +91,6 @@ $routes->group('client_portal', ['namespace' => 'App\Controllers\Client'], funct
     $routes->get('payroll', 'PayrollController::payrollView');
     $routes->post('payroll/sendStatic', 'PayrollController::sendStatic');
     $routes->post('payroll/sendPdf', 'PayrollController::sendPdf');
+    $routes->post('client_portal/payroll/sendStatic', 'Client\PayrollController::sendStatic');
+    $routes->post('client_portal/payroll/sendPdf', 'Client\PayrollController::sendPdf');
 });

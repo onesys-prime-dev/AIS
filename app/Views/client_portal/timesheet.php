@@ -14,28 +14,28 @@
             <!-- Activity logs -->
             <button 
                 data-modal-open="viewDailyTimeLog"
-                class="bg-[#6b56ca] hover:bg-[#b6b5b5c8] text-white px-3 py-3 rounded-lg shadow flex items-center gap-2">
-                    <div id="add-icon" class="w-7 h-7 cursor-pointer">
-                        <img src="<?php echo base_url('icons/activity.png'); ?>" alt="Add"/>
-                    </div>
+                class="bg-[#FFFFFF] hover:bg-[#f3f4f6]  px-3 py-3 rounded-lg shadow hover:shadow-[0_6px_12px_rgba(107,86,202,0.3)] flex items-center gap-2 transition hover:translate-y-[-2px]">
+                <div id="add-icon" class="w-7 h-7 cursor-pointer">
+                    <img src="<?php echo base_url('icons/activity.png'); ?>" alt="Add"/>
+                </div>
             </button>
 
             <!-- Timesheets history -->
             <button 
                 data-modal-open="viewTimesheetHistoryModal"
-                class="bg-[#FFFFFF] hover:bg-[#b6b5b5c8] text-white px-3 py-3 rounded-lg shadow flex items-center gap-2">
-                    <div id="add-icon" class="w-7 h-7 cursor-pointer">
-                        <img src="<?php echo base_url('icons/alarms.png'); ?>" alt="Add"/>
-                    </div>
+                class="bg-[#FFFFFF] hover:bg-[#f3f4f6]  px-3 py-3 rounded-lg shadow hover:shadow-[0_6px_12px_rgba(107,86,202,0.2)] flex items-center gap-2 transition hover:translate-y-[-2px]">
+                <div id="add-icon" class="w-7 h-7 cursor-pointer">
+                    <img src="<?php echo base_url('icons/alarms.png'); ?>" alt="Add"/>
+                </div>
             </button>
 
             <!-- View payslip -->
             <button 
                 data-modal-open="viewPayslipModal"
                 class="bg-[#FF2D2D] hover:bg-[#dc2626] text-white px-3 py-3 rounded-lg shadow hover:shadow-[0_6px_12px_rgba(239,68,68,0.3)] flex items-center gap-2 transition hover:translate-y-[-2px]">
-                     <div id="add-icon" class="w-7 h-7 cursor-pointer">
-                        <img src="<?php echo base_url('icons/payslip.png'); ?>" alt="Add"/>
-                    </div>
+                 <div id="add-icon" class="w-7 h-7 cursor-pointer">
+                    <img src="<?php echo base_url('icons/payslip.png'); ?>" alt="Add"/>
+                </div>
                 View Payslip
             </button>
         </div>

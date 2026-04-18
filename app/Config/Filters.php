@@ -15,6 +15,7 @@ use CodeIgniter\Filters\SecureHeaders;
 use CodeIgniter\Shield\Filters\SessionAuth;
 use CodeIgniter\Shield\Filters\TokenAuth;
 use CodeIgniter\Shield\Filters\ChainAuth;
+use App\Filters\FaceVerified;
 
 class Filters extends BaseFilters
 {
@@ -39,7 +40,8 @@ class Filters extends BaseFilters
         'performance'   => PerformanceMetrics::class,
         'session'       => SessionAuth::class,
         'tokens'        => TokenAuth::class,
-        'auth'          => ChainAuth::class
+        'auth'          => ChainAuth::class,
+        'faceverified'  => FaceVerified::class,
     ];
 
     /**
@@ -103,6 +105,15 @@ class Filters extends BaseFilters
      */
     public array $methods = [];
 
+    public array $filters = [
+        'faceverified' => [
+            'before' => [
+                'client_portal',
+                'client_portal/*',
+            ],
+        ],
+    ];
+
     /**
      * List of filter aliases that should run on any
      * before or after URI patterns.
@@ -116,7 +127,7 @@ class Filters extends BaseFilters
     'except' => [
         'client_portal/payroll/compute',
         'client_portal/payroll/sendPdf',
-        'client_portal/payroll/send/*'
+        'client_portal/payroll/send/*',
     ]
 ];
 }
