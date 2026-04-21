@@ -14,7 +14,7 @@
             <!-- Activity logs -->
             <button 
                 data-modal-open="viewDailyTimeLog"
-                class="bg-[#FFFFFF] hover:bg-[#f3f4f6]  px-3 py-3 rounded-lg shadow hover:shadow-[0_6px_12px_rgba(107,86,202,0.3)] flex items-center gap-2 transition hover:translate-y-[-2px]">
+                class="bg-[#FFFFFF] hover:bg-[#f3f4f6]  px-3 py-3 rounded-lg shadow hover:shadow-[0_6px_12px_rgba(0,0,0,0.3)] flex items-center gap-2 transition hover:translate-y-[-2px]">
                 <div id="add-icon" class="w-7 h-7 cursor-pointer">
                     <img src="<?php echo base_url('icons/activity.png'); ?>" alt="Add"/>
                 </div>
@@ -23,7 +23,7 @@
             <!-- Timesheets history -->
             <button 
                 data-modal-open="viewTimesheetHistoryModal"
-                class="bg-[#FFFFFF] hover:bg-[#f3f4f6]  px-3 py-3 rounded-lg shadow hover:shadow-[0_6px_12px_rgba(107,86,202,0.2)] flex items-center gap-2 transition hover:translate-y-[-2px]">
+                class="bg-[#FFFFFF] hover:bg-[#f3f4f6]  px-3 py-3 rounded-lg shadow hover:shadow-[0_6px_12px_rgba(0,0,0,0.2)] flex items-center gap-2 transition hover:translate-y-[-2px]">
                 <div id="add-icon" class="w-7 h-7 cursor-pointer">
                     <img src="<?php echo base_url('icons/alarms.png'); ?>" alt="Add"/>
                 </div>

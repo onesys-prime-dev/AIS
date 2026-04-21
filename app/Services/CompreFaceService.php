@@ -7,6 +7,8 @@ use RuntimeException;
 
 class CompreFaceService
 {
+    private const HEALTH_CACHE_KEY = 'compreface.health_status';
+
     public function __construct(
         private readonly CompreFace $config = new CompreFace(),
     ) {
@@ -45,8 +47,6 @@ class CompreFaceService
 
     public function enrollFace(string $imageDataUrl, string $subject): array
     {
-        $this->assertConfigured();
-
         $subject = trim($subject);
         if ($subject === '') {
             throw new RuntimeException('CompreFace subject is required.');
@@ -64,6 +64,19 @@ class CompreFaceService
     }
 
     public function getHealthStatus(): array
+    {
+        $cachedStatus = $this->getCachedHealthStatus();
+        if ($cachedStatus !== null) {
+            return $cachedStatus;
+        }
+
+        $status = $this->probeHealthStatus();
+        $this->storeCachedHealthStatus($status);
+
+        return $status;
+    }
+
+    private function probeHealthStatus(): array
     {
         if ($this->config->baseUrl === '') {
             return [
@@ -119,12 +132,26 @@ class CompreFaceService
         ];
     }
 
-    public function assertAvailable(): void
+    private function getCachedHealthStatus(): ?array
     {
-        $health = $this->getHealthStatus();
-        if (! $health['ok']) {
-            throw new RuntimeException((string) $health['message']);
+        $cache = service('cache');
+        if (! is_object($cache) || ! method_exists($cache, 'get')) {
+            return null;
         }
+
+        $cachedStatus = $cache->get(self::HEALTH_CACHE_KEY);
+
+        return is_array($cachedStatus) ? $cachedStatus : null;
+    }
+
+    private function storeCachedHealthStatus(array $status): void
+    {
+        $cache = service('cache');
+        if (! is_object($cache) || ! method_exists($cache, 'save')) {
+            return;
+        }
+
+        $cache->save(self::HEALTH_CACHE_KEY, $status, 30);
     }
 
     private function sendMultipartRequest(string $path, array $fields): ?array

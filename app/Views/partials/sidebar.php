@@ -41,30 +41,15 @@
                     <span>Employee</span>
                 </a>
 
-                <!-- <a href="<?= site_url('client_portal/requests') ?>"
-                    class="menu-item <?= str_contains(current_url(), 'client_portal/requests') ? 'active' : '' ?>">
-                    <img src="<?= base_url('icons/Requests.png') ?>" class="icon">
-                    <span>Requests</span>
-                </a> -->
             <?php endif; ?>
         </nav>
 
         <!-- BOTTOM MENU -->
         <div class="bottom-menu">
-            <a href="<?= site_url('help') ?>" class="menu-item">
+            <a href="<?= site_url('client_portal/help') ?>" class="menu-item">
                 <img src="<?= base_url('icons/help.png') ?>" class="icon">
                 <span>Help</span>
             </a>
-
-            <!-- <a href="<?= site_url('settings') ?>" class="menu-item">
-                <img src="<?= base_url('icons/settings.png') ?>" class="icon">
-                <span>Settings</span>
-            </a>
-
-            <a href="<?= site_url('logout') ?>" class="menu-item">
-                <img src="<?= base_url('icons/logout.png') ?>" class="icon">
-                <span>Log-out</span>
-            </a> -->
         </div>
     </div>
 </aside>

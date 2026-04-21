@@ -90,7 +90,6 @@ class FaceAuthController extends BaseController
         }
 
         try {
-            $this->compreFaceService->assertAvailable();
             $match = $this->compreFaceService->recognize($image);
         } catch (Throwable $e) {
             log_message('error', 'Face verification failed for user {userId}: {message}', [

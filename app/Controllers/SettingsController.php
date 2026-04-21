@@ -180,7 +180,6 @@ class SettingsController extends BaseController
         }
 
         try {
-            $this->compreFaceService->assertAvailable();
             $result = $this->compreFaceService->enrollFace($image, (string) $user->id);
         } catch (Throwable $e) {
             log_message('error', 'Face enrollment failed for user {userId}: {message}', [
