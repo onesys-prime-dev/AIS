@@ -9,6 +9,7 @@
         <button type="button" class="tab active" data-tab="payroll-status">Payroll Status</button>
         <button type="button" class="tab" data-tab="generate-payslip">Generate Payslip</button>
         <button type="button" class="tab" data-tab="payroll-settings">Payroll Settings</button>
+        <button type="button" class="tab" data-tab="payslip-history">Payslip History</button>
     </div>
 
     <div class="tab-panel h-full flex flex-col min-h-0 overflow-hidden px-8 pb-8" data-panel="payroll-status">
@@ -21,6 +22,10 @@
 
     <div class="tab-panel h-full flex flex-col min-h-0 overflow-hidden px-8 pb-8" data-panel="payroll-settings">
         <?= view('client_portal/payroll_settings_panel') ?>
+    </div>
+
+    <div class="tab-panel h-full flex flex-col min-h-0 overflow-hidden px-8 pb-8" data-panel="payslip-history">
+        <?= view('client_portal/payroll_payslip_history') ?>
     </div>
 
 </div>

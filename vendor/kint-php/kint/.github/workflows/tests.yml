@@ -1,0 +1,122 @@
+name: Tests
+on: [push, pull_request]
+jobs:
+  test-format:
+    name: 'Code format check'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/kint-setup
+        name: Kint setup
+        with:
+          php-version: 8.4
+          npm-version: latest
+      - run: |
+          composer format
+          git status
+          git diff-files --quiet --exit-code
+        env:
+          PHP_CS_FIXER_IGNORE_ENV: 1
+  test-build:
+    name: 'Build check'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/kint-setup
+        name: Kint setup
+        with:
+          php-version: 8.4
+          php-ini-values: 'phar.readonly=Off'
+          npm-version: latest
+      - run: |
+          composer clean
+          composer build
+          git status
+          git diff-files --quiet --exit-code
+  test-static:
+    name: 'Static analysis check'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/kint-setup
+        name: Kint setup
+        with:
+          php-version: 8.4
+          npm-version: latest
+      - run: composer analyze
+  test-basic:
+    name: 'Basic test ${{ matrix.php-coverage }}'
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:latest
+        env:
+          MYSQL_ALLOW_EMPTY_PASSWORD: yes
+        ports:
+          - 3306
+        # Should increase test consistency by ensuring mysql actually starts up properly
+        options: --health-cmd="mysqladmin ping" --health-interval=5s --health-timeout=2s --health-retries=3
+    strategy:
+      matrix:
+        php-coverage:
+          - none
+          - xdebug
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/kint-setup
+        name: Kint setup
+        with:
+          php-version: 8.4
+          php-coverage: ${{ matrix.php-coverage }}
+      - run: php ./vendor/bin/phpunit tests
+        env:
+          MYSQLI_HOST: localhost:${{ job.services.mysql.ports['3306'] }}
+  tests:
+    name: 'PHP ${{ matrix.php-versions }} ${{ matrix.phar }}tests'
+    needs:
+      - test-format
+      - test-build
+      - test-static
+      - test-basic
+    runs-on: ubuntu-latest
+    continue-on-error: ${{ matrix.php-versions == '8.5' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        php-versions:
+          - 7.4
+          - 8.0
+          - 8.1
+          - 8.2
+          - 8.3
+          - 8.4
+          - 8.5
+        phar:
+          - "phar "
+          - ""
+    services:
+      mysql:
+        image: mysql:latest
+        env:
+          MYSQL_ALLOW_EMPTY_PASSWORD: yes
+        ports:
+          - 3306
+        # Should increase test consistency by ensuring mysql actually starts up properly
+        options: --health-cmd="mysqladmin ping" --health-interval=5s --health-timeout=2s --health-retries=3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/kint-setup
+        name: Kint setup
+        with:
+          php-version: ${{ matrix.php-versions }}
+      - run: sudo systemctl start mysql
+        if: ${{ matrix.php-versions == 8.1 }}
+      - run: php ./vendor/bin/phpunit --no-coverage tests
+        if: '!matrix.phar'
+        env:
+          MYSQLI_HOST: localhost:${{ job.services.mysql.ports['3306'] }}
+      - run: php ./vendor/bin/phpunit --no-coverage --prepend ./build/kint.phar tests
+        if: matrix.phar
+        env:
+          KINT_PHAR_TEST: 1
+          MYSQLI_HOST: localhost:${{ job.services.mysql.ports['3306'] }}

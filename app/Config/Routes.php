@@ -67,6 +67,12 @@ $routes->group('client_portal', ['namespace' => 'App\Controllers\Client'], funct
     $routes->post('payroll/compute', 'PayrollController::computeAndSave');
     $routes->get('payroll/generate/(:num)', 'PayrollController::generatePayslip/$1');
     $routes->post('payroll/send/(:num)', 'PayrollController::sendPayslip/$1');
+    
+    // NEW ROUTES FOR PAYSLIP HISTORY
+    $routes->get('payroll/getMyPayslips', 'PayrollController::getMyPayslips');
+    $routes->get('payroll/downloadPayslip/(:num)', 'PayrollController::downloadPayslip/$1');
+    $routes->get('payroll/payslipHistory', 'PayrollController::payslipHistory');
+    $routes->get('payroll/getPayslipData/(:num)', 'PayrollController::getPayslipData/$1'); // <-- semicolon added
 });
 
 $routes->group('client_portal/payroll', ['namespace' => 'App\Controllers\Client'], function($routes) {

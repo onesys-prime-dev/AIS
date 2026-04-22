@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+<psalm
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns="https://getpsalm.org/schema/config"
+    xsi:schemaLocation="https://getpsalm.org/schema/config vendor/vimeo/psalm/config.xsd"
+    findUnusedBaselineEntry="true"
+    findUnusedCode="true"
+>
+    <enableExtensions>
+        <!-- Reflection lies! -->
+        <extension name="simplexml"/>
+    </enableExtensions>
+
+    <stubs>
+        <file name="stubs/defines.phpstub" />
+    </stubs>
+
+    <projectFiles>
+        <directory name="src" />
+        <file name="init.php" />
+        <file name="init_helpers.php" />
+        <file name="init_phar.php" />
+    </projectFiles>
+
+    <issueHandlers>
+        <Trace errorLevel="error"/>
+    </issueHandlers>
+</psalm>

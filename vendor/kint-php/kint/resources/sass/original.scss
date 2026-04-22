@@ -1,0 +1,26 @@
+@use "kint";
+
+.kint-rich {
+  @include kint.rich();
+
+  // TODO: Remove after mixed decls is released (https://sass-lang.com/documentation/breaking-changes/mixed-decls/)
+  & {
+    --gradient-start: #e3ecf0;
+    --gradient-end: #c0d4df;
+    --tabs-gradient-start: #9dbed0;
+    --tabs-gradient-end: #b2ccda;
+  }
+
+  > dl > dt {
+    background: linear-gradient(to bottom, var(--gradient-start) 0%, var(--gradient-end) 100%);
+  }
+  > dl > dd > ul.kint-tabs li {
+    background: var(--main-background);
+    &.kint-active-tab {
+      background: var(--secondary-background);
+    }
+  }
+  ul.kint-tabs {
+    background: linear-gradient(to bottom, var(--tabs-gradient-start) 0%, var(--tabs-gradient-end) 100%);
+  }
+}
