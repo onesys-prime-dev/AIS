@@ -47,6 +47,7 @@ $routes->post('client_portal/requests/store', 'Client\RequestController::store')
 $routes->get('client_portal/requests', 'Client\RequestController::index');
 $routes->post('client_portal/requests/update/(:num)', 'Client\RequestController::updateStatus/$1');
 $routes->post('client_portal/announcements/store', 'Client\AnnouncementController::store');
+$routes->post('client_portal/announcements/viewed', 'Client\AnnouncementController::viewed');
 $routes->post('client_portal/tasks/submit', 'Client\TaskController::submitTask');
 $routes->get('client_portal/tasks/saved', 'Client\TaskController::getSavedTasks');
 $routes->get('client_portal/timesheet', 'Client\TimesheetController::index');

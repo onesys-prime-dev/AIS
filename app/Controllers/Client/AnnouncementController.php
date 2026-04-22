@@ -110,4 +110,42 @@ class AnnouncementController extends BaseController
 
         return redirect()->to(site_url('client_portal/dashboard'))->with('success', 'Announcement published successfully.');
     }
+
+    public function viewed()
+    {
+        $user = auth()->user();
+
+        if (! $user) {
+            return $this->response->setStatusCode(401)->setJSON([
+                'success' => false,
+                'message' => 'Unauthenticated.',
+                'csrfHash' => csrf_hash(),
+            ]);
+        }
+
+        $announcementId = (int) $this->request->getPost('announcement_id');
+
+        if ($announcementId <= 0) {
+            return $this->response->setStatusCode(422)->setJSON([
+                'success' => false,
+                'message' => 'Invalid announcement id.',
+                'csrfHash' => csrf_hash(),
+            ]);
+        }
+
+        $saved = $this->announcementService->markAnnouncementViewed($announcementId, (int) $user->id);
+
+        if (! $saved) {
+            return $this->response->setStatusCode(404)->setJSON([
+                'success' => false,
+                'message' => 'Announcement not found or unable to mark as viewed.',
+                'csrfHash' => csrf_hash(),
+            ]);
+        }
+
+        return $this->response->setJSON([
+            'success' => true,
+            'csrfHash' => csrf_hash(),
+        ]);
+    }
 }

@@ -240,9 +240,9 @@ body{
 .notifications{
     width:100%;
     max-width:none;
-    background: white;
-    border-radius:16px;
-    box-shadow:0 6px 18px rgba(0,0,0,0.08);
+    background: linear-gradient(180deg, #ffffff 0%, #fcfcfe 100%);
+    border-radius:18px;
+    box-shadow:0 14px 30px rgba(17, 24, 39, 0.10);
     border:1px solid #ececec;
     overflow-y:auto;
     max-height:none;
@@ -250,34 +250,37 @@ body{
 }
 
 .notifications-divider{
-    border: 2px solid #e5e7eb;
+    border:0;
+    border-top:1px solid #e5e7eb;
 }
 
 /* NOTIFICATION TITLE */
 .notifications-title{
     color:#232323;
-    font-size:22px;
+    font-size:23px;
     font-weight:700;
+    letter-spacing:-0.015em;
 }
 
 .notifications-top{
     display:flex;
     align-items:center;
     justify-content:space-between;
-    margin: 20px;
+    margin: 20px 20px 14px;
 }
 
 .notifications-clear{
     border:none;
     background:transparent;
-    color:#444;
+    color:#4b5563;
     font-size:12px;
     font-weight:600;
     cursor:pointer;
-    padding:0;
+    padding:6px 8px;
+    border-radius:8px;
     display:flex;
     align-items:center;
-    gap:2px;
+    gap:4px;
 }
 
 .notifications-clear .dot{
@@ -286,26 +289,25 @@ body{
 }
 
 .notifications-clear:hover{
-    color:#222;
-    opacity:0.8;
-    transform:scale(1.05);
+    color:#1f2937;
+    background:#f3f4f6;
 }
 
 .notifications-tabs{
     display:flex;
     align-items:center;
     gap:10px;
-    margin: 15px 20px;
+    margin: 12px 20px 8px;
 }
 
 .notifications-tab{
-    border:none;
-    background:transparent;
+    border:1px solid transparent;
+    background:#f3f4f6;
     font-size:12px;
     font-weight:600;
-    color:#4b4b4b;
+    color:#4b5563;
     border-radius:999px;
-    padding:9px 14px;
+    padding:8px 13px;
     cursor:pointer;
     display:flex;
     align-items:center;
@@ -314,13 +316,15 @@ body{
 }
 
 .notifications-tab:hover{
-    background:#ddd6fe;
-    transform:translateY(-1px);
+    background:#ede9fe;
+    color:#1f2937;
 }
 
 .notifications-tab.active{
     background:#EBE5FF;
     color:#1f2937;
+    border-color:rgba(126, 35, 253, 0.25);
+    box-shadow:0 2px 8px rgba(126, 35, 253, 0.14);
 }
 
 .notifications-badge{
@@ -340,7 +344,9 @@ body{
     font-size:11px;
     font-weight:700;
     color:#6b7280;
-    margin:15px 0px;
+    margin:14px 0 10px;
+    text-transform:uppercase;
+    letter-spacing:0.06em;
 }
 
 .notifications-divider-title::after{
@@ -351,21 +357,21 @@ body{
 }
 
 .notifications-empty{
-    font-size:11px;
+    font-size:12px;
     color:#7d7d7d;
-    margin:10px;
+    margin:10px 0 14px;
     text-align: center;
 }
 
 .notif-meta{
-    margin-top:2px;
+    margin-top:6px;
     font-size:11px;
     color:#6b7280;
 }
 
 .notifications-group{
     display:none;
-    padding: 0px 20px;
+    padding: 0 20px 16px;
 }
 
 .notifications-group.active{
@@ -374,33 +380,36 @@ body{
 
 /* NOTIFICATION ITEM */
 .notif{
+    position:relative;
     display:flex;
-    align-items:center;
-    gap:15px;
-    padding:20px;
-    margin:10px 0px;
-    background: #FFFFFF;
-    border-radius: 10px;
+    align-items:flex-start;
+    gap:12px;
+    padding:14px 18px 14px 18px;
+    margin:10px 0;
+    background:#ffffff;
+    border-radius:14px;
     cursor:pointer;
-    box-shadow: 0 10px 12px #bfbfbf;
-    transition:background-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+    border:1px solid transparent;
+    box-shadow:0 6px 14px rgba(15, 23, 42, 0.09);
+    transition:background-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
 }
 
 .notif:hover{
-    background:#EBE5FF;
-    transform:translateY(-1px);
-    box-shadow:0 6px 12px #dbc0fc;
-;
-
+    background:#f6f2ff;
+    transform:translateY(-2px);
+    border-color:rgba(126, 35, 253, 0.2);
+    box-shadow:0 12px 22px rgba(126, 35, 253, 0.20);
 }
 
 .notif::before{
     content:'';
-    width:10px;
-    height:10px;
+    position:absolute;
+    left:8px;
+    top:18px;
+    width:8px;
+    height:8px;
     border-radius:50%;
     background:#7E23FD;
-    flex-shrink:0;
     transition:transform 0.2s ease, box-shadow 0.2s ease;
 }
 
@@ -409,29 +418,54 @@ body{
     box-shadow:0 0 0 4px rgba(126, 35, 253, 0.15);
 }
 
+/* .notif::after{
+    content:'>';
+    position:absolute;
+    right:14px;
+    top:50%;
+    transform:translateY(-50%);
+    color:#8b5cf6;
+    font-size:14px;
+    font-weight:700;
+    opacity:0.75;
+    transition:transform 0.2s ease, opacity 0.2s ease;
+} */
+
+.notif:hover::after{
+    transform:translateY(-50%) translateX(2px);
+    opacity:1;
+}
+
+.notif.notif-viewed::before{
+    display:none;
+}
+
 .notif-avatar{
-    width:44px;
-    height:44px;
-    border-radius:50%;
+    width:40px;
+    height:40px;
+    border-radius:12px;
     display:flex;
     align-items:center;
     justify-content:center;
-    background:#111827;
+    background:linear-gradient(135deg, #7E23FD, #a855f7);
     color:#fff;
     font-weight:700;
-    font-size:13px;
+    font-size:12px;
+    letter-spacing:0.02em;
     flex-shrink:0;
 }
 
 .notif-content{
     flex:1;
     min-width:0;
+    padding-top:1px;
 }
 
 .notif-title-row{
     display:flex;
-    align-items:baseline;
-    gap:7px;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap:12px;
 }
 
 .notif-time{
@@ -439,6 +473,48 @@ body{
     color:#6b7280;
     font-weight:600;
     white-space: nowrap;
+    flex-shrink:0;
+    margin-top:1px;
+}
+
+.notif-tags{
+    display:flex;
+    align-items:center;
+    gap:6px;
+    margin-top:8px;
+}
+
+.notif-pill{
+    display:inline-flex;
+    align-items:center;
+    border-radius:999px;
+    padding:2px 8px;
+    font-size:10px;
+    font-weight:700;
+    letter-spacing:0.03em;
+    text-transform:uppercase;
+    background:#efe7ff;
+    color:#5b21b6;
+}
+
+.notif-pill.priority-normal{
+    background:#dbeafe;
+    color:#1e40af;
+}
+
+.notif-pill.priority-high{
+    background:#fed7aa;
+    color:#b45309;
+}
+
+.notif-pill.priority-urgent{
+    background:#fecaca;
+    color:#991b1b;
+}
+
+.notif-pill.muted{
+    background:#f3f4f6;
+    color:#4b5563;
 }
 
 .notif-thumb{
@@ -471,20 +547,16 @@ body{
 
 .notif-title{
     font-weight:700;
-    font-size:14px;
+    font-size:13px;
     color:#262626;
-    white-space:nowrap;
-    overflow:hidden;
-    text-overflow:ellipsis;
+    line-height:1.35;
 }
 
 .notif-desc{
-    font-size:11px;
+    font-size:12px;
     color:#6b7280;
-    margin-top:2px;
-    white-space:nowrap;
-    overflow:hidden;
-    text-overflow:ellipsis;
+    margin-top:6px;
+    line-height:1.5;
 }
 
 /* MODAL */
@@ -753,6 +825,14 @@ body{
         grid-template-columns:1fr;
     }
 
+    .notif{
+        padding:13px 36px 13px 16px;
+    }
+
+    .notif-time{
+        font-size:10px;
+    }
+
     .view-notification-meta {
         grid-template-columns: 1fr;
     }
@@ -940,9 +1020,10 @@ body{
                 $audience = (string) ($n['audience'] ?? 'All Employees');
                 ?>
                 <div
-                    class="notif"
+                    class="notif <?= ! empty($n['is_viewed']) ? 'notif-viewed' : '' ?>"
                     role="button"
                     tabindex="0"
+                    data-id="<?= esc((string) ($n['id'] ?? 0), 'attr') ?>"
                     data-title="<?= esc($title, 'attr') ?>"
                     data-summary="<?= esc($summary, 'attr') ?>"
                     data-details="<?= esc($details, 'attr') ?>"
@@ -959,6 +1040,10 @@ body{
                             <div class="notif-time"><?= esc($timeAgo((string) ($n['publish_at'] ?? ''))) ?></div>
                         </div>
                         <div class="notif-desc"><?= esc($summary) ?></div>
+                        <div class="notif-tags">
+                            <span class="notif-pill priority-<?= strtolower($priority) ?>"><?= esc(ucfirst($priority)) ?></span>
+                            <span class="notif-pill muted"><?= esc(ucfirst($category)) ?></span>
+                        </div>
                         <?php if ($showMeta): ?>
                         <div class="notif-meta">Publish on <?= esc(date('M d, Y h:i A', strtotime((string) ($n['publish_at'] ?? 'now')))) ?></div>
                         <?php endif; ?>
@@ -1218,6 +1303,10 @@ body{
     </div>
 
 <script>
+    const notificationViewedUrl = "<?= site_url('client_portal/announcements/viewed') ?>";
+    let csrfTokenName = "<?= csrf_token() ?>";
+    let csrfTokenHash = "<?= csrf_hash() ?>";
+
     const attendance = <?= json_encode($currentAttendance ?? null) ?>;
 
     async function loadSavedTasks() {
@@ -1356,7 +1445,48 @@ body{
         document.getElementById('viewNotificationSummary').innerText = el.dataset.summary || '';
         document.getElementById('viewNotificationDetails').innerText = el.dataset.details || '';
 
+        if (!el.classList.contains('notif-viewed')) {
+            el.classList.add('notif-viewed');
+            markNotificationAsViewed(el);
+        }
+
         modal.style.display = 'flex';
+    }
+
+    async function markNotificationAsViewed(el) {
+        const notificationId = Number(el.dataset.id || 0);
+
+        if (!notificationId) {
+            return;
+        }
+
+        const payload = new URLSearchParams();
+        payload.append('announcement_id', String(notificationId));
+        payload.append(csrfTokenName, csrfTokenHash);
+
+        try {
+            const response = await fetch(notificationViewedUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: payload.toString(),
+            });
+
+            const result = await response.json();
+
+            if (result && result.csrfHash) {
+                csrfTokenHash = result.csrfHash;
+            }
+
+            if (!response.ok || !result || result.success !== true) {
+                el.classList.remove('notif-viewed');
+            }
+        } catch (error) {
+            el.classList.remove('notif-viewed');
+            console.error('Unable to mark notification as viewed.', error);
+        }
     }
 
     function closeNotificationModal() {

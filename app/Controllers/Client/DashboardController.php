@@ -54,17 +54,24 @@ class DashboardController extends BaseController
         $unpublishedAnnouncements = [];
 
         if ($user->inGroup('client_payroll_staff')) {
-            $unpublishedAnnouncements = $announcementService->getUnpublishedAnnouncementsForPayroll();
+            $unpublishedAnnouncements = $announcementService->getUnpublishedAnnouncementsForPayroll((int) $user->id);
         }
 
         $publishedNotifications = array_map(static function (array $announcement): array {
             $isUrgent = in_array(($announcement['priority'] ?? 'normal'), ['high', 'urgent'], true);
 
             return [
+                'id' => (int) ($announcement['id'] ?? 0),
                 'type' => $isUrgent ? 'error' : 'success',
                 'title' => (string) ($announcement['title'] ?? 'Announcement'),
+                'summary' => (string) ($announcement['summary'] ?? ''),
                 'message' => (string) ($announcement['summary'] ?? ''),
+                'details' => (string) ($announcement['details'] ?? ($announcement['summary'] ?? '')),
                 'publish_at' => (string) ($announcement['publish_at'] ?? ''),
+                'category' => (string) ($announcement['category'] ?? 'general'),
+                'priority' => (string) ($announcement['priority'] ?? 'normal'),
+                'audience' => (string) ($announcement['audience'] ?? 'all'),
+                'is_viewed' => (int) ($announcement['is_viewed'] ?? 0),
             ];
         }, $announcements);
 
@@ -72,10 +79,17 @@ class DashboardController extends BaseController
             $isUrgent = in_array(($announcement['priority'] ?? 'normal'), ['high', 'urgent'], true);
 
             return [
+                'id' => (int) ($announcement['id'] ?? 0),
                 'type' => $isUrgent ? 'error' : 'success',
                 'title' => (string) ($announcement['title'] ?? 'Announcement'),
+                'summary' => (string) ($announcement['summary'] ?? ''),
                 'message' => (string) ($announcement['summary'] ?? ''),
+                'details' => (string) ($announcement['details'] ?? ($announcement['summary'] ?? '')),
                 'publish_at' => (string) ($announcement['publish_at'] ?? ''),
+                'category' => (string) ($announcement['category'] ?? 'general'),
+                'priority' => (string) ($announcement['priority'] ?? 'normal'),
+                'audience' => (string) ($announcement['audience'] ?? 'all'),
+                'is_viewed' => (int) ($announcement['is_viewed'] ?? 0),
             ];
         }, $unpublishedAnnouncements);
 
