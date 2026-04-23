@@ -203,7 +203,6 @@ class PayrollController extends BaseController
                 throw new \Exception('Missing required parameters');
             }
 
-            // Get employee and payroll data
             $employeeModel = new EmployeeModel();
             $employee = $employeeModel->find($employeeId);
             if (!$employee) throw new \Exception('Employee not found');
@@ -221,7 +220,6 @@ class PayrollController extends BaseController
 
             $dailyRate = (float)$payrollRecord['daily_rate'];
             
-            // Get attendance for the period
             $attendanceModel = new AttendanceModel();
             $attendance = $attendanceModel
                 ->where('user_id', $employee['user_id'])
@@ -229,7 +227,6 @@ class PayrollController extends BaseController
                 ->where('date <=', $end)
                 ->findAll();
 
-            // Calculate present days
             $presentDays = 0;
             $dates = [];
             foreach ($attendance as $rec) {
@@ -241,11 +238,10 @@ class PayrollController extends BaseController
             
             $basicPay = $presentDays * $dailyRate;
             
-            // Calculate overtime (simple: total_hours > 8)
             $otPay = 0;
             $settingsModel = new PayrollSettingsModel();
             $otRate = (float)$settingsModel->getSetting('ot_regular_rate') ?: 1.25;
-            $monthlySalary = $dailyRate * 22; // approximate
+            $monthlySalary = $dailyRate * 22;
             $hourlyRate = $monthlySalary / 160;
             
             foreach ($attendance as $day) {
@@ -256,17 +252,14 @@ class PayrollController extends BaseController
                 }
             }
             
-            // Simple deductions (SSS, PhilHealth, Pag-IBIG approximations)
             $sss = min($monthlySalary * 0.045, 1350);
             $phic = min($monthlySalary * 0.03, 1200);
             $hdmf = min($monthlySalary * 0.02, 100);
             
-            // Withholding tax (simplified)
             $withholdingTax = 0;
-            $taxableIncome = $basicPay + $otPay;
             if ($monthlySalary > 20833) $withholdingTax = ($monthlySalary - 20833) * 0.20 / 2;
             
-            // Adjustments from frontend
+            $adjustments = $this->request->getJSON(true);
             $deMinimis = $adjustments['de_minimis'] ?? 0;
             $otherTaxable = $adjustments['other_taxable'] ?? 0;
             $sssLoan = $adjustments['sss_loan'] ?? 0;
@@ -278,7 +271,6 @@ class PayrollController extends BaseController
             $totalDeductions = $sss + $phic + $hdmf + $withholdingTax + $sssLoan + $calamityLoan + $salaryAdvance + $otherDeductions;
             $netPay = $totalEarnings - $totalDeductions;
             
-            // Save to transactions
             $txModel = new PayrollTransactionModel();
             $txData = [
                 'employee_id' => $employeeId,
@@ -482,203 +474,302 @@ class PayrollController extends BaseController
     }
 
     public function sendStatic()
-{
-    try {
-        $data = $this->request->getJSON(true);
-        $employeeId = $data['employee_id'];
-        
-        $employeeModel = new EmployeeModel();
-        $employee = $employeeModel->find($employeeId);
-        if (!$employee) throw new \Exception('Employee not found');
-        
-        $emailAddress = $this->getUserEmail($employee['user_id']);
+    {
+        try {
+            $data = $this->request->getJSON(true);
+            $employeeId = $data['employee_id'];
+            
+            $employeeModel = new EmployeeModel();
+            $employee = $employeeModel->find($employeeId);
+            if (!$employee) throw new \Exception('Employee not found');
+            
+            $emailAddress = $this->getUserEmail($employee['user_id']);
 
-        if (!$emailAddress) {
-            throw new \Exception('Employee email not found');
+            if (!$emailAddress) {
+                throw new \Exception('Employee email not found');
+            }
+            
+            $html = view('client_portal/email_payslip', ['data' => $data, 'employee' => $employee]);
+            
+            $email = service('email');
+            $email->setTo($emailAddress);
+            $email->setSubject("Payslip for period {$data['period_start']} to {$data['period_end']}");
+            $email->setMessage($html);
+            
+            if ($email->send()) {
+                return $this->response->setJSON(['success' => true]);
+            } else {
+                throw new \Exception('Failed to send email');
+            }
+        } catch (\Exception $e) {
+            return $this->response->setJSON(['error' => $e->getMessage()])->setStatusCode(500);
         }
-        
-        // Generate a simple HTML email with the payslip data
-        $html = view('client_portal/email_payslip', ['data' => $data, 'employee' => $employee]);
-        
-        $email = service('email');
-        $email->setTo($emailAddress);
-        $email->setSubject("Payslip for period {$data['period_start']} to {$data['period_end']}");
-        $email->setMessage($html);
-        
-        if ($email->send()) {
-            return $this->response->setJSON(['success' => true]);
-        } else {
-            throw new \Exception('Failed to send email');
-        }
-    } catch (\Exception $e) {
-        return $this->response->setJSON(['error' => $e->getMessage()])->setStatusCode(500);
     }
-}
 
-public function sendPdf()
-{
-    try {
-        $data = $this->request->getJSON(true);
-        $employeeId = $data['employee_id'];
+    public function sendPdf()
+    {
+        try {
+            $data = $this->request->getJSON(true);
+            $employeeId = $data['employee_id'];
 
-        $employeeModel = new \App\Models\Client\EmployeeModel();
-        $employee = $employeeModel->find($employeeId);
-        if (!$employee) throw new \Exception('Employee not found');
+            $employeeModel = new \App\Models\Client\EmployeeModel();
+            $employee = $employeeModel->find($employeeId);
+            if (!$employee) throw new \Exception('Employee not found');
 
-        $emailAddress = $this->getUserEmail($employee['user_id']);
-        if (!$emailAddress) {
-            throw new \Exception('Employee email not found');
-        }
-        $password = $employee['employee_number'] . date('Ymd', strtotime($employee['birthdate']));
+            $emailAddress = $this->getUserEmail($employee['user_id']);
+            if (!$emailAddress) {
+                throw new \Exception('Employee email not found');
+            }
 
-        // Build HTML for PDF
-        $html = $this->buildPayslipHtmlForPdf($data, $employee);
+            $html = $this->buildPayslipHtmlForPdf($data, $employee);
 
-        $options = new \Dompdf\Options();
-        $options->set('defaultFont', 'Courier');
-        $dompdf = new \Dompdf\Dompdf($options);
-        $dompdf->loadHtml($html);
-        $dompdf->setPaper('A4', 'portrait');
-        $dompdf->render();
+            $options = new \Dompdf\Options();
+            $options->set('defaultFont', 'Courier');
+            $dompdf = new \Dompdf\Dompdf($options);
+            $dompdf->loadHtml($html);
+            $dompdf->setPaper('A4', 'portrait');
+            $dompdf->render();
 
-        // Password = EMPNO + YYYYMMDD
-        $password = $employee['employee_number'] . date('Ymd', strtotime($employee['birthdate']));
+            $password = $employee['employee_number'] . date('Ymd', strtotime($employee['birthdate']));
+            $dompdf->getCanvas()->get_cpdf()->setEncryption($password, "owner-password", ['print']);
+            $pdfOutput = $dompdf->output();
 
-        // Apply PDF encryption
-        $dompdf->getCanvas()
-            ->get_cpdf()
-            ->setEncryption($password, "owner-password", ['print']);
+            $permanentDir = WRITEPATH . 'uploads/payslips/permanent/';
+            if (!is_dir($permanentDir)) mkdir($permanentDir, 0777, true);
+            $filename = "payslip_{$employee['employee_number']}_{$data['period_start']}.pdf";
+            $permanentPath = $permanentDir . $filename;
+            file_put_contents($permanentPath, $pdfOutput);
 
-        $pdfOutput = $dompdf->output();
+            $payslipModel = new \App\Models\Client\EmployeePayslipModel();
+            $payslipModel->insert([
+                'employee_id'    => $employeeId,
+                'period_start'   => $data['period_start'],
+                'period_end'     => $data['period_end'],
+                'net_pay'        => $data['net_pay'],
+                'file_path'      => $permanentPath,
+                'generated_data' => json_encode($data)
+            ]);
 
-        $filename = "payslip_{$employee['employee_number']}_{$data['period_start']}.pdf";
-        $tempPath = WRITEPATH . 'uploads/payslips/';
-        if (!is_dir($tempPath)) mkdir($tempPath, 0777, true);
-        file_put_contents($tempPath . $filename, $pdfOutput);
+            $tempPath = WRITEPATH . 'uploads/payslips/temp/';
+            if (!is_dir($tempPath)) mkdir($tempPath, 0777, true);
+            $tempFile = $tempPath . $filename;
+            file_put_contents($tempFile, $pdfOutput);
 
-        $email = service('email');
-        // ✅ Set mail type FIRST before anything else
-        $email->setMailType('html');
-        $email->setTo($emailAddress);
-        $email->setSubject("Payslip for period {$data['period_start']} to {$data['period_end']}");
-        $email->setMessage("
-            Dear {$data['employee_name']},<br><br>
-            Please find attached your payslip.<br><br>
-
-            <strong>PDF Password:</strong><br>
-            Your Employee Number + Birthdate (YYYYMMDD)<br>
-            Example: EMP-XXXX-ZZZZYYYYMMDD<br><br>
-
-            Regards,<br>
-            Payroll Team
+            $email = service('email');
+            $email->setMailType('html');
+            $email->setTo($emailAddress);
+            $email->setSubject("Payslip for period {$data['period_start']} to {$data['period_end']}");
+            $email->setMessage("
+                Dear {$data['employee_name']},<br><br>
+                Please find attached your payslip.<br><br>
+                <strong>PDF Password:</strong><br>
+                Your Employee Number + Birthdate (YYYYMMDD)<br>
+                Example: {$employee['employee_number']}YYYYMMDD<br><br>
+                Regards,<br>
+                Payroll Team
             ");
-        $email->attach($tempPath . $filename);
+            $email->attach($tempFile);
 
-        if ($email->send()) {
-            unlink($tempPath . $filename);
-            return $this->response->setJSON(['success' => true]);
-        } else {
-            // ✅ Capture the actual mailer error for debugging
-            $debugInfo = $email->printDebugger(['headers', 'subject', 'body']);
-            log_message('error', 'sendPdf email failed: ' . $debugInfo);
-            throw new \Exception('Failed to send email. Check logs for details.');
+            if ($email->send()) {
+                unlink($tempFile);
+                return $this->response->setJSON(['success' => true]);
+            } else {
+                $debugInfo = $email->printDebugger(['headers', 'subject', 'body']);
+                log_message('error', 'sendPdf email failed: ' . $debugInfo);
+                throw new \Exception('Failed to send email. Check logs for details.');
+            }
+        } catch (\Exception $e) {
+            log_message('error', 'sendPdf exception: ' . $e->getMessage());
+            return $this->response->setJSON(['error' => $e->getMessage()])->setStatusCode(500);
         }
-    } catch (\Exception $e) {
-        log_message('error', 'sendPdf exception: ' . $e->getMessage());
-        return $this->response->setJSON(['error' => $e->getMessage()])->setStatusCode(500);
     }
-}
 
-private function buildPayslipHtmlForPdf($data, $employee)
-{
-    $formatDate = function($date) {
-        if (!$date) return '';
-        return date('d-M-Y', strtotime($date));
-    };
-    
-    $html = '
-    <div style="font-family: Arial, sans-serif; border: 1px solid #000; padding: 20px; max-width: 900px; margin: auto;">
-        <h2 style="text-align: center;">PAY SLIP</h2>
-        <table style="width:100%; border-collapse: collapse; margin-bottom:10px;">
-            <tr><td style="border:1px solid #000; padding:5px;"><strong>Employee:</strong></td><td style="border:1px solid #000; padding:5px;">' . $data['employee_name'] . '</td>
-                <td style="border:1px solid #000; padding:5px;"></td>
-                <td style="border:1px solid #000; padding:5px;"><strong>Payroll period:</strong></td>
-                <td style="border:1px solid #000; padding:5px;">' . $formatDate($data['period_start']) . '</td>
-                <td style="border:1px solid #000; padding:5px;">' . $formatDate($data['period_end']) . '</td></tr>
-            <tr><td style="border:1px solid #000; padding:5px;"><strong>Position:</strong></td><td colspan="5" style="border:1px solid #000; padding:5px;">' . ($data['position'] ?? 'N/A') . '</td></tr>
-        </table>
+    // ================= PAYSLIP HISTORY METHODS =================
+    public function getEmployeePayslips($employeeId)
+    {
+        $payslipModel = new \App\Models\Client\EmployeePayslipModel();
+        $payslips = $payslipModel
+            ->where('employee_id', $employeeId)
+            ->orderBy('period_start', 'DESC')
+            ->findAll();
+
+        foreach ($payslips as &$ps) {
+            $ps['download_url'] = site_url('client_portal/payroll/downloadPayslip/' . $ps['id']);
+        }
+        return $this->response->setJSON($payslips);
+    }
+
+    public function getMyPayslips()
+    {
+        $user = auth()->user();
+        $employeeModel = new \App\Models\Client\EmployeeModel();
+        $employee = $employeeModel->where('user_id', $user->id)->first();
+        if (!$employee) {
+            return $this->response->setJSON([]);
+        }
+        return $this->getEmployeePayslips($employee['id']);
+    }
+
+    public function downloadPayslip($id)
+    {
+        $payslipModel = new \App\Models\Client\EmployeePayslipModel();
+        $payslip = $payslipModel->find($id);
+        if (!$payslip) {
+            throw new \Exception('Payslip not found');
+        }
+
+        $user = auth()->user();
+        $employeeModel = new \App\Models\Client\EmployeeModel();
+        $employee = $employeeModel->find($payslip['employee_id']);
+        $isOwner = ($employee && $employee['user_id'] == $user->id);
+        // Fix: use inGroup() instead of can()
+        $isAdmin = $user->inGroup('client_payroll_staff');
+
+        if (!$isOwner && !$isAdmin) {
+            return $this->response->setStatusCode(403)->setJSON(['error' => 'Unauthorized']);
+        }
+
+        $filePath = $payslip['file_path'];
+        if (!file_exists($filePath)) {
+            throw new \Exception('File not found');
+        }
+
+        return $this->response->download($filePath, null);
+    }
+
+    public function payslipHistory()
+    {
+        $payslipModel = new \App\Models\Client\EmployeePayslipModel();
+        $payslips = $payslipModel
+            ->select('employee_payslips.*, CONCAT(employees.first_name, " ", employees.last_name) as employee_name')
+            ->join('employees', 'employees.id = employee_payslips.employee_id')
+            ->orderBy('employee_payslips.created_at', 'DESC')
+            ->findAll();
+
+        return view('client_portal/payroll_payslip_history', ['payslips' => $payslips]);
+    }
+
+    // NEW: Get payslip data for preview
+    public function getPayslipData($id)
+    {
+        $payslipModel = new \App\Models\Client\EmployeePayslipModel();
+        $payslip = $payslipModel->find($id);
+        if (!$payslip) {
+            return $this->response->setStatusCode(404)->setJSON(['error' => 'Payslip not found']);
+        }
         
-        <table style="width:100%; border-collapse: collapse; margin-top:10px;">
-            <tr><th style="border:1px solid #000; background:#eee;">REGULAR EARNINGS</th><th style="border:1px solid #000; background:#eee;">TAXABLE OTHER EARNINGS</th><th style="border:1px solid #000; background:#eee;">NON-TAXABLE OTHER EARNINGS</th></tr>
-            <tr>
-                <td style="border:1px solid #000; padding:5px; vertical-align:top;">
-                    <table style="width:100%;">' .
-                        '<tr><td>Basic pay:</td><td style="text-align:right;">' . number_format($data['basic_pay'], 2) . '</td></tr>' .
-                        '<tr><td>Night premium:</td><td style="text-align:right;">' . number_format($data['night_diff_pay'], 2) . '</td></tr>' .
-                        '<tr><td><strong>Net basic pay</strong></td><td style="text-align:right;"><strong>' . number_format($data['basic_pay'] + $data['night_diff_pay'], 2) . '</strong></td></tr>' .
-                        '<tr><td>Reg. OT:</td><td style="text-align:right;">' . number_format($data['overtime_pay'], 2) . '</td></tr>' .
-                    '</table>
-                </td>
-                <td style="border:1px solid #000; padding:5px; vertical-align:top;">
-                    <table style="width:100%;">' .
-                        '<tr><td>Taxable Other:</td><td style="text-align:right;">' . number_format($data['other_earnings_taxable'], 2) . '</td></tr>' .
-                    '</table>
-                </td>
-                <td style="border:1px solid #000; padding:5px; vertical-align:top;">
-                    <table style="width:100%;">' .
-                        '<tr><td>De Minimis:</td><td style="text-align:right;">' . number_format($data['de_minimis'], 2) . '</td></tr>' .
-                    '</table>
-                </td>
-            </tr>
-            <tr><td colspan="2" style="text-align:right;"><strong>GROSS PAY</strong></td><td style="text-align:right;"><strong>' . number_format($data['basic_pay'] + $data['night_diff_pay'] + $data['overtime_pay'] + $data['other_earnings_taxable'] + $data['de_minimis'], 2) . '</strong></td></tr>
-        </table>
+        $user = auth()->user();
+        $employeeModel = new \App\Models\Client\EmployeeModel();
+        $employee = $employeeModel->find($payslip['employee_id']);
+        $isOwner = ($employee && $employee['user_id'] == $user->id);
+        // Fix: use inGroup() instead of can()
+        $isAdmin = $user->inGroup('client_payroll_staff');
         
-        <table style="width:100%; border-collapse: collapse; margin-top:10px;">
-            <tr><th style="border:1px solid #000; background:#eee;">REGULAR DEDUCTIONS</th><th style="border:1px solid #000; background:#eee;">LOANS/ADVANCES</th></tr>
-            <tr>
-                <td style="border:1px solid #000; padding:5px;">
-                    <table style="width:100%;">' .
-                        '<tr><td>SSS</td><td style="text-align:right;">' . number_format($data['sss_ee'], 2) . '</td></tr>' .
-                        '<tr><td>Philhealth</td><td style="text-align:right;">' . number_format($data['phic_ee'], 2) . '</td></tr>' .
-                        '<tr><td>Pag-IBIG</td><td style="text-align:right;">' . number_format($data['hdmf_ee'], 2) . '</td></tr>' .
-                        '<tr><td>Withholding Tax</td><td style="text-align:right;">' . number_format($data['withholding_tax'], 2) . '</td></tr>' .
-                    '</table>
-                </td>
-                <td style="border:1px solid #000; padding:5px;">
-                    <table style="width:100%;">' .
-                        '<tr><td>SSS Loan</td><td style="text-align:right;">' . number_format($data['sss_loan'], 2) . '</td></tr>' .
-                        '<tr><td>Calamity Loan</td><td style="text-align:right;">' . number_format($data['calamity_loan'], 2) . '</td></tr>' .
-                        '<tr><td>Salary Advance</td><td style="text-align:right;">' . number_format($data['salary_advance'], 2) . '</td></tr>' .
-                        '<tr><td>Other Deductions</td><td style="text-align:right;">' . number_format($data['other_deductions'], 2) . '</td></tr>' .
-                    '</table>
-                </td>
-            </tr>
-            <tr><td colspan="2" style="text-align:right;"><strong>TOTAL DEDUCTIONS</strong></td><td style="text-align:right;"><strong>' . number_format($data['sss_ee'] + $data['phic_ee'] + $data['hdmf_ee'] + $data['withholding_tax'] + $data['sss_loan'] + $data['calamity_loan'] + $data['salary_advance'] + $data['other_deductions'], 2) . '</strong></td></tr>
-        </table>
+        if (!$isOwner && !$isAdmin) {
+            return $this->response->setStatusCode(403)->setJSON(['error' => 'Unauthorized']);
+        }
         
-        <table style="width:100%; border-collapse: collapse; margin-top:10px;">
-            <tr><td style="border:1px solid #000; padding:5px;">Employee signature:</td><td style="border:1px solid #000; padding:5px;"></td>
-                <td style="text-align:right;"><strong>NET PAY:</strong></td>
-                <td style="background:#f8d7da; text-align:right;"><strong>' . number_format($data['net_pay'], 2) . '</strong></td></tr>
-        </table>
-    </div>';
-    
-    return $html;
-}
+        $generatedData = json_decode($payslip['generated_data'], true);
+        if (!$generatedData) {
+            $generatedData = []; // fallback
+        }
+        
+        return $this->response->setJSON([
+            'id' => $payslip['id'],
+            'period_start' => $payslip['period_start'],
+            'period_end' => $payslip['period_end'],
+            'generated_data' => $generatedData
+        ]);
+    }
 
+    private function buildPayslipHtmlForPdf($data, $employee)
+    {
+        $formatDate = function($date) {
+            if (!$date) return '';
+            return date('d-M-Y', strtotime($date));
+        };
+        
+        $html = '
+        <div style="font-family: Arial, sans-serif; border: 1px solid #000; padding: 20px; max-width: 900px; margin: auto;">
+            <h2 style="text-align: center;">PAY SLIP</h2>
+            <table style="width:100%; border-collapse: collapse; margin-bottom:10px;">
+                <tr><td style="border:1px solid #000; padding:5px;"><strong>Employee:</strong></td><td style="border:1px solid #000; padding:5px;">' . $data['employee_name'] . '</td>
+                    <td style="border:1px solid #000; padding:5px;"></td>
+                    <td style="border:1px solid #000; padding:5px;"><strong>Payroll period:</strong></td>
+                    <td style="border:1px solid #000; padding:5px;">' . $formatDate($data['period_start']) . '</td>
+                    <td style="border:1px solid #000; padding:5px;">' . $formatDate($data['period_end']) . '</td>
+                </tr>
+                <tr><td style="border:1px solid #000; padding:5px;"><strong>Position:</strong></td><td colspan="5" style="border:1px solid #000; padding:5px;">' . ($data['position'] ?? 'N/A') . 'ERC</strong>ERC</td></td>
+            </table>
+            
+            <table style="width:100%; border-collapse: collapse; margin-top:10px;">
+                <tr><th style="border:1px solid #000; background:#eee;">REGULAR EARNINGS</th><th style="border:1px solid #000; background:#eee;">TAXABLE OTHER EARNINGS</th><th style="border:1px solid #000; background:#eee;">NON-TAXABLE OTHER EARNINGS</th></tr>
+                <tr>
+                    <td style="border:1px solid #000; padding:5px; vertical-align:top;">
+                        <table style="width:100%;">' .
+                            '<tr><td>Basic pay:ERC</td><td style="text-align:right;">' . number_format($data['basic_pay'], 2) . 'ERC</td></tr>' .
+                            '<tr>.htmlNight premium:ERC</td><td style="text-align:right;">' . number_format($data['night_diff_pay'], 2) . 'ERC</td></tr>' .
+                            '<tr class="bold"><td><strong>Net basic pay</strong>ERC</td><td style="text-align:right;"><strong>' . number_format($data['basic_pay'] + $data['night_diff_pay'], 2) . '</strong>ERC</td></tr>' .
+                            '<tr>.htmlReg. OT:ERC</td><td style="text-align:right;">' . number_format($data['overtime_pay'], 2) . 'ERC</td></tr>' .
+                        '</table>
+                    </td>
+                    <td style="border:1px solid #000; padding:5px; vertical-align:top;">
+                        <table style="width:100%;">' .
+                            '<tr>.htmlTaxable Other:ERC</td><td style="text-align:right;">' . number_format($data['other_earnings_taxable'], 2) . 'ERC</td></tr>' .
+                        '</table>
+                    </td>
+                    <td style="border:1px solid #000; padding:5px; vertical-align:top;">
+                        <table style="width:100%;">' .
+                            '<tr>.htmlDe Minimis:ERC</td><td style="text-align:right;">' . number_format($data['de_minimis'], 2) . 'ERC</td></tr>' .
+                        '</table>
+                    </td>
+                </tr>
+                <tr><td colspan="2" style="text-align:right;"><strong>GROSS PAY</strong>ERC</td><td style="text-align:right;"><strong>' . number_format($data['basic_pay'] + $data['night_diff_pay'] + $data['overtime_pay'] + $data['other_earnings_taxable'] + $data['de_minimis'], 2) . '</strong>ERC</td></tr>
+            </table>
+            
+            <table style="width:100%; border-collapse: collapse; margin-top:10px;">
+                <tr><th style="border:1px solid #000; background:#eee;">REGULAR DEDUCTIONS</th><th style="border:1px solid #000; background:#eee;">LOANS/ADVANCES</th></tr>
+                <tr>
+                    <td style="border:1px solid #000; padding:5px;">
+                        <table style="width:100%;">' .
+                            '<tr>.htmlSSSERC</td><td style="text-align:right;">' . number_format($data['sss_ee'], 2) . 'ERC</td></tr>' .
+                            '<tr>.htmlPhilhealthERC</td><td style="text-align:right;">' . number_format($data['phic_ee'], 2) . 'ERC</td></tr>' .
+                            '<tr>.htmlPag-IBIGERC</td><td style="text-align:right;">' . number_format($data['hdmf_ee'], 2) . 'ERC</td></tr>' .
+                            '<tr>.htmlWithholding TaxERC</td><td style="text-align:right;">' . number_format($data['withholding_tax'], 2) . 'ERC</td></tr>' .
+                        '</table>
+                    </td>
+                    <td style="border:1px solid #000; padding:5px;">
+                        <table style="width:100%;">' .
+                            '<tr>.htmlSSS LoanERC</td><td style="text-align:right;">' . number_format($data['sss_loan'], 2) . 'ERC</td></tr>' .
+                            '<tr>.htmlCalamity LoanERC</td><td style="text-align:right;">' . number_format($data['calamity_loan'], 2) . 'ERC</td></tr>' .
+                            '<tr>.htmlSalary AdvanceERC</td><td style="text-align:right;">' . number_format($data['salary_advance'], 2) . 'ERC</td></tr>' .
+                            '<tr>.htmlOther DeductionsERC</td><td style="text-align:right;">' . number_format($data['other_deductions'], 2) . 'ERC</td></tr>' .
+                        '</table>
+                    </td>
+                </tr>
+                <tr><td colspan="2" style="text-align:right;"><strong>TOTAL DEDUCTIONS</strong>ERC</td><td style="text-align:right;"><strong>' . number_format($data['sss_ee'] + $data['phic_ee'] + $data['hdmf_ee'] + $data['withholding_tax'] + $data['sss_loan'] + $data['calamity_loan'] + $data['salary_advance'] + $data['other_deductions'], 2) . '</strong>ERC</td></tr>
+            </table>
+            
+            <table style="width:100%; border-collapse: collapse; margin-top:10px;">
+                <tr><td style="border:1px solid #000; padding:5px;">Employee signature:ERC</td><td style="border:1px solid #000; padding:5px;">ERC</td>
+                    <td style="text-align:right;"><strong>NET PAY:</strong>ERC</td>
+                    <td style="background:#f8d7da; text-align:right;"><strong>' . number_format($data['net_pay'], 2) . '</strong>ERC</td>
+                </tr>
+            </table>
+        </div>';
+        
+        return $html;
+    }
 
-private function getUserEmail($userId)
-{
-    $db = \Config\Database::connect();
-
-    $row = $db->table('auth_identities')
-        ->select('secret')
-        ->where('user_id', $userId)
-        ->where('type', 'email_password')
-        ->get()
-        ->getRowArray();
-
-    return $row['secret'] ?? null;
-}
-
+    private function getUserEmail($userId)
+    {
+        $db = \Config\Database::connect();
+        $row = $db->table('auth_identities')
+            ->select('secret')
+            ->where('user_id', $userId)
+            ->where('type', 'email_password')
+            ->get()
+            ->getRowArray();
+        return $row['secret'] ?? null;
+    }
 }
