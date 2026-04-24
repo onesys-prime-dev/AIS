@@ -72,13 +72,16 @@ class SettingsController extends BaseController
 
         $userId = (int) $user->id;
 
-        // --- Save color/icon preferences per user ---
-        $userSettings = [
+        // Load existing settings first so we don't overwrite unrelated keys
+        $existingSettings = $this->userSettingsModel->getSettingsArray($userId);
+
+        // Merge only the color/icon keys, preserving everything else (e.g. payslip_password)
+        $userSettings = array_merge($existingSettings, [
             'sidebar_color'     => (string) $this->request->getPost('sidebar_color'),
             'header_color'      => (string) $this->request->getPost('header_color'),
             'background_color'  => (string) $this->request->getPost('background_color'),
             'sidebar_icon_mode' => (string) $this->request->getPost('sidebar_icon_mode'),
-        ];
+        ]);
 
         if (! $this->userSettingsModel->saveSettings($userId, $userSettings)) {
             return redirect()->back()->withInput()->with('error', 'Unable to save your color preferences.');

@@ -530,7 +530,7 @@ class PayrollController extends BaseController
             $dompdf->setPaper('A4', 'portrait');
             $dompdf->render();
 
-            $password = $employee['employee_number'] . date('Ymd', strtotime($employee['birthdate']));
+            $password = $this->resolvePayslipPassword($employee);
             $dompdf->getCanvas()->get_cpdf()->setEncryption($password, "owner-password", ['print']);
             $pdfOutput = $dompdf->output();
 
@@ -561,10 +561,9 @@ class PayrollController extends BaseController
             $email->setSubject("Payslip for period {$data['period_start']} to {$data['period_end']}");
             $email->setMessage("
                 Dear {$data['employee_name']},<br><br>
-                Please find attached your payslip.<br><br>
-                <strong>PDF Password:</strong><br>
-                Your Employee Number + Birthdate (YYYYMMDD)<br>
-                Example: {$employee['employee_number']}YYYYMMDD<br><br>
+                Please find attached your payslip. It is password-protected.<br><br>
+                <strong>PDF Password:</strong> Use the payslip password set in your account profile.
+                If you have not changed it, the default is your Employee Number + Birthdate (YYYYMMDD).<br><br>
                 Regards,<br>
                 Payroll Team
             ");
@@ -684,82 +683,268 @@ class PayrollController extends BaseController
 
     private function buildPayslipHtmlForPdf($data, $employee)
     {
+        $fmt = fn($n) => number_format((float)($n ?? 0), 2);
+        $fmtDate = fn($d) => $d ? date('d-M-Y', strtotime($d)) : '';
+
+        $grossPay = ($data['basic_pay'] ?? 0)
+                + ($data['night_diff_pay'] ?? 0)
+                + ($data['overtime_pay'] ?? 0)
+                + ($data['other_earnings_taxable'] ?? 0)
+                + ($data['de_minimis'] ?? 0);
+
+        $totalDeductions = ($data['sss_ee'] ?? 0)
+                        + ($data['phic_ee'] ?? 0)
+                        + ($data['hdmf_ee'] ?? 0)
+                        + ($data['withholding_tax'] ?? 0)
+                        + ($data['sss_loan'] ?? 0)
+                        + ($data['calamity_loan'] ?? 0)
+                        + ($data['salary_advance'] ?? 0)
+                        + ($data['other_deductions'] ?? 0);
+
+        return '<!DOCTYPE html>
+    <html>
+    <head>
+    <meta charset="UTF-8">
+    <style>
+        body { font-family: Arial, sans-serif; font-size: 11px; }
+        .wrap { border: 1px solid #000; padding: 20px; max-width: 900px; margin: auto; }
+        h2 { text-align: center; margin: 0 0 10px 0; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+        td, th { border: 1px solid #000; padding: 5px; }
+        th { background: #eee; }
+        .inner-table { width: 100%; border-collapse: collapse; }
+        .inner-table td { border: none; padding: 2px 4px; }
+        .right { text-align: right; }
+        .bold { font-weight: bold; }
+        .highlight { background: #f8d7da; }
+    </style>
+    </head>
+    <body>
+    <div class="wrap">
+        <h2>PAY SLIP</h2>
+
+        <!-- Header Info -->
+        <table>
+            <tr>
+                <td><strong>Employee:</strong></td>
+                <td>' . htmlspecialchars($data['employee_name'] ?? '') . '</td>
+                <td><strong>Period Start:</strong></td>
+                <td>' . $fmtDate($data['period_start'] ?? '') . '</td>
+                <td><strong>Period End:</strong></td>
+                <td>' . $fmtDate($data['period_end'] ?? '') . '</td>
+            </tr>
+            <tr>
+                <td><strong>Position:</strong></td>
+                <td colspan="5">' . htmlspecialchars($data['position'] ?? 'N/A') . '</td>
+            </tr>
+        </table>
+
+        <!-- Earnings -->
+        <table>
+            <tr>
+                <th>REGULAR EARNINGS</th>
+                <th>TAXABLE OTHER EARNINGS</th>
+                <th>NON-TAXABLE OTHER EARNINGS</th>
+            </tr>
+            <tr>
+                <td>
+                    <table class="inner-table">
+                        <tr><td>Basic Pay:</td><td class="right">' . $fmt($data['basic_pay']) . '</td></tr>
+                        <tr><td>Night Premium:</td><td class="right">' . $fmt($data['night_diff_pay']) . '</td></tr>
+                        <tr><td class="bold">Net Basic Pay:</td><td class="right bold">' . $fmt(($data['basic_pay'] ?? 0) + ($data['night_diff_pay'] ?? 0)) . '</td></tr>
+                        <tr><td>Reg. OT:</td><td class="right">' . $fmt($data['overtime_pay']) . '</td></tr>
+                    </table>
+                </td>
+                <td>
+                    <table class="inner-table">
+                        <tr><td>Taxable Other:</td><td class="right">' . $fmt($data['other_earnings_taxable']) . '</td></tr>
+                    </table>
+                </td>
+                <td>
+                    <table class="inner-table">
+                        <tr><td>De Minimis:</td><td class="right">' . $fmt($data['de_minimis']) . '</td></tr>
+                    </table>
+                </td>
+            </tr>
+            <tr>
+                <td colspan="2" class="right"><strong>GROSS PAY</strong></td>
+                <td class="right"><strong>' . $fmt($grossPay) . '</strong></td>
+            </tr>
+        </table>
+
+        <!-- Deductions -->
+        <table>
+            <tr>
+                <th>REGULAR DEDUCTIONS</th>
+                <th>LOANS / ADVANCES</th>
+            </tr>
+            <tr>
+                <td>
+                    <table class="inner-table">
+                        <tr><td>SSS:</td><td class="right">' . $fmt($data['sss_ee']) . '</td></tr>
+                        <tr><td>Philhealth:</td><td class="right">' . $fmt($data['phic_ee']) . '</td></tr>
+                        <tr><td>Pag-IBIG:</td><td class="right">' . $fmt($data['hdmf_ee']) . '</td></tr>
+                        <tr><td>Withholding Tax:</td><td class="right">' . $fmt($data['withholding_tax']) . '</td></tr>
+                    </table>
+                </td>
+                <td>
+                    <table class="inner-table">
+                        <tr><td>SSS Loan:</td><td class="right">' . $fmt($data['sss_loan']) . '</td></tr>
+                        <tr><td>Calamity Loan:</td><td class="right">' . $fmt($data['calamity_loan']) . '</td></tr>
+                        <tr><td>Salary Advance:</td><td class="right">' . $fmt($data['salary_advance']) . '</td></tr>
+                        <tr><td>Other Deductions:</td><td class="right">' . $fmt($data['other_deductions']) . '</td></tr>
+                    </table>
+                </td>
+            </tr>
+            <tr>
+                <td class="right"><strong>TOTAL DEDUCTIONS</strong></td>
+                <td class="right"><strong>' . $fmt($totalDeductions) . '</strong></td>
+            </tr>
+        </table>
+
+        <!-- Net Pay / Signature -->
+        <table>
+            <tr>
+                <td style="width:50%"><strong>Employee Signature:</strong></td>
+                <td style="width:50%">&nbsp;</td>
+            </tr>
+            <tr>
+                <td class="right"><strong>NET PAY:</strong></td>
+                <td class="right highlight"><strong>' . $fmt($data['net_pay']) . '</strong></td>
+            </tr>
+        </table>
+    </div>
+    </body>
+    </html>';
+    }
+
+    /* ALL columns included version for email
+    private function buildPayslipHtmlForPdf($data, $employee)
+    {
         $formatDate = function($date) {
             if (!$date) return '';
             return date('d-M-Y', strtotime($date));
         };
-        
+
+        $grossPay      = ($data['net_basic_pay'] ?? 0) 
+                    + ($data['overtime_pay'] ?? 0) 
+                    + ($data['other_earnings_taxable'] ?? 0) 
+                    + ($data['de_minimis'] ?? 0);
+
+        $totalDeductions = ($data['sss_ee'] ?? 0) + ($data['phic_ee'] ?? 0) + ($data['hdmf_ee'] ?? 0)
+                        + ($data['withholding_tax'] ?? 0) + ($data['sss_loan'] ?? 0)
+                        + ($data['calamity_loan'] ?? 0) + ($data['salary_advance'] ?? 0)
+                        + ($data['calamity_advance'] ?? 0) + ($data['other_deductions'] ?? 0);
+
         $html = '
-        <div style="font-family: Arial, sans-serif; border: 1px solid #000; padding: 20px; max-width: 900px; margin: auto;">
-            <h2 style="text-align: center;">PAY SLIP</h2>
-            <table style="width:100%; border-collapse: collapse; margin-bottom:10px;">
-                <tr><td style="border:1px solid #000; padding:5px;"><strong>Employee:</strong></td><td style="border:1px solid #000; padding:5px;">' . $data['employee_name'] . '</td>
+        <div style="font-family:Arial,sans-serif; border:1px solid #000; padding:20px; max-width:900px; margin:auto;">
+            <h2 style="text-align:center;">PAY SLIP</h2>
+
+            <table style="width:100%; border-collapse:collapse; margin-bottom:10px; font-size:13px;">
+                <tr>
+                    <td style="border:1px solid #000; padding:5px;"><strong>Employee:</strong></td>
+                    <td style="border:1px solid #000; padding:5px;">' . ($data['employee_name'] ?? '') . '</td>
                     <td style="border:1px solid #000; padding:5px;"></td>
                     <td style="border:1px solid #000; padding:5px;"><strong>Payroll period:</strong></td>
                     <td style="border:1px solid #000; padding:5px;">' . $formatDate($data['period_start']) . '</td>
                     <td style="border:1px solid #000; padding:5px;">' . $formatDate($data['period_end']) . '</td>
                 </tr>
-                <tr><td style="border:1px solid #000; padding:5px;"><strong>Position:</strong></td><td colspan="5" style="border:1px solid #000; padding:5px;">' . ($data['position'] ?? 'N/A') . 'ERC</strong>ERC</td></td>
+                <tr>
+                    <td style="border:1px solid #000; padding:5px;"><strong>Position:</strong></td>
+                    <td colspan="5" style="border:1px solid #000; padding:5px;">' . ($data['position'] ?? 'N/A') . '</td>
+                </tr>
             </table>
-            
-            <table style="width:100%; border-collapse: collapse; margin-top:10px;">
-                <tr><th style="border:1px solid #000; background:#eee;">REGULAR EARNINGS</th><th style="border:1px solid #000; background:#eee;">TAXABLE OTHER EARNINGS</th><th style="border:1px solid #000; background:#eee;">NON-TAXABLE OTHER EARNINGS</th></tr>
+
+            <table style="width:100%; border-collapse:collapse; font-size:13px; margin-top:10px;">
+                <tr>
+                    <th style="border:1px solid #000; padding:5px; background:#eee; text-align:center;">REGULAR EARNINGS</th>
+                    <th style="border:1px solid #000; padding:5px; background:#eee; text-align:center;">TAXABLE OTHER EARNINGS</th>
+                    <th style="border:1px solid #000; padding:5px; background:#eee; text-align:center;">NON-TAXABLE OTHER EARNINGS</th>
+                </tr>
                 <tr>
                     <td style="border:1px solid #000; padding:5px; vertical-align:top;">
-                        <table style="width:100%;">' .
-                            '<tr><td>Basic pay:ERC</td><td style="text-align:right;">' . number_format($data['basic_pay'], 2) . 'ERC</td></tr>' .
-                            '<tr>.htmlNight premium:ERC</td><td style="text-align:right;">' . number_format($data['night_diff_pay'], 2) . 'ERC</td></tr>' .
-                            '<tr class="bold"><td><strong>Net basic pay</strong>ERC</td><td style="text-align:right;"><strong>' . number_format($data['basic_pay'] + $data['night_diff_pay'], 2) . '</strong>ERC</td></tr>' .
-                            '<tr>.htmlReg. OT:ERC</td><td style="text-align:right;">' . number_format($data['overtime_pay'], 2) . 'ERC</td></tr>' .
-                        '</table>
+                        <table style="width:100%;">
+                            <tr><td>Basic pay:</td><td style="text-align:right;">' . number_format($data['basic_pay'] ?? 0, 2) . '</td></tr>
+                            <tr><td>Rate per hour:</td><td style="text-align:right;">' . number_format($data['rate_per_hour'] ?? 0, 2) . '</td></tr>
+                            <tr><td>No. of hours Worked:</td><td style="text-align:right;">' . number_format($data['hours_worked'] ?? 0, 2) . '</td></tr>
+                            <tr><td>Night premium:</td><td style="text-align:right;">' . number_format($data['night_diff_pay'] ?? 0, 2) . '</td></tr>
+                            <tr><td>Less: Absences</td><td style="text-align:right;">' . number_format($data['absent_amt'] ?? 0, 2) . '</td></tr>
+                            <tr><td>Late/Undertime</td><td style="text-align:right;">' . number_format($data['undertime_amt'] ?? 0, 2) . '</td></tr>
+                            <tr><td><strong>Net basic pay</strong></td><td style="text-align:right;"><strong>' . number_format($data['net_basic_pay'] ?? 0, 2) . '</strong></td></tr>
+                            <tr><td>Reg. OT</td><td style="text-align:right;">' . number_format($data['reg_ot'] ?? 0, 2) . '</td></tr>
+                            <tr><td>Sat OT</td><td style="text-align:right;">' . number_format($data['sat_ot'] ?? 0, 2) . '</td></tr>
+                            <tr><td>Sun OT</td><td style="text-align:right;">' . number_format($data['sun_ot'] ?? 0, 2) . '</td></tr>
+                            <tr><td>Holiday OT</td><td style="text-align:right;">' . number_format($data['hol_ot'] ?? 0, 2) . '</td></tr>
+                        </table>
                     </td>
                     <td style="border:1px solid #000; padding:5px; vertical-align:top;">
-                        <table style="width:100%;">' .
-                            '<tr>.htmlTaxable Other:ERC</td><td style="text-align:right;">' . number_format($data['other_earnings_taxable'], 2) . 'ERC</td></tr>' .
-                        '</table>
+                        <table style="width:100%;">
+                            <tr><td>Salary Adjustment</td><td style="text-align:right;">' . number_format($data['salary_adjustment'] ?? 0, 2) . '</td></tr>
+                            <tr><td>Override</td><td style="text-align:right;">' . number_format($data['override_amount'] ?? 0, 2) . '</td></tr>
+                            <tr><td>NED</td><td style="text-align:right;">' . number_format($data['ned_amount'] ?? 0, 2) . '</td></tr>
+                            <tr><td>Holiday Pay</td><td style="text-align:right;">' . number_format($data['holiday_pay'] ?? 0, 2) . '</td></tr>
+                            <tr><td>Gross Compensation</td><td style="text-align:right;">' . number_format($data['gross_comp'] ?? 0, 2) . '</td></tr>
+                        </table>
                     </td>
                     <td style="border:1px solid #000; padding:5px; vertical-align:top;">
-                        <table style="width:100%;">' .
-                            '<tr>.htmlDe Minimis:ERC</td><td style="text-align:right;">' . number_format($data['de_minimis'], 2) . 'ERC</td></tr>' .
-                        '</table>
+                        <table style="width:100%;">
+                            <tr><td>Year End Gifts</td><td style="text-align:right;">' . number_format($data['year_end_gifts'] ?? 0, 2) . '</td></tr>
+                            <tr><td>Rice Subsidy</td><td style="text-align:right;">' . number_format($data['rice_subsidy'] ?? 0, 2) . '</td></tr>
+                            <tr><td>Uniform Allowance</td><td style="text-align:right;">' . number_format($data['uniform_allowance'] ?? 0, 2) . '</td></tr>
+                            <tr><td>Laundry Allowance</td><td style="text-align:right;">' . number_format($data['laundry_allowance'] ?? 0, 2) . '</td></tr>
+                            <tr><td>Medical Allowance</td><td style="text-align:right;">' . number_format($data['medical_allowance'] ?? 0, 2) . '</td></tr>
+                        </table>
                     </td>
                 </tr>
-                <tr><td colspan="2" style="text-align:right;"><strong>GROSS PAY</strong>ERC</td><td style="text-align:right;"><strong>' . number_format($data['basic_pay'] + $data['night_diff_pay'] + $data['overtime_pay'] + $data['other_earnings_taxable'] + $data['de_minimis'], 2) . '</strong>ERC</td></tr>
-            </table>
-            
-            <table style="width:100%; border-collapse: collapse; margin-top:10px;">
-                <tr><th style="border:1px solid #000; background:#eee;">REGULAR DEDUCTIONS</th><th style="border:1px solid #000; background:#eee;">LOANS/ADVANCES</th></tr>
                 <tr>
-                    <td style="border:1px solid #000; padding:5px;">
-                        <table style="width:100%;">' .
-                            '<tr>.htmlSSSERC</td><td style="text-align:right;">' . number_format($data['sss_ee'], 2) . 'ERC</td></tr>' .
-                            '<tr>.htmlPhilhealthERC</td><td style="text-align:right;">' . number_format($data['phic_ee'], 2) . 'ERC</td></tr>' .
-                            '<tr>.htmlPag-IBIGERC</td><td style="text-align:right;">' . number_format($data['hdmf_ee'], 2) . 'ERC</td></tr>' .
-                            '<tr>.htmlWithholding TaxERC</td><td style="text-align:right;">' . number_format($data['withholding_tax'], 2) . 'ERC</td></tr>' .
-                        '</table>
+                    <td colspan="2" style="border:1px solid #000; padding:5px; text-align:right;"><strong>GROSS PAY</strong></td>
+                    <td style="border:1px solid #000; padding:5px; text-align:right;"><strong>' . number_format($grossPay, 2) . '</strong></td>
+                </tr>
+            </table>
+
+            <table style="width:100%; border-collapse:collapse; font-size:13px; margin-top:10px;">
+                <tr>
+                    <th style="border:1px solid #000; padding:5px; background:#eee; text-align:center;">REGULAR DEDUCTIONS</th>
+                    <th style="border:1px solid #000; padding:5px; background:#eee; text-align:center;">LOANS/ADVANCES</th>
+                </tr>
+                <tr>
+                    <td style="border:1px solid #000; padding:5px; vertical-align:top;">
+                        <table style="width:100%;">
+                            <tr><td>SSS</td><td style="text-align:right;">' . number_format($data['sss_ee'] ?? 0, 2) . '</td></tr>
+                            <tr><td>Philhealth</td><td style="text-align:right;">' . number_format($data['phic_ee'] ?? 0, 2) . '</td></tr>
+                            <tr><td>Pag-IBIG</td><td style="text-align:right;">' . number_format($data['hdmf_ee'] ?? 0, 2) . '</td></tr>
+                            <tr><td>Withholding tax</td><td style="text-align:right;">' . number_format($data['withholding_tax'] ?? 0, 2) . '</td></tr>
+                        </table>
                     </td>
-                    <td style="border:1px solid #000; padding:5px;">
-                        <table style="width:100%;">' .
-                            '<tr>.htmlSSS LoanERC</td><td style="text-align:right;">' . number_format($data['sss_loan'], 2) . 'ERC</td></tr>' .
-                            '<tr>.htmlCalamity LoanERC</td><td style="text-align:right;">' . number_format($data['calamity_loan'], 2) . 'ERC</td></tr>' .
-                            '<tr>.htmlSalary AdvanceERC</td><td style="text-align:right;">' . number_format($data['salary_advance'], 2) . 'ERC</td></tr>' .
-                            '<tr>.htmlOther DeductionsERC</td><td style="text-align:right;">' . number_format($data['other_deductions'], 2) . 'ERC</td></tr>' .
-                        '</table>
+                    <td style="border:1px solid #000; padding:5px; vertical-align:top;">
+                        <table style="width:100%;">
+                            <tr><td>Salary Loan</td><td style="text-align:right;">' . number_format($data['sss_loan'] ?? 0, 2) . '</td></tr>
+                            <tr><td>Calamity Loan</td><td style="text-align:right;">' . number_format($data['calamity_loan'] ?? 0, 2) . '</td></tr>
+                            <tr><td>Salary Advance</td><td style="text-align:right;">' . number_format($data['salary_advance'] ?? 0, 2) . '</td></tr>
+                            <tr><td>Calamity Advance</td><td style="text-align:right;">' . number_format($data['calamity_advance'] ?? 0, 2) . '</td></tr>
+                        </table>
                     </td>
                 </tr>
-                <tr><td colspan="2" style="text-align:right;"><strong>TOTAL DEDUCTIONS</strong>ERC</td><td style="text-align:right;"><strong>' . number_format($data['sss_ee'] + $data['phic_ee'] + $data['hdmf_ee'] + $data['withholding_tax'] + $data['sss_loan'] + $data['calamity_loan'] + $data['salary_advance'] + $data['other_deductions'], 2) . '</strong>ERC</td></tr>
+                <tr>
+                    <td colspan="2" style="border:1px solid #000; padding:5px; text-align:right;">
+                        <strong>TOTAL DEDUCTIONS: ' . number_format($totalDeductions, 2) . '</strong>
+                    </td>
+                </tr>
             </table>
-            
-            <table style="width:100%; border-collapse: collapse; margin-top:10px;">
-                <tr><td style="border:1px solid #000; padding:5px;">Employee signature:ERC</td><td style="border:1px solid #000; padding:5px;">ERC</td>
-                    <td style="text-align:right;"><strong>NET PAY:</strong>ERC</td>
-                    <td style="background:#f8d7da; text-align:right;"><strong>' . number_format($data['net_pay'], 2) . '</strong>ERC</td>
+
+            <table style="width:100%; border-collapse:collapse; font-size:13px; margin-top:10px;">
+                <tr>
+                    <td style="border:1px solid #000; padding:5px;">Employee signature:</td>
+                    <td style="border:1px solid #000; padding:5px; height:40px;"></td>
+                    <td style="border:1px solid #000; padding:5px; text-align:right;"><strong>NET PAY:</strong></td>
+                    <td style="border:1px solid #000; padding:5px; text-align:right; background:#f8d7da;"><strong>' . number_format($data['net_pay'] ?? 0, 2) . '</strong></td>
                 </tr>
             </table>
         </div>';
-        
+
         return $html;
     }
+    */
 
     private function getUserEmail($userId)
     {
@@ -771,5 +956,32 @@ class PayrollController extends BaseController
             ->get()
             ->getRowArray();
         return $row['secret'] ?? null;
+    }
+
+    private function resolvePayslipPassword(array $employee): string
+    {
+        $db = \Config\Database::connect();
+        $settingsRow = $db->table('user_settings')
+            ->where('user_id', $employee['user_id'])
+            ->get()
+            ->getRowArray();
+
+        if ($settingsRow) {
+            $settings = json_decode($settingsRow['settings'], true);
+            // The stored value is a bcrypt hash — we cannot decrypt it.
+            // So we store the plaintext separately under a different key,
+            // encrypted with the app's encryption key.
+            if (! empty($settings['payslip_password_enc'])) {
+                $encrypter = \Config\Services::encrypter();
+                try {
+                    return $encrypter->decrypt(base64_decode($settings['payslip_password_enc']));
+                } catch (\Exception $e) {
+                    log_message('warning', 'Failed to decrypt payslip password for user ' . $employee['user_id']);
+                }
+            }
+        }
+
+        // Fallback to preset
+        return $employee['employee_number'] . date('Ymd', strtotime($employee['birthdate']));
     }
 }

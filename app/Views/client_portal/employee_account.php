@@ -208,11 +208,77 @@
             </form>
         </div>
 
+        <!-- PAYSLIP PASSWORD -->
+        <div class="card span-2">
+            <h2>Payslip Password</h2>
+            <p class="text-muted" style="margin-bottom: 1rem; font-size: 0.875rem;">
+                This password protects the PDF attachment sent to your email.
+                If not set, the default is your <strong>Employee Number + Birthdate (YYYYMMDD)</strong>.
+            </p>
+
+            <form method="post" action="<?= site_url('client_portal/profile/payslip-password') ?>">
+                <?= csrf_field() ?>
+                <div class="security-grid">
+                    <div class="form-group">
+                        <label>Current Payslip Password</label>
+                        <input type="password" name="current_payslip_password"
+                            placeholder="Enter current payslip password" required>
+                    </div>
+                    <div class="form-group">
+                        <label>New Payslip Password</label>
+                        <input type="password" name="new_payslip_password"
+                            placeholder="Enter new payslip password" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Confirm New Payslip Password</label>
+                        <input type="password" name="confirm_payslip_password"
+                            placeholder="Confirm new payslip password" required>
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">Update Payslip Password</button>
+                    <button type="button" class="btn btn-danger" onclick="document.getElementById('resetPayslipModal').style.display='flex'">
+                        Reset to Default
+                    </button>
+                </div>
+
+                
+            </form>
+        </div>
+
         <!-- SMALL AUDIT LINE -->
         <div class="card span-2 audit-card">
             <span>Last updated: <?= esc($auditLabel) ?> by <?= esc($audit['updated_by'] ?? 'System') ?></span>
         </div>
 
+    </div>
+</div>
+
+<!-- RESET PAYSLIP PASSWORD MODAL -->
+<div id="resetPayslipModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center;">
+    <div style="background:#fff; border-radius:8px; padding:2rem; max-width:420px; width:90%; box-shadow:0 8px 32px rgba(0,0,0,0.2);">
+        <h3 style="margin-top:0;">Reset Payslip Password</h3>
+        <p style="color:#555; font-size:0.9rem;">
+            This will remove your custom payslip password. Future payslips will be locked with the default password
+            (<strong>Employee Number + Birthdate YYYYMMDD</strong>).<br><br>
+            Enter your <strong>account password</strong> to confirm.
+        </p>
+
+        <form method="post" action="<?= site_url('client_portal/profile/payslip-password/reset') ?>">
+            <?= csrf_field() ?>
+            <div class="form-group" style="margin-bottom:1rem;">
+                <label>Account Password</label>
+                <input type="password" name="account_password" placeholder="Enter your account password" required
+                       style="width:100%; padding:0.5rem; border:1px solid #ccc; border-radius:4px;">
+            </div>
+            <div style="display:flex; gap:0.75rem; justify-content:flex-end;">
+                <button type="button" class="btn btn-secondary"
+                        onclick="document.getElementById('resetPayslipModal').style.display='none'">
+                    Cancel
+                </button>
+                <button type="submit" class="btn btn-danger">Reset Password</button>
+            </div>
+        </form>
     </div>
 </div>
 

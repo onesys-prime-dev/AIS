@@ -15,6 +15,10 @@ service('auth')->routes($routes, ['except' => ['register']]);
 $routes->get('register', 'Auth\ClientRegisterController::registerView');
 $routes->post('register', 'Auth\ClientRegisterController::registerAction');   
 
+$routes->get('/', function() {
+    return redirect()->to('client_portal/dashboard');
+});
+
 $routes->group('client_portal', ['filter' => 'auth'], function($routes){
     $routes->get('dashboard', 'Client\DashboardController::index');
     $routes->get('employees', 'Client\EmployeeController::employeeView');
@@ -32,6 +36,8 @@ $routes->group('client_portal', ['filter' => 'auth'], function($routes){
     $routes->post('profile/username', 'Client\EmployeeAccountController::updateUsername');
     $routes->post('profile/emergency', 'Client\EmployeeAccountController::updateEmergency');
     $routes->post('profile/password', 'Client\EmployeeAccountController::updatePassword');
+    $routes->post('profile/payslip-password', 'Client\EmployeeAccountController::updatePayslipPassword');
+    $routes->post('profile/payslip-password/reset', 'Client\EmployeeAccountController::resetPayslipPassword');
     $routes->post('presence/heartbeat', 'Client\PresenceController::heartbeat');
     $routes->get('presence/statuses',   'Client\PresenceController::statuses');
     $routes->get('help', 'Client\HelpController::index');

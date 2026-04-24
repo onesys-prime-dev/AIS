@@ -1056,24 +1056,54 @@ async function sendPdfToEmployee() {
         employee_id: employeeId,
         period_start: window.currentPayslipData.periodStart,
         period_end: window.currentPayslipData.periodEnd,
+        employee_name: window.currentPayslipData.empName,
+        position: window.currentPayslipData.position,
+
+        // earnings
         basic_pay: window.currentPayslipData.basicPay,
-        overtime_pay: window.currentPayslipData.regOt + window.currentPayslipData.satOt + window.currentPayslipData.sunOt + window.currentPayslipData.holOt,
+        rate_per_hour: window.currentPayslipData.ratePerHour,       // ADD
+        hours_worked: window.currentPayslipData.hoursWorked,         // ADD
         night_diff_pay: window.currentPayslipData.nightPremium,
+        absent_amt: window.currentPayslipData.absentAmt,             // ADD
+        undertime_amt: window.currentPayslipData.undertimeAmt,       // ADD
+        net_basic_pay: window.currentPayslipData.netBasicPay,        // ADD
+        reg_ot: window.currentPayslipData.regOt,                     // ADD (was bundled into overtime_pay)
+        sat_ot: window.currentPayslipData.satOt,                     // ADD
+        sun_ot: window.currentPayslipData.sunOt,                     // ADD
+        hol_ot: window.currentPayslipData.holOt,                     // ADD
+        overtime_pay: window.currentPayslipData.regOt + window.currentPayslipData.satOt + window.currentPayslipData.sunOt + window.currentPayslipData.holOt,
+
+        // taxable other earnings (broken out individually)
+        salary_adjustment: safeParseFloat(document.getElementById('salaryAdjustment')?.value),  // ADD
+        override_amount: safeParseFloat(document.getElementById('overrideAmount')?.value),       // ADD
+        ned_amount: safeParseFloat(document.getElementById('nedAmount')?.value),                 // ADD
         holiday_pay: safeParseFloat(document.getElementById('holidayPay')?.value),
-        de_minimis: window.currentPayslipData.nonTaxable,
+        gross_comp: safeParseFloat(document.getElementById('grossComp')?.value),                 // ADD
         other_earnings_taxable: window.currentPayslipData.taxableOther,
+
+        // non-taxable broken out
+        year_end_gifts: safeParseFloat(document.getElementById('yearEndGifts')?.value),          // ADD
+        rice_subsidy: safeParseFloat(document.getElementById('riceSubsidy')?.value),             // ADD
+        uniform_allowance: safeParseFloat(document.getElementById('uniformAllowance')?.value),   // ADD
+        laundry_allowance: safeParseFloat(document.getElementById('laundryAllowance')?.value),   // ADD
+        medical_allowance: safeParseFloat(document.getElementById('medicalAllowance')?.value) + safeParseFloat(document.getElementById('medicalAllowanceAdd')?.value), // ADD
+        de_minimis: window.currentPayslipData.nonTaxable,
         other_earnings_non_taxable: 0,
+
+        // deductions
         sss_ee: window.currentPayslipData.sssDed,
         phic_ee: window.currentPayslipData.phicDed,
         hdmf_ee: window.currentPayslipData.hdmfDed,
         withholding_tax: window.currentPayslipData.withholdingTax,
+
+        // loans
         sss_loan: safeParseFloat(document.getElementById('sssSalaryLoan')?.value),
         calamity_loan: safeParseFloat(document.getElementById('sssCalamityLoan')?.value),
         salary_advance: safeParseFloat(document.getElementById('advSalary')?.value),
-        other_deductions: safeParseFloat(document.getElementById('advCalamity')?.value),
+        calamity_advance: safeParseFloat(document.getElementById('advCalamity')?.value),  // ADD (was incorrectly put in other_deductions)
+        other_deductions: 0,
+
         net_pay: window.currentPayslipData.netPay,
-        employee_name: window.currentPayslipData.empName,
-        position: window.currentPayslipData.position
     };
     
     try {
