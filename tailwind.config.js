@@ -11,5 +11,7 @@ module.exports = {
     extend: {},
   },
   plugins: [],
+  safelist: [
+    'grid-cols-[1fr_1fr_1fr_1fr_1fr_1fr_0.8fr]',
+  ],
 }
-

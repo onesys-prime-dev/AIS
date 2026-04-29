@@ -22,12 +22,13 @@
     <?= view('components/table', [
         'title' => 'Daily Time Log',
         'tableId' => 'dailyTimeLogTable',
-        'grid' => 'grid-cols-[1fr_1fr_1fr_1fr_1fr_0.8fr]',
+        'grid' => 'grid-cols-[1fr_1fr_1fr_1fr_1fr_1fr_0.8fr]',
         'columns' => [
             'Date',
             'Time In',
             'Break',
             'Time Out',
+            'Total Hours',
             'Status',
             'Action'
         ]
@@ -75,9 +76,14 @@
                     <p id="dailyTimeLogDetailBreakEnd" class="mt-1 text-sm font-semibold text-gray-800">---</p>
                 </div>
 
-                <div class="rounded-lg border border-gray-200 bg-gray-50 p-3 sm:col-span-2">
+                <div class="rounded-lg border border-gray-200 bg-gray-50 p-3">
                     <p class="text-xs font-medium uppercase tracking-wide text-gray-500">Break Duration</p>
                     <p id="dailyTimeLogDetailBreakDuration" class="mt-1 text-sm font-semibold text-gray-800">---</p>
+                </div>
+
+                <div class="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                    <p class="text-xs font-medium uppercase tracking-wide text-gray-500">Total Hours</p>
+                    <p id="dailyTimeLogDetailTotalHours" class="mt-1 text-sm font-semibold text-gray-800">---</p>
                 </div>
             </div>
         </div>
@@ -129,11 +135,12 @@
         };
 
         return `
-            <div class="grid grid-cols-[1fr_1fr_1fr_1fr_1fr_0.8fr] items-center border-b hover:bg-gray-50">
+            <div class="grid grid-cols-[1fr_1fr_1fr_1fr_1fr_1fr_0.8fr] items-center border-b hover:bg-gray-50">
                 <div class="p-4">${item.date || '---'}</div>
                 <div class="p-4">${formatTimeValue(item.time_in)}</div>
                 <div class="p-4">${formatBreakValue(item)}</div>
                 <div class="p-4">${formatTimeValue(item.time_out)}</div>
+                <div class="p-4">${item.total_hours ? `${Number(item.total_hours).toFixed(2)} hrs` : '---'}</div>
                 <div class="p-4">
                     <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${statusStyles[status] || 'bg-gray-100 text-gray-700'}">
                         ${status}
@@ -223,6 +230,10 @@
         setField(
             'dailyTimeLogDetailBreakDuration',
             trigger.dataset.break_duration ? `${Number(trigger.dataset.break_duration).toFixed(2)} hrs` : 'No break'
+        );
+        setField(
+            'dailyTimeLogDetailTotalHours',
+            trigger.dataset.total_hours ? `${Number(trigger.dataset.total_hours).toFixed(2)} hrs` : '---'
         );
 
         detailModal.classList.remove('hidden');

@@ -71,10 +71,19 @@ class AttendanceController extends BaseController
         $start = strtotime($date . ' ' . $timeIn);
         $end   = time();
 
-        $totalHours    = ($end - $start) / 3600;
+        $totalHours = ($end - $start) / 3600;
+
+        // Auto-apply 1 hour break if no break was taken
         $breakDuration = $attendance['break_duration'] ?? 0;
-        $workedHours   = $totalHours - $breakDuration;
-        $cappedHours   = min($workedHours, 8);
+        $autoBreak     = false;
+
+        if ($breakDuration == 0) {
+            $breakDuration = 1.0;
+            $autoBreak     = true;
+        }
+
+        $workedHours = $totalHours - $breakDuration;
+        $cappedHours = min($workedHours, 8);
 
         $timeOutTimestamp = $start + ($cappedHours + $breakDuration) * 3600;
         $timeOut          = date('H:i:s', $timeOutTimestamp);
@@ -99,8 +108,12 @@ class AttendanceController extends BaseController
             'total_hours' => round($cappedHours, 2),
         ]);
 
+        $successMessage = $autoBreak
+            ? 'Time out recorded! (1 hour break auto-applied)'
+            : 'Time out recorded!';
+
         return redirect()->back()
-            ->with('success', 'Time out recorded!')
+            ->with('success', $successMessage)
             ->with('timeout_time', $timeOut)
             ->with('total_hours', round($cappedHours, 2))
             ->with('break_hours', $breakDuration);
