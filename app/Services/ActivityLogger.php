@@ -408,6 +408,30 @@ class ActivityLogger
         );
     }
 
+    public function payslipGenerated(int $payslipId, string $employeeName, string $periodStart, string $periodEnd, float $netPay): bool
+    {
+        return $this->created('employee_payslips',
+            "Payslip generated for {$employeeName} ({$periodStart} – {$periodEnd})",
+            $payslipId,
+            [
+                'employee_name' => $employeeName,
+                'period_start'  => $periodStart,
+                'period_end'    => $periodEnd,
+                'net_pay'       => $netPay,
+            ]
+        );
+    }
+
+    public function payslipSent(int $payslipId, string $employeeName, string $periodStart, string $periodEnd, string $emailAddress): bool
+    {
+        return $this->updated('employee_payslips',
+            "Payslip sent to {$employeeName} ({$periodStart} – {$periodEnd})",
+            $payslipId,
+            ['sent_at' => null],
+            ['sent_at' => date('Y-m-d H:i:s'), 'sent_to' => $emailAddress]
+        );
+    }
+
     // =========================================================================
     // USERS
     // =========================================================================

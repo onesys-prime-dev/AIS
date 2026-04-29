@@ -663,6 +663,7 @@ function nextTab(tabId){
     document.querySelector(`[data-tab="${tabId}"]`).classList.add('active');
     if(tabId === 'payslip') buildPayslipTable();
 }
+
 document.querySelectorAll('.sub-tab').forEach(btn=>{
     btn.onclick = () => nextTab(btn.dataset.tab);
 });
@@ -1029,6 +1030,71 @@ function generateStaticPayslip() {
     document.getElementById('staticPayslipContent').innerHTML = html;
     document.getElementById('staticPayslipModal').style.display = 'block';
     window.currentPayslipData = d;
+
+    // Save to payslip history immediately (upserts — no duplicates if same employee/period/net_pay)
+    // Resolve employee ID the same way autoFillRawSheet does — hidden input OR selectedEmployeeIds Set
+    let employeeId = document.getElementById('selectedEmployeeId').value;
+    if (!employeeId && selectedEmployeeIds.size > 0) {
+        employeeId = Array.from(selectedEmployeeIds)[0];
+    }
+    if (employeeId && d.periodStart && d.periodEnd) {
+        const savePayload = {
+            employee_id:   employeeId,
+            period_start:  d.periodStart,
+            period_end:    d.periodEnd,
+            employee_name: d.empName,
+            position:      d.position,
+            basic_pay:     d.basicPay,
+            rate_per_hour: d.ratePerHour,
+            hours_worked:  d.hoursWorked,
+            night_diff_pay: d.nightPremium,
+            absent_amt:    d.absentAmt,
+            undertime_amt: d.undertimeAmt,
+            net_basic_pay: d.netBasicPay,
+            reg_ot:        d.regOt,
+            sat_ot:        d.satOt,
+            sun_ot:        d.sunOt,
+            hol_ot:        d.holOt,
+            overtime_pay:  d.regOt + d.satOt + d.sunOt + d.holOt,
+            salary_adjustment: safeParseFloat(document.getElementById('salaryAdjustment')?.value),
+            override_amount:   safeParseFloat(document.getElementById('overrideAmount')?.value),
+            ned_amount:        safeParseFloat(document.getElementById('nedAmount')?.value),
+            holiday_pay:       safeParseFloat(document.getElementById('holidayPay')?.value),
+            gross_comp:        safeParseFloat(document.getElementById('grossComp')?.value),
+            other_earnings_taxable: d.taxableOther,
+            year_end_gifts:     safeParseFloat(document.getElementById('yearEndGifts')?.value),
+            rice_subsidy:       safeParseFloat(document.getElementById('riceSubsidy')?.value),
+            uniform_allowance:  safeParseFloat(document.getElementById('uniformAllowance')?.value),
+            laundry_allowance:  safeParseFloat(document.getElementById('laundryAllowance')?.value),
+            medical_allowance:  safeParseFloat(document.getElementById('medicalAllowance')?.value) + safeParseFloat(document.getElementById('medicalAllowanceAdd')?.value),
+            de_minimis:  d.nonTaxable,
+            other_earnings_non_taxable: 0,
+            sss_ee:          d.sssDed,
+            phic_ee:         d.phicDed,
+            hdmf_ee:         d.hdmfDed,
+            withholding_tax: d.withholdingTax,
+            sss_loan:        safeParseFloat(document.getElementById('sssSalaryLoan')?.value),
+            calamity_loan:   safeParseFloat(document.getElementById('sssCalamityLoan')?.value),
+            salary_advance:  safeParseFloat(document.getElementById('advSalary')?.value),
+            calamity_advance: safeParseFloat(document.getElementById('advCalamity')?.value),
+            other_deductions: 0,
+            net_pay: d.netPay,
+        };
+        fetch('<?= site_url('client_portal/payroll/savePayslipRecord') ?>', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(savePayload)
+        })
+        .then(r => r.json())
+        .then(result => {
+            if (result.success) {
+                window.currentPayslipId = result.payslip_id;
+            } else {
+                console.warn('Payslip save warning:', result.error);
+            }
+        })
+        .catch(err => console.error('Payslip save error:', err));
+    }
 }
 
 // Close modal
@@ -1123,6 +1189,7 @@ async function sendPdfToEmployee() {
         }
 
         alert('PDF payslip sent successfully to employee email.');
+        window.location.reload(); // refresh page so payslip history shows updated sent_at
     } catch (error) {
         console.error('Send PDF error:', error);
         alert('Network error — could not reach server. Check console for details.');

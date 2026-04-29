@@ -60,6 +60,13 @@ class PayrollController extends BaseController
             ->where('users.active', 1)
             ->findAll();
 
+        $payslipModel = new \App\Models\Client\EmployeePayslipModel();
+        $data['payslips'] = $payslipModel
+            ->select("employee_payslips.*, CONCAT(employees.first_name, ' ', employees.last_name) as employee_name")
+            ->join('employees', 'employees.id = employee_payslips.employee_id')
+            ->orderBy('employee_payslips.created_at', 'DESC')
+            ->findAll();
+
         return view('client_portal/payroll_main', $data);
     }
 
@@ -541,14 +548,44 @@ class PayrollController extends BaseController
             file_put_contents($permanentPath, $pdfOutput);
 
             $payslipModel = new \App\Models\Client\EmployeePayslipModel();
-            $payslipModel->insert([
-                'employee_id'    => $employeeId,
-                'period_start'   => $data['period_start'],
-                'period_end'     => $data['period_end'],
-                'net_pay'        => $data['net_pay'],
-                'file_path'      => $permanentPath,
-                'generated_data' => json_encode($data)
-            ]);
+
+            // Reuse the record created by savePayslipRecord if it exists
+            $existing = $payslipModel
+                ->where('employee_id', $employeeId)
+                ->where('period_start', $data['period_start'])
+                ->where('period_end', $data['period_end'])
+                ->where('net_pay', round((float)$data['net_pay'], 2))
+                ->first();
+
+            if ($existing) {
+                $payslipModel->update($existing['id'], [
+                    'file_path'      => $permanentPath,
+                    'generated_data' => json_encode($data),
+                ]);
+                $payslipRecordId = $existing['id'];
+            } else {
+                $payslipModel->insert([
+                    'employee_id'    => $employeeId,
+                    'period_start'   => $data['period_start'],
+                    'period_end'     => $data['period_end'],
+                    'net_pay'        => round((float)$data['net_pay'], 2),
+                    'file_path'      => $permanentPath,
+                    'generated_data' => json_encode($data),
+                    'sent_at'        => null,
+                ]);
+                // Re-query to get the true inserted ID — avoids CI4 returning 0 on some drivers
+                $inserted = $payslipModel
+                    ->where('employee_id', $employeeId)
+                    ->where('period_start', $data['period_start'])
+                    ->where('period_end', $data['period_end'])
+                    ->where('net_pay', round((float)$data['net_pay'], 2))
+                    ->first();
+                $payslipRecordId = $inserted['id'] ?? null;
+            }
+
+            if (!$payslipRecordId) {
+                throw new \Exception('Could not resolve payslip record ID after save.');
+            }
 
             $tempPath = WRITEPATH . 'uploads/payslips/temp/';
             if (!is_dir($tempPath)) mkdir($tempPath, 0777, true);
@@ -571,6 +608,21 @@ class PayrollController extends BaseController
 
             if ($email->send()) {
                 unlink($tempFile);
+                // Use raw DB builder to stamp sent_at — bypasses model $allowedFields whitelist
+                \Config\Database::connect()
+                    ->table('employee_payslips')
+                    ->where('id', $payslipRecordId)
+                    ->update(['sent_at' => date('Y-m-d H:i:s')]);
+
+                // Activity log — payslip sent
+                service('activityLogger')->payslipSent(
+                    $payslipRecordId,
+                    $data['employee_name'] ?? trim(($employee['first_name'] ?? '') . ' ' . ($employee['last_name'] ?? '')),
+                    $data['period_start'],
+                    $data['period_end'],
+                    $emailAddress
+                );
+
                 return $this->response->setJSON(['success' => true]);
             } else {
                 $debugInfo = $email->printDebugger(['headers', 'subject', 'body']);
@@ -579,6 +631,98 @@ class PayrollController extends BaseController
             }
         } catch (\Exception $e) {
             log_message('error', 'sendPdf exception: ' . $e->getMessage());
+            return $this->response->setJSON(['error' => $e->getMessage()])->setStatusCode(500);
+        }
+    }
+
+    // ================= SAVE PAYSLIP RECORD (on Generate, before Send) =================
+    public function savePayslipRecord()
+    {
+        try {
+            $data = $this->request->getJSON(true);
+            $employeeId  = $data['employee_id']  ?? null;
+            $periodStart = $data['period_start']  ?? null;
+            $periodEnd   = $data['period_end']    ?? null;
+            $netPay      = $data['net_pay']       ?? null;
+
+            if (!$employeeId || !$periodStart || !$periodEnd || $netPay === null) {
+                throw new \Exception('Missing required fields.');
+            }
+
+            $employeeModel = new \App\Models\Client\EmployeeModel();
+            $employee = $employeeModel->find($employeeId);
+            if (!$employee) throw new \Exception('Employee not found');
+
+            // Build the PDF so it can be stored on disk immediately
+            $html = $this->buildPayslipHtmlForPdf($data, $employee);
+            $options = new Options();
+            $options->set('defaultFont', 'Courier');
+            $dompdf = new Dompdf($options);
+            $dompdf->loadHtml($html);
+            $dompdf->setPaper('A4', 'portrait');
+            $dompdf->render();
+            $pdfOutput = $dompdf->output();
+
+            $permanentDir = WRITEPATH . 'uploads/payslips/permanent/';
+            if (!is_dir($permanentDir)) mkdir($permanentDir, 0777, true);
+            $filename     = "payslip_{$employee['employee_number']}_{$periodStart}.pdf";
+            $permanentPath = $permanentDir . $filename;
+            file_put_contents($permanentPath, $pdfOutput);
+
+            $payslipModel = new \App\Models\Client\EmployeePayslipModel();
+
+            // Upsert: if a record with same employee + period + net_pay already exists, skip insert
+            $existing = $payslipModel
+                ->where('employee_id', $employeeId)
+                ->where('period_start', $periodStart)
+                ->where('period_end', $periodEnd)
+                ->where('net_pay', round((float)$netPay, 2))
+                ->first();
+
+            if ($existing) {
+                // Update the stored PDF and data in case something changed, but keep sent_at intact
+                $payslipModel->update($existing['id'], [
+                    'file_path'      => $permanentPath,
+                    'generated_data' => json_encode($data),
+                ]);
+                $recordId = $existing['id'];
+            } else {
+                $payslipModel->insert([
+                    'employee_id'    => $employeeId,
+                    'period_start'   => $periodStart,
+                    'period_end'     => $periodEnd,
+                    'net_pay'        => round((float)$netPay, 2),
+                    'file_path'      => $permanentPath,
+                    'generated_data' => json_encode($data),
+                    'sent_at'        => null,
+                ]);
+                // Re-query to get real ID — avoids CI4 getInsertID() returning 0 on some drivers
+                $inserted = $payslipModel
+                    ->where('employee_id', $employeeId)
+                    ->where('period_start', $periodStart)
+                    ->where('period_end', $periodEnd)
+                    ->where('net_pay', round((float)$netPay, 2))
+                    ->first();
+                $recordId = $inserted['id'] ?? null;
+            }
+
+            if (!$recordId) {
+                throw new \Exception('Failed to resolve payslip record after save.');
+            }
+
+            // Activity log — payslip generated
+            $empName = $data['employee_name'] ?? trim(($employee['first_name'] ?? '') . ' ' . ($employee['last_name'] ?? ''));
+            service('activityLogger')->payslipGenerated(
+                $recordId,
+                $empName,
+                $periodStart,
+                $periodEnd,
+                round((float)$netPay, 2)
+            );
+
+            return $this->response->setJSON(['success' => true, 'payslip_id' => $recordId]);
+        } catch (\Exception $e) {
+            log_message('error', 'savePayslipRecord: ' . $e->getMessage());
             return $this->response->setJSON(['error' => $e->getMessage()])->setStatusCode(500);
         }
     }
@@ -634,6 +778,18 @@ class PayrollController extends BaseController
         }
 
         return $this->response->download($filePath, null);
+    }
+
+    // JSON endpoint used by the Payslip History tab in payroll_management
+    public function getAllPayslips()
+    {
+        $payslipModel = new \App\Models\Client\EmployeePayslipModel();
+        $payslips = $payslipModel
+            ->select("employee_payslips.*, CONCAT(employees.first_name, ' ', employees.last_name) as employee_name")
+            ->join('employees', 'employees.id = employee_payslips.employee_id')
+            ->orderBy('employee_payslips.created_at', 'DESC')
+            ->findAll();
+        return $this->response->setJSON($payslips);
     }
 
     public function payslipHistory()

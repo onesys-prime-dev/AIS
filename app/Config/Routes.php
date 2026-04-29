@@ -109,4 +109,6 @@ $routes->group('client_portal', ['namespace' => 'App\Controllers\Client'], funct
     $routes->post('payroll/sendPdf', 'PayrollController::sendPdf');
     $routes->post('client_portal/payroll/sendStatic', 'Client\PayrollController::sendStatic');
     $routes->post('client_portal/payroll/sendPdf', 'Client\PayrollController::sendPdf');
+    $routes->post('payroll/savePayslipRecord', 'PayrollController::savePayslipRecord');
+    $routes->get('payroll/getAllPayslips', 'PayrollController::getAllPayslips');
 });
