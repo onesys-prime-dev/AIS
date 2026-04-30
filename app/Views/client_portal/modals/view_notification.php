@@ -1,11 +1,11 @@
 <div class="modal-overlay" id="viewNotificationsModal">
-    <div class="modal">
-        <div class="modal-header">
+    <div class="notification-modal">
+        <div class="notification-modal-header">
             <span id="viewNotificationTitle">Notification</span>
             <button type="button" onclick="closeNotificationModal()">✕</button>
         </div>
 
-        <div class="modal-body view-notification-body">
+        <div class="notification-modal-body view-notification-body">
             <div class="view-notification-meta">
                 <p><strong>Published:</strong> <span id="viewNotificationPublished">N/A</span></p>
                 <p><strong>Category:</strong> <span id="viewNotificationCategory">General</span></p>
@@ -17,8 +17,8 @@
             <p class="view-notification-content" id="viewNotificationDetails"></p>
         </div>
 
-        <div class="modal-footer">
-            <button type="button" class="cancel-btn" onclick="closeNotificationModal()">Close</button>
+        <div class="notification-modal-footer">
+            <button type="button" class="notification-cancel-btn" onclick="closeNotificationModal()">Close</button>
         </div>
     </div>
 </div>

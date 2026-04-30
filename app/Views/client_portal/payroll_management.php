@@ -238,7 +238,7 @@ input, select{
 }
 
 /* Modal for static payslip */
-.modal {
+#staticPayslipModal {
     display: none;
     position: fixed;
     z-index: 9999;
@@ -249,7 +249,7 @@ input, select{
     overflow: auto;
     background-color: rgba(0,0,0,0.6);
 }
-.modal-content {
+#staticPayslipModal .modal-content {
     background-color: #fefefe;
     margin: 2% auto;
     padding: 20px;
@@ -259,7 +259,7 @@ input, select{
     border-radius: 10px;
     position: relative;
 }
-.close-modal {
+#staticPayslipModal .close-modal {
     color: #aaa;
     float: right;
     font-size: 28px;
@@ -269,7 +269,7 @@ input, select{
     right: 15px;
     top: 5px;
 }
-.close-modal:hover {
+#staticPayslipModal .close-modal:hover {
     color: black;
 }
 .send-pdf-btn {
@@ -963,8 +963,8 @@ function generateStaticPayslip() {
     }
     
     // --- NEW: Save computed payroll to server ---
-    const employeeId = document.getElementById('selectedEmployeeId').value;
-    if (!employeeId) {
+    const employeeIdToSubmit = document.getElementById('selectedEmployeeId').value;
+    if (!employeeIdToSubmit) {
         alert('Employee ID not found. Please select an employee.');
         return;
     }
@@ -1114,13 +1114,13 @@ function generateStaticPayslip() {
 
     // Save to payslip history immediately (upserts — no duplicates if same employee/period/net_pay)
     // Resolve employee ID the same way autoFillRawSheet does — hidden input OR selectedEmployeeIds Set
-    let employeeId = document.getElementById('selectedEmployeeId').value;
-    if (!employeeId && selectedEmployeeIds.size > 0) {
-        employeeId = Array.from(selectedEmployeeIds)[0];
+    let employeeIdToPersist = document.getElementById('selectedEmployeeId').value;
+    if (!employeeIdToPersist && selectedEmployeeIds.size > 0) {
+        employeeIdToPersist = Array.from(selectedEmployeeIds)[0];
     }
-    if (employeeId && d.periodStart && d.periodEnd) {
+    if (employeeIdToPersist && d.periodStart && d.periodEnd) {
         const savePayload = {
-            employee_id:   employeeId,
+            employee_id:   employeeIdToPersist,
             period_start:  d.periodStart,
             period_end:    d.periodEnd,
             employee_name: d.empName,

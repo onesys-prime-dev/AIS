@@ -256,7 +256,7 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
     padding:0;
     overflow:hidden;
 
-    z-index:9999;
+    z-index:99999;
 }
 
 .notif-header{
@@ -406,13 +406,26 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
     width:100%;
     height:100%;
     background:rgba(0,0,0,0.45);
-    display:none;
+    display:none !important;
     align-items:center;
     justify-content:center;
-    z-index:9999;
+    z-index:999999;
+    pointer-events:none;
 }
 
-.modal{
+.modal-overlay[style*="display: flex"] {
+    display:flex !important;
+    pointer-events:auto;
+}
+
+/* Force modal visibility on payroll and other pages */
+body .modal-overlay[style*="display: flex"] {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+}
+
+.notification-modal{
     background:white;
     width:100%;
     max-width:460px;
@@ -422,7 +435,7 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
     animation:modalPop 0.2s ease;
 }
 
-#viewNotificationsModal .modal {
+#viewNotificationsModal .notification-modal {
     max-width: 640px;
 }
 
@@ -432,7 +445,7 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
     gap:14px;
 }
 
-.modal-body{
+.notification-modal-body{
     flex:1;
     min-height:0;
     padding:16px 20px;
@@ -468,7 +481,7 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
     word-break:break-word;
 }
 
-.modal-header{
+.notification-modal-header{
     display:flex;
     justify-content:space-between;
     align-items:center;
@@ -480,7 +493,7 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
     border-bottom:1px solid #e5e7eb;
 }
 
-.modal-footer{
+.notification-modal-footer{
     display:flex;
     justify-content:flex-end;
     gap:10px;
@@ -489,7 +502,7 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
     border-top:1px solid #e5e7eb;
 }
 
-.cancel-btn{
+.notification-cancel-btn{
     border:none;
     background:#e5e7eb;
     padding:8px 14px;
@@ -498,7 +511,7 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
     transition:all 0.2s ease;
 }
 
-.cancel-btn:hover{
+.notification-cancel-btn:hover{
     background:#d1d5db;
     transform:translateY(-2px);
 }
@@ -652,7 +665,16 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
         if (!el) return;
 
         const modal = document.getElementById('viewNotificationsModal');
-        if (!modal) return;
+        if (!modal) {
+            console.error('Notification modal not found');
+            return;
+        }
+
+        // Close the notification dropdown
+        const notifDropdown = document.getElementById('notifDropdown');
+        if (notifDropdown) {
+            notifDropdown.style.display = 'none';
+        }
 
         const title = el.dataset.title || 'Notification';
         const summary = el.dataset.summary || '';
@@ -682,6 +704,7 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
         }
 
         modal.style.display = 'flex';
+        console.log('Modal displayed');
     }
 
     function syncNotificationViewedState(notificationId, isViewed) {

@@ -197,10 +197,7 @@
 .filter-dropdown {
     background-color: #FF2D2D;
     color: #ffffff;
-    padding-left: 0.75rem;
-    padding-right: 0.75rem;
-    padding-top: 0.75rem;
-    padding-bottom: 0.75rem;
+    padding: 0.75rem;
     border-radius: 0.5rem;
     box-shadow: 0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06);
     display: flex;
@@ -233,7 +230,7 @@
 .generate-code-btn {
     background: #FF2D2D;
     color: #fff;
-    padding: calc(0.75rem - 1px);
+    padding: 0.75rem;
     border-radius: 0.5rem;
     border: none;
     cursor: pointer;
