@@ -101,7 +101,7 @@ body{
     color: #ef4444;
     font-weight: 700;
     margin-bottom: 10px;
-    font-size: clamp(18px, 2vw, 22px);
+    font-size: clamp(20px, 2vw, 28px);
 }
 
 /* INNER BOX */
@@ -121,9 +121,10 @@ body{
 
 /* STATUS */
 .status{
-    font-size:14px;
+    font-size: 18px;
     color:#6b7280;
     font-weight:500;
+    padding: 18px;
 }
 
 .status span{
@@ -142,6 +143,7 @@ body{
     display:flex;
     align-items:center;
     justify-content:center;
+    padding: 20px;
 }
 
 .clock svg{
@@ -159,10 +161,10 @@ body{
 
 /* DATE */
 .date{
-    font-size:14px;
-    color:#4b5563;
-    font-weight:500;
-    margin-top:8px;
+    font-size: 18px;
+    color: #4b5563;
+    font-weight: 500;
+    margin-top: 18px;
 }
 
 /* BUTTONS */
@@ -257,7 +259,7 @@ body{
 /* NOTIFICATION TITLE */
 .notifications-title{
     color:#232323;
-    font-size:23px;
+    font-size:24px;
     font-weight:700;
     letter-spacing:-0.015em;
 }
@@ -1276,37 +1278,7 @@ body{
         </div>
     </div>
 
-    <!-- View notifications modal -->
-    <div class="modal-overlay" id="viewNotificationsModal">
-        <div class="modal">
-            <div class="modal-header">
-                <span id="viewNotificationTitle">Notification</span>
-                <button type="button" onclick="closeNotificationModal()">✕</button>
-            </div>
-
-            <div class="modal-body view-notification-body">
-                <div class="view-notification-meta">
-                    <p><strong>Published:</strong> <span id="viewNotificationPublished">N/A</span></p>
-                    <p><strong>Category:</strong> <span id="viewNotificationCategory">General</span></p>
-                    <p><strong>Priority:</strong> <span id="viewNotificationPriority">Normal</span></p>
-                    <p><strong>Audience:</strong> <span id="viewNotificationAudience">All Employees</span></p>
-                </div>
-
-                <p class="view-notification-content" id="viewNotificationSummary"></p>
-                <p class="view-notification-content" id="viewNotificationDetails"></p>
-            </div>
-
-            <div class="modal-footer">
-                <button type="button" class="cancel-btn" onclick="closeNotificationModal()">Close</button>
-            </div>
-        </div>
-    </div>
-
 <script>
-    const notificationViewedUrl = "<?= site_url('client_portal/announcements/viewed') ?>";
-    let csrfTokenName = "<?= csrf_token() ?>";
-    let csrfTokenHash = "<?= csrf_hash() ?>";
-
     const attendance = <?= json_encode($currentAttendance ?? null) ?>;
 
     async function loadSavedTasks() {
@@ -1422,77 +1394,6 @@ body{
         if (unpublishedGroup) {
             unpublishedGroup.innerHTML = '<div class="notifications-empty">Notifications cleared from view.</div>';
         }
-    }
-
-    function handleNotificationKey(event, el) {
-        if (event.key === 'Enter' || event.key === ' ') {
-            event.preventDefault();
-            openNotificationModal(el);
-        }
-    }
-
-    function openNotificationModal(el) {
-        if (!el) return;
-
-        const modal = document.getElementById('viewNotificationsModal');
-        if (!modal) return;
-
-        document.getElementById('viewNotificationTitle').innerText = el.dataset.title || 'Notification';
-        document.getElementById('viewNotificationPublished').innerText = el.dataset.publish || 'N/A';
-        document.getElementById('viewNotificationCategory').innerText = el.dataset.category || 'General';
-        document.getElementById('viewNotificationPriority').innerText = el.dataset.priority || 'Normal';
-        document.getElementById('viewNotificationAudience').innerText = el.dataset.audience || 'All Employees';
-        document.getElementById('viewNotificationSummary').innerText = el.dataset.summary || '';
-        document.getElementById('viewNotificationDetails').innerText = el.dataset.details || '';
-
-        if (!el.classList.contains('notif-viewed')) {
-            el.classList.add('notif-viewed');
-            markNotificationAsViewed(el);
-        }
-
-        modal.style.display = 'flex';
-    }
-
-    async function markNotificationAsViewed(el) {
-        const notificationId = Number(el.dataset.id || 0);
-
-        if (!notificationId) {
-            return;
-        }
-
-        const payload = new URLSearchParams();
-        payload.append('announcement_id', String(notificationId));
-        payload.append(csrfTokenName, csrfTokenHash);
-
-        try {
-            const response = await fetch(notificationViewedUrl, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-                    'X-Requested-With': 'XMLHttpRequest',
-                },
-                body: payload.toString(),
-            });
-
-            const result = await response.json();
-
-            if (result && result.csrfHash) {
-                csrfTokenHash = result.csrfHash;
-            }
-
-            if (!response.ok || !result || result.success !== true) {
-                el.classList.remove('notif-viewed');
-            }
-        } catch (error) {
-            el.classList.remove('notif-viewed');
-            console.error('Unable to mark notification as viewed.', error);
-        }
-    }
-
-    function closeNotificationModal() {
-        const modal = document.getElementById('viewNotificationsModal');
-        if (!modal) return;
-        modal.style.display = 'none';
     }
 
     document.getElementById('viewNotificationsModal')?.addEventListener('click', function (e) {

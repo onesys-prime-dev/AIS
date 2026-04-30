@@ -8,7 +8,7 @@ use App\Models\Client\EmployeeModel;
 use App\Models\Client\PayrollSettingsModel;
 use App\Models\Client\PayrollTransactionModel;
 use App\Services\Client\PayrollComputationService;
-use App\Models\AttendanceModel;
+use App\Models\Client\AttendanceModel;
 use Dompdf\Dompdf;
 use Dompdf\Options;
 
@@ -135,7 +135,7 @@ class PayrollController extends BaseController
     {
         try {
             $employeeModel = new EmployeeModel();
-            $employee = $employeeModel->find($id);
+            $employee = (array) $employeeModel->find($id);
             if (!$employee) {
                 return $this->response->setStatusCode(404)->setJSON(['error' => 'Employee not found']);
             }
@@ -392,7 +392,7 @@ class PayrollController extends BaseController
 
             if ($email->send()) {
                 unlink($tempPath . $filename);
-                return $this->response->setJSON(['success' => true, 'message' => 'Payslip sent to ' . $user['email']]);
+                return $this->response->setJSON(['success' => true, 'message' => 'Payslip sent to ' . $emailAddress]);
             } else {
                 throw new \Exception('Failed to send email');
             }
@@ -756,14 +756,14 @@ class PayrollController extends BaseController
     public function downloadPayslip($id)
     {
         $payslipModel = new \App\Models\Client\EmployeePayslipModel();
-        $payslip = $payslipModel->find($id);
+        $payslip = (array) $payslipModel->find($id);
         if (!$payslip) {
             throw new \Exception('Payslip not found');
         }
 
         $user = auth()->user();
         $employeeModel = new \App\Models\Client\EmployeeModel();
-        $employee = $employeeModel->find($payslip['employee_id']);
+        $employee = (array) $employeeModel->find($payslip['employee_id']);
         $isOwner = ($employee && $employee['user_id'] == $user->id);
         // Fix: use inGroup() instead of can()
         $isAdmin = $user->inGroup('client_payroll_staff');
@@ -773,11 +773,11 @@ class PayrollController extends BaseController
         }
 
         $filePath = $payslip['file_path'];
-        if (!file_exists($filePath)) {
+        if (! file_exists((string) $filePath)) {
             throw new \Exception('File not found');
         }
 
-        return $this->response->download($filePath, null);
+        return $this->response->download((string) $filePath, null);
     }
 
     // JSON endpoint used by the Payslip History tab in payroll_management
@@ -808,14 +808,14 @@ class PayrollController extends BaseController
     public function getPayslipData($id)
     {
         $payslipModel = new \App\Models\Client\EmployeePayslipModel();
-        $payslip = $payslipModel->find($id);
+        $payslip = (array) $payslipModel->find($id);
         if (!$payslip) {
             return $this->response->setStatusCode(404)->setJSON(['error' => 'Payslip not found']);
         }
         
         $user = auth()->user();
         $employeeModel = new \App\Models\Client\EmployeeModel();
-        $employee = $employeeModel->find($payslip['employee_id']);
+        $employee = (array) $employeeModel->find($payslip['employee_id']);
         $isOwner = ($employee && $employee['user_id'] == $user->id);
         // Fix: use inGroup() instead of can()
         $isAdmin = $user->inGroup('client_payroll_staff');
@@ -824,7 +824,7 @@ class PayrollController extends BaseController
             return $this->response->setStatusCode(403)->setJSON(['error' => 'Unauthorized']);
         }
         
-        $generatedData = json_decode($payslip['generated_data'], true);
+        $generatedData = json_decode((string) ($payslip['generated_data'] ?? ''), true);
         if (!$generatedData) {
             $generatedData = []; // fallback
         }

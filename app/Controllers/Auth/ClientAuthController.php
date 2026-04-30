@@ -2,13 +2,33 @@
 
 namespace App\Controllers\Auth;
 
+use App\Models\Client\CompanyBrandingModel;
 use App\Models\PresenceModel;
 use Config\CompreFace;
 use CodeIgniter\HTTP\RedirectResponse;
 use CodeIgniter\Shield\Controllers\LoginController;
+use Throwable;
 
 class ClientAuthController extends LoginController
 {
+    public function loginView()
+    {
+        if (auth()->loggedIn()) {
+            return redirect()->to(config('Auth')->loginRedirect());
+        }
+
+        /** @var \CodeIgniter\Shield\Authentication\Authenticators\Session $authenticator */
+        $authenticator = auth('session')->getAuthenticator();
+
+        if ($authenticator->hasAction()) {
+            return redirect()->route('auth-action-show');
+        }
+
+        return $this->view(setting('Auth.views')['login'], [
+            'companyLogoUrl' => $this->getCompanyLogoUrl(),
+        ]);
+    }
+
     /**
      * Override Shield's loginAction to enforce the `active` flag.
      * Shield's Session authenticator only checks isBanned(), not active,
@@ -70,7 +90,26 @@ class ClientAuthController extends LoginController
             'temp_user_id',
         ]);
     }
+
+    private function getCompanyLogoUrl(): ?string
+    {
+        try {
+            $companyId = (int) (session('company_id') ?? 1);
+            $branding  = (new CompanyBrandingModel())
+                ->where('company_id', $companyId)
+                ->first();
+
+            if (empty($branding['logo_path'])) {
+                return null;
+            }
+
+            return base_url((string) $branding['logo_path']);
+        } catch (Throwable $e) {
+            log_message('debug', 'Unable to load company logo for login page: {message}', [
+                'message' => $e->getMessage(),
+            ]);
+
+            return null;
+        }
+    }
 }
-
-
-?>

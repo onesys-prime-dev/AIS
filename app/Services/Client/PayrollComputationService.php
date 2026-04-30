@@ -2,9 +2,9 @@
 
 namespace App\Services\Client;
 
-use App\Models\AttendanceModel;
 use App\Models\Client\PayrollSettingsModel;
 use App\Models\Client\EmployeeModel;
+use App\Models\Client\AttendanceModel;
 use App\Models\Client\PayrollModel;
 use DateTime;
 use DateInterval;

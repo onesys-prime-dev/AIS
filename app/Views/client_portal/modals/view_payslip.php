@@ -29,8 +29,8 @@
         <div class="payslip-company">
             <div class="payslip-date-holder">
                 <div class="payslip-meta" id="payslipMeta">
-                    <p><span>Payroll Period</span><br><span id="payrollPeriod">—</span></p>
-                    <p><span>Payment Date</span><br><span id="paymentDate">—</span></p>
+                    <p><span class="payroll-period">Payroll Period</span><br><span id="payrollPeriod">—</span></p>
+                    <p><span class="payment-date">Payment Date</span><br><span id="paymentDate">—</span></p>
                 </div>
 
                 <div class="payslip-brand">
@@ -168,12 +168,13 @@
         margin: 0;
         font-size: 22px;
         line-height: 1.25;
-        color: #18181b;
+        color: #6b7280;
     }
 
-    .payslip-meta p span {
-        color: #6b7280;
-        font-size: 18px;
+    .payslip-meta .payroll-period, .payslip-meta .payment-date{
+        color: #18181b;
+        font-weight: 600;
+        font-size: 28px;
     }
 
     .payslip-brand {
@@ -475,7 +476,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Load payslips when modal is opened
     const modal = document.getElementById('viewPayslipModal');
     if (modal) {
-        modal.addEventListener('shown.bs.modal', loadPayslipList);
+        // Bootstrap's `shown.bs.modal` may not be available; use the modal-open buttons instead.
         const openButtons = document.querySelectorAll('[data-modal-open="viewPayslipModal"]');
         openButtons.forEach(btn => {
             btn.addEventListener('click', () => setTimeout(loadPayslipList, 200));

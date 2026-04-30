@@ -42,7 +42,6 @@ class AnnouncementService
         ]);
 
         $id = $this->announcementModel->getInsertID();
-
         if (! $id) {
             return false;
         }

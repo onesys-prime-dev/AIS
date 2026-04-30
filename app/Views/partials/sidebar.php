@@ -46,7 +46,8 @@
 
         <!-- BOTTOM MENU -->
         <div class="bottom-menu">
-            <a href="<?= site_url('client_portal/help') ?>" class="menu-item">
+            <a href="<?= site_url('client_portal/help') ?>"
+                class="menu-item <?= str_contains(current_url(), 'client_portal/help') ? 'active' : '' ?>">
                 <img src="<?= base_url('icons/help.png') ?>" class="icon">
                 <span>Help</span>
             </a>
@@ -69,39 +70,39 @@
 
     /* SIDEBAR */
     .sidebar{
-        width:100px;
+        width: 120px;
         background: var(--sidebar-bg);
-        min-height:100vh;
-        display:flex;
-        flex-direction:column;
-        align-items:center;
-        font-family:Segoe UI, Arial;
-        flex-shrink:0;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        font-family: Segoe UI, Arial;
+        flex-shrink: 0;
     }
 
     /* INNER */
     .sidebar-inner{
-        display:flex;
-        flex-direction:column;
-        height:100%;
-        width:100%;
-        align-items:center;
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        width: 100%;
+        align-items: center;
     }
 
     /* LOGO */
     .logo-box{
         padding: 15px 0px;
         border-bottom: 1px solid var(--sidebar-divider);
-        width:100%;
-        display:flex;
-        justify-content:center;
+        width: 100%;
+        display: flex;
+        justify-content: center;
     }
 
     .logo{
-        width:70px;
-        height:70px;
-        background:#d9d9d9;
-        border-radius:4px;
+        width: 70px;
+        height: 70px;
+        background: #d9d9d9;
+        border-radius: 4px;
         background-size: cover;
         background-position: center;
         background-repeat: no-repeat;
@@ -113,27 +114,27 @@
 
     /* MAIN MENU */
     .menu{
-        display:flex;
-        flex-direction:column;
-        gap:10px;
-        padding:15px 0px;
-        align-items:center;
-        width:100%;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        padding: 15px 0px;
+        align-items: center;
+        width: 100%;
     }
 
     /* MENU ITEM */
     .menu-item{
-        display:flex;
-        flex-direction:column;
-        align-items:center;
-        justify-content:center;
-        gap:6px;
-        width:72px;
-        height:72px;
-        border-radius:16px;
-        text-decoration:none;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        width: 72px;
+        height: 72px;
+        border-radius: 16px;
+        text-decoration: none;
         color: var(--sidebar-text);
-        font-size:11px;
+        font-size: 11px;
         transition: background-color 0.2s, color 0.2s, transform 0.2s, box-shadow 0.2s;
     }
 

@@ -12,8 +12,9 @@
         </div>
         <div class="flex items-center gap-4">
             <!-- Activity logs -->
-            <button 
+            <button type="button"
                 data-modal-open="viewDailyTimeLog"
+                onclick="openModalById('viewDailyTimeLog')"
                 class="bg-[#FFFFFF] hover:bg-[#f3f4f6]  px-3 py-3 rounded-lg shadow hover:shadow-[0_6px_12px_rgba(0,0,0,0.3)] flex items-center gap-2 transition hover:translate-y-[-2px]">
                 <div id="add-icon" class="w-7 h-7 cursor-pointer">
                     <img src="<?php echo base_url('icons/activity.png'); ?>" alt="Add"/>
@@ -21,8 +22,9 @@
             </button>
 
             <!-- Timesheets history -->
-            <button 
+            <button type="button"
                 data-modal-open="viewTimesheetHistoryModal"
+                onclick="openModalById('viewTimesheetHistoryModal')"
                 class="bg-[#FFFFFF] hover:bg-[#f3f4f6]  px-3 py-3 rounded-lg shadow hover:shadow-[0_6px_12px_rgba(0,0,0,0.2)] flex items-center gap-2 transition hover:translate-y-[-2px]">
                 <div id="add-icon" class="w-7 h-7 cursor-pointer">
                     <img src="<?php echo base_url('icons/alarms.png'); ?>" alt="Add"/>
@@ -30,8 +32,9 @@
             </button>
 
             <!-- View payslip -->
-            <button 
+            <button type="button"
                 data-modal-open="viewPayslipModal"
+                onclick="openModalById('viewPayslipModal')"
                 class="bg-[#FF2D2D] hover:bg-[#dc2626] text-white px-3 py-3 rounded-lg shadow hover:shadow-[0_6px_12px_rgba(239,68,68,0.3)] flex items-center gap-2 transition hover:translate-y-[-2px]">
                  <div id="add-icon" class="w-7 h-7 cursor-pointer">
                     <img src="<?php echo base_url('icons/payslip.png'); ?>" alt="Add"/>

@@ -1,41 +1,45 @@
-document.addEventListener("DOMContentLoaded", () => {
+function openModalById(id) {
+    const modal = document.getElementById(id);
 
-    const openButtons = document.querySelectorAll("[data-modal-open]");
-    const closeButtons = document.querySelectorAll(".modal-close");
-    const overlays = document.querySelectorAll(".modal-overlay");
+    if (!modal) {
+        console.warn(`Modal not found: ${id}`);
+        return;
+    }
 
-    // OPEN MODAL
-    openButtons.forEach(btn => {
-        btn.addEventListener("click", () => {
+    modal.style.display = "flex";
 
-            const id = btn.dataset.modalOpen;
-            const modal = document.getElementById(id);
+    if (typeof resetSteps === "function") {
+        resetSteps();
+    }
+}
 
-            modal.classList.remove("hidden");
+function closeModalElement(modal) {
+    if (!modal) return;
+    modal.style.display = "none";
+}
 
-            // RESET FORM TO STEP 1
-            resetSteps();
+window.openModalById = openModalById;
+window.closeModalById = function (id) {
+    closeModalElement(document.getElementById(id));
+};
 
-        });
-    });
+document.addEventListener("click", (event) => {
+    const openButton = event.target.closest("[data-modal-open]");
+    if (openButton) {
+        openModalById(openButton.dataset.modalOpen);
+        return;
+    }
 
-    // CLOSE MODAL BUTTON
-    closeButtons.forEach(btn => {
-        btn.addEventListener("click", () => {
-            btn.closest(".modal-overlay").classList.add("hidden");
-        });
-    });
+    const closeButton = event.target.closest(".modal-close");
+    if (closeButton) {
+        closeModalElement(closeButton.closest(".modal-overlay"));
+        return;
+    }
 
-    // CLICK OUTSIDE MODAL
-    overlays.forEach(overlay => {
-        overlay.addEventListener("click", (e) => {
-
-            if(e.target === overlay)
-                overlay.classList.add("hidden");
-
-        });
-    });
-
+    const overlay = event.target.closest(".modal-overlay");
+    if (overlay && event.target === overlay) {
+        closeModalElement(overlay);
+    }
 });
 
 function nextStep(step)

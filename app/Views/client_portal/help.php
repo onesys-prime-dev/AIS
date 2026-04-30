@@ -143,7 +143,7 @@
         line-height: 0.98;
         font-weight: 800;
         color: var(--help-text);
-        margin: 0 0 18px;
+        margin: 0 0 25px;
         letter-spacing: -0.03em;
     }
 
@@ -155,7 +155,7 @@
 
     .hero-search input {
         width: 100%;
-        height: 48px;
+        height: 50px;
         border-radius: 999px;
         border: 1px solid var(--help-border);
         background: rgba(255, 255, 255, 0.9);
@@ -186,7 +186,7 @@
     .hero-sub {
         font-size: 14px;
         color: var(--help-muted);
-        margin: 14px 0 18px;
+        margin: 25px 0 25px;
     }
 
     .top-cards {
@@ -203,7 +203,7 @@
         text-decoration: none;
         color: var(--help-text);
         min-height: 184px;
-        padding: 20px;
+        padding: 30px 25px 25px 25px;
         box-shadow: var(--help-shadow);
         display: flex;
         flex-direction: column;
@@ -233,15 +233,28 @@
 
     .top-card-arrow {
         margin-left: auto;
-        width: 18px;
-        height: 18px;
+        width: 28px;
+        height: 28px;
         color: var(--help-accent);
     }
 
     .icon-s {
-        width: 48px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        width: auto;
         height: 48px;
         color: var(--help-accent);
+    }
+
+    .icon-s .icon{
+        width: 65px;
+        height: 65px;
+    }
+
+    .about-title .icon, .feature-badge .icon, .faq-head .icon{
+        width: 55px;
+        height: 55px;
     }
 
     .section-gray {
@@ -263,7 +276,7 @@
     .about-title {
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: 15px;
         font-size: clamp(2rem, 4vw, 3.25rem);
         font-weight: 700;
         color: var(--help-text);
@@ -384,6 +397,10 @@
     }
 
     .faq-head {
+        display: flex;
+        flex-direction: column;
+        justify-self: center;
+        align-items: center;
         text-align: center;
         margin-bottom: 18px;
     }
@@ -593,8 +610,8 @@
     .contact-form input:focus,
     .contact-form select:focus,
     .contact-form textarea:focus {
-        border-color: var(--help-accent);
-        box-shadow: 0 0 0 3px rgba(79, 127, 224, 0.14);
+        border-color: #dd1414;
+        box-shadow: 0 0 0 3px rgba(224, 128, 128, 0.141);
     }
 
     .contact-check {
@@ -633,7 +650,7 @@
         font-weight: 700;
         padding: 13px 16px;
         cursor: pointer;
-        box-shadow: 0 14px 24px rgba(79, 127, 224, 0.25);
+        box-shadow: 0 14px 24px rgba(106, 69, 69, 0.161);
         transition: transform 0.18s ease, box-shadow 0.18s ease;
     }
 
@@ -663,13 +680,12 @@
     }
 
     .footer-inner {
-        max-width: 1160px;
-        margin: 0 auto;
+        width: auto;
+        margin: 0 20px;
         padding: 14px clamp(16px, 3vw, 28px);
         display: flex;
         justify-content: space-between;
         align-items: center;
-        gap: 50px;
         flex-wrap: wrap;
     }
 
@@ -769,11 +785,14 @@
                     <a href="<?= esc($item['target']) ?>" class="top-card">
                         <div class="icon-s" aria-hidden="true">
                             <?php if ($item['icon'] === 'about'): ?>
-                                <svg viewBox="0 0 24 24" width="30" height="30" fill="none"><path d="M4 21V7l8-4 8 4v14H4z" fill="currentColor"/><path d="M11 9h2v2h-2zM11 13h2v2h-2zM11 17h2v4h-2z" fill="#fff"/></svg>
+                                <!-- <svg viewBox="0 0 24 24" width="30" height="30" fill="none"><path d="M4 21V7l8-4 8 4v14H4z" fill="currentColor"/><path d="M11 9h2v2h-2zM11 13h2v2h-2zM11 17h2v4h-2z" fill="#fff"/></svg> -->
+                                <img src="<?= base_url('icons/help-about.png') ?>" class="icon">
                             <?php elseif ($item['icon'] === 'faq'): ?>
-                                <svg viewBox="0 0 24 24" width="30" height="30" fill="none"><circle cx="12" cy="12" r="9" fill="currentColor"/><path d="M10.9 9.5c0-1 .8-1.8 2-1.8 1.1 0 1.9.7 1.9 1.7 0 1.4-1.3 1.7-1.9 2.6-.2.3-.3.6-.3 1h-1.4c0-.6.1-1 .3-1.4.5-.9 1.9-1.4 1.9-2.2 0-.4-.3-.7-.8-.7-.6 0-.9.4-.9.9h-1.8zm.8 6.8c0-.6.4-.9.9-.9.6 0 1 .3 1 .9s-.4.9-1 .9c-.5 0-.9-.3-.9-.9z" fill="#fff"/></svg>
+                                <!-- <svg viewBox="0 0 24 24" width="30" height="30" fill="none"><circle cx="12" cy="12" r="9" fill="currentColor"/><path d="M10.9 9.5c0-1 .8-1.8 2-1.8 1.1 0 1.9.7 1.9 1.7 0 1.4-1.3 1.7-1.9 2.6-.2.3-.3.6-.3 1h-1.4c0-.6.1-1 .3-1.4.5-.9 1.9-1.4 1.9-2.2 0-.4-.3-.7-.8-.7-.6 0-.9.4-.9.9h-1.8zm.8 6.8c0-.6.4-.9.9-.9.6 0 1 .3 1 .9s-.4.9-1 .9c-.5 0-.9-.3-.9-.9z" fill="#fff"/></svg> -->
+                                <img src="<?= base_url('icons/help-questions.png') ?>" class="icon">
                             <?php else: ?>
-                                <svg viewBox="0 0 24 24" width="30" height="30" fill="none"><circle cx="6" cy="7" r="1.4" fill="currentColor"/><circle cx="6" cy="12" r="1.4" fill="currentColor"/><circle cx="6" cy="17" r="1.4" fill="currentColor"/><rect x="9.2" y="6.2" width="9.6" height="1.4" rx=".7" fill="currentColor"/><rect x="9.2" y="11.2" width="9.6" height="1.4" rx=".7" fill="currentColor"/><rect x="9.2" y="16.2" width="9.6" height="1.4" rx=".7" fill="currentColor"/></svg>
+                                <!-- <svg viewBox="0 0 24 24" width="30" height="30" fill="none"><circle cx="6" cy="7" r="1.4" fill="currentColor"/><circle cx="6" cy="12" r="1.4" fill="currentColor"/><circle cx="6" cy="17" r="1.4" fill="currentColor"/><rect x="9.2" y="6.2" width="9.6" height="1.4" rx=".7" fill="currentColor"/><rect x="9.2" y="11.2" width="9.6" height="1.4" rx=".7" fill="currentColor"/><rect x="9.2" y="16.2" width="9.6" height="1.4" rx=".7" fill="currentColor"/></svg> -->
+                                <img src="<?= base_url('icons/help-features.png') ?>" class="icon">
                             <?php endif; ?>
                         </div>
                         <div>
@@ -781,7 +800,7 @@
                             <div class="top-card-desc"><?= esc($item['desc']) ?></div>
                         </div>
                         <div class="top-card-arrow">
-                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none"><path d="M5 12h13M13 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            <img src="<?= base_url('icons/help-arrow.png') ?>" class="icon">
                         </div>
                     </a>
                 <?php endforeach; ?>
@@ -793,7 +812,7 @@
         <div class="help-container about-grid">
             <div>
                 <div class="about-title">
-                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none"><path d="M4 21V7l8-4 8 4v14H4z" fill="#7094e0"/><path d="M11 9h2v2h-2zM11 13h2v2h-2zM11 17h2v4h-2z" fill="#fff"/></svg>
+                    <img src="<?= base_url('icons/help-about.png') ?>" class="icon">
                     About OTIS
                 </div>
                 <div class="about-copy">
@@ -811,7 +830,7 @@
             <div class="feature-head">
                 <h3>Explore Support Topics<small>Can’t find what you’re looking for?</small></h3>
                 <div class="feature-badge">System Features
-                    <svg viewBox="0 0 24 24" fill="none"><path d="M4 7h4M4 12h8M4 17h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="17" cy="7" r="1.4" fill="currentColor"/><circle cx="20" cy="12" r="1.4" fill="currentColor"/><circle cx="17" cy="17" r="1.4" fill="currentColor"/></svg>
+                    <img src="<?= base_url('icons/help-features.png') ?>" class="icon">
                 </div>
             </div>
 
@@ -838,8 +857,8 @@
     <section id="faq-list" class="section-gray faq-wrap">
         <div class="help-container">
             <div class="faq-head">
-                <div class="faq-badge">?</div>
-                <h2>Frequently Asked Questions <span style="font-size: 11px; color:#777; font-weight:500;">(FAQs)</span></h2>
+                <img src="<?= base_url('icons/help-questions.png') ?>" class="icon">
+                <h2>Frequently Asked Questions <span style="font-size: 15px; color:#777; font-weight:500;">(FAQs)</span></h2>
                 <p>Can’t find what you’re looking for?</p>
             </div>
 
@@ -927,7 +946,7 @@
         </div>
     </section>
 
-    <section id="request-history" class="history-wrap">
+    <!-- <section id="request-history" class="history-wrap">
         <div class="help-container history-panel">
             <div class="flex items-center justify-between mb-2">
                 <h3 class="text-sm font-semibold text-gray-900">Request History</h3>
@@ -973,7 +992,7 @@
                 <?php endif; ?>
             </div>
         </div>
-    </section>
+    </section> -->
 
     <footer class="footer-bar">
         <div class="footer-inner">

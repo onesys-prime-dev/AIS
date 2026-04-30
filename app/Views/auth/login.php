@@ -12,7 +12,11 @@
         <div class="w-2/3 flex items-center justify-center bg-white px-12 lg:px-24">
             <div class="w-full max-w-md">
                 <div class="mb-10">
-                    <div class="text-gray-400 font-bold text-lg mb-1">Accounting System</div>
+                    <div class="flex items-center justify-center mb-8">
+                        <?php if (! empty($companyLogoUrl)): ?>
+                            <img src="<?= esc($companyLogoUrl) ?>" alt="Company Logo" class="h-20 w-20" loading="eager" decoding="async">
+                        <?php endif; ?>
+                    </div>
                     <h1 class="text-4xl font-bold text-gray-900 mb-3">Welcome Back</h1>
                     <p class="text-gray-500 text-lg">
                         Enter your email and password to access your account.

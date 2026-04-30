@@ -6,11 +6,12 @@ use CodeIgniter\Router\RouteCollection;
  * @var RouteCollection $routes
  */
 $routes->get('/logout', 'Auth\ClientAuthController::logout');
+$routes->get('login', 'Auth\ClientAuthController::loginView', ['as' => 'login']);
 $routes->post('login', 'Auth\ClientAuthController::loginAction');
 $routes->get('face-verify', 'Auth\FaceAuthController::index', ['filter' => 'auth']);
 $routes->post('face-verify', 'Auth\FaceAuthController::verify', ['filter' => 'auth']);
 
-service('auth')->routes($routes, ['except' => ['register']]);
+service('auth')->routes($routes, ['except' => ['register', 'login', 'logout']]);
 
 $routes->get('register', 'Auth\ClientRegisterController::registerView');
 $routes->post('register', 'Auth\ClientRegisterController::registerAction');   

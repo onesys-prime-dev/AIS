@@ -12,8 +12,9 @@
             <p class="text-gray-500 text-sm">Manage employee data here.</p>
         </div>
 
-        <button 
+        <button type="button"
             data-modal-open="employeeModal"
+            onclick="openModalById('employeeModal')"
             class="bg-[#FF2D2D] hover:bg-[#ff2d2dd2] text-white px-3 py-3 rounded-lg shadow flex items-center gap-2">
                 <div id="add-icon" class="w-7 h-7 cursor-pointer">
                     <img src="<?php echo base_url('icons/add.png'); ?>" alt="Add"/>

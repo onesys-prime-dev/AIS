@@ -7,6 +7,7 @@ use App\Models\Client\EmployeeModel;
 use App\Models\Client\EmployeePositionModel;
 use CodeIgniter\HTTP\Files\UploadedFile;
 use CodeIgniter\Shield\Models\UserModel;
+use CodeIgniter\Shield\Authentication\Authenticators\Session;
 
 class AccountService
 {
@@ -25,7 +26,27 @@ class AccountService
 
     public function getAccountViewData(int $userId): array
     {
-        $user     = $this->userModel->find($userId);
+        $credentials = $this->getUserCredentials($userId);
+        $user        = $credentials['user'] ?? null;
+
+        if (! $user) {
+            return [
+                'identity'  => [],
+                'employment' => [],
+                'contact'   => [
+                    'primary_email'   => '',
+                    'secondary_email' => '',
+                    'mobile_number'   => '',
+                    'address'         => '',
+                ],
+                'emergency' => [],
+                'audit'     => [
+                    'updated_at' => null,
+                    'updated_by' => null,
+                ],
+            ];
+        }
+
         $employee = $this->employeeModel->where('user_id', $userId)->first();
 
         // Auto-create missing employee profile to maintain data consistency
@@ -39,7 +60,7 @@ class AccountService
                 'identity'  => [],
                 'employment' => [],
                 'contact'   => [
-                    'primary_email'   => $user->email ?? '',
+                    'primary_email'   => (string) ($credentials['email'] ?? ''),
                     'secondary_email' => '',
                     'mobile_number'   => '',
                     'address'         => '',
@@ -68,7 +89,7 @@ class AccountService
                 'middle_name'    => (string) ($employee['middle_name'] ?? ''),
                 'last_name'      => (string) ($employee['last_name'] ?? ''),
                 'full_name'      => $fullName,
-                'username'       => (string) ($user->username ?? ''),
+                'username'       => (string) ($credentials['username'] ?? ''),
                 'preferred_name' => (string) ($employee['first_name'] ?? ''),
                 'birthdate'      => (string) ($employee['birthdate'] ?? ''),
                 'joined'         => (string) ($employee['created_at'] ?? ''),
@@ -80,13 +101,13 @@ class AccountService
                 'department'      => (string) ($position['department'] ?? ''),
                 'position'        => (string) ($position['position'] ?? ''),
                 'employment_type' => (string) ($position['employment_type'] ?? ''),
-                'online_status'   => (string) ($user->online_status ?? 'Offline'),
-                'status'          => (isset($user->active) && (int) $user->active === 1) ? 'Active' : 'Inactive',
+                'online_status'   => (string) ($credentials['online_status'] ?? 'Offline'),
+                'status'          => ! empty($credentials['is_active']) ? 'Active' : 'Inactive',
                 'hire_date'       => (string) ($employee['created_at'] ?? ''),
                 'reports_to'      => '-',
             ],
             'contact' => [
-                'primary_email'   => (string) ($user->email ?? ''),
+                'primary_email'   => (string) ($credentials['email'] ?? ''),
                 'secondary_email' => (string) ($account['secondary_email'] ?? ''),
                 'mobile_number'   => (string) ($account['mobile_number'] ?? ''),
                 'address'         => (string) ($account['address'] ?? ''),
@@ -177,7 +198,7 @@ class AccountService
     public function updatePassword(int $userId, string $currentPassword, string $newPassword): array
     {
         // Password changes are handled and audited by Shield — no activity log needed here.
-        $user = $this->userModel->find($userId);
+        $user = $this->findCompanyUser($userId);
 
         if (! $user) {
             return ['ok' => false, 'message' => 'User account not found.'];
@@ -265,7 +286,7 @@ class AccountService
             return ['ok' => false, 'message' => 'Username is required.'];
         }
 
-        $user = $this->userModel->find($userId);
+        $user = $this->findCompanyUser($userId);
 
         if (! $user) {
             return ['ok' => false, 'message' => 'User account not found.'];
@@ -301,7 +322,7 @@ class AccountService
 
     public function updateIdentity(int $userId, array $payload): array
     {
-        $user = $this->userModel->find($userId);
+        $user = $this->findCompanyUser($userId);
 
         if (! $user) {
             return ['ok' => false, 'message' => 'User account not found.'];
@@ -444,7 +465,8 @@ class AccountService
 
     public function getHeaderIdentity(int $userId): array
     {
-        $user = $this->userModel->find($userId);
+        $credentials = $this->getUserCredentials($userId);
+        $user        = $credentials['user'] ?? null;
 
         if (! $user) {
             return [
@@ -466,8 +488,8 @@ class AccountService
 
         return [
             'photo_url'     => $photoUrl,
-            'display_name'  => (string) ($user->username ?: 'User'),
-            'display_email' => (string) ($user->email ?? ''),
+            'display_name'  => (string) (($credentials['username'] ?? '') !== '' ? $credentials['username'] : 'User'),
+            'display_email' => (string) ($credentials['email'] ?? ''),
         ];
     }
 
@@ -484,24 +506,59 @@ class AccountService
         return $this->accountModel->find((int) $this->accountModel->getInsertID()) ?? [];
     }
 
+    private function findCompanyUser(int $userId): ?object
+    {
+        return db_connect()->table('users')
+            ->where('id', $userId)
+            ->get()
+            ->getRow();
+    }
+
     protected function resolveUpdatedByName(?int $updatedBy): ?string
     {
         if (! $updatedBy) {
             return null;
         }
 
-        $user = $this->userModel->find($updatedBy);
-        if (! $user) {
+        $credentials = $this->getUserCredentials($updatedBy);
+
+        if (! $credentials) {
             return 'User #' . $updatedBy;
         }
 
-        return (string) ($user->username ?: $user->email ?: ('User #' . $updatedBy));
+        return (string) (($credentials['username'] ?? '') ?: ($credentials['email'] ?? '') ?: ('User #' . $updatedBy));
+    }
+
+    protected function getUserCredentials(int $userId): ?array
+    {
+        $user = $this->findCompanyUser($userId);
+
+        if (! $user) {
+            return null;
+        }
+
+        $authConfig      = config('Auth');
+        $identityTable   = $authConfig->tables['identities'] ?? 'auth_identities';
+        $emailIdentity   = db_connect()->table($identityTable)
+            ->select('secret')
+            ->where('user_id', $userId)
+            ->where('type', Session::ID_TYPE_EMAIL_PASSWORD)
+            ->get()
+            ->getRow();
+
+        return [
+            'user'          => $user,
+            'username'      => (string) ($user->username ?? ''),
+            'email'         => (string) ($emailIdentity->secret ?? ''),
+            'online_status' => (string) ($user->online_status ?? 'Offline'),
+            'is_active'     => isset($user->active) && (int) $user->active === 1,
+        ];
     }
 
     protected function ensureEmployeeProfileExists(int $userId, ?object $user = null): void
     {
         if (! $user) {
-            $user = $this->userModel->find($userId);
+            $user = $this->findCompanyUser($userId);
         }
 
         if (! $user) {

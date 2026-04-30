@@ -1,4 +1,4 @@
-<div class="h-full flex flex-col min-h-0 overflow-hidden">
+<div class="h-full flex flex-col min-h-0 overflow-visible">
 
     <div class="flex justify-between items-center my-4">
         
@@ -10,7 +10,7 @@
         <div class="flex items-center gap-3">
 
             <!-- Month Picker -->
-            <div class="month-picker flex items-center h-12 bg-white border border-gray-200 rounded-lg shadow-sm px-3" id="monthPickerContainer">
+            <div class="month-picker flex items-center h-12 bg-white border border-gray-200 rounded-lg shadow-sm px-3 hover:bg-[#f3f4f6] hover:shadow-[0_6px_12px_rgba(0,0,0,0.3)] transition hover:translate-y-[-2px]" id="monthPickerContainer">
                 <button type="button" class="month-picker-icon mr-2" aria-label="Open month picker" onclick="openMonthPicker()">
                     <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10m-11 9h12a2 2 0 002-2V7a2 2 0 00-2-2H6a2 2 0 00-2 2v11a2 2 0 002 2z"/>
@@ -32,8 +32,9 @@
             </div>
 
             <!-- New Payroll Button -->
-            <button 
+            <button type="button"
                 data-modal-open="payrollModal"
+                onclick="openModalById('payrollModal')"
                 class="h-12 bg-[#FF2D2D] hover:bg-[#dc2626] text-white px-3 rounded-lg shadow hover:shadow-[0_6px_12px_rgba(239,68,68,0.3)] flex items-center gap-2 transition hover:translate-y-[-2px]">
 
                 <img src="<?php echo base_url('icons/add.png'); ?>" class="w-5 h-5" alt="Add"/>
@@ -63,6 +64,7 @@
 <style>
     .month-picker {
         position: relative;
+        z-index: 9999;
     }
 
     .month-picker-icon {
@@ -100,12 +102,13 @@
         border-radius: 14px;
         box-shadow: 0 16px 32px rgba(15, 23, 42, 0.16);
         padding: 10px;
-        z-index: 40;
+        z-index: 9999;
         display: none;
     }
 
     .month-picker-modal.open {
         display: block;
+        z-index: 99999;
     }
 
     .month-picker-modal-header {

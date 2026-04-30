@@ -16,25 +16,19 @@
         <?= view('client_portal/payroll_status') ?>
     </div>
 
-    <div class="tab-panel h-full flex flex-col min-h-0 overflow-hidden px-8 pb-8" data-panel="generate-payslip">
+    <div class="tab-panel h-full flex flex-col min-h-0 overflow-hidden px-8 pb-8 hidden" data-panel="generate-payslip">
         <?= view('client_portal/payroll_management') ?>
     </div>
 
-    <div class="tab-panel h-full flex flex-col min-h-0 overflow-hidden px-8 pb-8" data-panel="payroll-settings">
+    <div class="tab-panel h-full flex flex-col min-h-0 overflow-hidden px-8 pb-8 hidden" data-panel="payroll-settings">
         <?= view('client_portal/payroll_settings_panel') ?>
     </div>
 
-    <div class="tab-panel h-full flex flex-col min-h-0 overflow-hidden px-8 pb-8" data-panel="payslip-history">
+    <div class="tab-panel h-full flex flex-col min-h-0 overflow-hidden px-8 pb-8 hidden" data-panel="payslip-history">
         <?= view('client_portal/payroll_payslip_history') ?>
     </div>
 
 </div>
-
-<style>
-    /* .hidden {
-        display: none;
-    }  */
-</style>
 
 <?= $this->endSection() ?>
 

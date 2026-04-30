@@ -32,13 +32,32 @@
                 'display_email' => '',
             ];
 
+            $notifications = [];
             $headerUser = auth()->user();
 
             if ($headerUser) {
                 $headerIdentity = (new \App\Services\Client\AccountService())->getHeaderIdentity((int) $headerUser->id);
+                $announcementService = new \App\Services\Client\AnnouncementService();
+                $announcementRows = $announcementService->getVisibleAnnouncementsForUser($headerUser, 10);
+
+                $notifications = array_map(static function (array $row): array {
+                    return [
+                        'id' => (int) ($row['id'] ?? 0),
+                        'title' => (string) ($row['title'] ?? 'Announcement'),
+                        'summary' => (string) ($row['summary'] ?? $row['details'] ?? ''),
+                        'details' => (string) ($row['details'] ?? $row['summary'] ?? ''),
+                        'publish_at' => (string) ($row['publish_at'] ?? ''),
+                        'category' => (string) ($row['category'] ?? 'General'),
+                        'priority' => (string) ($row['priority'] ?? 'Normal'),
+                        'audience' => (string) ($row['audience'] ?? 'All Employees'),
+                        'time_ago' => (string) ($row['time_ago'] ?? ''),
+                        'is_viewed' => (int) ($row['is_viewed'] ?? 0),
+                    ];
+                }, $announcementRows);
             }
         ?>
-        <?= view('partials/header', ['headerIdentity' => $headerIdentity]) ?>
+        <?= view('partials/header', ['headerIdentity' => $headerIdentity, 'notifications' => $notifications]) ?>
+        <?= view('client_portal/modals/view_notification') ?>
 
         <!-- Page Content -->
         <main class="flex-1 flex flex-col min-h-0">
@@ -78,6 +97,10 @@
 </div>
 
 <script>
+window.notificationViewedUrl = <?= json_encode(site_url('client_portal/announcements/viewed')) ?>;
+window.notificationCsrfTokenName = <?= json_encode(csrf_token()) ?>;
+window.notificationCsrfTokenHash = <?= json_encode(csrf_hash()) ?>;
+
 function getContrastColor(hex) {
     hex = hex.replace('#', '');
 
