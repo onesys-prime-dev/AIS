@@ -9,6 +9,7 @@ use App\Models\Client\PayrollModel;
 use DateTime;
 use DateInterval;
 use DatePeriod;
+use Exception;
 
 class PayrollComputationService
 {
@@ -23,90 +24,158 @@ class PayrollComputationService
         $this->payrollModel = new PayrollModel();
     }
 
-    public function computePayroll($employeeId, $startDate, $endDate, $adjustments = [])
+    /**
+     * Main payroll computation for an employee for a given period
+     * @param int $employeeId
+     * @param string $startDate Y-m-d
+     * @param string $endDate Y-m-d
+     * @param array $manualOverrides Optional manual values for adjustments (de minimis, loans, etc.)
+     * @return array Complete payroll breakdown
+     * @throws Exception
+     */
+    public function computePayroll($employeeId, $startDate, $endDate, $manualOverrides = [])
     {
         $employeeModel = new EmployeeModel();
         $employee = $employeeModel->find($employeeId);
-        if (!$employee) throw new \Exception("Employee not found");
+        if (!$employee) throw new Exception("Employee not found");
 
+        // Get daily rate from payroll table for this month
         $periodMonth = date('Y-m', strtotime($startDate));
         $payrollRecord = $this->payrollModel
             ->where('employee_id', $employeeId)
             ->where('month_year', $periodMonth)
             ->first();
-
-        if (!$payrollRecord) {
-            throw new \Exception("No payroll record found for employee ID $employeeId in month $periodMonth. Please create a payroll entry first in Payroll Status tab.");
+        if (!$payrollRecord || $payrollRecord['daily_rate'] <= 0) {
+            throw new Exception("Daily rate not set for $periodMonth. Please create payroll entry first.");
         }
+        $dailyRate = (float) $payrollRecord['daily_rate'];
 
-        $dailyRate = floatval($payrollRecord['daily_rate']);
-        if ($dailyRate <= 0) {
-            throw new \Exception("Daily rate is not set or is zero for employee ID $employeeId in month $periodMonth. Please set daily rate in Payroll Status.");
-        }
-
-        $workingDaysInMonth = $this->getWorkingDaysInPeriod($startDate, $endDate);
-        $monthlySalary = $dailyRate * $workingDaysInMonth;
+        // Working days in the period (Mon-Fri)
+        $workingDaysInPeriod = $this->getWorkingDaysInPeriod($startDate, $endDate);
+        $monthlySalary = $dailyRate * $workingDaysInPeriod;
         $hourlyRate = $monthlySalary / max($this->settings->getSetting('monthly_hours'), 1);
 
+        // Fetch attendance records
         $attendance = $this->attendanceModel
             ->where('user_id', $employee['user_id'])
             ->where('date >=', $startDate)
             ->where('date <=', $endDate)
             ->findAll();
 
+        // --- Basic Pay & Absences ---
         $presentDays = $this->countPresentDays($attendance);
+        $absentDays = max(0, $workingDaysInPeriod - $presentDays);
+        $absentAmount = $absentDays * $dailyRate;
+
+        // --- Overtime (Regular, Rest day, Holiday) ---
+        $otRegularAmount = 0;
+        $otRestAmount = 0;
+        $otHolidayAmount = 0;
+        $otRateRegular = (float) $this->settings->getSetting('ot_regular_rate', 1.25);
+        $otRateRest = (float) $this->settings->getSetting('ot_rest_rate', 1.30);
+        $otRateHoliday = (float) $this->settings->getSetting('ot_holiday_rate', 2.00);
+        foreach ($attendance as $day) {
+            $totalHours = (float)($day['total_hours'] ?? 0);
+            if ($totalHours <= 8) continue;
+            $otHours = $totalHours - 8;
+            $isSunday = (date('N', strtotime($day['date'])) == 7);
+            $isHoliday = $this->isHoliday($day['date']); // stub – implement with holiday table if needed
+            if ($isHoliday) {
+                $otHolidayAmount += $otHours * $hourlyRate * $otRateHoliday;
+            } elseif ($isSunday) {
+                $otRestAmount += $otHours * $hourlyRate * $otRateRest;
+            } else {
+                $otRegularAmount += $otHours * $hourlyRate * $otRateRegular;
+            }
+        }
+
+        // --- Night Differential (10pm-6am) ---
+        $ndStart = $this->settings->getSetting('night_diff_start', '22:00:00');
+        $ndEnd = $this->settings->getSetting('night_diff_end', '06:00:00');
+        $ndRate = (float) $this->settings->getSetting('night_diff_rate', 0.10);
+        $nightDiffAmount = $this->computeNightDifferential($attendance, $hourlyRate, $ndStart, $ndEnd, $ndRate);
+
+        // --- Undertime (based on recorded total_hours < 8) ---
+        $undertimeHours = 0;
+        foreach ($attendance as $day) {
+            $totalHours = (float)($day['total_hours'] ?? 0);
+            if ($totalHours > 0 && $totalHours < 8) {
+                $undertimeHours += (8 - $totalHours);
+            }
+        }
+        $undertimeAmount = $undertimeHours * $hourlyRate;
+
+        // --- Holiday Pay (if any) ---
+        $holidayPayAmount = 0; // can be computed via separate function if needed
+
+        // --- Basic Pay adjustments ---
         $basicPay = $presentDays * $dailyRate;
+        $netBasicPay = $basicPay - $absentAmount - $undertimeAmount + $nightDiffAmount;
 
-        $otPay = $this->computeOvertimePay($attendance, $hourlyRate);
-        $nightDiffPay = $this->computeNightDifferential($attendance, $hourlyRate);
-        $holidayPay = 0;
+        // --- Other earnings (from manual overrides) ---
+        $deMinimis = $manualOverrides['de_minimis'] ?? 0;
+        $otherTaxable = $manualOverrides['other_taxable'] ?? 0;
+        $otherNonTaxable = $manualOverrides['other_non_taxable'] ?? 0;
 
-        $deMinimis = $adjustments['de_minimis'] ?? 0;
-        $otherTaxable = $adjustments['other_taxable'] ?? 0;
-        $otherNonTaxable = $adjustments['other_non_taxable'] ?? 0;
+        $totalOvertime = $otRegularAmount + $otRestAmount + $otHolidayAmount;
+        $totalEarnings = $netBasicPay + $totalOvertime + $holidayPayAmount + $deMinimis + $otherTaxable + $otherNonTaxable;
 
-        $totalEarnings = $basicPay + $otPay + $nightDiffPay + $holidayPay + $deMinimis + $otherTaxable + $otherNonTaxable;
-
+        // --- Government contributions ---
         $sss = $this->computeSSS($monthlySalary);
         $phic = $this->computePhilHealth($monthlySalary);
         $hdmf = $this->computePagIbig($monthlySalary);
 
-        $taxableIncome = $basicPay + $otPay + $nightDiffPay + $holidayPay + $otherTaxable;
+        // --- Withholding Tax (semi-monthly) ---
+        $taxableIncome = $netBasicPay + $totalOvertime + $holidayPayAmount + $otherTaxable;
         $withholdingTax = $this->computeWithholdingTax($taxableIncome, $monthlySalary);
 
-        $sssLoan = $adjustments['sss_loan'] ?? 0;
-        $calamityLoan = $adjustments['calamity_loan'] ?? 0;
-        $salaryAdvance = $adjustments['salary_advance'] ?? 0;
-        $otherDeductions = $adjustments['other_deductions'] ?? 0;
+        // --- Loans & Advances (from manual overrides) ---
+        $sssLoan = $manualOverrides['sss_loan'] ?? 0;
+        $calamityLoan = $manualOverrides['calamity_loan'] ?? 0;
+        $salaryAdvance = $manualOverrides['salary_advance'] ?? 0;
+        $calamityAdvance = $manualOverrides['calamity_advance'] ?? 0;
+        $otherDeductions = $manualOverrides['other_deductions'] ?? 0;
 
-        $totalDeductions = $sss + $phic + $hdmf + $withholdingTax + $sssLoan + $calamityLoan + $salaryAdvance + $otherDeductions;
+        $totalDeductions = $sss + $phic + $hdmf + $withholdingTax + $sssLoan + $calamityLoan + $salaryAdvance + $calamityAdvance + $otherDeductions;
         $netPay = $totalEarnings - $totalDeductions;
 
+        // Return full array with all breakdown fields (matches Excel raw sheet)
         return [
-            'employee_id'   => $employeeId,
-            'period_start'  => $startDate,
-            'period_end'    => $endDate,
-            'basic_pay'     => round($basicPay, 2),
-            'daily_rate'    => round($dailyRate, 2),
+            'employee_id' => $employeeId,
+            'period_start' => $startDate,
+            'period_end' => $endDate,
+            'basic_pay' => round($basicPay, 2),
+            'daily_rate' => round($dailyRate, 2),
             'monthly_salary' => round($monthlySalary, 2),
-            'present_days'  => $presentDays,
-            'overtime_pay'  => round($otPay, 2),
-            'night_diff_pay' => round($nightDiffPay, 2),
-            'holiday_pay'   => round($holidayPay, 2),
-            'de_minimis'    => round($deMinimis, 2),
+            'present_days' => $presentDays,
+            'absent_days' => $absentDays,
+            'absent_amount' => round($absentAmount, 2),
+            'undertime_hours' => round($undertimeHours, 2),
+            'undertime_amount' => round($undertimeAmount, 2),
+            'night_diff_pay' => round($nightDiffAmount, 2),
+            'ot_regular_pay' => round($otRegularAmount, 2),
+            'ot_rest_pay' => round($otRestAmount, 2),
+            'ot_holiday_pay' => round($otHolidayAmount, 2),
+            'overtime_pay' => round($totalOvertime, 2),
+            'holiday_pay' => round($holidayPayAmount, 2),
+            'de_minimis' => round($deMinimis, 2),
             'other_earnings_taxable' => round($otherTaxable, 2),
             'other_earnings_non_taxable' => round($otherNonTaxable, 2),
             'total_earnings' => round($totalEarnings, 2),
-            'sss_ee'        => round($sss, 2),
-            'phic_ee'       => round($phic, 2),
-            'hdmf_ee'       => round($hdmf, 2),
+            'sss_ee' => round($sss, 2),
+            'phic_ee' => round($phic, 2),
+            'hdmf_ee' => round($hdmf, 2),
             'withholding_tax' => round($withholdingTax, 2),
-            'sss_loan'      => round($sssLoan, 2),
+            'sss_loan' => round($sssLoan, 2),
             'calamity_loan' => round($calamityLoan, 2),
             'salary_advance' => round($salaryAdvance, 2),
+            'calamity_advance' => round($calamityAdvance, 2),
             'other_deductions' => round($otherDeductions, 2),
             'total_deductions' => round($totalDeductions, 2),
-            'net_pay'       => round($netPay, 2),
+            'net_pay' => round($netPay, 2),
+            'net_basic_pay' => round($netBasicPay, 2),
+            'rate_per_hour' => round($hourlyRate, 2),
+            'hours_worked' => round($presentDays * 8, 2) // approximate
         ];
     }
 
@@ -129,7 +198,7 @@ class PayrollComputationService
         $present = 0;
         foreach ($dates as $date) {
             foreach ($attendance as $rec) {
-                if ($rec['date'] == $date && !empty($rec['time_in'])) {
+                if ($rec['date'] == $date && !empty($rec['time_in']) && !empty($rec['time_out']) && (float)($rec['total_hours'] ?? 0) >= 4) {
                     $present++;
                     break;
                 }
@@ -138,23 +207,8 @@ class PayrollComputationService
         return $present;
     }
 
-    protected function computeOvertimePay($attendance, $hourlyRate)
+    protected function computeNightDifferential($attendance, $hourlyRate, $ndStart, $ndEnd, $ndRate)
     {
-        $otRate = $this->settings->getSetting('ot_regular_rate');
-        $totalOtHours = 0;
-        foreach ($attendance as $day) {
-            $totalHours = floatval($day['total_hours'] ?? 0);
-            if ($totalHours > 8) $totalOtHours += ($totalHours - 8);
-        }
-        return $totalOtHours * $hourlyRate * $otRate;
-    }
-
-    protected function computeNightDifferential($attendance, $hourlyRate)
-    {
-        $ndStart = $this->settings->getSetting('night_diff_start');
-        $ndEnd = $this->settings->getSetting('night_diff_end');
-        $ndRate = $this->settings->getSetting('night_diff_rate');
-
         $totalNdHours = 0;
         foreach ($attendance as $day) {
             if (empty($day['time_in']) || empty($day['time_out'])) continue;
@@ -177,66 +231,19 @@ class PayrollComputationService
         return $totalNdHours * $hourlyRate * $ndRate;
     }
 
+    protected function isHoliday($date)
+    {
+        // Stub: implement with your holiday table logic
+        return false;
+    }
+
     protected function computeSSS($monthlySalary)
     {
         $sssTable = json_decode($this->settings->getSetting('sss_table'), true);
         if (empty($sssTable)) {
-            // Fallback simplified table
             $sssTable = [
                 ['range' => '0-3250', 'ee' => 135],
                 ['range' => '3250.01-3750', 'ee' => 157.5],
-                ['range' => '3750.01-4250', 'ee' => 180],
-                ['range' => '4250.01-4750', 'ee' => 202.5],
-                ['range' => '4750.01-5250', 'ee' => 225],
-                ['range' => '5250.01-5750', 'ee' => 247.5],
-                ['range' => '5750.01-6250', 'ee' => 270],
-                ['range' => '6250.01-6750', 'ee' => 292.5],
-                ['range' => '6750.01-7250', 'ee' => 315],
-                ['range' => '7250.01-7750', 'ee' => 337.5],
-                ['range' => '7750.01-8250', 'ee' => 360],
-                ['range' => '8250.01-8750', 'ee' => 382.5],
-                ['range' => '8750.01-9250', 'ee' => 405],
-                ['range' => '9250.01-9750', 'ee' => 427.5],
-                ['range' => '9750.01-10250', 'ee' => 450],
-                ['range' => '10250.01-10750', 'ee' => 472.5],
-                ['range' => '10750.01-11250', 'ee' => 495],
-                ['range' => '11250.01-11750', 'ee' => 517.5],
-                ['range' => '11750.01-12250', 'ee' => 540],
-                ['range' => '12250.01-12750', 'ee' => 562.5],
-                ['range' => '12750.01-13250', 'ee' => 585],
-                ['range' => '13250.01-13750', 'ee' => 607.5],
-                ['range' => '13750.01-14250', 'ee' => 630],
-                ['range' => '14250.01-14750', 'ee' => 652.5],
-                ['range' => '14750.01-15250', 'ee' => 675],
-                ['range' => '15250.01-15750', 'ee' => 697.5],
-                ['range' => '15750.01-16250', 'ee' => 720],
-                ['range' => '16250.01-16750', 'ee' => 742.5],
-                ['range' => '16750.01-17250', 'ee' => 765],
-                ['range' => '17250.01-17750', 'ee' => 787.5],
-                ['range' => '17750.01-18250', 'ee' => 810],
-                ['range' => '18250.01-18750', 'ee' => 832.5],
-                ['range' => '18750.01-19250', 'ee' => 855],
-                ['range' => '19250.01-19750', 'ee' => 877.5],
-                ['range' => '19750.01-20250', 'ee' => 900],
-                ['range' => '20250.01-20750', 'ee' => 922.5],
-                ['range' => '20750.01-21250', 'ee' => 945],
-                ['range' => '21250.01-21750', 'ee' => 967.5],
-                ['range' => '21750.01-22250', 'ee' => 990],
-                ['range' => '22250.01-22750', 'ee' => 1012.5],
-                ['range' => '22750.01-23250', 'ee' => 1035],
-                ['range' => '23250.01-23750', 'ee' => 1057.5],
-                ['range' => '23750.01-24250', 'ee' => 1080],
-                ['range' => '24250.01-24750', 'ee' => 1102.5],
-                ['range' => '24750.01-25250', 'ee' => 1125],
-                ['range' => '25250.01-25750', 'ee' => 1147.5],
-                ['range' => '25750.01-26250', 'ee' => 1170],
-                ['range' => '26250.01-26750', 'ee' => 1192.5],
-                ['range' => '26750.01-27250', 'ee' => 1215],
-                ['range' => '27250.01-27750', 'ee' => 1237.5],
-                ['range' => '27750.01-28250', 'ee' => 1260],
-                ['range' => '28250.01-28750', 'ee' => 1282.5],
-                ['range' => '28750.01-29250', 'ee' => 1305],
-                ['range' => '29250.01-29750', 'ee' => 1327.5],
                 ['range' => '29750.01-30250', 'ee' => 1350],
             ];
         }
@@ -282,6 +289,6 @@ class PayrollComputationService
             }
         }
         $monthlyTax = $annualTax / 12;
-        return max(0, $monthlyTax / 2);
+        return max(0, $monthlyTax);
     }
 }

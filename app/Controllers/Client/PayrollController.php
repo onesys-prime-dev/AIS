@@ -162,6 +162,12 @@ class PayrollController extends BaseController
             $monthlySalary = $dailyRate * $workingDays;
             $hourlyRate = $monthlySalary / 160;
 
+            // Get position from employee_positions table
+            $position = 'Employee';
+            $db = \Config\Database::connect();
+            $posRow = $db->table('employee_positions')->select('position')->where('employee_id', $id)->get()->getRowArray();
+            if ($posRow) $position = $posRow['position'];
+
             $first = trim($employee['first_name'] ?? '');
             $last  = trim($employee['last_name'] ?? '');
             $mid   = trim($employee['middle_name'] ?? '');
@@ -171,7 +177,7 @@ class PayrollController extends BaseController
             return $this->response->setJSON([
                 'id'              => $employee['id'],
                 'name'            => $fullName,
-                'position'        => 'Employee',
+                'position'        => $position,
                 'monthly_salary'  => round($monthlySalary, 2),
                 'daily_rate'      => round($dailyRate, 2),
                 'hourly_rate'     => round($hourlyRate, 2),
@@ -197,125 +203,173 @@ class PayrollController extends BaseController
         return $workingDays;
     }
 
-    // ================= COMPUTE AND SAVE PAYROLL =================
+    // ================= COMPUTE AND SAVE PAYROLL (FULLY AUTOMATIC) =================
     public function computeAndSave()
     {
         try {
             $employeeId = $this->request->getGet('employee_id');
             $start = $this->request->getGet('start_date');
             $end   = $this->request->getGet('end_date');
-            $adjustments = $this->request->getJSON(true);
+            $adjustments = $this->request->getJSON(true) ?: [];
 
             if (!$employeeId || !$start || !$end) {
                 throw new \Exception('Missing required parameters');
             }
 
-            $employeeModel = new EmployeeModel();
-            $employee = $employeeModel->find($employeeId);
-            if (!$employee) throw new \Exception('Employee not found');
+            $service = new PayrollComputationService();
+            $computed = $service->computePayroll($employeeId, $start, $end, $adjustments);
 
-            $periodMonth = date('Y-m', strtotime($start));
-            $payrollModel = new PayrollModel();
-            $payrollRecord = $payrollModel
-                ->where('employee_id', $employeeId)
-                ->where('month_year', $periodMonth)
-                ->first();
-
-            if (!$payrollRecord || $payrollRecord['daily_rate'] <= 0) {
-                throw new \Exception("No daily rate set for $periodMonth. Please create payroll entry first.");
-            }
-
-            $dailyRate = (float)$payrollRecord['daily_rate'];
-            
-            $attendanceModel = new AttendanceModel();
-            $attendance = $attendanceModel
-                ->where('user_id', $employee['user_id'])
-                ->where('date >=', $start)
-                ->where('date <=', $end)
-                ->findAll();
-
-            $presentDays = 0;
-            $dates = [];
-            foreach ($attendance as $rec) {
-                if (!in_array($rec['date'], $dates) && !empty($rec['time_in'])) {
-                    $dates[] = $rec['date'];
-                    $presentDays++;
-                }
-            }
-            
-            $basicPay = $presentDays * $dailyRate;
-            
-            $otPay = 0;
-            $settingsModel = new PayrollSettingsModel();
-            $otRate = (float)$settingsModel->getSetting('ot_regular_rate') ?: 1.25;
-            $monthlySalary = $dailyRate * 22;
-            $hourlyRate = $monthlySalary / 160;
-            
-            foreach ($attendance as $day) {
-                $totalHours = (float)($day['total_hours'] ?? 0);
-                if ($totalHours > 8) {
-                    $otHours = $totalHours - 8;
-                    $otPay += $otHours * $hourlyRate * $otRate;
-                }
-            }
-            
-            $sss = min($monthlySalary * 0.045, 1350);
-            $phic = min($monthlySalary * 0.03, 1200);
-            $hdmf = min($monthlySalary * 0.02, 100);
-            
-            $withholdingTax = 0;
-            if ($monthlySalary > 20833) $withholdingTax = ($monthlySalary - 20833) * 0.20 / 2;
-            
-            $adjustments = $this->request->getJSON(true);
-            $deMinimis = $adjustments['de_minimis'] ?? 0;
-            $otherTaxable = $adjustments['other_taxable'] ?? 0;
-            $sssLoan = $adjustments['sss_loan'] ?? 0;
-            $calamityLoan = $adjustments['calamity_loan'] ?? 0;
-            $salaryAdvance = $adjustments['salary_advance'] ?? 0;
-            $otherDeductions = $adjustments['other_deductions'] ?? 0;
-            
-            $totalEarnings = $basicPay + $otPay + $deMinimis + $otherTaxable;
-            $totalDeductions = $sss + $phic + $hdmf + $withholdingTax + $sssLoan + $calamityLoan + $salaryAdvance + $otherDeductions;
-            $netPay = $totalEarnings - $totalDeductions;
-            
             $txModel = new PayrollTransactionModel();
             $txData = [
                 'employee_id' => $employeeId,
                 'period_start' => $start,
                 'period_end' => $end,
-                'basic_pay' => round($basicPay, 2),
-                'overtime_pay' => round($otPay, 2),
-                'night_diff_pay' => 0,
-                'holiday_pay' => 0,
-                'de_minimis' => round($deMinimis, 2),
-                'other_earnings_taxable' => round($otherTaxable, 2),
-                'other_earnings_non_taxable' => 0,
-                'total_earnings' => round($totalEarnings, 2),
-                'sss_ee' => round($sss, 2),
-                'phic_ee' => round($phic, 2),
-                'hdmf_ee' => round($hdmf, 2),
-                'withholding_tax' => round($withholdingTax, 2),
-                'sss_loan' => round($sssLoan, 2),
-                'calamity_loan' => round($calamityLoan, 2),
-                'salary_advance' => round($salaryAdvance, 2),
-                'other_deductions' => round($otherDeductions, 2),
-                'total_deductions' => round($totalDeductions, 2),
-                'net_pay' => round($netPay, 2),
+                'basic_pay' => $computed['basic_pay'],
+                'overtime_pay' => $computed['overtime_pay'],
+                'night_diff_pay' => $computed['night_diff_pay'],
+                'holiday_pay' => $computed['holiday_pay'],
+                'de_minimis' => $computed['de_minimis'],
+                'other_earnings_taxable' => $computed['other_earnings_taxable'],
+                'other_earnings_non_taxable' => $computed['other_earnings_non_taxable'],
+                'total_earnings' => $computed['total_earnings'],
+                'sss_ee' => $computed['sss_ee'],
+                'phic_ee' => $computed['phic_ee'],
+                'hdmf_ee' => $computed['hdmf_ee'],
+                'withholding_tax' => $computed['withholding_tax'],
+                'sss_loan' => $computed['sss_loan'],
+                'calamity_loan' => $computed['calamity_loan'],
+                'salary_advance' => $computed['salary_advance'],
+                'other_deductions' => $computed['other_deductions'],
+                'total_deductions' => $computed['total_deductions'],
+                'net_pay' => $computed['net_pay'],
                 'status' => 'computed',
                 'computed_at' => date('Y-m-d H:i:s')
             ];
             $txModel->insert($txData);
             $txId = $txModel->getInsertID();
-            
+
             return $this->response->setJSON([
                 'success' => true,
                 'transaction_id' => $txId,
-                'net_pay' => round($netPay, 2)
+                'computed' => $computed
             ]);
         } catch (\Exception $e) {
             log_message('error', 'computeAndSave: ' . $e->getMessage());
             return $this->response->setJSON(['error' => $e->getMessage()])->setStatusCode(500);
         }
+    }
+
+    // ================= EXPORT PAYROLL REGISTER TO CSV =================
+    public function exportRegister()
+    {
+        $month = $this->request->getGet('month') ?? date('Y-m');
+        $payrollModel = new PayrollModel();
+        $records = $payrollModel
+            ->select("payroll.*, CONCAT(employees.first_name,' ',employees.last_name) as employee_name")
+            ->join('employees', 'employees.id = payroll.employee_id')
+            ->where('month_year', $month)
+            ->findAll();
+
+        $filename = "payroll_register_{$month}.csv";
+        header('Content-Type: text/csv');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        $output = fopen('php://output', 'w');
+        fputcsv($output, ['Employee', 'Phone', 'Daily Rate', 'Currency', 'Status']);
+        foreach ($records as $row) {
+            fputcsv($output, [
+                $row['employee_name'], $row['phone'], $row['daily_rate'], $row['currency'], $row['status']
+            ]);
+        }
+        fclose($output);
+        exit();
+    }
+
+    // ================= EXPORT TIMESHEET (RAW SHEET) =================
+    public function exportTimesheet()
+    {
+        $employeeId = $this->request->getGet('employee_id');
+        $startDate = $this->request->getGet('start_date');
+        $endDate = $this->request->getGet('end_date');
+
+        if (!$employeeId || !$startDate || !$endDate) {
+            return $this->response->setStatusCode(400)->setJSON(['error' => 'Missing parameters']);
+        }
+
+        $employeeModel = new EmployeeModel();
+        $employee = $employeeModel->find($employeeId);
+        if (!$employee) {
+            return $this->response->setStatusCode(404)->setJSON(['error' => 'Employee not found']);
+        }
+
+        $attendanceModel = new AttendanceModel();
+        $records = $attendanceModel
+            ->select('date, time_in, time_out, break_duration, total_hours')
+            ->where('user_id', $employee['user_id'])
+            ->where('date >=', $startDate)
+            ->where('date <=', $endDate)
+            ->orderBy('date', 'ASC')
+            ->findAll();
+
+        $filename = "timesheet_{$employee['employee_number']}_{$startDate}_to_{$endDate}.csv";
+        header('Content-Type: text/csv');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        $output = fopen('php://output', 'w');
+        fputcsv($output, ['employee_number', 'date', 'time_in', 'time_out', 'break_duration', 'total_hours']);
+        foreach ($records as $row) {
+            fputcsv($output, [
+                $employee['employee_number'],
+                $row['date'],
+                $row['time_in'],
+                $row['time_out'],
+                $row['break_duration'],
+                $row['total_hours']
+            ]);
+        }
+        fclose($output);
+        exit();
+    }
+
+    // ================= IMPORT TIMESHEET (CSV) =================
+    public function importTimesheet()
+    {
+        $file = $this->request->getFile('timesheet_file');
+        if (!$file || !$file->isValid()) {
+            return $this->response->setJSON(['success' => false, 'error' => 'Invalid file.']);
+        }
+
+        $handle = fopen($file->getTempName(), 'r');
+        $headers = fgetcsv($handle);
+        $successCount = 0;
+        while (($row = fgetcsv($handle)) !== false) {
+            $data = array_combine($headers, $row);
+            $employeeModel = new EmployeeModel();
+            $employee = $employeeModel->where('employee_number', $data['employee_number'])->first();
+            if (!$employee) continue;
+            $attendanceModel = new AttendanceModel();
+            $breakDur = isset($data['break_duration']) ? (float)$data['break_duration'] : 0;
+            $totalHours = $this->calculateTotalHours($data['time_in'], $data['time_out'], $breakDur);
+            $attendanceModel->insert([
+                'user_id' => $employee['user_id'],
+                'date' => $data['date'],
+                'time_in' => $data['time_in'],
+                'time_out' => $data['time_out'] ?? null,
+                'break_duration' => $breakDur,
+                'total_hours' => $totalHours
+            ]);
+            $successCount++;
+        }
+        fclose($handle);
+        return $this->response->setJSON(['success' => true, 'imported' => $successCount]);
+    }
+
+    private function calculateTotalHours($timeIn, $timeOut, $breakDuration)
+    {
+        if (!$timeIn || !$timeOut) return 0;
+        $start = new \DateTime($timeIn);
+        $end = new \DateTime($timeOut);
+        $diff = $end->diff($start);
+        $hours = $diff->h + $diff->i / 60;
+        return max(0, $hours - $breakDuration);
     }
 
     // ================= GENERATE PDF PAYSLIP =================
@@ -392,7 +446,7 @@ class PayrollController extends BaseController
 
             if ($email->send()) {
                 unlink($tempPath . $filename);
-                return $this->response->setJSON(['success' => true, 'message' => 'Payslip sent to ' . $emailAddress]);
+                return $this->response->setJSON(['success' => true, 'message' => 'Payslip sent to ' . $user['email']]);
             } else {
                 throw new \Exception('Failed to send email');
             }
@@ -765,7 +819,6 @@ class PayrollController extends BaseController
         $employeeModel = new \App\Models\Client\EmployeeModel();
         $employee = (array) $employeeModel->find($payslip['employee_id']);
         $isOwner = ($employee && $employee['user_id'] == $user->id);
-        // Fix: use inGroup() instead of can()
         $isAdmin = $user->inGroup('client_payroll_staff');
 
         if (!$isOwner && !$isAdmin) {
@@ -804,7 +857,6 @@ class PayrollController extends BaseController
         return view('client_portal/payroll_payslip_history', ['payslips' => $payslips]);
     }
 
-    // NEW: Get payslip data for preview
     public function getPayslipData($id)
     {
         $payslipModel = new \App\Models\Client\EmployeePayslipModel();
@@ -817,7 +869,6 @@ class PayrollController extends BaseController
         $employeeModel = new \App\Models\Client\EmployeeModel();
         $employee = (array) $employeeModel->find($payslip['employee_id']);
         $isOwner = ($employee && $employee['user_id'] == $user->id);
-        // Fix: use inGroup() instead of can()
         $isAdmin = $user->inGroup('client_payroll_staff');
         
         if (!$isOwner && !$isAdmin) {
@@ -826,7 +877,7 @@ class PayrollController extends BaseController
         
         $generatedData = json_decode((string) ($payslip['generated_data'] ?? ''), true);
         if (!$generatedData) {
-            $generatedData = []; // fallback
+            $generatedData = [];
         }
         
         return $this->response->setJSON([
@@ -878,9 +929,7 @@ class PayrollController extends BaseController
     <body>
     <div class="wrap">
         <h2>PAY SLIP</h2>
-
-        <!-- Header Info -->
-        <table>
+        <td>
             <tr>
                 <td><strong>Employee:</strong></td>
                 <td>' . htmlspecialchars($data['employee_name'] ?? '') . '</td>
@@ -894,213 +943,61 @@ class PayrollController extends BaseController
                 <td colspan="5">' . htmlspecialchars($data['position'] ?? 'N/A') . '</td>
             </tr>
         </table>
-
-        <!-- Earnings -->
         <table>
-            <tr>
-                <th>REGULAR EARNINGS</th>
-                <th>TAXABLE OTHER EARNINGS</th>
-                <th>NON-TAXABLE OTHER EARNINGS</th>
-            </tr>
-            <tr>
-                <td>
-                    <table class="inner-table">
-                        <tr><td>Basic Pay:</td><td class="right">' . $fmt($data['basic_pay']) . '</td></tr>
-                        <tr><td>Night Premium:</td><td class="right">' . $fmt($data['night_diff_pay']) . '</td></tr>
-                        <tr><td class="bold">Net Basic Pay:</td><td class="right bold">' . $fmt(($data['basic_pay'] ?? 0) + ($data['night_diff_pay'] ?? 0)) . '</td></tr>
-                        <tr><td>Reg. OT:</td><td class="right">' . $fmt($data['overtime_pay']) . '</td></tr>
-                    </table>
-                </td>
-                <td>
-                    <table class="inner-table">
-                        <tr><td>Taxable Other:</td><td class="right">' . $fmt($data['other_earnings_taxable']) . '</td></tr>
-                    </table>
-                </td>
-                <td>
-                    <table class="inner-table">
-                        <tr><td>De Minimis:</td><td class="right">' . $fmt($data['de_minimis']) . '</td></tr>
-                    </table>
-                </td>
-            </tr>
-            <tr>
-                <td colspan="2" class="right"><strong>GROSS PAY</strong></td>
-                <td class="right"><strong>' . $fmt($grossPay) . '</strong></td>
-            </tr>
+            <thead><tr><th>REGULAR EARNINGS</th><th>TAXABLE OTHER EARNINGS</th><th>NON-TAXABLE OTHER EARNINGS</th></tr></thead>
+            <tbody>
+                <tr>
+                    <td>
+                        <table class="inner-table">
+                            <tr><td>Basic Pay:</td><td class="right">' . $fmt($data['basic_pay']) . 'NonNull</td></tr>
+                            <tr><td>Night Premium:NonNull<td class="right">' . $fmt($data['night_diff_pay']) . 'NonNull</td></tr>
+                            <tr><td class="bold">Net Basic Pay:NonNull<td class="right bold">' . $fmt(($data['basic_pay'] ?? 0) + ($data['night_diff_pay'] ?? 0)) . 'NonNull</td></tr>
+                            <tr><td class="bold">Reg. OT:NonNull<td class="right">' . $fmt($data['overtime_pay']) . 'NonNull</td></tr>
+                        </table>
+                    </td>
+                    <td><table class="inner-table"><tr><td class="bold">Taxable Other:NonNull<td class="right">' . $fmt($data['other_earnings_taxable']) . 'NonNull</td></tr></table></td>
+                    <td><table class="inner-table"><tr><td class="bold">De Minimis:NonNull<td class="right">' . $fmt($data['de_minimis']) . 'NonNull</td></tr></table></td>
+                </tr>
+                <tr><td colspan="2" class="right"><strong>GROSS PAY</strong>NonNull<td class="right"><strong>' . $fmt($grossPay) . '</strong>NonNull</tr>
+            </tbody>
         </table>
-
-        <!-- Deductions -->
         <table>
-            <tr>
-                <th>REGULAR DEDUCTIONS</th>
-                <th>LOANS / ADVANCES</th>
-            </tr>
-            <tr>
-                <td>
-                    <table class="inner-table">
-                        <tr><td>SSS:</td><td class="right">' . $fmt($data['sss_ee']) . '</td></tr>
-                        <tr><td>Philhealth:</td><td class="right">' . $fmt($data['phic_ee']) . '</td></tr>
-                        <tr><td>Pag-IBIG:</td><td class="right">' . $fmt($data['hdmf_ee']) . '</td></tr>
-                        <tr><td>Withholding Tax:</td><td class="right">' . $fmt($data['withholding_tax']) . '</td></tr>
-                    </table>
-                </td>
-                <td>
-                    <table class="inner-table">
-                        <tr><td>SSS Loan:</td><td class="right">' . $fmt($data['sss_loan']) . '</td></tr>
-                        <tr><td>Calamity Loan:</td><td class="right">' . $fmt($data['calamity_loan']) . '</td></tr>
-                        <tr><td>Salary Advance:</td><td class="right">' . $fmt($data['salary_advance']) . '</td></tr>
-                        <tr><td>Other Deductions:</td><td class="right">' . $fmt($data['other_deductions']) . '</td></tr>
-                    </table>
-                </td>
-            </tr>
-            <tr>
-                <td class="right"><strong>TOTAL DEDUCTIONS</strong></td>
-                <td class="right"><strong>' . $fmt($totalDeductions) . '</strong></td>
-            </tr>
+            <thead><tr><th>REGULAR DEDUCTIONS</th><th>LOANS / ADVANCES</th></tr></thead>
+            <tbody>
+                <tr>
+                    <td>
+                        <table class="inner-table">
+                            <tr><td class="bold">SSS:NonNull<td class="right">' . $fmt($data['sss_ee']) . 'NonNull</tr>
+                            <tr><td class="bold">Philhealth:NonNull<td class="right">' . $fmt($data['phic_ee']) . 'NonNull</tr>
+                            <tr><td class="bold">Pag-IBIG:NonNull<td class="right">' . $fmt($data['hdmf_ee']) . 'NonNull</tr>
+                            <tr><td class="bold">Withholding Tax:NonNull<td class="right">' . $fmt($data['withholding_tax']) . 'NonNull</tr>
+                        </table>
+                    </td>
+                    <td>
+                        <table class="inner-table">
+                            <tr><td class="bold">SSS Loan:NonNull<td class="right">' . $fmt($data['sss_loan']) . 'NonNull</tr>
+                            <tr><td class="bold">Calamity Loan:NonNull<td class="right">' . $fmt($data['calamity_loan']) . 'NonNull</tr>
+                            <tr><td class="bold">Salary Advance:NonNull<td class="right">' . $fmt($data['salary_advance']) . 'NonNull</tr>
+                            <tr><td class="bold">Other Deductions:NonNull<td class="right">' . $fmt($data['other_deductions']) . 'NonNull</tr>
+                        </table>
+                    </td>
+                </tr>
+                <tr><td class="right"><strong>TOTAL DEDUCTIONS</strong>NonNull<td class="right"><strong>' . $fmt($totalDeductions) . '</strong>NonNull</tr>
+            </tbody>
         </table>
-
-        <!-- Net Pay / Signature -->
-        <table>
-            <tr>
-                <td style="width:50%"><strong>Employee Signature:</strong></td>
-                <td style="width:50%">&nbsp;</td>
-            </tr>
-            <tr>
-                <td class="right"><strong>NET PAY:</strong></td>
-                <td class="right highlight"><strong>' . $fmt($data['net_pay']) . '</strong></td>
-            </tr>
-        </table>
+        <tr>
+            <td style="width:50%"><strong>Employee Signature:</strong>NonNull
+            <td style="width:50%">&nbsp;NonNull
+        </tr>
+        <tr>
+            <td class="right"><strong>NET PAY:</strong>NonNull
+            <td class="right highlight"><strong>' . $fmt($data['net_pay']) . '</strong>NonNull
+        </tr>
+    </table>
     </div>
     </body>
     </html>';
     }
-
-    /* ALL columns included version for email
-    private function buildPayslipHtmlForPdf($data, $employee)
-    {
-        $formatDate = function($date) {
-            if (!$date) return '';
-            return date('d-M-Y', strtotime($date));
-        };
-
-        $grossPay      = ($data['net_basic_pay'] ?? 0) 
-                    + ($data['overtime_pay'] ?? 0) 
-                    + ($data['other_earnings_taxable'] ?? 0) 
-                    + ($data['de_minimis'] ?? 0);
-
-        $totalDeductions = ($data['sss_ee'] ?? 0) + ($data['phic_ee'] ?? 0) + ($data['hdmf_ee'] ?? 0)
-                        + ($data['withholding_tax'] ?? 0) + ($data['sss_loan'] ?? 0)
-                        + ($data['calamity_loan'] ?? 0) + ($data['salary_advance'] ?? 0)
-                        + ($data['calamity_advance'] ?? 0) + ($data['other_deductions'] ?? 0);
-
-        $html = '
-        <div style="font-family:Arial,sans-serif; border:1px solid #000; padding:20px; max-width:900px; margin:auto;">
-            <h2 style="text-align:center;">PAY SLIP</h2>
-
-            <table style="width:100%; border-collapse:collapse; margin-bottom:10px; font-size:13px;">
-                <tr>
-                    <td style="border:1px solid #000; padding:5px;"><strong>Employee:</strong></td>
-                    <td style="border:1px solid #000; padding:5px;">' . ($data['employee_name'] ?? '') . '</td>
-                    <td style="border:1px solid #000; padding:5px;"></td>
-                    <td style="border:1px solid #000; padding:5px;"><strong>Payroll period:</strong></td>
-                    <td style="border:1px solid #000; padding:5px;">' . $formatDate($data['period_start']) . '</td>
-                    <td style="border:1px solid #000; padding:5px;">' . $formatDate($data['period_end']) . '</td>
-                </tr>
-                <tr>
-                    <td style="border:1px solid #000; padding:5px;"><strong>Position:</strong></td>
-                    <td colspan="5" style="border:1px solid #000; padding:5px;">' . ($data['position'] ?? 'N/A') . '</td>
-                </tr>
-            </table>
-
-            <table style="width:100%; border-collapse:collapse; font-size:13px; margin-top:10px;">
-                <tr>
-                    <th style="border:1px solid #000; padding:5px; background:#eee; text-align:center;">REGULAR EARNINGS</th>
-                    <th style="border:1px solid #000; padding:5px; background:#eee; text-align:center;">TAXABLE OTHER EARNINGS</th>
-                    <th style="border:1px solid #000; padding:5px; background:#eee; text-align:center;">NON-TAXABLE OTHER EARNINGS</th>
-                </tr>
-                <tr>
-                    <td style="border:1px solid #000; padding:5px; vertical-align:top;">
-                        <table style="width:100%;">
-                            <tr><td>Basic pay:</td><td style="text-align:right;">' . number_format($data['basic_pay'] ?? 0, 2) . '</td></tr>
-                            <tr><td>Rate per hour:</td><td style="text-align:right;">' . number_format($data['rate_per_hour'] ?? 0, 2) . '</td></tr>
-                            <tr><td>No. of hours Worked:</td><td style="text-align:right;">' . number_format($data['hours_worked'] ?? 0, 2) . '</td></tr>
-                            <tr><td>Night premium:</td><td style="text-align:right;">' . number_format($data['night_diff_pay'] ?? 0, 2) . '</td></tr>
-                            <tr><td>Less: Absences</td><td style="text-align:right;">' . number_format($data['absent_amt'] ?? 0, 2) . '</td></tr>
-                            <tr><td>Late/Undertime</td><td style="text-align:right;">' . number_format($data['undertime_amt'] ?? 0, 2) . '</td></tr>
-                            <tr><td><strong>Net basic pay</strong></td><td style="text-align:right;"><strong>' . number_format($data['net_basic_pay'] ?? 0, 2) . '</strong></td></tr>
-                            <tr><td>Reg. OT</td><td style="text-align:right;">' . number_format($data['reg_ot'] ?? 0, 2) . '</td></tr>
-                            <tr><td>Sat OT</td><td style="text-align:right;">' . number_format($data['sat_ot'] ?? 0, 2) . '</td></tr>
-                            <tr><td>Sun OT</td><td style="text-align:right;">' . number_format($data['sun_ot'] ?? 0, 2) . '</td></tr>
-                            <tr><td>Holiday OT</td><td style="text-align:right;">' . number_format($data['hol_ot'] ?? 0, 2) . '</td></tr>
-                        </table>
-                    </td>
-                    <td style="border:1px solid #000; padding:5px; vertical-align:top;">
-                        <table style="width:100%;">
-                            <tr><td>Salary Adjustment</td><td style="text-align:right;">' . number_format($data['salary_adjustment'] ?? 0, 2) . '</td></tr>
-                            <tr><td>Override</td><td style="text-align:right;">' . number_format($data['override_amount'] ?? 0, 2) . '</td></tr>
-                            <tr><td>NED</td><td style="text-align:right;">' . number_format($data['ned_amount'] ?? 0, 2) . '</td></tr>
-                            <tr><td>Holiday Pay</td><td style="text-align:right;">' . number_format($data['holiday_pay'] ?? 0, 2) . '</td></tr>
-                            <tr><td>Gross Compensation</td><td style="text-align:right;">' . number_format($data['gross_comp'] ?? 0, 2) . '</td></tr>
-                        </table>
-                    </td>
-                    <td style="border:1px solid #000; padding:5px; vertical-align:top;">
-                        <table style="width:100%;">
-                            <tr><td>Year End Gifts</td><td style="text-align:right;">' . number_format($data['year_end_gifts'] ?? 0, 2) . '</td></tr>
-                            <tr><td>Rice Subsidy</td><td style="text-align:right;">' . number_format($data['rice_subsidy'] ?? 0, 2) . '</td></tr>
-                            <tr><td>Uniform Allowance</td><td style="text-align:right;">' . number_format($data['uniform_allowance'] ?? 0, 2) . '</td></tr>
-                            <tr><td>Laundry Allowance</td><td style="text-align:right;">' . number_format($data['laundry_allowance'] ?? 0, 2) . '</td></tr>
-                            <tr><td>Medical Allowance</td><td style="text-align:right;">' . number_format($data['medical_allowance'] ?? 0, 2) . '</td></tr>
-                        </table>
-                    </td>
-                </tr>
-                <tr>
-                    <td colspan="2" style="border:1px solid #000; padding:5px; text-align:right;"><strong>GROSS PAY</strong></td>
-                    <td style="border:1px solid #000; padding:5px; text-align:right;"><strong>' . number_format($grossPay, 2) . '</strong></td>
-                </tr>
-            </table>
-
-            <table style="width:100%; border-collapse:collapse; font-size:13px; margin-top:10px;">
-                <tr>
-                    <th style="border:1px solid #000; padding:5px; background:#eee; text-align:center;">REGULAR DEDUCTIONS</th>
-                    <th style="border:1px solid #000; padding:5px; background:#eee; text-align:center;">LOANS/ADVANCES</th>
-                </tr>
-                <tr>
-                    <td style="border:1px solid #000; padding:5px; vertical-align:top;">
-                        <table style="width:100%;">
-                            <tr><td>SSS</td><td style="text-align:right;">' . number_format($data['sss_ee'] ?? 0, 2) . '</td></tr>
-                            <tr><td>Philhealth</td><td style="text-align:right;">' . number_format($data['phic_ee'] ?? 0, 2) . '</td></tr>
-                            <tr><td>Pag-IBIG</td><td style="text-align:right;">' . number_format($data['hdmf_ee'] ?? 0, 2) . '</td></tr>
-                            <tr><td>Withholding tax</td><td style="text-align:right;">' . number_format($data['withholding_tax'] ?? 0, 2) . '</td></tr>
-                        </table>
-                    </td>
-                    <td style="border:1px solid #000; padding:5px; vertical-align:top;">
-                        <table style="width:100%;">
-                            <tr><td>Salary Loan</td><td style="text-align:right;">' . number_format($data['sss_loan'] ?? 0, 2) . '</td></tr>
-                            <tr><td>Calamity Loan</td><td style="text-align:right;">' . number_format($data['calamity_loan'] ?? 0, 2) . '</td></tr>
-                            <tr><td>Salary Advance</td><td style="text-align:right;">' . number_format($data['salary_advance'] ?? 0, 2) . '</td></tr>
-                            <tr><td>Calamity Advance</td><td style="text-align:right;">' . number_format($data['calamity_advance'] ?? 0, 2) . '</td></tr>
-                        </table>
-                    </td>
-                </tr>
-                <tr>
-                    <td colspan="2" style="border:1px solid #000; padding:5px; text-align:right;">
-                        <strong>TOTAL DEDUCTIONS: ' . number_format($totalDeductions, 2) . '</strong>
-                    </td>
-                </tr>
-            </table>
-
-            <table style="width:100%; border-collapse:collapse; font-size:13px; margin-top:10px;">
-                <tr>
-                    <td style="border:1px solid #000; padding:5px;">Employee signature:</td>
-                    <td style="border:1px solid #000; padding:5px; height:40px;"></td>
-                    <td style="border:1px solid #000; padding:5px; text-align:right;"><strong>NET PAY:</strong></td>
-                    <td style="border:1px solid #000; padding:5px; text-align:right; background:#f8d7da;"><strong>' . number_format($data['net_pay'] ?? 0, 2) . '</strong></td>
-                </tr>
-            </table>
-        </div>';
-
-        return $html;
-    }
-    */
 
     private function getUserEmail($userId)
     {
@@ -1124,9 +1021,6 @@ class PayrollController extends BaseController
 
         if ($settingsRow) {
             $settings = json_decode($settingsRow['settings'], true);
-            // The stored value is a bcrypt hash — we cannot decrypt it.
-            // So we store the plaintext separately under a different key,
-            // encrypted with the app's encryption key.
             if (! empty($settings['payslip_password_enc'])) {
                 $encrypter = \Config\Services::encrypter();
                 try {
@@ -1136,8 +1030,6 @@ class PayrollController extends BaseController
                 }
             }
         }
-
-        // Fallback to preset
         return $employee['employee_number'] . date('Ymd', strtotime($employee['birthdate']));
     }
 }

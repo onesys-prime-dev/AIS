@@ -65,6 +65,7 @@ $routes->post('settings/face-recognition/enroll', 'SettingsController::enrollFac
 $routes->get('settings/face-recognition/status', 'SettingsController::faceRecognitionStatus');
 $routes->post('client_portal/requests/generate-code', 'Client\RequestController::generateApprovalCode');
 
+// ================= PAYROLL ROUTES (including new export/import) =================
 $routes->group('client_portal', ['namespace' => 'App\Controllers\Client'], function($routes) {
     $routes->get('payroll', 'PayrollController::payrollView');
     $routes->get('payroll/employees_json', 'PayrollController::getEmployees');
@@ -74,16 +75,19 @@ $routes->group('client_portal', ['namespace' => 'App\Controllers\Client'], funct
     $routes->get('payroll/delete/(:num)', 'PayrollController::deletePayroll/$1');
     $routes->get('payroll/get/(:num)', 'PayrollController::getPayroll/$1');
     
-    // NEW – must be AFTER the above to avoid conflict
     $routes->post('payroll/compute', 'PayrollController::computeAndSave');
     $routes->get('payroll/generate/(:num)', 'PayrollController::generatePayslip/$1');
     $routes->post('payroll/send/(:num)', 'PayrollController::sendPayslip/$1');
     
-    // NEW ROUTES FOR PAYSLIP HISTORY
     $routes->get('payroll/getMyPayslips', 'PayrollController::getMyPayslips');
     $routes->get('payroll/downloadPayslip/(:num)', 'PayrollController::downloadPayslip/$1');
     $routes->get('payroll/payslipHistory', 'PayrollController::payslipHistory');
-    $routes->get('payroll/getPayslipData/(:num)', 'PayrollController::getPayslipData/$1'); // <-- semicolon added
+    $routes->get('payroll/getPayslipData/(:num)', 'PayrollController::getPayslipData/$1');
+    
+    // NEW: Export / Import routes
+    $routes->get('payroll/exportRegister', 'PayrollController::exportRegister');
+    $routes->get('payroll/exportTimesheet', 'PayrollController::exportTimesheet');
+    $routes->post('payroll/importTimesheet', 'PayrollController::importTimesheet');
 });
 
 $routes->group('client_portal/payroll', ['namespace' => 'App\Controllers\Client'], function($routes) {

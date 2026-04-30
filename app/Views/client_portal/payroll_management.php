@@ -284,6 +284,26 @@ input, select{
 .send-pdf-btn:hover {
     background: #218838;
 }
+
+/* ADDED: style for import modal */
+.import-modal {
+    display: none;
+    position: fixed;
+    z-index: 10000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+}
+.import-modal-content {
+    background-color: #fefefe;
+    margin: 10% auto;
+    padding: 20px;
+    border: 1px solid #888;
+    width: 500px;
+    border-radius: 10px;
+}
 </style>
 </head>
 <body class="p-6">
@@ -457,7 +477,10 @@ input, select{
                 </div>
             </div>
 
+            <!-- ADDED: Export / Import buttons -->
             <div class="button-container">
+                <button type="button" class="next-btn" id="exportTimesheetBtn" style="background:#28a745;">Export Timesheet</button>
+                <button type="button" class="next-btn" id="importTimesheetBtn" style="background:#17a2b8;">Import Timesheet</button>
                 <button type="button" class="next-btn" onclick="nextTab('register')">Next → Register</button>
             </div>
         </div>
@@ -647,6 +670,19 @@ input, select{
         <div style="text-align: center; margin-top: 20px;">
             <button class="send-pdf-btn" id="sendPdfBtn">Send Payslip to Employee</button>
         </div>
+    </div>
+</div>
+
+<!-- ================= ADDED: Import Timesheet Modal ================= -->
+<div id="importTimesheetModal" class="import-modal">
+    <div class="import-modal-content">
+        <span style="float:right; cursor:pointer; font-size:24px;" onclick="closeImportModal()">&times;</span>
+        <h3>Import Timesheet (CSV)</h3>
+        <form id="importTimesheetForm" enctype="multipart/form-data">
+            <input type="file" name="timesheet_file" accept=".csv" required>
+            <p class="text-xs text-gray-500 mt-2">Expected columns: employee_number, date, time_in, time_out, break_duration</p>
+            <button type="submit" style="margin-top:10px; background:#007bff; color:white; padding:6px 12px; border:none; border-radius:5px;">Upload</button>
+        </form>
     </div>
 </div>
 
@@ -918,7 +954,7 @@ function computePayslipData() {
     };
 }
 
-// ================= GENERATE STATIC PAYSLIP (POPUP MODAL) =================
+// ================= MODIFIED generateStaticPayslip (now also saves to server) =================
 function generateStaticPayslip() {
     const d = computePayslipData();
     if (!d.empName || d.empName === 'Not Selected') {
@@ -926,6 +962,51 @@ function generateStaticPayslip() {
         return;
     }
     
+    // --- NEW: Save computed payroll to server ---
+    const employeeId = document.getElementById('selectedEmployeeId').value;
+    if (!employeeId) {
+        alert('Employee ID not found. Please select an employee.');
+        return;
+    }
+    const startDate = d.periodStart;
+    const endDate = d.periodEnd;
+    if (!startDate || !endDate) {
+        alert('Period start/end missing.');
+        return;
+    }
+
+    const payload = {
+        employee_id: employeeId,
+        period_start: startDate,
+        period_end: endDate,
+        basic_pay: d.basicPay,
+        night_diff_pay: d.nightPremium,
+        overtime_pay: d.regOt + d.satOt + d.sunOt + d.holOt,
+        holiday_pay: safeParseFloat(document.getElementById('holidayPay')?.value),
+        de_minimis: d.nonTaxable,
+        other_earnings_taxable: d.taxableOther,
+        other_earnings_non_taxable: 0,
+        sss_ee: d.sssDed,
+        phic_ee: d.phicDed,
+        hdmf_ee: d.hdmfDed,
+        withholding_tax: d.withholdingTax,
+        sss_loan: safeParseFloat(document.getElementById('sssSalaryLoan')?.value),
+        calamity_loan: safeParseFloat(document.getElementById('sssCalamityLoan')?.value),
+        salary_advance: safeParseFloat(document.getElementById('advSalary')?.value),
+        other_deductions: 0
+    };
+
+    fetch('<?= site_url('client_portal/payroll/compute') ?>?employee_id=' + employeeId + '&start_date=' + startDate + '&end_date=' + endDate, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    }).then(response => response.json())
+      .then(result => {
+          if (!result.success) console.error('Server save error:', result.error);
+          else console.log('Payroll saved, transaction ID:', result.transaction_id);
+      }).catch(err => console.error('Save error:', err));
+
+    // Original HTML generation for modal (unchanged)
     const html = `
         <div style="font-family: Arial, sans-serif; background: #fff; border: 1px solid #000; padding: 20px; width: 100%; box-sizing: border-box;">
             <h2 style="text-align: center; margin: 5px 0 10px;">PAY SLIP</h2>
@@ -1124,51 +1205,40 @@ async function sendPdfToEmployee() {
         period_end: window.currentPayslipData.periodEnd,
         employee_name: window.currentPayslipData.empName,
         position: window.currentPayslipData.position,
-
-        // earnings
         basic_pay: window.currentPayslipData.basicPay,
-        rate_per_hour: window.currentPayslipData.ratePerHour,       // ADD
-        hours_worked: window.currentPayslipData.hoursWorked,         // ADD
+        rate_per_hour: window.currentPayslipData.ratePerHour,
+        hours_worked: window.currentPayslipData.hoursWorked,
         night_diff_pay: window.currentPayslipData.nightPremium,
-        absent_amt: window.currentPayslipData.absentAmt,             // ADD
-        undertime_amt: window.currentPayslipData.undertimeAmt,       // ADD
-        net_basic_pay: window.currentPayslipData.netBasicPay,        // ADD
-        reg_ot: window.currentPayslipData.regOt,                     // ADD (was bundled into overtime_pay)
-        sat_ot: window.currentPayslipData.satOt,                     // ADD
-        sun_ot: window.currentPayslipData.sunOt,                     // ADD
-        hol_ot: window.currentPayslipData.holOt,                     // ADD
+        absent_amt: window.currentPayslipData.absentAmt,
+        undertime_amt: window.currentPayslipData.undertimeAmt,
+        net_basic_pay: window.currentPayslipData.netBasicPay,
+        reg_ot: window.currentPayslipData.regOt,
+        sat_ot: window.currentPayslipData.satOt,
+        sun_ot: window.currentPayslipData.sunOt,
+        hol_ot: window.currentPayslipData.holOt,
         overtime_pay: window.currentPayslipData.regOt + window.currentPayslipData.satOt + window.currentPayslipData.sunOt + window.currentPayslipData.holOt,
-
-        // taxable other earnings (broken out individually)
-        salary_adjustment: safeParseFloat(document.getElementById('salaryAdjustment')?.value),  // ADD
-        override_amount: safeParseFloat(document.getElementById('overrideAmount')?.value),       // ADD
-        ned_amount: safeParseFloat(document.getElementById('nedAmount')?.value),                 // ADD
+        salary_adjustment: safeParseFloat(document.getElementById('salaryAdjustment')?.value),
+        override_amount: safeParseFloat(document.getElementById('overrideAmount')?.value),
+        ned_amount: safeParseFloat(document.getElementById('nedAmount')?.value),
         holiday_pay: safeParseFloat(document.getElementById('holidayPay')?.value),
-        gross_comp: safeParseFloat(document.getElementById('grossComp')?.value),                 // ADD
+        gross_comp: safeParseFloat(document.getElementById('grossComp')?.value),
         other_earnings_taxable: window.currentPayslipData.taxableOther,
-
-        // non-taxable broken out
-        year_end_gifts: safeParseFloat(document.getElementById('yearEndGifts')?.value),          // ADD
-        rice_subsidy: safeParseFloat(document.getElementById('riceSubsidy')?.value),             // ADD
-        uniform_allowance: safeParseFloat(document.getElementById('uniformAllowance')?.value),   // ADD
-        laundry_allowance: safeParseFloat(document.getElementById('laundryAllowance')?.value),   // ADD
-        medical_allowance: safeParseFloat(document.getElementById('medicalAllowance')?.value) + safeParseFloat(document.getElementById('medicalAllowanceAdd')?.value), // ADD
+        year_end_gifts: safeParseFloat(document.getElementById('yearEndGifts')?.value),
+        rice_subsidy: safeParseFloat(document.getElementById('riceSubsidy')?.value),
+        uniform_allowance: safeParseFloat(document.getElementById('uniformAllowance')?.value),
+        laundry_allowance: safeParseFloat(document.getElementById('laundryAllowance')?.value),
+        medical_allowance: safeParseFloat(document.getElementById('medicalAllowance')?.value) + safeParseFloat(document.getElementById('medicalAllowanceAdd')?.value),
         de_minimis: window.currentPayslipData.nonTaxable,
         other_earnings_non_taxable: 0,
-
-        // deductions
         sss_ee: window.currentPayslipData.sssDed,
         phic_ee: window.currentPayslipData.phicDed,
         hdmf_ee: window.currentPayslipData.hdmfDed,
         withholding_tax: window.currentPayslipData.withholdingTax,
-
-        // loans
         sss_loan: safeParseFloat(document.getElementById('sssSalaryLoan')?.value),
         calamity_loan: safeParseFloat(document.getElementById('sssCalamityLoan')?.value),
         salary_advance: safeParseFloat(document.getElementById('advSalary')?.value),
-        calamity_advance: safeParseFloat(document.getElementById('advCalamity')?.value),  // ADD (was incorrectly put in other_deductions)
+        calamity_advance: safeParseFloat(document.getElementById('advCalamity')?.value),
         other_deductions: 0,
-
         net_pay: window.currentPayslipData.netPay,
     };
     
@@ -1178,16 +1248,11 @@ async function sendPdfToEmployee() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
-
-        // ✅ Always parse JSON regardless of status code
         const result = await response.json();
-
         if (!response.ok || !result.success) {
-            // This now shows the REAL error from the server (e.g. "Employee email not found")
             alert('Error sending PDF: ' + (result.error || `Server error ${response.status}`));
             return;
         }
-
         alert('PDF payslip sent successfully to employee email.');
         window.location.reload(); // refresh page so payslip history shows updated sent_at
     } catch (error) {
@@ -1421,6 +1486,44 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('autoFillBtn')?.addEventListener('click', autoFillPayslip);
     document.getElementById('generateStaticBtn')?.addEventListener('click', generateStaticPayslip);
     document.getElementById('sendPdfBtn')?.addEventListener('click', sendPdfToEmployee);
+    
+    // ADDED: Export button listener
+    document.getElementById('exportTimesheetBtn')?.addEventListener('click', function() {
+        const employeeId = document.getElementById('selectedEmployeeId').value;
+        const start = document.getElementById('periodStart').value;
+        const end = document.getElementById('periodEnd').value;
+        if (!employeeId || !start || !end) {
+            alert('Please select an employee and period first.');
+            return;
+        }
+        window.location.href = `<?= site_url('client_portal/payroll/exportTimesheet') ?>?employee_id=${employeeId}&start_date=${start}&end_date=${end}`;
+    });
+    
+    // ADDED: Import modal open
+    document.getElementById('importTimesheetBtn')?.addEventListener('click', function() {
+        document.getElementById('importTimesheetModal').style.display = 'block';
+    });
+    
+    // ADDED: Import form submit
+    document.getElementById('importTimesheetForm')?.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const formData = new FormData(this);
+        const response = await fetch('<?= site_url('client_portal/payroll/importTimesheet') ?>', {
+            method: 'POST',
+            body: formData
+        });
+        const result = await response.json();
+        if (result.success) {
+            alert('Timesheet imported successfully.');
+            closeImportModal();
+        } else {
+            alert('Import failed: ' + result.error);
+        }
+    });
+    
+    window.closeImportModal = function() {
+        document.getElementById('importTimesheetModal').style.display = 'none';
+    };
 });
 </script>
 </body>
