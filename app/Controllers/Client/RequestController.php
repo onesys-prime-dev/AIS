@@ -88,18 +88,32 @@ class RequestController extends BaseController
             return redirect()->back()->with('error', 'Unauthorized action.');
         }
 
-        $status = $this->request->getPost('status');
+        $status = trim((string) $this->request->getPost('status'));
+        $reviewMessage = trim((string) $this->request->getPost('review_message'));
+
+        if (! in_array($status, ['approved', 'rejected'], true)) {
+            return redirect()->back()->with('error', 'Invalid request status.');
+        }
+
+        if ($status === 'rejected' && $reviewMessage === '') {
+            return redirect()->back()->with('error', 'Please enter a rejection message before rejecting the request.');
+        }
 
         // Fetch old state before updating
         $old = $this->requestModel->find($id);
 
+        if (! $old) {
+            return redirect()->back()->with('error', 'Request not found.');
+        }
+
         $this->requestModel->update($id, [
-            'status'       => $status,
-            'processed_by' => $user->id,
-            'updated_at'   => date('Y-m-d H:i:s'),
+            'status'         => $status,
+            'processed_by'   => $user->id,
+            'review_message' => $reviewMessage !== '' ? $reviewMessage : null,
+            'updated_at'     => date('Y-m-d H:i:s'),
         ]);
 
-        service('activityLogger')->requestStatusChanged($id, $old['status'], $status, $user->id);
+        service('activityLogger')->requestStatusChanged($id, $old['status'] ?? 'pending', $status, $user->id, $reviewMessage !== '' ? $reviewMessage : null);
 
         return redirect()->back()->with('success', "Request $status successfully.");
     }

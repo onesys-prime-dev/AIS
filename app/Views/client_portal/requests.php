@@ -63,7 +63,7 @@
 /* ── Grid layout ── */
 .request-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
     gap: 25px;
 }
 
@@ -91,6 +91,12 @@
     padding-right: 5px;
 }
 
+.upper-request-body{
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+}
+
 /* ── Card header ── */
 .request-header {
     display: flex;
@@ -100,7 +106,7 @@
     background: #fee2e2;
 }
 
-.request-header.pending  { background: #fee2e2; }
+.request-header.pending  { background: #b5b4b4; }
 .request-header.approved { background: #dcfce7; }
 .request-header.rejected { background: #fecaca; }
 
@@ -159,6 +165,7 @@
 
 .btn-reject  { background: #ef4444; }
 .btn-approve { background: #16a34a; }
+.btn-view    { background: #f59e0b; }
 
 /* ── Card body ── */
 .request-body { padding: 16px; }
@@ -176,7 +183,7 @@
 }
 
 .status-badge.approved { background: #16a34a; }
-.status-badge.rejected { background: #6b7280; }
+.status-badge.rejected { background: #fb2323; }
 .status-badge.pending  { background: #f59e0b; }
 
 /* ── Page header ── */
@@ -388,10 +395,163 @@
     display: grid;
     grid-template-columns: 2fr 1.5fr 1fr 1.5fr 1.5fr;
 }
+
+.request-review-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.45);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    padding: 1rem;
+}
+
+.request-review-modal-overlay.open { display: flex; }
+
+.request-review-modal {
+    background: #fff;
+    border-radius: 16px;
+    width: 100%;
+    max-width: 760px;
+    box-shadow: 0 25px 50px rgba(0,0,0,0.22);
+    overflow: hidden;
+}
+
+.request-review-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 18px 22px;
+    background: #1e1e1e;
+    color: #fff;
+}
+
+.request-review-modal-header h2 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 700;
+}
+
+.request-review-modal-close {
+    border: none;
+    background: transparent;
+    color: #fff;
+    font-size: 24px;
+    cursor: pointer;
+    line-height: 1;
+}
+
+.request-review-modal-body {
+    padding: 22px;
+    display: grid;
+    grid-template-columns: 1.1fr 0.9fr;
+    gap: 18px;
+}
+
+.review-summary,
+.review-action-panel {
+    border: 1px solid #e5e7eb;
+    border-radius: 14px;
+    background: #f9fafb;
+    padding: 18px;
+}
+
+.review-summary h3,
+.review-action-panel h3 {
+    margin: 0 0 12px;
+    font-size: 15px;
+    font-weight: 700;
+    color: #111827;
+}
+
+.review-summary-grid {
+    display: grid;
+    gap: 12px;
+}
+
+.review-summary-item {
+    display: grid;
+    gap: 4px;
+}
+
+.review-summary-label {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #6b7280;
+    font-weight: 700;
+}
+
+.review-summary-value {
+    color: #111827;
+    font-weight: 500;
+    line-height: 1.55;
+    word-break: break-word;
+}
+
+.review-note-input {
+    width: 100%;
+    min-height: 160px;
+    border: 1px solid #d1d5db;
+    border-radius: 12px;
+    padding: 14px;
+    resize: vertical;
+    font: inherit;
+    color: #111827;
+    background: #fff;
+}
+
+.review-note-input:focus {
+    outline: none;
+    border-color: #FF2D2D;
+    box-shadow: 0 0 0 3px rgba(255, 45, 45, 0.12);
+}
+
+.review-help {
+    margin-top: 10px;
+    font-size: 12px;
+    color: #6b7280;
+    line-height: 1.5;
+}
+
+.request-review-modal-footer {
+    padding: 0 22px 22px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.review-action-btn {
+    border: none;
+    border-radius: 10px;
+    padding: 10px 18px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    color: #fff;
+}
+
+.review-action-btn:hover {
+    transform: translateY(-1px);
+}
+
+.review-action-btn.reject { background: #ef4444; }
+.review-action-btn.approve { background: #16a34a; }
+.review-action-btn.cancel { background: #6b7280; }
+
+@media (max-width: 768px) {
+    .request-review-modal-body {
+        grid-template-columns: 1fr;
+    }
+}
 </style>
 
 
 <div class="requests-container">
+
+    <?php $requests = $requests ?? []; ?>
 
     <div class="page-header">
         <div class="page-holder">
@@ -464,27 +624,20 @@
                             <div class="request-person">
                                 <?php if (auth()->user()->inGroup('client_payroll_staff')): ?>
                                     <?php if (! empty($request['photo_path'])): ?>
-                                        <div class="request-avatar" style="background-image:url('<?= esc($request['photo_path']) ?>');"></div>
+                                        <div class="request-avatar" style="background-image:url('<?= esc((string) $request['photo_path']) ?>');"></div>
                                     <?php else: ?>
                                         <div class="request-avatar"><?= esc($avatarInitials) ?></div>
                                     <?php endif; ?>
                                 <?php endif; ?>
                                 <div class="request-person-details">
-                                    <div class="request-name"><?= esc($request['requested_by_name'] ?? (string) $request['requested_by']) ?></div>
-                                    <div class="request-date">Employee No: <?= esc($request['employee_number'] ?? 'N/A') ?></div>
+                                    <div class="request-name"><?= esc((string) ($request['requested_by_name'] ?? (string) $request['requested_by'])) ?></div>
+                                    <div class="request-date">Employee No: <?= esc((string) ($request['employee_number'] ?? 'N/A')) ?></div>
                                 </div>
                             </div>
 
                             <div class="request-actions">
                                 <?php if (auth()->user()->inGroup('client_payroll_staff') && $request['status'] == 'pending'): ?>
-                                <form action="<?= site_url('client_portal/requests/update/'.$request['id']) ?>" method="post">
-                                    <input type="hidden" name="status" value="rejected">
-                                    <button type="submit" class="btn-circle btn-reject">✕</button>
-                                </form>
-                                <form action="<?= site_url('client_portal/requests/update/'.$request['id']) ?>" method="post">
-                                    <input type="hidden" name="status" value="approved">
-                                    <button type="submit" class="btn-circle btn-approve">✓</button>
-                                </form>
+                                <button type="button" class="btn-circle btn-view" onclick="openRequestReviewModal(<?= (int) $request['id'] ?>)">⌕</button>
                                 <?php else: ?>
                                 <span class="status-badge <?= $request['status'] ?>">
                                     <?= ucfirst($request['status']) ?>
@@ -494,22 +647,33 @@
                         </div>
 
                         <div class="request-body">
-                            <div class="request-row">
-                                <span class="label">Request Type:</span>
-                                <span class="value"><?= ucfirst($request['request_type']) ?></span>
+                            <div class="upper-request-body">
+                                <div class="request-row">
+                                    <span class="label">Duration:</span>
+                                    <p class="message"><?= esc($dateText) ?>
+                                    </p>
+                                </div>
+                                <div class="request-row ">
+                                    <span class="label">Request Type:</span>
+                                    <p class="message">
+                                        <span class="value"><?= ucfirst($request['request_type']) ?></span>
+                                    </p>
+                                </div> 
                             </div>
-                            <div class="request-row">
-                                <span class="label">Duration:</span>
-                                <p class="message"><?= esc($dateText) ?>
-                                    <span class="duration">(<?= esc((string) $duration) ?> day<?= $duration !== 1 ? 's' : '' ?>)</span>
-                                </p>
-                            </div>
-                            <div class="request-row">
-                                <span class="label">Message:</span>
-                                <p class="message"><?= esc($request['reason']) ?></p>
-                            </div>
+                            <?php if ((string) ($request['status'] ?? '') === 'pending'): ?>                       
+                                <div class="request-row">
+                                    <span class="label">Message:</span>
+                                    <p class="message"><?= esc((string) $request['reason']) ?></p>
+                                </div>
+                                <?php else: ?>
+                                    <?php if (! empty($request['review_message'])): ?>
+                                        <div class="request-row">
+                                            <span class="label">Review Note:</span>
+                                            <p class="message"><?= esc((string) $request['review_message']) ?></p>
+                                        </div>
+                                    <?php endif; ?>
+                            <?php endif; ?>
                         </div>
-
                     </div>
                     <?php endforeach; ?>
                 </div>
@@ -530,6 +694,63 @@
     <?php endif; ?>
 
 </div>
+
+<?php if (auth()->user()->inGroup('client_payroll_staff')): ?>
+    <div class="request-review-modal-overlay" id="requestReviewModalOverlay">
+        <div class="request-review-modal">
+            <div class="request-review-modal-header">
+                <h2>Review Request</h2>
+                <button type="button" class="request-review-modal-close" onclick="closeRequestReviewModal()">&times;</button>
+            </div>
+
+            <form id="requestReviewForm" method="post">
+                <input type="hidden" name="status" id="requestReviewStatus" value="pending">
+
+                <div class="request-review-modal-body">
+                    <div class="review-summary">
+                        <h3>Request Details</h3>
+                        <div class="review-summary-grid">
+                            <div class="review-summary-item">
+                                <span class="review-summary-label">Employee</span>
+                                <span class="review-summary-value" id="reviewEmployeeName">---</span>
+                            </div>
+                            <div class="review-summary-item">
+                                <span class="review-summary-label">Request Type</span>
+                                <span class="review-summary-value" id="reviewRequestType">---</span>
+                            </div>
+                            <div class="review-summary-item">
+                                <span class="review-summary-label">Date Range</span>
+                                <span class="review-summary-value" id="reviewRequestDates">---</span>
+                            </div>
+                            <div class="review-summary-item">
+                                <span class="review-summary-label">Employee Message</span>
+                                <span class="review-summary-value" id="reviewRequestReason">---</span>
+                            </div>
+                            <div class="review-summary-item">
+                                <span class="review-summary-label">Approval Condition</span>
+                                <span class="review-summary-value" id="reviewApprovalCondition">---</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="review-action-panel">
+                        <h3 id="reviewPanelTitle">Review Note</h3>
+                        <textarea class="review-note-input" id="reviewMessage" name="review_message" placeholder="Enter a rejection message or approval condition..."></textarea>
+                        <div class="review-help">
+                            Use this note to explain why the request was rejected or to record any approval condition before saving the decision.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="request-review-modal-footer" id="requestReviewModalFooter">
+                    <button type="button" class="review-action-btn cancel" onclick="closeRequestReviewModal()">Cancel</button>
+                    <button type="button" class="review-action-btn reject" id="reviewRejectBtn" onclick="submitRequestReview('rejected')">Reject</button>
+                    <button type="button" class="review-action-btn approve" id="reviewApproveBtn" onclick="submitRequestReview('approved')">Approve</button>
+                </div>
+            </form>
+        </div>
+    </div>
+<?php endif; ?>
 
 <!-- ── Approval Code Modal (payroll staff only) ── -->
 <?php if (auth()->user()->inGroup('client_payroll_staff')): ?>
@@ -563,6 +784,7 @@
 <script>
 // ── Data from PHP ─────────────────────────────────────────────────────────────
 const APPROVAL_CODES = <?= json_encode($approvalCodes ?? []) ?>;
+const REQUESTS = <?= json_encode($requests ?? [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 function htmlEsc(val) {
@@ -605,6 +827,94 @@ document.getElementById('statusFilter').addEventListener('change', function () {
         card.style.display = (selected === 'all' || card.dataset.status === selected) ? 'block' : 'none';
     });
 });
+
+// ── Request review modal ─────────────────────────────────────────────────────
+<?php if (auth()->user()->inGroup('client_payroll_staff')): ?>
+
+function formatRequestDateRange(request) {
+    const startDate = request.start_date ? new Date(request.start_date) : null;
+    const endDate = request.end_date ? new Date(request.end_date) : null;
+    const duration = Number(request.duration || 0);
+
+    const formatDate = (value) => {
+        if (!value || isNaN(value.getTime())) return 'N/A';
+        return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(value);
+    };
+
+    if (!startDate || isNaN(startDate.getTime())) {
+        return 'N/A';
+    }
+
+    const startText = formatDate(startDate);
+    const endText = endDate && !isNaN(endDate.getTime()) && endDate.getTime() !== startDate.getTime()
+        ? formatDate(endDate)
+        : null;
+
+    const rangeText = endText ? `${startText} to ${endText}` : startText;
+    const durationText = duration > 0 ? `(${duration} day${duration !== 1 ? 's' : ''})` : '';
+
+    return durationText ? `${rangeText} ${durationText}` : rangeText;
+}
+
+function openRequestReviewModal(requestId) {
+    const request = Array.isArray(REQUESTS) ? REQUESTS.find(item => String(item.id) === String(requestId)) : null;
+
+    if (!request) return;
+
+    document.getElementById('reviewEmployeeName').textContent = request.requested_by_name || 'N/A';
+    document.getElementById('reviewRequestType').textContent = request.request_type ? request.request_type.charAt(0).toUpperCase() + request.request_type.slice(1) : 'N/A';
+    document.getElementById('reviewRequestDates').textContent = formatRequestDateRange(request);
+    document.getElementById('reviewRequestReason').textContent = request.reason || '---';
+    document.getElementById('reviewApprovalCondition').textContent = request.approval_code ? `Approved via approval code: ${request.approval_code}` : 'Manual review required';
+
+    const reviewMessage = document.getElementById('reviewMessage');
+    const reviewPanelTitle = document.getElementById('reviewPanelTitle');
+    const rejectBtn = document.getElementById('reviewRejectBtn');
+    const approveBtn = document.getElementById('reviewApproveBtn');
+    const modalFooter = document.getElementById('requestReviewModalFooter');
+
+    reviewMessage.value = request.review_message || '';
+    reviewMessage.readOnly = String(request.status) !== 'pending';
+    reviewMessage.placeholder = String(request.status) === 'pending'
+        ? 'Enter a rejection message or approval condition...'
+        : 'Saved review note';
+    reviewPanelTitle.textContent = String(request.status) === 'pending' ? 'Review Note' : 'Saved Review Note';
+
+    const isPending = String(request.status) === 'pending';
+    rejectBtn.style.display = isPending ? 'inline-flex' : 'none';
+    approveBtn.style.display = isPending ? 'inline-flex' : 'none';
+    modalFooter.style.justifyContent = isPending ? 'flex-end' : 'flex-end';
+
+    document.getElementById('requestReviewStatus').value = 'pending';
+    document.getElementById('requestReviewForm').action = '<?= site_url('client_portal/requests/update') ?>/' + requestId;
+    document.getElementById('requestReviewModalOverlay').classList.add('open');
+}
+
+function closeRequestReviewModal() {
+    document.getElementById('requestReviewModalOverlay').classList.remove('open');
+}
+
+function submitRequestReview(status) {
+    const form = document.getElementById('requestReviewForm');
+    const reviewMessage = document.getElementById('reviewMessage');
+
+    if (status === 'rejected' && reviewMessage.value.trim() === '') {
+        reviewMessage.focus();
+        reviewMessage.setCustomValidity('Please enter a rejection message.');
+        reviewMessage.reportValidity();
+        reviewMessage.setCustomValidity('');
+        return;
+    }
+
+    document.getElementById('requestReviewStatus').value = status;
+    form.submit();
+}
+
+document.getElementById('requestReviewModalOverlay')?.addEventListener('click', function (e) {
+    if (e.target === this) closeRequestReviewModal();
+});
+
+<?php endif; ?>
 
 // ── Approval Codes table ──────────────────────────────────────────────────────
 <?php if (auth()->user()->inGroup('client_payroll_staff')): ?>

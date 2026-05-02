@@ -206,14 +206,19 @@ class ActivityLogger
     /**
      * Request status changed (approved / rejected / any other transition).
      */
-    public function requestStatusChanged(int $requestId, string $oldStatus, string $newStatus, int $processedBy): bool
+    public function requestStatusChanged(int $requestId, string $oldStatus, string $newStatus, int $processedBy, ?string $reviewMessage = null): bool
     {
         $label = ucfirst(strtolower($newStatus));
 
-        return $this->updated('requests', "Request {$label}", $requestId,
-            ['status' => $oldStatus, 'processed_by' => null],
-            ['status' => $newStatus, 'processed_by' => $processedBy]
-        );
+        $oldValues = ['status' => $oldStatus, 'processed_by' => null];
+        $newValues = ['status' => $newStatus, 'processed_by' => $processedBy];
+
+        if ($reviewMessage !== null && $reviewMessage !== '') {
+            $oldValues['review_message'] = null;
+            $newValues['review_message'] = $reviewMessage;
+        }
+
+        return $this->updated('requests', "Request {$label}", $requestId, $oldValues, $newValues);
     }
 
     /**

@@ -986,6 +986,9 @@ body{
                 if ($diff < 86400) {
                     return floor($diff / 3600) . 'hr ago';
                 }
+                if ($diff < 604800) {
+                    return floor($diff / 86400) . 'd ago';
+                }
 
                 return floor($diff / 604800) . 'w ago';
             };
