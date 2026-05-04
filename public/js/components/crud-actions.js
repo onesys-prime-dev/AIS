@@ -65,7 +65,14 @@ document.addEventListener("click", function (e) {
             form.action = `${updateUrl}/${id}`;
         }
 
-        document.getElementById(modalId).classList.remove("hidden");
+        if (typeof window.openModalById === "function") {
+            window.openModalById(modalId);
+        } else {
+            const modalEl = document.getElementById(modalId);
+            if (modalEl) {
+                modalEl.style.display = "flex";
+            }
+        }
 
         return;
     }

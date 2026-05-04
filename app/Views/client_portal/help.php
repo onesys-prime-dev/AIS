@@ -71,29 +71,49 @@
 
     $featureCards = [
         [
-            'title' => 'About OTIS',
-            'desc' => 'Learn how OTIS supports your daily operations.',
+            'title' => 'Employee Requests',
+            'desc' => 'Save hours of manual work with error-free automated payroll.',
+            'target' => '#doc-core-workflows',
+            'icon' => base_url('icons/request.png'),
+            'image' => base_url('images/background/employee_request.png'),
+            'tone' => 'rgba(62, 36, 10, 0.62)',
+            'size' => 'card-standard',
+        ],
+        [
+            'title' => 'Employee Management',
+            'desc' => 'Build a stronger workforce by keeping all staff data organized.',
             'target' => '#about-system',
+            'icon' => base_url('icons/employee.png'),
+            'image' => base_url('images/background/employee_management.png'),
+            'tone' => 'rgba(28, 36, 52, 0.58)',
+            'size' => 'card-standard',
         ],
         [
-            'title' => 'Support Basics',
-            'desc' => 'Know where to ask and what information to provide.',
-            'target' => '#contact-section',
+            'title' => 'System Customization',
+            'desc' => 'Personalize your workspace with custom branding and color themes.',
+            'target' => '#doc-support',
+            'icon' => base_url('icons/customization.png'),
+            'image' => base_url('images/background/system_customization.png'),
+            'tone' => 'rgba(18, 34, 70, 0.62)',
+            'size' => 'card-standard',
         ],
         [
-            'title' => 'System Features',
-            'desc' => 'Discover tools built to streamline your workflow.',
-            'target' => '#contact-section',
+            'title' => 'Payroll Management',
+            'desc' => 'Automate payroll processing with clear checks and reliable outputs.',
+            'target' => '#doc-core-workflows',
+            'icon' => base_url('icons/payroll.png'),
+            'image' => base_url('images/background/payroll_management.png'),
+            'tone' => 'rgba(20, 30, 44, 0.58)',
+            'size' => 'card-wide',
         ],
         [
-            'title' => 'Contact Team',
-            'desc' => 'Send concerns directly to our support staff.',
-            'target' => '#contact-section',
-        ],
-        [
-            'title' => 'Request History',
-            'desc' => 'Track your submitted concerns and updates.',
-            'target' => '#request-history',
+            'title' => 'Bookkeeping',
+            'desc' => 'Simplified financial records and audit-ready reporting workflows.',
+            'target' => '#doc-core-workflows',
+            'icon' => base_url('icons/activity.png'),
+            'image' => base_url('images/background/bookkeeping.png'),
+            'tone' => 'rgba(40, 34, 24, 0.54)',
+            'size' => 'card-medium',
         ],
     ];
 
@@ -345,51 +365,63 @@
         height: 28px;
         color: var(--help-accent);
     }
-
-    .feature-grid-3 {
+    .feature-topic-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-        gap: 14px;
-    }
-
-    .feature-grid-2 {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-        gap: 14px;
-        margin-top: 14px;
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+        gap: 18px;
+        margin-top: 18px;
     }
 
     .feature-card {
-        min-height: 150px;
-        border: 1px solid var(--help-border);
+        position: relative;
+        min-height: 180px;
         border-radius: 18px;
-        background: var(--help-surface-strong);
-        padding: 20px;
+        padding: 22px;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
         text-decoration: none;
-        color: var(--help-text);
-        box-shadow: var(--help-shadow);
-        transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+        color: #fff;
+        box-shadow: 0 20px 40px rgba(17,24,39,0.16);
+        transition: transform 0.22s ease, box-shadow 0.22s ease;
+        background: transparent;
     }
 
-    .feature-card:hover {
-        transform: translateY(-3px);
-        border-color: rgba(79, 127, 224, 0.35);
-        box-shadow: 0 22px 46px rgba(17, 24, 39, 0.11);
+    .feature-card.card-standard { grid-column: span 2; }
+    .feature-card.card-wide { grid-column: span 4; min-height: 220px; }
+    .feature-card.card-medium { grid-column: span 2; min-height: 220px; }
+
+    .feature-card::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background-image: linear-gradient(to top, rgba(6,10,18,0.78) 8%, rgba(6,10,18,0.28) 52%, var(--topic-tone, rgba(10,20,40,0.5)) 100%), var(--topic-image);
+        background-size: cover;
+        background-position: center;
+        transform: scale(1.02);
+        transition: transform 0.22s ease;
+        z-index: 0;
     }
 
-    .feature-card .name {
-        font-size: 1.08rem;
-        font-weight: 700;
-        margin-top: 62px;
-        line-height: 1.25;
+    .feature-card::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(135deg, rgba(255,255,255,0.04), rgba(255,255,255,0));
+        z-index: 0;
     }
 
-    .feature-card .desc {
-        font-size: 0.94rem;
-        color: var(--help-muted);
-        margin-top: 6px;
-        line-height: 1.55;
-    }
+    .feature-card:hover { transform: translateY(-6px); box-shadow: 0 34px 64px rgba(17,24,39,0.24); }
+    .feature-card:hover::before { transform: scale(1.07); }
+
+    .feature-card > * { position: relative; z-index: 1; }
+
+    .feature-card .card-icon { width:46px; height:46px; border-radius:999px; background:#fff; display:grid; place-items:center; box-shadow:0 8px 18px rgba(0,0,0,0.18); }
+    .feature-card .card-icon img { width:20px; height:20px; }
+
+    .feature-card .name { font-size:1.05rem; font-weight:700; color:#fff; margin-top:8px; text-shadow:0 3px 18px rgba(0,0,0,0.5); }
+    .feature-card .desc { font-size:0.92rem; color: rgba(255,255,255,0.92); margin-top:8px; line-height:1.45; text-shadow:0 2px 12px rgba(0,0,0,0.35); }
 
     .faq-wrap {
         padding-top: clamp(18px, 3vw, 32px);
@@ -704,6 +736,121 @@
         color: #ffffff;
     }
 
+    .doc-article {
+        border-radius: 10px;
+        padding: 18px;
+        background: var(--help-surface);
+        border: 1px solid var(--help-border);
+        box-shadow: 0 8px 20px rgba(15,23,36,0.04);
+        margin-bottom: 14px;
+    }
+
+    .doc-article h2 { font-size: 1.25rem; margin-bottom: 6px; }
+    .doc-article h3 { font-size: 1rem; margin-top: 10px; }
+
+    /* Featured Guides & Resources Styles */
+    .featured-guides-wrap {
+        padding-top: clamp(28px, 4vw, 48px);
+        padding-bottom: clamp(28px, 4vw, 48px);
+        background: rgba(255, 255, 255, 0.5);
+    }
+
+    .guide-item {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 48px;
+        align-items: center;
+        margin-bottom: 64px;
+    }
+
+    .guide-item-reverse {
+        direction: rtl;
+    }
+
+    .guide-item-reverse > * {
+        direction: ltr;
+    }
+
+    .guide-content {
+        padding: 12px 0;
+    }
+
+    .guide-image {
+        min-height: 340px;
+        background: var(--help-surface-strong);
+        border: 1px solid var(--help-border);
+        border-radius: 20px;
+        padding: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: var(--help-shadow);
+    }
+
+    .guides-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 24px;
+    }
+
+    .guide-card {
+        display: block;
+        background: var(--help-surface-strong);
+        border: 1px solid var(--help-border);
+        border-radius: 16px;
+        padding: 28px 24px;
+        text-decoration: none;
+        box-shadow: var(--help-shadow);
+        transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+    }
+
+    .guide-card:hover {
+        transform: translateY(-4px);
+        border-color: rgba(79, 127, 224, 0.35);
+        box-shadow: 0 24px 48px rgba(17, 24, 39, 0.12);
+    }
+
+    .guide-card-icon {
+        width: 56px;
+        height: 56px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(79, 127, 224, 0.1);
+        border-radius: 12px;
+        color: var(--help-accent);
+        margin-bottom: 16px;
+    }
+
+    .guide-card-icon svg {
+        width: 28px;
+        height: 28px;
+    }
+
+    .guide-card-meta {
+        font-size: 0.78rem;
+        color: var(--help-muted);
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 12px;
+    }
+
+    .guide-card h3 {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: var(--help-text);
+        margin-bottom: 12px;
+        line-height: 1.35;
+    }
+
+    .guide-card p {
+        font-size: 0.95rem;
+        color: var(--help-muted);
+        line-height: 1.6;
+        margin: 0;
+    }
+
     @media (max-width: 900px) {
         .feature-head {
             flex-direction: column;
@@ -727,6 +874,21 @@
         .map-link-btn {
             left: 12px;
             bottom: 12px;
+        }
+
+        .guide-item {
+            grid-template-columns: 1fr;
+            gap: 24px;
+            margin-bottom: 48px;
+        }
+
+        .guide-item-reverse {
+            direction: ltr;
+        }
+
+        .guide-image {
+            min-height: 280px;
+            padding: 24px;
         }
     }
 
@@ -785,13 +947,10 @@
                     <a href="<?= esc($item['target']) ?>" class="top-card">
                         <div class="icon-s" aria-hidden="true">
                             <?php if ($item['icon'] === 'about'): ?>
-                                <!-- <svg viewBox="0 0 24 24" width="30" height="30" fill="none"><path d="M4 21V7l8-4 8 4v14H4z" fill="currentColor"/><path d="M11 9h2v2h-2zM11 13h2v2h-2zM11 17h2v4h-2z" fill="#fff"/></svg> -->
                                 <img src="<?= base_url('icons/help-about.png') ?>" class="icon">
                             <?php elseif ($item['icon'] === 'faq'): ?>
-                                <!-- <svg viewBox="0 0 24 24" width="30" height="30" fill="none"><circle cx="12" cy="12" r="9" fill="currentColor"/><path d="M10.9 9.5c0-1 .8-1.8 2-1.8 1.1 0 1.9.7 1.9 1.7 0 1.4-1.3 1.7-1.9 2.6-.2.3-.3.6-.3 1h-1.4c0-.6.1-1 .3-1.4.5-.9 1.9-1.4 1.9-2.2 0-.4-.3-.7-.8-.7-.6 0-.9.4-.9.9h-1.8zm.8 6.8c0-.6.4-.9.9-.9.6 0 1 .3 1 .9s-.4.9-1 .9c-.5 0-.9-.3-.9-.9z" fill="#fff"/></svg> -->
                                 <img src="<?= base_url('icons/help-questions.png') ?>" class="icon">
                             <?php else: ?>
-                                <!-- <svg viewBox="0 0 24 24" width="30" height="30" fill="none"><circle cx="6" cy="7" r="1.4" fill="currentColor"/><circle cx="6" cy="12" r="1.4" fill="currentColor"/><circle cx="6" cy="17" r="1.4" fill="currentColor"/><rect x="9.2" y="6.2" width="9.6" height="1.4" rx=".7" fill="currentColor"/><rect x="9.2" y="11.2" width="9.6" height="1.4" rx=".7" fill="currentColor"/><rect x="9.2" y="16.2" width="9.6" height="1.4" rx=".7" fill="currentColor"/></svg> -->
                                 <img src="<?= base_url('icons/help-features.png') ?>" class="icon">
                             <?php endif; ?>
                         </div>
@@ -829,27 +988,124 @@
         <div class="help-container">
             <div class="feature-head">
                 <h3>Explore Support Topics<small>Can’t find what you’re looking for?</small></h3>
-                <div class="feature-badge">System Features
-                    <img src="<?= base_url('icons/help-features.png') ?>" class="icon">
+            </div>
+
+            <div class="feature-topic-grid">
+                <?php foreach ($featureCards as $item): ?>
+                    <a
+                        href="<?= esc($item['target']) ?>"
+                        class="feature-card <?= esc($item['size'] ?? 'card-standard') ?>"
+                        style="--topic-image: url('<?= esc($item['image'] ?? base_url('images/background/building.png')) ?>'); --topic-tone: <?= esc($item['tone'] ?? 'rgba(10,20,40,0.5)') ?>;"
+                    >
+                        <div class="card-icon">
+                            <img src="<?= esc($item['icon'] ?? base_url('icons/help-features.png')) ?>" alt="">
+                        </div>
+                        <div class="name"><?= esc($item['title']) ?></div>
+                        <div class="desc"><?= esc($item['desc']) ?></div>
+                    </a>
+                <?php endforeach; ?>
+            </div>
+        </div>
+    </section>
+
+    <section id="documentation" class="featured-guides-wrap">
+        <div class="help-container">
+            <!-- Featured Guides Section -->
+            <div style="margin-bottom: 48px;">
+                <h2 style="font-size: clamp(1.9rem, 4vw, 2.8rem); font-weight: 700; color: var(--help-text); letter-spacing: -0.03em; margin-bottom: 32px;">Featured Guides</h2>
+
+                <!-- Access & Login Guide -->
+                <div class="guide-item">
+                    <div class="guide-content">
+                        <h3 style="font-size: 1.8rem; font-weight: 700; color: var(--help-text); margin-bottom: 16px; letter-spacing: -0.02em;">Access & Login</h3>
+                        <p style="font-size: 1.05rem; color: var(--help-muted); line-height: 1.7; margin-bottom: 20px;">Get started with your account. Learn how to sign in securely, recover forgotten passwords, and set up multi-factor authentication for enhanced security.</p>
+                        <a href="#doc-access" style="display: inline-block; padding: 12px 24px; background: var(--help-accent); color: white; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 0.95rem; transition: all 0.18s ease;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 12px 24px rgba(79, 127, 224, 0.3)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none';">Read Guide →</a>
+                    </div>
+                    <div class="guide-image">
+                        <div style="width: 100%; height: 100%; background: linear-gradient(135deg, rgba(79, 127, 224, 0.15), rgba(79, 127, 224, 0.05)); border-radius: 16px; display: flex; align-items: center; justify-content: center;">
+                            <svg viewBox="0 0 200 200" style="width: 140px; height: 140px; opacity: 0.6;">
+                                <circle cx="100" cy="70" r="35" fill="currentColor" color="rgba(79, 127, 224, 0.4)"/>
+                                <rect x="50" y="120" width="100" height="50" rx="8" fill="currentColor" color="rgba(79, 127, 224, 0.3)"/>
+                                <circle cx="80" cy="135" r="6" fill="currentColor" color="rgba(79, 127, 224, 0.6)"/>
+                                <circle cx="120" cy="135" r="6" fill="currentColor" color="rgba(79, 127, 224, 0.6)"/>
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Troubleshooting Guide -->
+                <div class="guide-item guide-item-reverse">
+                    <div class="guide-image">
+                        <div style="width: 100%; height: 100%; background: linear-gradient(135deg, rgba(79, 127, 224, 0.15), rgba(79, 127, 224, 0.05)); border-radius: 16px; display: flex; align-items: center; justify-content: center;">
+                            <svg viewBox="0 0 200 200" style="width: 140px; height: 140px; opacity: 0.6;">
+                                <path d="M 60 80 L 100 120 L 140 80" stroke="currentColor" stroke-width="8" fill="none" stroke-linecap="round" stroke-linejoin="round" color="rgba(79, 127, 224, 0.5)"/>
+                                <circle cx="100" cy="150" r="8" fill="currentColor" color="rgba(79, 127, 224, 0.6)"/>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="guide-content">
+                        <h3 style="font-size: 1.8rem; font-weight: 700; color: var(--help-text); margin-bottom: 16px; letter-spacing: -0.02em;">Troubleshooting</h3>
+                        <p style="font-size: 1.05rem; color: var(--help-muted); line-height: 1.7; margin-bottom: 20px;">Encounter an issue? Find quick fixes for common problems, browser-specific issues, and learn when to escalate to our support team.</p>
+                        <a href="#doc-troubleshooting" style="display: inline-block; padding: 12px 24px; background: var(--help-accent); color: white; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 0.95rem; transition: all 0.18s ease;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 12px 24px rgba(79, 127, 224, 0.3)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none';">Read Guide →</a>
+                    </div>
                 </div>
             </div>
 
-            <div class="feature-grid-3">
-                <?php foreach (array_slice($featureCards, 0, 3) as $item): ?>
-                    <a href="<?= esc($item['target']) ?>" class="feature-card">
-                        <div class="name"><?= esc($item['title']) ?></div>
-                        <div class="desc"><?= esc($item['desc']) ?></div>
+            <!-- More Resources Section -->
+            <div>
+                <h2 style="font-size: clamp(1.9rem, 4vw, 2.8rem); font-weight: 700; color: var(--help-text); letter-spacing: -0.03em; margin-bottom: 32px;">More Resources</h2>
+                
+                <div class="guides-grid">
+                    <!-- Core Workflows Card -->
+                    <a href="#doc-core-workflows" class="guide-card">
+                        <div class="guide-card-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                                <path d="M9 12h6M9 16h6"/>
+                            </svg>
+                        </div>
+                        <div class="guide-card-meta">MAY 4, 2026</div>
+                        <h3>Core Workflows</h3>
+                        <p>Top user transactions and step-by-step guides for completing common tasks in the system.</p>
                     </a>
-                <?php endforeach; ?>
+
+                    <!-- Support & SLA Card -->
+                    <a href="#doc-support" class="guide-card">
+                        <div class="guide-card-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M18 21H4a2 2 0 01-2-2V7a2 2 0 012-2h5l2-3h2l2 3h5a2 2 0 012 2v12a2 2 0 01-2 2z"/>
+                                <circle cx="12" cy="13" r="3"/>
+                            </svg>
+                        </div>
+                        <div class="guide-card-meta">MAY 4, 2026</div>
+                        <h3>Support & SLA</h3>
+                        <p>Contact channels, expected response times, and our service level agreements for various priority levels.</p>
+                    </a>
+
+                    <!-- Release Notes Card -->
+                    <a href="#doc-release-notes" class="guide-card">
+                        <div class="guide-card-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9z"/>
+                                <polyline points="13 2 13 9 20 9"/>
+                                <line x1="8" y1="13" x2="16" y2="13"/>
+                                <line x1="8" y1="17" x2="16" y2="17"/>
+                            </svg>
+                        </div>
+                        <div class="guide-card-meta">MAY 4, 2026</div>
+                        <h3>Release Notes</h3>
+                        <p>Recent changes, new features, bug fixes, and known limitations of the current system version.</p>
+                    </a>
+                </div>
             </div>
 
-            <div class="feature-grid-2">
-                <?php foreach (array_slice($featureCards, 3, 2) as $item): ?>
-                    <a href="<?= esc($item['target']) ?>" class="feature-card">
-                        <div class="name"><?= esc($item['title']) ?></div>
-                        <div class="desc"><?= esc($item['desc']) ?></div>
-                    </a>
-                <?php endforeach; ?>
+            <!-- Documentation Content (Hidden initially, shown on click) -->
+            <div style="margin-top: 48px; display: none;" id="doc-content">
+                <?php include __DIR__ . '/docs/access.php'; ?>
+                <?php include __DIR__ . '/docs/core_workflows.php'; ?>
+                <?php include __DIR__ . '/docs/troubleshooting.php'; ?>
+                <?php include __DIR__ . '/docs/support.php'; ?>
+                <?php include __DIR__ . '/docs/release_notes.php'; ?>
             </div>
         </div>
     </section>
@@ -898,15 +1154,17 @@
                 <h2>Get in Touch</h2>
                 <p>You can reach us anytime</p>
 
-                <?php if (session()->getFlashdata('success')): ?>
+                <?php $successMessage = session()->getFlashdata('success'); ?>
+                <?php if (is_string($successMessage) && $successMessage !== ''): ?>
                     <div class="mb-2 rounded border border-emerald-200 bg-emerald-50 px-2 py-2 text-[10px] text-emerald-700">
-                        <?= esc(session()->getFlashdata('success')) ?>
+                        <?= esc($successMessage) ?>
                     </div>
                 <?php endif; ?>
 
-                <?php if (session()->getFlashdata('error')): ?>
+                <?php $errorMessage = session()->getFlashdata('error'); ?>
+                <?php if (is_string($errorMessage) && $errorMessage !== ''): ?>
                     <div class="mb-2 rounded border border-red-200 bg-red-50 px-2 py-2 text-[10px] text-red-700">
-                        <?= esc(session()->getFlashdata('error')) ?>
+                        <?= esc($errorMessage) ?>
                     </div>
                 <?php endif; ?>
 
@@ -945,54 +1203,6 @@
             </div>
         </div>
     </section>
-
-    <!-- <section id="request-history" class="history-wrap">
-        <div class="help-container history-panel">
-            <div class="flex items-center justify-between mb-2">
-                <h3 class="text-sm font-semibold text-gray-900">Request History</h3>
-                <span class="text-[10px] text-gray-500"><?= count($helpRequests) ?> total</span>
-            </div>
-
-            <div class="space-y-2 max-h-[240px] overflow-y-auto pr-1">
-                <?php if (empty($helpRequests)): ?>
-                    <div class="rounded border border-dashed border-gray-300 bg-gray-50 p-3 text-[10px] text-gray-500 text-center">No support request submitted yet.</div>
-                <?php else: ?>
-                    <?php foreach ($helpRequests as $request): ?>
-                        <?php
-                            $requestStatus = (string) ($request['status'] ?? 'open');
-                            $requestPriority = (string) ($request['priority'] ?? 'normal');
-                            $statusClass = $statusClasses[$requestStatus] ?? 'bg-slate-100 text-slate-700';
-                            $priorityClass = $priorityClasses[$requestPriority] ?? 'bg-slate-100 text-slate-700';
-                        ?>
-                        <div class="rounded border border-gray-200 bg-gray-50 p-2">
-                            <div class="flex items-center gap-1.5 mb-1">
-                                <span class="inline-flex rounded-full px-2 py-0.5 text-[9px] font-semibold <?= esc($statusClass) ?>"><?= esc($statusLabels[$requestStatus] ?? ucwords(str_replace('_', ' ', $requestStatus))) ?></span>
-                                <span class="inline-flex rounded-full px-2 py-0.5 text-[9px] font-semibold <?= esc($priorityClass) ?>"><?= esc(ucfirst($requestPriority)) ?></span>
-                            </div>
-                            <div class="text-[10px] font-semibold text-gray-900">#<?= esc((string) ($request['id'] ?? '')) ?> - <?= esc((string) ($request['subject'] ?? 'No subject')) ?></div>
-                            <div class="text-[9px] text-gray-500 mt-0.5"><?= esc(date('M d, Y h:i A', strtotime((string) ($request['created_at'] ?? 'now')))) ?></div>
-                            <?php if (! empty($request['response'])): ?>
-                                <div class="mt-1 rounded bg-emerald-50 border border-emerald-200 p-1.5 text-[9px] text-emerald-800"><?= nl2br(esc((string) $request['response'])) ?></div>
-                            <?php endif; ?>
-
-                            <?php if ($isPayrollStaff): ?>
-                                <form action="<?= site_url('client_portal/help/update/' . (int) ($request['id'] ?? 0)) ?>" method="post" class="grid gap-1 mt-1.5">
-                                    <?= csrf_field() ?>
-                                    <select name="status" class="rounded border border-gray-300 px-2 py-1 text-[9px] outline-none focus:border-blue-400">
-                                        <?php foreach ($statusLabels as $value => $label): ?>
-                                            <option value="<?= esc($value) ?>" <?= $requestStatus === $value ? 'selected' : '' ?>><?= esc($label) ?></option>
-                                        <?php endforeach; ?>
-                                    </select>
-                                    <textarea name="response" rows="2" maxlength="2000" placeholder="Staff response" class="rounded border border-gray-300 px-2 py-1 text-[9px] outline-none focus:border-blue-400"><?= esc((string) ($request['response'] ?? '')) ?></textarea>
-                                    <button type="submit" class="rounded bg-[#7094e0] px-2 py-1 text-[9px] font-semibold text-white hover:bg-[#5f85d6] transition">Update</button>
-                                </form>
-                            <?php endif; ?>
-                        </div>
-                    <?php endforeach; ?>
-                <?php endif; ?>
-            </div>
-        </div>
-    </section> -->
 
     <footer class="footer-bar">
         <div class="footer-inner">
