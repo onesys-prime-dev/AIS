@@ -64,6 +64,7 @@ $routes->get('settings/face-recognition', 'SettingsController::faceRecognition')
 $routes->post('settings/face-recognition/enroll', 'SettingsController::enrollFace');
 $routes->get('settings/face-recognition/status', 'SettingsController::faceRecognitionStatus');
 $routes->post('client_portal/requests/generate-code', 'Client\RequestController::generateApprovalCode');
+$routes->get('client_portal/requests/lookup-code', 'Client\RequestController::lookupCode');
 
 // ================= PAYROLL ROUTES (including new export/import) =================
 $routes->group('client_portal', ['namespace' => 'App\Controllers\Client'], function($routes) {

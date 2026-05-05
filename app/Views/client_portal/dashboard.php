@@ -807,6 +807,80 @@ body{
 }
 
 /* MOBILE */
+/* ── Request form: approval-code toggle ── */
+.req-toggle-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    margin-bottom: 14px;
+}
+
+.req-toggle-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #374151;
+}
+
+.req-toggle-switch {
+    position: relative;
+    width: 38px;
+    height: 22px;
+    flex-shrink: 0;
+}
+.req-toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+.req-toggle-track {
+    position: absolute;
+    inset: 0;
+    background: #d1d5db;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+.req-toggle-track::before {
+    content: '';
+    position: absolute;
+    height: 16px;
+    width: 16px;
+    left: 3px;
+    top: 3px;
+    background: #fff;
+    border-radius: 50%;
+    transition: transform 0.2s;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+.req-toggle-switch input:checked + .req-toggle-track {
+    background: #ef4444;
+}
+.req-toggle-switch input:checked + .req-toggle-track::before {
+    transform: translateX(16px);
+}
+
+/* greyed-out normal fields while in code mode */
+#normalModePanel.req-disabled {
+    opacity: 0.4;
+    pointer-events: none;
+    user-select: none;
+}
+
+.req-code-hint {
+    font-size: 12px;
+    color: #6b7280;
+    background: #fef9c3;
+    border: 1px solid #fde68a;
+    border-radius: 8px;
+    padding: 8px 12px;
+    margin-bottom: 10px;
+    line-height: 1.5;
+}
+
 @media (max-width: 900px){
     .dashboard-main{
         grid-template-columns:1fr;
@@ -1156,32 +1230,59 @@ body{
     <!-- REQUEST MODAL -->
     <div class="modal-overlay" id="requestModal">
         <div class="modal">
-            <form action="<?= site_url('client_portal/requests/store') ?>" method="post">
+            <form id="requestForm" action="<?= site_url('client_portal/requests/store') ?>" method="post">
+                <!-- tells the controller which mode we're in -->
+                <input type="hidden" name="code_mode" id="codeModeInput" value="0">
+
                 <div class="modal-header">
                     <span>Request Form</span>
                     <button type="button" onclick="closeRequestForm()">✕</button>
                 </div>
 
                 <div class="modal-body">
-                    <label>Select Form</label>
-                    <select name="request_type" required>
-                        <option value="leave">Leave Request</option>
-                        <option value="overtime">Overtime Request</option>
-                        <option value="undertime">Undertime Request</option>
-                    </select>
 
-                    <label>Start Date</label>
-                    <input type="date" name="start_date" required>
+                    <!-- ── Code-mode toggle ── -->
+                    <div class="req-toggle-row">
+                        <label class="req-toggle-switch" for="codeModeToggle">
+                            <input type="checkbox" id="codeModeToggle" onchange="toggleRequestCodeMode(this.checked)">
+                            <span class="req-toggle-track"></span>
+                        </label>
+                        <span class="req-toggle-label">I have an approval code</span>
+                    </div>
 
-                    <label>End Date</label>
-                    <input type="date" name="end_date">
+                    <!-- ── Code-mode panel (shown when toggle is ON) ── -->
+                    <div id="codeModePanel" style="display:none;">
+                        <div class="req-code-hint" id="codeHintText">
+                            Enter your approval code. If it has preset details, the fields below will be filled in automatically. Please wait until the fields are set.
+                        </div>
+                        <label>Approval Code</label>
+                        <input type="text" id="codeModeCodeInput" name="approval_code"
+                               placeholder="e.g. A3KM-PQ72-XYRS-84NV"
+                               style="text-transform:uppercase;letter-spacing:2px;font-family:monospace;font-size:15px;"
+                               oninput="this.value=this.value.toUpperCase()"
+                               onblur="applyApprovalCode(this.value)">
+                    </div>
 
-                    <label>Approval Code</label>
-                    <input type="text" name="approval_code" placeholder="Approval code entry...">
+                    <!-- ── Normal-mode fields (always visible, locked only when preset data exists) ── -->
+                    <div id="normalModePanel">
+                        <label>Select Form</label>
+                        <select name="request_type" id="reqType" required>
+                            <option value="leave">Leave Request</option>
+                            <option value="overtime">Overtime Request</option>
+                            <option value="undertime">Undertime Request</option>
+                        </select>
 
-                    <label>Message</label>
-                    <textarea row="3" name="reason" placeholder="Enter your reason..."></textarea>
-                </div> 
+                        <label>Start Date</label>
+                        <input type="date" name="start_date" id="reqStartDate" required>
+
+                        <label>End Date</label>
+                        <input type="date" name="end_date" id="reqEndDate">
+
+                        <label>Message</label>
+                        <textarea rows="3" name="reason" id="reqReason" placeholder="Enter your reason..." required></textarea>
+                    </div>
+
+                </div>
 
                 <div class="modal-footer">
                     <button type="button" class="cancel-btn" onclick="closeRequestForm()">Cancel</button>
@@ -1326,6 +1427,139 @@ body{
 
     function closeRequestForm(){
         document.getElementById("requestModal").style.display="none";
+        // Reset toggle back to normal mode when closing
+        const toggle = document.getElementById("codeModeToggle");
+        if (toggle && toggle.checked) {
+            toggle.checked = false;
+            toggleRequestCodeMode(false);
+        }
+        resetPresetState();
+        document.getElementById("requestForm").reset();
+    }
+
+    // Tracks which fields were preset by a code lookup (so we know what to lock)
+    let _presetFields = {};
+
+    function toggleRequestCodeMode(on) {
+        const codePanel   = document.getElementById("codeModePanel");
+        const hiddenInput = document.getElementById("codeModeInput");
+
+        if (on) {
+            codePanel.style.display = "block";
+            hiddenInput.value       = "1";
+            // Normal fields stay visible + required; they only get locked if
+            // a looked-up code carries preset data (see applyApprovalCode).
+            setNormalFieldsLocked(false);
+            document.getElementById("codeModeCodeInput").focus();
+        } else {
+            codePanel.style.display = "none";
+            hiddenInput.value       = "0";
+            // Clear code input and unlock all normal fields
+            document.getElementById("codeModeCodeInput").value = "";
+            resetPresetState();
+        }
+    }
+
+    // Lock/unlock individual preset-capable fields
+    function setNormalFieldsLocked(locked) {
+        const fields = ["reqType", "reqStartDate", "reqEndDate", "reqReason"];
+        fields.forEach(id => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.disabled = locked;
+            el.style.opacity = locked ? "0.5" : "";
+        });
+    }
+
+    // Apply per-field locking only for fields that have preset values
+    function applyPresetLocking() {
+        const fieldMap = {
+            reqType:      "request_type",
+            reqStartDate: "start_date",
+            reqEndDate:   "end_date",
+            reqReason:    "reason",
+        };
+        Object.entries(fieldMap).forEach(([elId, presetKey]) => {
+            const el = document.getElementById(elId);
+            if (!el) return;
+            const hasPreset = !!_presetFields[presetKey];
+            el.disabled = hasPreset;
+            el.style.opacity = hasPreset ? "0.5" : "";
+        });
+    }
+
+    function resetPresetState() {
+        _presetFields = {};
+        setNormalFieldsLocked(false);
+        // Restore field values to empty
+        document.getElementById("reqType").value      = "leave";
+        document.getElementById("reqStartDate").value = "";
+        document.getElementById("reqEndDate").value   = "";
+        document.getElementById("reqReason").value    = "";
+        // Restore required on text fields
+        document.getElementById("reqType").required      = true;
+        document.getElementById("reqStartDate").required = true;
+        document.getElementById("reqReason").required    = true;
+        // Reset hint
+        const hint = document.getElementById("codeHintText");
+        if (hint) {
+            hint.style.background = "";
+            hint.style.borderColor = "";
+            hint.innerHTML = "Enter your approval code. If it has preset details, the fields below will be filled in automatically.";
+        }
+    }
+
+    async function applyApprovalCode(rawCode) {
+        const code = rawCode.trim().toUpperCase();
+        if (!code) return;
+
+        const hint = document.getElementById("codeHintText");
+
+        try {
+            const res  = await fetch("<?= site_url('client_portal/requests/lookup-code') ?>?code=" + encodeURIComponent(code));
+            const data = await res.json();
+
+            if (!data.success) {
+                // Invalid/used code — show warning but don't block the fields
+                hint.style.background  = "#fee2e2";
+                hint.style.borderColor = "#fca5a5";
+                hint.innerHTML = "⚠️ " + (data.message || "Invalid or already-used code.");
+                _presetFields = {};
+                setNormalFieldsLocked(false);
+                return;
+            }
+
+            const preset = data.preset_data || {};
+            const hasPreset = Object.keys(preset).length > 0;
+
+            if (hasPreset) {
+                // Fill in preset values
+                if (preset.request_type) document.getElementById("reqType").value      = preset.request_type;
+                if (preset.start_date)   document.getElementById("reqStartDate").value = preset.start_date;
+                document.getElementById("reqEndDate").value = preset.end_date || "";
+                if (preset.reason)       document.getElementById("reqReason").value    = preset.reason;
+
+                _presetFields = preset;
+                applyPresetLocking();
+
+                // Show overwrite notice if user had entered anything
+                hint.style.background  = "#fef9c3";
+                hint.style.borderColor = "#fde68a";
+                hint.innerHTML = "✅ Code accepted. Preset fields have been filled in and locked. Fields without a preset value can still be edited freely.";
+            } else {
+                // Valid code but no preset — user fills in everything manually
+                _presetFields = {};
+                setNormalFieldsLocked(false);
+                hint.style.background  = "#dcfce7";
+                hint.style.borderColor = "#86efac";
+                hint.innerHTML = "✅ Code accepted. No preset details — please fill in your request details below.";
+            }
+
+        } catch (e) {
+            hint.style.background  = "#fee2e2";
+            hint.style.borderColor = "#fca5a5";
+            hint.innerHTML = "⚠️ Could not verify the code. Please check your connection and try again.";
+        }
     }
 
     function openAnnouncementForm() {
