@@ -121,12 +121,6 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
 
             <!-- USER DROPDOWN -->
             <div id="userDropdown" class="user-dropdown">
-                    .header-notif-heading{
-                        font-size: 20px;
-                        font-weight: 700;
-                        color:var(--header-text);
-                        line-height: 1;
-                    }
                 <a href="<?= site_url('client_portal/profile') ?>">Profile</a>
                 <a href="<?= site_url('settings/customization') ?>">Settings</a>
                 <a href="<?= site_url('logout') ?>">Logout</a>
