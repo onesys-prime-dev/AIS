@@ -1,20 +1,41 @@
 <div class="modal-overlay" id="viewNotificationsModal">
     <div class="notification-modal">
         <div class="notification-modal-header">
-            <span id="viewNotificationTitle">Notification</span>
-            <button type="button" onclick="closeNotificationModal()">✕</button>
+            <div class="notification-modal-heading">
+                <span id="viewNotificationTitle" class="notification-modal-title">Notification</span>
+            </div>
+            <button type="button" class="notification-modal-close" aria-label="Close notification" onclick="closeNotificationModal()">✕</button>
         </div>
 
         <div class="notification-modal-body view-notification-body">
             <div class="view-notification-meta">
-                <p><strong>Published:</strong> <span id="viewNotificationPublished">N/A</span></p>
-                <p><strong>Category:</strong> <span id="viewNotificationCategory">General</span></p>
-                <p><strong>Priority:</strong> <span id="viewNotificationPriority">Normal</span></p>
-                <p><strong>Audience:</strong> <span id="viewNotificationAudience">All Employees</span></p>
+                <div class="view-notification-meta-item">
+                    <span class="view-notification-label">Published</span>
+                    <strong id="viewNotificationPublished">N/A</strong>
+                </div>
+                <div class="view-notification-meta-item">
+                    <span class="view-notification-label">Category</span>
+                    <strong id="viewNotificationCategory">General</strong>
+                </div>
+                <div class="view-notification-meta-item">
+                    <span class="view-notification-label">Priority</span>
+                    <strong id="viewNotificationPriority">Normal</strong>
+                </div>
+                <div class="view-notification-meta-item">
+                    <span class="view-notification-label">Audience</span>
+                    <strong id="viewNotificationAudience">All Employees</strong>
+                </div>
             </div>
 
-            <p class="view-notification-content" id="viewNotificationSummary"></p>
-            <p class="view-notification-content" id="viewNotificationDetails"></p>
+            <div class="view-notification-panel">
+                <span class="view-notification-panel-label">Summary</span>
+                <p class="view-notification-content" id="viewNotificationSummary"></p>
+            </div>
+
+            <div class="view-notification-panel">
+                <span class="view-notification-panel-label">Details</span>
+                <p class="view-notification-content" id="viewNotificationDetails"></p>
+            </div>
         </div>
 
         <div class="notification-modal-footer">

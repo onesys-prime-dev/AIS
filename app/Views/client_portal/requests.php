@@ -1,11 +1,12 @@
 <?= $this->extend('layouts/main') ?>
 <?= $this->section('content') ?>
 <style>
-.requests-container {
+
+.requests-content-container{
     height: 100%;
     display: flex;
     flex-direction: column;
-    overflow: hidden;
+    overflow: visible;
     min-height: 0;
     padding-left: 2rem;
     padding-right: 2rem;
@@ -295,9 +296,11 @@
     padding: 28px 32px;
     width: 100%;
     max-width: 520px;
+    max-height: calc(100vh - 2rem);
     box-shadow: 0 25px 50px rgba(0,0,0,0.2);
     animation: modalPop 0.2s ease;
     text-align: center;
+    overflow-y: auto;
 }
 
 @keyframes modalPop {
@@ -548,6 +551,7 @@
     justify-content: center;
     z-index: 10000;
     padding: 1rem;
+    overflow: auto;
 }
 
 .request-review-modal-overlay.open { display: flex; }
@@ -557,8 +561,11 @@
     border-radius: 16px;
     width: 100%;
     max-width: 760px;
+    max-height: calc(100vh - 2rem);
     box-shadow: 0 25px 50px rgba(0,0,0,0.22);
     overflow: hidden;
+    display: flex;
+    flex-direction: column;
 }
 
 .request-review-modal-header {
@@ -590,6 +597,9 @@
     display: grid;
     grid-template-columns: 1.1fr 0.9fr;
     gap: 18px;
+    min-height: 0;
+    flex: 1;
+    overflow-y: auto;
 }
 
 .review-summary,
@@ -664,6 +674,7 @@
     justify-content: flex-end;
     gap: 10px;
     flex-wrap: wrap;
+    flex-shrink: 0;
 }
 
 .review-action-btn {
@@ -685,158 +696,151 @@
 .review-action-btn.cancel { background: #6b7280; }
 
 @media (max-width: 768px) {
+    .request-review-modal {
+        max-height: calc(100vh - 1rem);
+    }
+
     .request-review-modal-body {
         grid-template-columns: 1fr;
     }
 }
 </style>
 
-
-<div class="requests-container">
-
     <?php $requests = $requests ?? []; ?>
 
-    <div class="page-header">
-        <div class="page-holder">
-            <h1 class="page-title">Employee Requests</h1>
-            <p class="page-subtitle">Keep track of employees status.</p>
-        </div>
-
-        <div class="filter-container">
-
-            <?php if (auth()->user()->inGroup('client_payroll_staff')): ?>
-            <!-- Tab switcher -->
-            <div class="tab-bar">
-                <button class="tab-btn active" id="tabBtnRequests"     onclick="switchTab('requests')">Requests</button>
-                <button class="tab-btn"         id="tabBtnCodes"        onclick="switchTab('codes')">Approval Codes</button>
-            </div>
-
-            <!-- <div class="tabs">
-                <button class="tab active" id="tabBtnRequests" data-tab="payroll-status">Requests</button>
-                <button  class="tab" onclick="switchTab('codes')" data-tab="generate-payslip">Approval Codes</button>
-            </div> -->
-            <?php endif; ?>
-
-            <!-- Per-tab controls -->
-            <div id="requestsControls" style="display:flex;align-items:center;gap:1rem;">
-                <?php if (auth()->user()->inGroup('client_payroll_staff')): ?>
-                <button class="generate-code-btn" id="generateCodeBtn" onclick="openCodeModal()">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
-                    </svg>
-                    Generate Code
-                </button>
-                <?php endif; ?>
-
-                <select id="statusFilter" class="filter-dropdown">
-                    <option value="all">All Requests</option>
-                    <option value="pending">Pending</option>
-                    <option value="approved">Approved</option>
-                    <option value="rejected">Rejected</option>
-                </select>
-            </div>
-
-            <!-- Codes tab has no extra header controls (crud_table has its own search) -->
-            <div id="codesControls" style="display:none;"></div>
-
-        </div>
+    <div class="tabs">
+        <button type="button" class="tab active" id="tabBtnRequests" onclick="switchTab('requests')">Requests</button>
+        <button type="button" class="tab" id="tabBtnCodes" onclick="switchTab('codes')">Approval Codes</button>
     </div>
 
-    <!-- ── TAB: Requests ── -->
-    <div class="tab-panel active" id="panelRequests">
-        <div class="request-cards-container">
-            <div class="request-grid-container scroll-bar">
-                <div class="request-grid">
-                    <?php foreach ($requests as $request): ?>
-                    <div class="request-card" data-status="<?= $request['status'] ?>">
+    <div class="requests-content-container scroll-bar">
+        <div class="page-header">
+            <div class="page-holder">
+                <h1 class="page-title">Employee Requests</h1>
+                <p class="page-subtitle">Keep track of employees status.</p>
+            </div>
 
-                        <?php
-                            $startDate     = ! empty($request['start_date']) ? date('F j, Y', strtotime($request['start_date'])) : 'N/A';
-                            $endDate       = ! empty($request['end_date'])   ? date('F j, Y', strtotime($request['end_date']))   : null;
-                            $dateText      = $startDate;
-                            if ($endDate !== null && $endDate !== $startDate) {
-                                $dateText .= ' to ' . $endDate;
-                            }
-                            $duration       = (int) ($request['duration'] ?? 1);
-                            $displayName    = (string) ($request['requested_by_name'] ?? (string) ($request['requested_by'] ?? 'U'));
-                            $initialsSource = trim($displayName);
-                            $avatarInitials = strtoupper(substr($initialsSource !== '' ? $initialsSource : 'U', 0, 2));
-                        ?>
+            <div class="filter-container">
 
-                        <div class="request-header <?= $request['status'] ?>">
-                            <div class="request-person">
-                                <?php if (auth()->user()->inGroup('client_payroll_staff')): ?>
-                                    <?php if (! empty($request['photo_path'])): ?>
-                                        <div class="request-avatar" style="background-image:url('<?= esc((string) $request['photo_path']) ?>');"></div>
+                <!-- Per-tab controls -->
+                <div id="requestsControls" style="display:flex;align-items:center;gap:1rem;">
+                    <?php if (auth()->user()->inGroup('client_payroll_staff')): ?>
+                    <button class="generate-code-btn" id="generateCodeBtn" onclick="openCodeModal()">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
+                        </svg>
+                        Generate Code
+                    </button>
+                    <?php endif; ?>
+
+                    <select id="statusFilter" class="filter-dropdown">
+                        <option value="all">All Requests</option>
+                        <option value="pending">Pending</option>
+                        <option value="approved">Approved</option>
+                        <option value="rejected">Rejected</option>
+                    </select>
+                </div>
+
+                <!-- Codes tab has no extra header controls (crud_table has its own search) -->
+                <div id="codesControls" style="display:none;"></div>
+
+            </div>
+        </div>
+
+        <!-- ── TAB: Requests ── -->
+        <div class="tab-panel active" id="panelRequests">
+            <div class="request-cards-container">
+                <div class="request-grid-container scroll-bar">
+                    <div class="request-grid">
+                        <?php foreach ($requests as $request): ?>
+                        <div class="request-card" data-status="<?= $request['status'] ?>">
+
+                            <?php
+                                $startDate     = ! empty($request['start_date']) ? date('F j, Y', strtotime($request['start_date'])) : 'N/A';
+                                $endDate       = ! empty($request['end_date'])   ? date('F j, Y', strtotime($request['end_date']))   : null;
+                                $dateText      = $startDate;
+                                if ($endDate !== null && $endDate !== $startDate) {
+                                    $dateText .= ' to ' . $endDate;
+                                }
+                                $duration       = (int) ($request['duration'] ?? 1);
+                                $displayName    = (string) ($request['requested_by_name'] ?? (string) ($request['requested_by'] ?? 'U'));
+                                $initialsSource = trim($displayName);
+                                $avatarInitials = strtoupper(substr($initialsSource !== '' ? $initialsSource : 'U', 0, 2));
+                            ?>
+
+                            <div class="request-header <?= $request['status'] ?>">
+                                <div class="request-person">
+                                    <?php if (auth()->user()->inGroup('client_payroll_staff')): ?>
+                                        <?php if (! empty($request['photo_path'])): ?>
+                                            <div class="request-avatar" style="background-image:url('<?= esc((string) $request['photo_path']) ?>');"></div>
+                                        <?php else: ?>
+                                            <div class="request-avatar"><?= esc($avatarInitials) ?></div>
+                                        <?php endif; ?>
+                                    <?php endif; ?>
+                                    <div class="request-person-details">
+                                        <div class="request-name"><?= esc((string) ($request['requested_by_name'] ?? (string) $request['requested_by'])) ?></div>
+                                        <div class="request-date">Employee No: <?= esc((string) ($request['employee_number'] ?? 'N/A')) ?></div>
+                                    </div>
+                                </div>
+
+                                <div class="request-actions">
+                                    <?php if (auth()->user()->inGroup('client_payroll_staff') && $request['status'] == 'pending'): ?>
+                                    <button type="button" class="btn-circle btn-view" onclick="openRequestReviewModal(<?= (int) $request['id'] ?>)">⌕</button>
                                     <?php else: ?>
-                                        <div class="request-avatar"><?= esc($avatarInitials) ?></div>
+                                    <span class="status-badge <?= $request['status'] ?>">
+                                        <?= ucfirst($request['status']) ?>
+                                    </span>
                                     <?php endif; ?>
-                                <?php endif; ?>
-                                <div class="request-person-details">
-                                    <div class="request-name"><?= esc((string) ($request['requested_by_name'] ?? (string) $request['requested_by'])) ?></div>
-                                    <div class="request-date">Employee No: <?= esc((string) ($request['employee_number'] ?? 'N/A')) ?></div>
                                 </div>
                             </div>
 
-                            <div class="request-actions">
-                                <?php if (auth()->user()->inGroup('client_payroll_staff') && $request['status'] == 'pending'): ?>
-                                <button type="button" class="btn-circle btn-view" onclick="openRequestReviewModal(<?= (int) $request['id'] ?>)">⌕</button>
-                                <?php else: ?>
-                                <span class="status-badge <?= $request['status'] ?>">
-                                    <?= ucfirst($request['status']) ?>
-                                </span>
+                            <div class="request-body">
+                                <div class="upper-request-body">
+                                    <div class="request-row">
+                                        <span class="label">Duration:</span>
+                                        <p class="message"><?= esc($dateText) ?>
+                                        </p>
+                                    </div>
+                                    <div class="request-row ">
+                                        <span class="label">Request Type:</span>
+                                        <p class="message">
+                                            <span class="value"><?= ucfirst($request['request_type']) ?></span>
+                                        </p>
+                                    </div> 
+                                </div>
+                                <?php if ((string) ($request['status'] ?? '') === 'pending'): ?>                       
+                                    <div class="request-row">
+                                        <span class="label">Message:</span>
+                                        <p class="message"><?= esc((string) $request['reason']) ?></p>
+                                    </div>
+                                    <?php else: ?>
+                                        <?php if (! empty($request['review_message'])): ?>
+                                            <div class="request-row">
+                                                <span class="label">Review Note:</span>
+                                                <p class="message"><?= esc((string) $request['review_message']) ?></p>
+                                            </div>
+                                        <?php endif; ?>
                                 <?php endif; ?>
                             </div>
                         </div>
-
-                        <div class="request-body">
-                            <div class="upper-request-body">
-                                <div class="request-row">
-                                    <span class="label">Duration:</span>
-                                    <p class="message"><?= esc($dateText) ?>
-                                    </p>
-                                </div>
-                                <div class="request-row ">
-                                    <span class="label">Request Type:</span>
-                                    <p class="message">
-                                        <span class="value"><?= ucfirst($request['request_type']) ?></span>
-                                    </p>
-                                </div> 
-                            </div>
-                            <?php if ((string) ($request['status'] ?? '') === 'pending'): ?>                       
-                                <div class="request-row">
-                                    <span class="label">Message:</span>
-                                    <p class="message"><?= esc((string) $request['reason']) ?></p>
-                                </div>
-                                <?php else: ?>
-                                    <?php if (! empty($request['review_message'])): ?>
-                                        <div class="request-row">
-                                            <span class="label">Review Note:</span>
-                                            <p class="message"><?= esc((string) $request['review_message']) ?></p>
-                                        </div>
-                                    <?php endif; ?>
-                            <?php endif; ?>
-                        </div>
+                        <?php endforeach; ?>
                     </div>
-                    <?php endforeach; ?>
                 </div>
             </div>
         </div>
-    </div>
 
-    <!-- ── TAB: Approval Codes (payroll staff only) ── -->
-    <?php if (auth()->user()->inGroup('client_payroll_staff')): ?>
-    <div class="tab-panel" id="panelCodes">
-        <?= view('components/crud_table', [
-        'title'   => 'Approval Codes',
-        'tableId' => 'approvalCodesTable',
-        'grid'    => 'approval-codes-grid',
-        'columns' => ['Code', 'Generated By', 'Status', 'Used By', 'Preset Details', 'Generated At'],
-    ]) ?>
+        <!-- ── TAB: Approval Codes (payroll staff only) ── -->
+        <?php if (auth()->user()->inGroup('client_payroll_staff')): ?>
+        <div class="tab-panel" id="panelCodes">
+            <?= view('components/crud_table', [
+            'title'   => 'Approval Codes',
+            'tableId' => 'approvalCodesTable',
+            'grid'    => 'approval-codes-grid',
+            'columns' => ['Code', 'Generated By', 'Status', 'Used By', 'Preset Details', 'Generated At'],
+        ]) ?>
+        </div>
+        <?php endif; ?>
     </div>
-    <?php endif; ?>
-
-</div>
 
 <?php if (auth()->user()->inGroup('client_payroll_staff')): ?>
     <div class="request-review-modal-overlay" id="requestReviewModalOverlay">

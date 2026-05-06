@@ -246,7 +246,9 @@ body{
     border-radius:18px;
     box-shadow:0 14px 30px rgba(17, 24, 39, 0.10);
     border:1px solid #ececec;
-    overflow-y:auto;
+    display:flex;
+    flex-direction:column;
+    overflow:hidden;
     max-height:none;
     height:100%;
 }
@@ -373,7 +375,12 @@ body{
 
 .notifications-group{
     display:none;
-    padding: 0 20px 16px;
+    padding: 0 18px 16px 20px;
+    overflow-y:auto;
+    flex:1;
+    min-height:0;
+    box-sizing:border-box;
+    scrollbar-gutter:stable;
 }
 
 .notifications-group.active{
@@ -471,7 +478,7 @@ body{
 }
 
 .notif-time{
-    font-size:11px;
+    font-size:13px;
     color:#6b7280;
     font-weight:600;
     white-space: nowrap;
@@ -549,13 +556,13 @@ body{
 
 .notif-title{
     font-weight:700;
-    font-size:13px;
+    font-size:16px;
     color:#262626;
     line-height:1.35;
 }
 
 .notif-desc{
-    font-size:12px;
+    font-size:14px;
     color:#6b7280;
     margin-top:6px;
     line-height:1.5;
@@ -1170,7 +1177,7 @@ body{
                 <?php endif; ?>
             </div>
 
-            <div id="publishedGroup" class="notifications-group active">
+            <div id="publishedGroup" class="notifications-group notifications-scroll-bar active">
                 <?php
                     $renderNotificationSection($publishedBuckets['today']['title'], $publishedBuckets['today']['items'], $renderNotificationItem, $initials, $timeAgo);
                     $renderNotificationSection($publishedBuckets['older']['title'], $publishedBuckets['older']['items'], $renderNotificationItem, $initials, $timeAgo);
@@ -1178,7 +1185,7 @@ body{
             </div>
 
             <?php if ($user->inGroup('client_payroll_staff')): ?>
-            <div id="unpublishedGroup" class="notifications-group">
+            <div id="unpublishedGroup" class="notifications-group notifications-scroll-bar">
                 <?php
                     $renderNotificationSection($unpublishedBuckets['today']['title'], $unpublishedBuckets['today']['items'], $renderNotificationItem, $initials, $timeAgo, true);
                     $renderNotificationSection($unpublishedBuckets['older']['title'], $unpublishedBuckets['older']['items'], $renderNotificationItem, $initials, $timeAgo, true);

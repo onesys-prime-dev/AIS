@@ -18,6 +18,31 @@
   background: #b4b5b8;
 }
 
+/* Dashboard notifications scrollbar */
+.notifications-scroll-bar {
+  scrollbar-width: thin;
+  scrollbar-color: #7e23fd #f3f4f6;
+}
+
+.notifications-scroll-bar::-webkit-scrollbar {
+  width: 10px;
+}
+
+.notifications-scroll-bar::-webkit-scrollbar-track {
+  background: linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%);
+  border-radius: 999px;
+}
+
+.notifications-scroll-bar::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #a855f7 0%, #7e23fd 100%);
+  border-radius: 999px;
+  border: 2px solid #f8fafc;
+}
+
+.notifications-scroll-bar::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #9333ea 0%, #6d28d9 100%);
+}
+
 /* Edit timesheet task textarea scrollbar */
 .task-scrollbar::-webkit-scrollbar {
   width: 8px;                         /* Chrome/Edge/Safari */

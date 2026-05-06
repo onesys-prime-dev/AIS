@@ -57,7 +57,6 @@
             }
         ?>
         <?= view('partials/header', ['headerIdentity' => $headerIdentity, 'notifications' => $notifications]) ?>
-        <?= view('client_portal/modals/view_notification') ?>
 
         <!-- Page Content -->
         <main class="flex-1 flex flex-col min-h-0">
@@ -216,6 +215,9 @@ document.addEventListener("DOMContentLoaded", function () {
 </script>
 
 <?= $this->renderSection('modals') ?>
+
+<!-- Modals placed at end of body to avoid stacking context issues -->
+<?= view('client_portal/modals/view_notification') ?>
 
 <script src="<?= base_url('js/components/flash-notifications.js') ?>"></script>
 
