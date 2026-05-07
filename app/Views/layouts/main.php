@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" class="h-full">
+<html lang="en" class="h-full scroll-smooth">
 <head>
     <meta charset="UTF-8">
     <meta name="csrf-token" content="<?= csrf_hash() ?>">
@@ -14,7 +14,7 @@
     <?= $this->renderSection('styles') ?>
 </head>
 
-<body class="bg-[#E7E3E3] min-h-screen font-sans antialiased">
+<body class="bg-[#E7E3E3] min-h-screen font-sans antialiased scroll-smooth">
 
 <div class="flex h-screen overflow-hidden">
 

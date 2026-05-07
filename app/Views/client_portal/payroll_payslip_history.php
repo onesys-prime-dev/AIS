@@ -15,11 +15,11 @@
                 <?php if (!empty($payslips)): ?>
                     <?php foreach ($payslips as $ps): ?>
                     <tr class="border-b hover:bg-gray-50">
-                        <td class="p-2"><?= esc($ps['employee_name']) ?></td>
-                        <td class="p-2 whitespace-nowrap"><?= date('M d, Y', strtotime($ps['period_start'])) ?> &ndash; <?= date('M d, Y', strtotime($ps['period_end'])) ?></td>
-                        <td class="p-2 text-right"><?= number_format($ps['net_pay'], 2) ?></td>
-                        <td class="p-2 whitespace-nowrap"><?= $ps['sent_at'] ? date('M d, Y H:i:s', strtotime($ps['sent_at'])) : '<span class="text-gray-400">&mdash;</span>' ?></td>
-                        <td class="p-2 text-center"><a href="<?= site_url('client_portal/payroll/downloadPayslip/' . $ps['id']) ?>" class="text-blue-600 hover:underline">PDF</a></td>
+                        <td class="p-2"><?= esc((string) ($ps['employee_name'] ?? '---')) ?></td>
+                        <td class="p-2 whitespace-nowrap"><?= !empty($ps['period_start']) ? date('M d, Y', strtotime($ps['period_start'])) : '---' ?> &ndash; <?= !empty($ps['period_end']) ? date('M d, Y', strtotime($ps['period_end'])) : '---' ?></td>
+                        <td class="p-2 text-right"><?= number_format((float) ($ps['net_pay'] ?? 0), 2) ?></td>
+                        <td class="p-2 whitespace-nowrap"><?= !empty($ps['sent_at']) ? date('M d, Y H:i:s', strtotime($ps['sent_at'])) : '<span class="text-gray-400">&mdash;</span>' ?></td>
+                        <td class="p-2 text-center"><a href="<?= site_url('client_portal/payroll/downloadPayslip/' . ($ps['id'] ?? 0)) ?>" class="text-blue-600 hover:underline">PDF</a></td>
                     </tr>
                     <?php endforeach; ?>
                 <?php else: ?>

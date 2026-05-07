@@ -75,6 +75,7 @@
     border-radius: 10px;
     overflow: hidden;
     box-shadow: 0 3px 8px rgba(0,0,0,0.05);
+    width: 100%;
 }
 
 .request-cards-container {
@@ -573,7 +574,7 @@
     justify-content: space-between;
     align-items: center;
     padding: 18px 22px;
-    background: #1e1e1e;
+    background: linear-gradient(135deg, #181818 0%, #2f2e2e 100%);
     color: #fff;
 }
 

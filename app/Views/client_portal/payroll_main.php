@@ -12,19 +12,19 @@
         <button type="button" class="tab" data-tab="payslip-history">Payslip History</button>
     </div>
 
-    <div class="tab-panel h-full flex flex-col min-h-0 overflow-hidden px-8 pb-8" data-panel="payroll-status">
+    <div class="tab-panel h-full flex flex-col min-h-0 overflow-hidden px-8 pb-8" data-panel="payroll-status" style="display:flex;">
         <?= view('client_portal/payroll_status') ?>
     </div>
 
-    <div class="tab-panel h-full flex flex-col min-h-0 overflow-hidden px-8 pb-8 hidden" data-panel="generate-payslip">
+    <div class="tab-panel h-full flex flex-col min-h-0 overflow-visible p-8" data-panel="generate-payslip" style="display:none;">
         <?= view('client_portal/payroll_management') ?>
     </div>
 
-    <div class="tab-panel h-full flex flex-col min-h-0 overflow-hidden px-8 pb-8 hidden" data-panel="payroll-settings">
+    <div class="tab-panel h-full flex flex-col min-h-0 overflow-hidden p-8" data-panel="payroll-settings" style="display:none;">
         <?= view('client_portal/payroll_settings_panel') ?>
     </div>
 
-    <div class="tab-panel h-full flex flex-col min-h-0 overflow-hidden px-8 pb-8 hidden" data-panel="payslip-history">
+    <div class="tab-panel h-full flex flex-col min-h-0 overflow-hidden p-8" data-panel="payslip-history" style="display:none;">
         <?= view('client_portal/payroll_payslip_history') ?>
     </div>
 
@@ -81,11 +81,19 @@
     }
 
     function payrollRowTemplate(p) {
+        // avatar: photo_path if present, otherwise fallback circle
+        const displayName = htmlEsc(p.employee_name || '');
+        const initials = displayName ? displayName.substring(0,2).toUpperCase() : 'U';
+        const photoUrl = p.photo_path ? p.photo_path : '';
+        const avatarHtml = photoUrl
+            ? `<div class="w-10 h-10 rounded-full" style="background-image:url('${photoUrl}');background-size:cover;background-position:center;"></div>`
+            : `<div class="w-10 h-10 bg-gray-300 rounded-full flex items-center justify-center text-xs font-bold text-gray-700">${initials}</div>`;
+
         return `
         <div class="grid grid-cols-[2fr_1.5fr_1.5fr_1.2fr_1fr_1fr_1fr] items-center border-b hover:bg-gray-50">
             <div class="p-4 flex items-center gap-3">
-                <div class="w-10 h-10 bg-gray-300 rounded-full"></div>
-                <span class="font-medium">${htmlEsc(p.employee_name || '---')}</span>
+                ${avatarHtml}
+                <span class="font-medium">${displayName || '---'}</span>
             </div>
             <div class="p-4">${htmlEsc(p.phone || '---')}</div>
             <div class="p-4">${p.currency === 'USD' ? '$' : 'PHP '} ${money(p.daily_rate)}</div>
@@ -125,7 +133,7 @@
                 tab.classList.toggle('active', tab.dataset.tab === tabKey);
             });
             panels.forEach(panel => {
-                panel.classList.toggle('hidden', panel.dataset.panel !== tabKey);
+                panel.style.display = panel.dataset.panel === tabKey ? 'flex' : 'none';
             });
         }
 

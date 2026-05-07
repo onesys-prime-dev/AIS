@@ -37,10 +37,13 @@ class PayrollController extends BaseController
                     ),
                     TRIM(employees.last_name)
                 ) AS employee_name,
-                employees.employee_number
-            ")
+                employees.employee_number,
+                MAX(ea.photo_path) as photo_path
+            ", false)
             ->join('employees', 'employees.id = payroll.employee_id', 'left')
+            ->join('employee_accounts as ea', 'employees.id = ea.employee_id', 'left')
             ->where('payroll.month_year', $month)
+            ->groupBy('payroll.id')
             ->findAll();
 
         $data['employees'] = $employeeModel
@@ -66,6 +69,14 @@ class PayrollController extends BaseController
             ->join('employees', 'employees.id = employee_payslips.employee_id')
             ->orderBy('employee_payslips.created_at', 'DESC')
             ->findAll();
+
+        // convert photo_path to absolute URL where available
+        foreach ($data['payrolls'] as &$pr) {
+            if (! empty($pr['photo_path'])) {
+                $pr['photo_path'] = base_url((string) $pr['photo_path']);
+            }
+        }
+        unset($pr);
 
         return view('client_portal/payroll_main', $data);
     }

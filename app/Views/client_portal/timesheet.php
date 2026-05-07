@@ -2,6 +2,10 @@
 
 <?= $this->section('content') ?>
 
+<?php
+    $timesheet = $timesheet ?? [];
+?>
+
 <div class="h-full flex flex-col min-h-0 overflow-hidden px-8 pb-8">
 
     <!-- Page Header -->

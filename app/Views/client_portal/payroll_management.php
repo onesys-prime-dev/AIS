@@ -25,11 +25,9 @@ body{ font-family: 'Segoe UI', Arial, sans-serif; background: #f0f2f5; }
 .tab-content.active{ display:block; }
 
 /* Scroll area */
-.scroll-area{
+.hide-scroll-bar{
     overflow-y:auto;
     height:600px;
-    padding-right:12px;
-    margin-bottom: 20px;
 }
 
 .section{ margin-bottom:35px; }
@@ -258,6 +256,22 @@ input, select{
     max-width: 95%;
     border-radius: 10px;
     position: relative;
+    max-height: 92vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+#staticPayslipContent {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    padding-right: 8px;
+}
+#staticPayslipModal .modal-footer {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid #e5e7eb;
+    text-align: center;
+    flex: 0 0 auto;
 }
 #staticPayslipModal .close-modal {
     color: #aaa;
@@ -308,7 +322,7 @@ input, select{
 </head>
 <body class="p-6">
 
-<div class="bg-white rounded-2xl shadow-lg p-8 h-[90vh] border border-gray-300 flex flex-col mt-4">
+<div class="bg-white rounded-2xl shadow-lg p-8 h-full overflow-hidden border border-gray-300 flex flex-col">
 
     <!-- TABS -->
     <div class="flex gap-10 border-b border-gray-300 mb-6">
@@ -320,7 +334,7 @@ input, select{
     <div class="flex flex-col flex-1 overflow-hidden">
 
         <!-- ================= RAW SHEET ================= -->
-        <div class="tab-content active scroll-area" id="raw">
+        <div class="tab-content active hide-scroll-bar" id="raw">
             <!-- Mode Switch -->
             <div class="mode-switch">
                 <button type="button" class="mode-btn active" onclick="switchMode('individual', event)">Individual</button>
@@ -486,7 +500,7 @@ input, select{
         </div>
 
         <!-- ================= PAYROLL REGISTER ================= -->
-        <div class="tab-content scroll-area" id="register">
+        <div class="tab-content hide-scroll-bar" id="register">
             <div style="max-width: 100%;">
                 <h3 class="font-semibold">Details</h3>
                 <p class="subtitle">Please complete the employee data</p>
@@ -581,7 +595,7 @@ input, select{
         </div>
 
         <!-- ================= PAYSLIP TAB (Editable Preview + Generate Button) ================= -->
-        <div class="tab-content scroll-area" id="payslip">
+        <div class="tab-content hide-scroll-bar" id="payslip">
             <h3 class="font-semibold">Payslip Details</h3>
             <div class="sub-text">Please complete the employee data</div>
 
@@ -667,7 +681,7 @@ input, select{
     <div class="modal-content">
         <span class="close-modal">&times;</span>
         <div id="staticPayslipContent"></div>
-        <div style="text-align: center; margin-top: 20px;">
+        <div class="modal-footer">
             <button class="send-pdf-btn" id="sendPdfBtn">Send Payslip to Employee</button>
         </div>
     </div>

@@ -533,7 +533,7 @@ body .modal-overlay[style*="display: flex"] {
     padding:18px 20px;
     margin-bottom:0;
     border-bottom:1px solid #e5e7eb;
-    background:linear-gradient(135deg, #111827 0%, #1f2937 100%);
+    background:linear-gradient(135deg, #181818 0%, #2f2e2e 100%);
     color:#ffffff;
 }
 

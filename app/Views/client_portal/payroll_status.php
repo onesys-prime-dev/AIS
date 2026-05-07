@@ -18,9 +18,9 @@
                         </svg>
                     </button>
                     <button type="button" class="month-picker-label" onclick="openMonthPicker()" aria-label="Select month">
-                        <?= date('F Y', strtotime($selected_month . '-01')) ?>
+                        <?= date('F Y', strtotime(($selected_month ?? date('Y-m')) . '-01')) ?>
                     </button>
-                    <input type="hidden" id="monthPicker" value="<?= $selected_month ?>">
+                    <input type="hidden" id="monthPicker" value="<?= $selected_month ?? date('Y-m') ?>">
                 </div>
                 <div class="month-picker-modal" id="monthPickerModal" role="dialog" aria-label="Select month">
                     <div class="month-picker-modal-header">
@@ -46,7 +46,7 @@
     </div>
 
     <?= view('components/crud_table', [
-        'title' => date('F Y', strtotime($selected_month . '-01')) . ' Payroll',
+        'title' => date('F Y', strtotime(($selected_month ?? date('Y-m')) . '-01')) . ' Payroll',
         'tableId' => 'payrollTable',
         'grid' => 'grid-cols-[2fr_1.5fr_1.5fr_1.2fr_1fr_1fr_1fr]',
         'columns' => [

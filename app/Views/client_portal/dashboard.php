@@ -1,7 +1,10 @@
 <?= $this->extend('layouts/main') ?>
 <?= $this->section('content') ?>
 
-<?php $user = auth()->user(); ?>
+<?php
+$user = auth()->user();
+$currentAttendance = $currentAttendance ?? null;
+?>
 
 <style>
 body{
@@ -251,6 +254,7 @@ body{
     overflow:hidden;
     max-height:none;
     height:100%;
+    min-height:0;
 }
 
 .notifications-divider{
@@ -378,13 +382,20 @@ body{
     padding: 0 18px 16px 20px;
     overflow-y:auto;
     flex:1;
+    margin-bottom:14px; /* keep list content away from card bottom edge */
     min-height:0;
     box-sizing:border-box;
     scrollbar-gutter:stable;
 }
 
 .notifications-group.active{
+    display: block;
+}
+
+.notifications-group::after{
+    content:'';
     display:block;
+    height:18px;
 }
 
 /* NOTIFICATION ITEM */
@@ -1119,11 +1130,11 @@ body{
                     data-audience="<?= esc(ucfirst($audience), 'attr') ?>"
                     onclick="openNotificationModal(this)"
                     onkeydown="handleNotificationKey(event, this)">
-                    <div class="notif-avatar"><?= esc($initials((string) ($n['title'] ?? ''))) ?></div>
+                    <div class="notif-avatar"><?= esc((string) $initials((string) ($n['title'] ?? ''))) ?></div>
                     <div class="notif-content">
                         <div class="notif-title-row">
                             <div class="notif-title"><?= esc($title) ?></div>
-                            <div class="notif-time"><?= esc($timeAgo((string) ($n['publish_at'] ?? ''))) ?></div>
+                            <div class="notif-time"><?= esc((string) $timeAgo((string) ($n['publish_at'] ?? ''))) ?></div>
                         </div>
                         <div class="notif-desc"><?= esc($summary) ?></div>
                         <div class="notif-tags">
@@ -1177,7 +1188,7 @@ body{
                 <?php endif; ?>
             </div>
 
-            <div id="publishedGroup" class="notifications-group notifications-scroll-bar active">
+            <div id="publishedGroup" class="notifications-group hide-scroll-bar active">
                 <?php
                     $renderNotificationSection($publishedBuckets['today']['title'], $publishedBuckets['today']['items'], $renderNotificationItem, $initials, $timeAgo);
                     $renderNotificationSection($publishedBuckets['older']['title'], $publishedBuckets['older']['items'], $renderNotificationItem, $initials, $timeAgo);
@@ -1185,7 +1196,7 @@ body{
             </div>
 
             <?php if ($user->inGroup('client_payroll_staff')): ?>
-            <div id="unpublishedGroup" class="notifications-group notifications-scroll-bar">
+            <div id="unpublishedGroup" class="notifications-group hide-scroll-bar">
                 <?php
                     $renderNotificationSection($unpublishedBuckets['today']['title'], $unpublishedBuckets['today']['items'], $renderNotificationItem, $initials, $timeAgo, true);
                     $renderNotificationSection($unpublishedBuckets['older']['title'], $unpublishedBuckets['older']['items'], $renderNotificationItem, $initials, $timeAgo, true);
