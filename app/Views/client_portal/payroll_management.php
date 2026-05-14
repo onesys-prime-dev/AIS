@@ -359,7 +359,7 @@ input, select{
                 </div>
                 <div class="mt-3">
                     <label>Selected Employee(s)</label>
-                    <input type="text" id="empName" placeholder="e.g. 51 T" readonly class="bg-gray-200">
+                    <input type="text" id="empName" placeholder="e.g. 51 T" readonly class="bg-gray-200">-
                 </div>
             </div>
 
@@ -990,7 +990,7 @@ function generateStaticPayslip() {
     }
 
     const payload = {
-        employee_id: employeeId,
+        employee_id: employeeIdToSubmit,
         period_start: startDate,
         period_end: endDate,
         basic_pay: d.basicPay,
@@ -1010,15 +1010,15 @@ function generateStaticPayslip() {
         other_deductions: 0
     };
 
-    fetch('<?= site_url('client_portal/payroll/compute') ?>?employee_id=' + employeeId + '&start_date=' + startDate + '&end_date=' + endDate, {
+    // Background compute call (non-blocking, errors silenced)
+    fetch('<?= site_url('client_portal/payroll/compute') ?>?employee_id=' + employeeIdToSubmit + '&start_date=' + startDate + '&end_date=' + endDate, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
-    }).then(response => response.json())
+    }).then(response => response.ok ? response.json() : Promise.reject())
       .then(result => {
-          if (!result.success) console.error('Server save error:', result.error);
-          else console.log('Payroll saved, transaction ID:', result.transaction_id);
-      }).catch(err => console.error('Save error:', err));
+          if (result.transaction_id) console.log('Transaction saved, ID:', result.transaction_id);
+      }).catch(() => {}); // Silent failure - not critical
 
     // Original HTML generation for modal (unchanged)
     const html = `
@@ -1180,7 +1180,10 @@ function generateStaticPayslip() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(savePayload)
         })
-        .then(r => r.json())
+        .then(r => {
+            if (!r.ok) throw new Error('HTTP ' + r.status + ': ' + r.statusText);
+            return r.json();
+        })
         .then(result => {
             if (result.success) {
                 window.currentPayslipId = result.payslip_id;

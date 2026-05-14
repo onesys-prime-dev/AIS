@@ -1,7 +1,7 @@
 <!-- app/Views/client_portal/payroll_settings_panel.php -->
 <div class="bg-white rounded-2xl shadow-lg p-8 h-full border border-gray-300 flex flex-col">
     <h3 class="font-semibold text-xl mb-6">Payroll Computation Settings</h3>
-    <form id="payrollSettingsForm" action="<?= site_url('client_portal/payroll/saveSettings') ?>" method="post" class="flex-1 overflow-auto">
+    <form id="payrollSettingsForm" action="<?= site_url('client_portal/payroll/saveSettings') ?>" method="post" class="flex-1 overflow-auto hide-scroll-bar">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div class="bg-gray-50 p-4 rounded shadow">
                 <h4 class="font-semibold border-b pb-1 mb-2">Working Hours</h4>
@@ -37,7 +37,7 @@
             </div>
         </div>
         <div class="mt-6 flex justify-end">
-            <button type="submit" class="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded shadow">Save Settings</button>
+            <button type="submit" class="bg-[#7b5cff] hover:bg-[#6249e0] text-white px-6 py-2 rounded-lg shadow">Save Settings</button>
         </div>
     </form>
 </div>

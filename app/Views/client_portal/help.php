@@ -927,7 +927,7 @@
     }
 </style>
 
-<div class="help-shell scroll-bar">
+<div class="help-shell hide-scroll-bar">
     <section class="hero-wrap">
         <div class="help-container">
             <h1 class="hero-title">Help Centre</h1>

@@ -256,7 +256,40 @@ class PayrollController extends BaseController
                 'status' => 'computed',
                 'computed_at' => date('Y-m-d H:i:s')
             ];
-            $txModel->insert($txData);
+            // Debug: log the transaction payload to diagnose any malformed keys/values
+            log_message('debug', 'computeAndSave txData: ' . print_r($txData, true));
+
+            // Build a sanitized, explicitly keyed array to avoid accidental numeric keys
+            $cleanTxData = [
+                'employee_id' => (int) ($txData['employee_id'] ?? 0),
+                'period_start' => $txData['period_start'] ?? null,
+                'period_end' => $txData['period_end'] ?? null,
+                'basic_pay' => (float) ($txData['basic_pay'] ?? 0),
+                'overtime_pay' => (float) ($txData['overtime_pay'] ?? 0),
+                'night_diff_pay' => (float) ($txData['night_diff_pay'] ?? 0),
+                'holiday_pay' => (float) ($txData['holiday_pay'] ?? 0),
+                'de_minimis' => (float) ($txData['de_minimis'] ?? 0),
+                'other_earnings_taxable' => (float) ($txData['other_earnings_taxable'] ?? 0),
+                'other_earnings_non_taxable' => (float) ($txData['other_earnings_non_taxable'] ?? 0),
+                'total_earnings' => (float) ($txData['total_earnings'] ?? 0),
+                'sss_ee' => (float) ($txData['sss_ee'] ?? 0),
+                'phic_ee' => (float) ($txData['phic_ee'] ?? 0),
+                'hdmf_ee' => (float) ($txData['hdmf_ee'] ?? 0),
+                'withholding_tax' => (float) ($txData['withholding_tax'] ?? 0),
+                'sss_loan' => (float) ($txData['sss_loan'] ?? 0),
+                'calamity_loan' => (float) ($txData['calamity_loan'] ?? 0),
+                'salary_advance' => (float) ($txData['salary_advance'] ?? 0),
+                'other_deductions' => (float) ($txData['other_deductions'] ?? 0),
+                'total_deductions' => (float) ($txData['total_deductions'] ?? 0),
+                'net_pay' => (float) ($txData['net_pay'] ?? 0),
+                'status' => $txData['status'] ?? 'computed',
+                'computed_by' => $txData['computed_by'] ?? null,
+                'computed_at' => $txData['computed_at'] ?? date('Y-m-d H:i:s'),
+            ];
+
+            log_message('debug', 'computeAndSave cleanTxData: ' . print_r($cleanTxData, true));
+
+            $txModel->insert($cleanTxData);
             $txId = $txModel->getInsertID();
 
             return $this->response->setJSON([
@@ -920,94 +953,109 @@ class PayrollController extends BaseController
                         + ($data['other_deductions'] ?? 0);
 
         return '<!DOCTYPE html>
-    <html>
-    <head>
-    <meta charset="UTF-8">
-    <style>
-        body { font-family: Arial, sans-serif; font-size: 11px; }
-        .wrap { border: 1px solid #000; padding: 20px; max-width: 900px; margin: auto; }
-        h2 { text-align: center; margin: 0 0 10px 0; }
-        table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
-        td, th { border: 1px solid #000; padding: 5px; }
-        th { background: #eee; }
-        .inner-table { width: 100%; border-collapse: collapse; }
-        .inner-table td { border: none; padding: 2px 4px; }
-        .right { text-align: right; }
-        .bold { font-weight: bold; }
-        .highlight { background: #f8d7da; }
-    </style>
-    </head>
-    <body>
-    <div class="wrap">
-        <h2>PAY SLIP</h2>
-        <td>
-            <tr>
-                <td><strong>Employee:</strong></td>
-                <td>' . htmlspecialchars($data['employee_name'] ?? '') . '</td>
-                <td><strong>Period Start:</strong></td>
-                <td>' . $fmtDate($data['period_start'] ?? '') . '</td>
-                <td><strong>Period End:</strong></td>
-                <td>' . $fmtDate($data['period_end'] ?? '') . '</td>
-            </tr>
-            <tr>
-                <td><strong>Position:</strong></td>
-                <td colspan="5">' . htmlspecialchars($data['position'] ?? 'N/A') . '</td>
-            </tr>
-        </table>
-        <table>
-            <thead><tr><th>REGULAR EARNINGS</th><th>TAXABLE OTHER EARNINGS</th><th>NON-TAXABLE OTHER EARNINGS</th></tr></thead>
-            <tbody>
-                <tr>
-                    <td>
-                        <table class="inner-table">
-                            <tr><td>Basic Pay:</td><td class="right">' . $fmt($data['basic_pay']) . 'NonNull</td></tr>
-                            <tr><td>Night Premium:NonNull<td class="right">' . $fmt($data['night_diff_pay']) . 'NonNull</td></tr>
-                            <tr><td class="bold">Net Basic Pay:NonNull<td class="right bold">' . $fmt(($data['basic_pay'] ?? 0) + ($data['night_diff_pay'] ?? 0)) . 'NonNull</td></tr>
-                            <tr><td class="bold">Reg. OT:NonNull<td class="right">' . $fmt($data['overtime_pay']) . 'NonNull</td></tr>
-                        </table>
-                    </td>
-                    <td><table class="inner-table"><tr><td class="bold">Taxable Other:NonNull<td class="right">' . $fmt($data['other_earnings_taxable']) . 'NonNull</td></tr></table></td>
-                    <td><table class="inner-table"><tr><td class="bold">De Minimis:NonNull<td class="right">' . $fmt($data['de_minimis']) . 'NonNull</td></tr></table></td>
-                </tr>
-                <tr><td colspan="2" class="right"><strong>GROSS PAY</strong>NonNull<td class="right"><strong>' . $fmt($grossPay) . '</strong>NonNull</tr>
-            </tbody>
-        </table>
-        <table>
-            <thead><tr><th>REGULAR DEDUCTIONS</th><th>LOANS / ADVANCES</th></tr></thead>
-            <tbody>
-                <tr>
-                    <td>
-                        <table class="inner-table">
-                            <tr><td class="bold">SSS:NonNull<td class="right">' . $fmt($data['sss_ee']) . 'NonNull</tr>
-                            <tr><td class="bold">Philhealth:NonNull<td class="right">' . $fmt($data['phic_ee']) . 'NonNull</tr>
-                            <tr><td class="bold">Pag-IBIG:NonNull<td class="right">' . $fmt($data['hdmf_ee']) . 'NonNull</tr>
-                            <tr><td class="bold">Withholding Tax:NonNull<td class="right">' . $fmt($data['withholding_tax']) . 'NonNull</tr>
-                        </table>
-                    </td>
-                    <td>
-                        <table class="inner-table">
-                            <tr><td class="bold">SSS Loan:NonNull<td class="right">' . $fmt($data['sss_loan']) . 'NonNull</tr>
-                            <tr><td class="bold">Calamity Loan:NonNull<td class="right">' . $fmt($data['calamity_loan']) . 'NonNull</tr>
-                            <tr><td class="bold">Salary Advance:NonNull<td class="right">' . $fmt($data['salary_advance']) . 'NonNull</tr>
-                            <tr><td class="bold">Other Deductions:NonNull<td class="right">' . $fmt($data['other_deductions']) . 'NonNull</tr>
-                        </table>
-                    </td>
-                </tr>
-                <tr><td class="right"><strong>TOTAL DEDUCTIONS</strong>NonNull<td class="right"><strong>' . $fmt($totalDeductions) . '</strong>NonNull</tr>
-            </tbody>
-        </table>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+    body { font-family: Arial, sans-serif; font-size: 11px; }
+    .wrap { border: 1px solid #000; padding: 20px; max-width: 900px; margin: auto; }
+    h2 { text-align: center; margin: 0 0 10px 0; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+    td, th { border: 1px solid #000; padding: 5px; }
+    th { background: #eee; }
+    .inner-table { width: 100%; border-collapse: collapse; }
+    .inner-table td { border: none; padding: 2px 4px; }
+    .right { text-align: right; }
+    .bold { font-weight: bold; }
+    .highlight { background: #f8d7da; }
+</style>
+</head>
+<body>
+<div class="wrap">
+    <h2>PAY SLIP</h2>
+    <table>
         <tr>
-            <td style="width:50%"><strong>Employee Signature:</strong>NonNull
-            <td style="width:50%">&nbsp;NonNull
+            <td><strong>Employee:</strong></td>
+            <td>' . htmlspecialchars($data['employee_name'] ?? '') . '</td>
+            <td><strong>Period Start:</strong></td>
+            <td>' . $fmtDate($data['period_start'] ?? '') . '</td>
+            <td><strong>Period End:</strong></td>
+            <td>' . $fmtDate($data['period_end'] ?? '') . '</td>
         </tr>
         <tr>
-            <td class="right"><strong>NET PAY:</strong>NonNull
-            <td class="right highlight"><strong>' . $fmt($data['net_pay']) . '</strong>NonNull
+            <td><strong>Position:</strong></td>
+            <td colspan="5">' . htmlspecialchars($data['position'] ?? 'N/A') . '</td>
         </tr>
     </table>
-    </div>
-    </body>
-    </html>';
+    <table>
+        <thead><tr><th>REGULAR EARNINGS</th><th>TAXABLE OTHER EARNINGS</th><th>NON-TAXABLE OTHER EARNINGS</th></tr></thead>
+        <tbody>
+            <tr>
+                <td>
+                    <table class="inner-table">
+                        <tr><td>Basic Pay:</td><td class="right">' . $fmt($data['basic_pay']) . '</td></tr>
+                        <tr><td>Night Premium:</td><td class="right">' . $fmt($data['night_diff_pay']) . '</td></tr>
+                        <tr><td class="bold">Net Basic Pay:</td><td class="right bold">' . $fmt(($data['basic_pay'] ?? 0) + ($data['night_diff_pay'] ?? 0)) . '</td></tr>
+                        <tr><td class="bold">Reg. OT:</td><td class="right">' . $fmt($data['overtime_pay']) . '</td></tr>
+                    </table>
+                </td>
+                <td>
+                    <table class="inner-table">
+                        <tr><td class="bold">Taxable Other:</td><td class="right">' . $fmt($data['other_earnings_taxable']) . '</td></tr>
+                    </table>
+                </td>
+                <td>
+                    <table class="inner-table">
+                        <tr><td class="bold">De Minimis:</td><td class="right">' . $fmt($data['de_minimis']) . '</td></tr>
+                    </table>
+                </td>
+            </tr>
+            <tr>
+                <td colspan="2" class="right"><strong>GROSS PAY</strong></td>
+                <td class="right"><strong>' . $fmt($grossPay) . '</strong></td>
+            </tr>
+        </tbody>
+    </table>
+    <table>
+        <thead><tr><th>REGULAR DEDUCTIONS</th><th>LOANS / ADVANCES</th></tr></thead>
+        <tbody>
+            <tr>
+                <td>
+                    <table class="inner-table">
+                        <tr><td class="bold">SSS:</td><td class="right">' . $fmt($data['sss_ee']) . '</td></tr>
+                        <tr><td class="bold">Philhealth:</td><td class="right">' . $fmt($data['phic_ee']) . '</td></tr>
+                        <tr><td class="bold">Pag-IBIG:</td><td class="right">' . $fmt($data['hdmf_ee']) . '</td></tr>
+                        <tr><td class="bold">Withholding Tax:</td><td class="right">' . $fmt($data['withholding_tax']) . '</td></tr>
+                    </table>
+                </td>
+                <td>
+                    <table class="inner-table">
+                        <tr><td class="bold">SSS Loan:</td><td class="right">' . $fmt($data['sss_loan']) . '</td></tr>
+                        <tr><td class="bold">Calamity Loan:</td><td class="right">' . $fmt($data['calamity_loan']) . '</td></tr>
+                        <tr><td class="bold">Salary Advance:</td><td class="right">' . $fmt($data['salary_advance']) . '</td></tr>
+                        <tr><td class="bold">Other Deductions:</td><td class="right">' . $fmt($data['other_deductions']) . '</td></tr>
+                    </table>
+                </td>
+            </tr>
+            <tr>
+                <td class="right"><strong>TOTAL DEDUCTIONS</strong></td>
+                <td class="right"><strong>' . $fmt($totalDeductions) . '</strong></td>
+            </tr>
+        </tbody>
+    </table>
+    <table>
+        <tr>
+            <td style="width:50%"><strong>Employee Signature:</strong></td>
+            <td style="width:50%; height: 40px;">&nbsp;</td>
+        </tr>
+        <tr>
+            <td class="right"><strong>NET PAY:</strong></td>
+            <td class="right highlight"><strong>' . $fmt($data['net_pay']) . '</strong></td>
+        </tr>
+    </table>
+</div>
+</body>
+</html>';
     }
 
     private function getUserEmail($userId)
