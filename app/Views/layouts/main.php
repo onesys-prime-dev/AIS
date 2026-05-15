@@ -97,6 +97,7 @@
 
 <script>
 window.notificationViewedUrl = <?= json_encode(site_url('client_portal/announcements/viewed')) ?>;
+window.notificationDismissedUrl = <?= json_encode(site_url('client_portal/announcements/dismiss')) ?>;
 window.notificationCsrfTokenName = <?= json_encode(csrf_token()) ?>;
 window.notificationCsrfTokenHash = <?= json_encode(csrf_hash()) ?>;
 

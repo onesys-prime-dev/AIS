@@ -25,6 +25,48 @@ class AnnouncementService
         $this->logger = service('activityLogger');
     }
 
+    private function applyVisibilityScope(object $user, bool $includeFuture = false)
+    {
+        $now = date('Y-m-d H:i:s');
+        $userId = (int) $user->id;
+        $isPayrollStaff = $user->inGroup('client_payroll_staff');
+        $userDepartment = $this->getDepartmentByUserId($userId);
+
+        $builder = $this->announcementModel
+            ->select('announcements.*, users.username as author_username')
+            ->select('CASE WHEN announcement_views.id IS NULL THEN 0 ELSE 1 END as is_viewed', false)
+            ->join('users', 'users.id = announcements.created_by', 'left')
+            ->join('announcement_views', 'announcement_views.announcement_id = announcements.id AND announcement_views.user_id = ' . $userId, 'left')
+            ->join('announcement_dismissals', 'announcement_dismissals.announcement_id = announcements.id AND announcement_dismissals.user_id = ' . $userId, 'left')
+            ->where('announcement_dismissals.id', null);
+
+        if ($includeFuture) {
+            $builder->where('publish_at >', $now);
+        } else {
+            $builder->where('publish_at <=', $now);
+        }
+
+        $builder->groupStart()
+            ->where('expires_at', null)
+            ->orWhere('expires_at >=', $now)
+        ->groupEnd()
+        ->groupStart()
+            ->where('audience', 'all');
+
+        if ($isPayrollStaff) {
+            $builder->orWhere('audience', 'payroll');
+        }
+
+        if ($userDepartment !== null && $userDepartment !== '') {
+            $builder->orGroupStart()
+                ->where('audience', 'department')
+                ->where('department', $userDepartment)
+            ->groupEnd();
+        }
+
+        return $builder->groupEnd();
+    }
+
     public function createAnnouncement(int $createdBy, array $data): bool
     {
         $this->announcementModel->insert([
@@ -53,38 +95,7 @@ class AnnouncementService
 
     public function getVisibleAnnouncementsForUser(object $user, int $limit = 15): array
     {
-        $now = date('Y-m-d H:i:s');
-        $isPayrollStaff = $user->inGroup('client_payroll_staff');
-        $userDepartment = $this->getDepartmentByUserId((int) $user->id);
-        $userId = (int) $user->id;
-
-        $builder = $this->announcementModel
-            ->select('announcements.*, users.username as author_username')
-            ->select('CASE WHEN announcement_views.id IS NULL THEN 0 ELSE 1 END as is_viewed', false)
-            ->join('users', 'users.id = announcements.created_by', 'left')
-            ->join('announcement_views', 'announcement_views.announcement_id = announcements.id AND announcement_views.user_id = ' . $userId, 'left')
-            ->where('publish_at <=', $now)
-            ->groupStart()
-                ->where('expires_at', null)
-                ->orWhere('expires_at >=', $now)
-            ->groupEnd()
-            ->groupStart()
-                ->where('audience', 'all');
-
-        if ($isPayrollStaff) {
-            $builder->orWhere('audience', 'payroll');
-        }
-
-        if ($userDepartment !== null && $userDepartment !== '') {
-            $builder->orGroupStart()
-                ->where('audience', 'department')
-                ->where('department', $userDepartment)
-            ->groupEnd();
-        }
-
-        $builder->groupEnd();
-
-        return $builder
+        return $this->applyVisibilityScope($user, false)
             ->orderBy('publish_at', 'DESC')
             ->limit($limit)
             ->findAll();
@@ -92,21 +103,71 @@ class AnnouncementService
 
     public function getUnpublishedAnnouncementsForPayroll(int $userId, int $limit = 15): array
     {
-        $now = date('Y-m-d H:i:s');
+        $user = auth()->user();
 
-        return $this->announcementModel
-            ->select('announcements.*, users.username as author_username')
-            ->select('CASE WHEN announcement_views.id IS NULL THEN 0 ELSE 1 END as is_viewed', false)
-            ->join('users', 'users.id = announcements.created_by', 'left')
-            ->join('announcement_views', 'announcement_views.announcement_id = announcements.id AND announcement_views.user_id = ' . $userId, 'left')
-            ->where('publish_at >', $now)
-            ->groupStart()
-                ->where('expires_at', null)
-                ->orWhere('expires_at >=', $now)
-            ->groupEnd()
+        if (! $user || (int) $user->id !== $userId) {
+            return [];
+        }
+
+        return $this->applyVisibilityScope($user, true)
             ->orderBy('publish_at', 'ASC')
             ->limit($limit)
             ->findAll();
+    }
+
+    public function getDismissibleAnnouncementIdsForUser(object $user): array
+    {
+        $publishedIds = array_map('intval', array_column($this->applyVisibilityScope($user, false)->findAll(), 'id'));
+
+        if (! $user->inGroup('client_payroll_staff')) {
+            return array_values(array_unique($publishedIds));
+        }
+
+        $unpublishedIds = array_map('intval', array_column($this->applyVisibilityScope($user, true)->findAll(), 'id'));
+
+        return array_values(array_unique(array_merge($publishedIds, $unpublishedIds)));
+    }
+
+    public function dismissAnnouncementsForUser(int $userId, array $announcementIds): int
+    {
+        if ($userId <= 0 || empty($announcementIds)) {
+            return 0;
+        }
+
+        $dismissalTable = db_connect()->table('announcement_dismissals');
+        $saved = 0;
+
+        foreach (array_unique(array_filter(array_map('intval', $announcementIds))) as $announcementId) {
+            if ($announcementId <= 0) {
+                continue;
+            }
+
+            $alreadyDismissed = $dismissalTable
+                ->select('id')
+                ->where('announcement_id', $announcementId)
+                ->where('user_id', $userId)
+                ->get()
+                ->getFirstRow('array');
+
+            if ($alreadyDismissed) {
+                continue;
+            }
+
+            if ($dismissalTable->insert([
+                'announcement_id' => $announcementId,
+                'user_id' => $userId,
+                'dismissed_at' => date('Y-m-d H:i:s'),
+            ])) {
+                $saved++;
+            }
+        }
+
+        return $saved;
+    }
+
+    public function dismissAllVisibleAnnouncementsForUser(object $user): int
+    {
+        return $this->dismissAnnouncementsForUser((int) $user->id, $this->getDismissibleAnnouncementIdsForUser($user));
     }
 
     public function markAnnouncementViewed(int $announcementId, int $userId): bool

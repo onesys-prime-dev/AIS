@@ -1638,16 +1638,42 @@ body{
         if (tabUnpublished) tabUnpublished.classList.remove("active");
     }
 
-    function clearNotificationsView() {
-        const publishedGroup = document.getElementById("publishedGroup");
-        const unpublishedGroup = document.getElementById("unpublishedGroup");
-
-        if (publishedGroup) {
-            publishedGroup.innerHTML = '<div class="notifications-empty">Notifications cleared from view.</div>';
+    async function clearNotificationsView() {
+        if (!window.notificationDismissedUrl || !window.notificationCsrfTokenName || !window.notificationCsrfTokenHash) {
+            return;
         }
 
-        if (unpublishedGroup) {
-            unpublishedGroup.innerHTML = '<div class="notifications-empty">Notifications cleared from view.</div>';
+        if (!window.confirm('Clear all notifications from your account?')) {
+            return;
+        }
+
+        const payload = new URLSearchParams();
+        payload.append('dismiss_all', '1');
+        payload.append(window.notificationCsrfTokenName, window.notificationCsrfTokenHash);
+
+        try {
+            const response = await fetch(window.notificationDismissedUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: payload.toString(),
+            });
+
+            const result = await response.json();
+
+            if (result && result.csrfHash) {
+                window.notificationCsrfTokenHash = result.csrfHash;
+            }
+
+            if (!response.ok || !result || result.success !== true) {
+                return;
+            }
+
+            window.location.reload();
+        } catch (error) {
+            console.error('Unable to clear notifications for current user.', error);
         }
     }
 

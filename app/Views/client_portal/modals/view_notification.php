@@ -39,6 +39,7 @@
         </div>
 
         <div class="notification-modal-footer">
+            <button type="button" class="notification-delete-btn" onclick="deleteCurrentNotificationForMe()">Delete</button>
             <button type="button" class="notification-cancel-btn" onclick="closeNotificationModal()">Close</button>
         </div>
     </div>

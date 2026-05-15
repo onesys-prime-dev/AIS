@@ -148,4 +148,54 @@ class AnnouncementController extends BaseController
             'csrfHash' => csrf_hash(),
         ]);
     }
+
+    public function dismiss()
+    {
+        $user = auth()->user();
+
+        if (! $user) {
+            return $this->response->setStatusCode(401)->setJSON([
+                'success' => false,
+                'message' => 'Unauthenticated.',
+                'csrfHash' => csrf_hash(),
+            ]);
+        }
+
+        $announcementId = (int) $this->request->getPost('announcement_id');
+        $dismissAll = (string) $this->request->getPost('dismiss_all') === '1';
+
+        if ($dismissAll) {
+            $dismissed = $this->announcementService->dismissAllVisibleAnnouncementsForUser($user);
+
+            return $this->response->setJSON([
+                'success' => true,
+                'dismissed' => $dismissed,
+                'csrfHash' => csrf_hash(),
+            ]);
+        }
+
+        if ($announcementId <= 0) {
+            return $this->response->setStatusCode(422)->setJSON([
+                'success' => false,
+                'message' => 'Invalid announcement id.',
+                'csrfHash' => csrf_hash(),
+            ]);
+        }
+
+        $saved = $this->announcementService->dismissAnnouncementsForUser((int) $user->id, [$announcementId]);
+
+        if ($saved <= 0) {
+            return $this->response->setStatusCode(404)->setJSON([
+                'success' => false,
+                'message' => 'Announcement not found or unable to dismiss.',
+                'csrfHash' => csrf_hash(),
+            ]);
+        }
+
+        return $this->response->setJSON([
+            'success' => true,
+            'dismissed' => $saved,
+            'csrfHash' => csrf_hash(),
+        ]);
+    }
 }

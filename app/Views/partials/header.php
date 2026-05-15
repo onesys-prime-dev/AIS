@@ -607,6 +607,23 @@ body .modal-overlay[style*="display: flex"] {
     background:#ffffff;
 }
 
+.notification-delete-btn{
+    border:1px solid #fecaca;
+    background:#fef2f2;
+    color:#b91c1c;
+    padding:10px 16px;
+    border-radius:10px;
+    cursor:pointer;
+    font-weight:700;
+    transition:all 0.2s ease;
+}
+
+.notification-delete-btn:hover{
+    background:#fee2e2;
+    border-color:#fca5a5;
+    transform:translateY(-2px);
+}
+
 .notification-cancel-btn{
     border:1px solid #d1d5db;
     background:#ffffff;
@@ -822,6 +839,8 @@ body .modal-overlay[style*="display: flex"] {
         const summaryNode = document.getElementById('viewNotificationSummary');
         const detailsNode = document.getElementById('viewNotificationDetails');
 
+        modal.dataset.notificationId = String(el.dataset.id || '');
+
         if (titleNode) titleNode.innerText = title;
         if (publishedNode) publishedNode.innerText = el.dataset.publish || 'N/A';
         if (categoryNode) categoryNode.innerText = el.dataset.category || 'General';
@@ -883,10 +902,54 @@ body .modal-overlay[style*="display: flex"] {
         }
     }
 
+    async function deleteCurrentNotificationForMe() {
+        const modal = document.getElementById('viewNotificationsModal');
+        const notificationId = Number(modal?.dataset.notificationId || 0);
+
+        if (!notificationId || !window.notificationDismissedUrl || !window.notificationCsrfTokenName || !window.notificationCsrfTokenHash) {
+            return;
+        }
+
+        if (!window.confirm('Delete this notification from your account?')) {
+            return;
+        }
+
+        const payload = new URLSearchParams();
+        payload.append('announcement_id', String(notificationId));
+        payload.append(window.notificationCsrfTokenName, window.notificationCsrfTokenHash);
+
+        try {
+            const response = await fetch(window.notificationDismissedUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: payload.toString(),
+            });
+
+            const result = await response.json();
+
+            if (result && result.csrfHash) {
+                window.notificationCsrfTokenHash = result.csrfHash;
+            }
+
+            if (!response.ok || !result || result.success !== true) {
+                return;
+            }
+
+            closeNotificationModal();
+            window.location.reload();
+        } catch (error) {
+            console.error('Unable to delete notification for current user.', error);
+        }
+    }
+
     function closeNotificationModal() {
         const modal = document.getElementById('viewNotificationsModal');
         if (!modal) return;
         modal.style.display = 'none';
+        modal.dataset.notificationId = '';
     }
 
 </script>
