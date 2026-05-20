@@ -1,5 +1,4 @@
 <?= $this->extend('layouts/main') ?>
-
 <?= $this->section('content') ?>
 
 <?php
@@ -8,309 +7,343 @@
 
 <div class="h-full flex flex-col min-h-0 overflow-hidden px-8 pb-8">
 
-    <!-- Page Header -->
+    <!-- Page Header (unchanged) -->
     <div class="flex justify-between items-center my-4">
         <div class="p-1">
             <h1 class="text-3xl font-bold text-gray-800 mb-1">Timesheets</h1>
             <p class="text-gray-500 text-sm">Manage timesheets here.</p>
         </div>
         <div class="flex items-center gap-4">
-            <!-- Activity logs -->
             <button type="button"
                 data-modal-open="viewDailyTimeLog"
                 onclick="openModalById('viewDailyTimeLog')"
-                class="bg-[#FFFFFF] hover:bg-[#f3f4f6]  px-3 py-3 rounded-lg shadow hover:shadow-[0_6px_12px_rgba(0,0,0,0.3)] flex items-center gap-2 transition hover:translate-y-[-2px]">
-                <div id="add-icon" class="w-7 h-7 cursor-pointer">
-                    <img src="<?php echo base_url('icons/activity.png'); ?>" alt="Add"/>
-                </div>
+                class="bg-[#FFFFFF] hover:bg-[#f3f4f6] px-3 py-3 rounded-lg shadow hover:shadow-[0_6px_12px_rgba(0,0,0,0.3)] flex items-center gap-2 transition hover:translate-y-[-2px]">
+                <img src="<?= base_url('icons/activity.png'); ?>" class="w-7 h-7" alt="Activity Log">
             </button>
 
-            <!-- Timesheets history -->
             <button type="button"
                 data-modal-open="viewTimesheetHistoryModal"
                 onclick="openModalById('viewTimesheetHistoryModal')"
-                class="bg-[#FFFFFF] hover:bg-[#f3f4f6]  px-3 py-3 rounded-lg shadow hover:shadow-[0_6px_12px_rgba(0,0,0,0.2)] flex items-center gap-2 transition hover:translate-y-[-2px]">
-                <div id="add-icon" class="w-7 h-7 cursor-pointer">
-                    <img src="<?php echo base_url('icons/alarms.png'); ?>" alt="Add"/>
-                </div>
+                class="bg-[#FFFFFF] hover:bg-[#f3f4f6] px-3 py-3 rounded-lg shadow hover:shadow-[0_6px_12px_rgba(0,0,0,0.2)] flex items-center gap-2 transition hover:translate-y-[-2px]">
+                <img src="<?= base_url('icons/alarms.png'); ?>" class="w-7 h-7" alt="History">
             </button>
 
-            <!-- View payslip -->
             <button type="button"
                 data-modal-open="viewPayslipModal"
                 onclick="openModalById('viewPayslipModal')"
                 class="bg-[#FF2D2D] hover:bg-[#dc2626] text-white px-3 py-3 rounded-lg shadow hover:shadow-[0_6px_12px_rgba(239,68,68,0.3)] flex items-center gap-2 transition hover:translate-y-[-2px]">
-                 <div id="add-icon" class="w-7 h-7 cursor-pointer">
-                    <img src="<?php echo base_url('icons/payslip.png'); ?>" alt="Add"/>
-                </div>
+                <img src="<?= base_url('icons/payslip.png'); ?>" class="w-7 h-7" alt="Payslip">
                 View Payslip
             </button>
         </div>
     </div>
 
-    <?= view('components/crud_table', [
-        'title' => 'Timesheet',
-        'tableId' => 'timesheetTable',
-        'grid' => 'grid-cols-[2fr_1.5fr_1.5fr_1.2fr_1fr_1fr]',
-        'columns' => [
-            'Date',
-            'Time Start',
-            'Time End',
-            'Department',
-            'Task Performed',
-            'Action'
-        ]
-    ]) ?>
+    <!-- Card (same as original) -->
+    <div class="bg-white rounded-lg shadow flex flex-col">
+        <!-- Filter bar (unchanged) -->
+        <div class="p-4 border-b flex justify-between items-center gap-4 flex-wrap">
+            <div class="relative w-64">
+                <span class="absolute inset-y-0 left-0 flex items-center pl-3">
+                    <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                    </svg>
+                </span>
+                <input type="text" id="searchInput" placeholder="Search..." class="w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500">
+            </div>
+            <div class="flex gap-4">
+                <select id="sortBy" class="border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
+                    <option value="date">Sort by Date</option>
+                    <option value="regular_hours">Sort by Regular Hours</option>
+                    <option value="ot_hours">Sort by OT Hours</option>
+                </select>
+                <select id="departmentFilter" class="border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
+                    <option value="">All Departments</option>
+                    <option value="Information Technology">IT</option>
+                    <option value="Human Resource">HR</option>
+                    <option value="Accounting">Accounting</option>
+                    <option value="Marketing">Marketing</option>
+                </select>
+            </div>
+        </div>
 
+        <!-- TABLE: Excel‑style with horizontal scroll (matches Payroll Status look) -->
+        <div class="overflow-x-auto">
+            <table class="min-w-[1100px] w-full text-sm border-collapse">
+                <thead class="bg-gray-100">
+                    <tr class="border-b">
+                        <th class="px-4 py-3 text-left font-semibold text-gray-700 whitespace-nowrap">Date</th>
+                        <th class="px-4 py-3 text-left font-semibold text-gray-700 whitespace-nowrap">IN</th>
+                        <th class="px-4 py-3 text-left font-semibold text-gray-700 whitespace-nowrap">OUT</th>
+                        <th class="px-4 py-3 text-left font-semibold text-gray-700 whitespace-nowrap">Regular Hrs</th>
+                        <th class="px-4 py-3 text-left font-semibold text-gray-700 whitespace-nowrap">OT Hrs</th>
+                        <th class="px-4 py-3 text-left font-semibold text-gray-700 whitespace-nowrap">RDOT Hrs</th>
+                        <th class="px-4 py-3 text-left font-semibold text-gray-700 whitespace-nowrap">Tardy (min)</th>
+                        <th class="px-4 py-3 text-left font-semibold text-gray-700 whitespace-nowrap">Night Diff</th>
+                        <th class="px-4 py-3 text-left font-semibold text-gray-700">Remarks</th>
+                        <th class="px-4 py-3 text-center font-semibold text-gray-700 whitespace-nowrap">Action</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody">
+                    <!-- Dynamic rows will be inserted here -->
+                </tbody>
+                <tfoot class="bg-gray-50 font-semibold border-t">
+                    <tr>
+                        <td class="px-4 py-3 text-right" colspan="3">TOTAL</td>
+                        <td class="px-4 py-3" id="totalRegular">0.00</td>
+                        <td class="px-4 py-3" id="totalOt">0.00</td>
+                        <td class="px-4 py-3" id="totalRdot">0.00</td>
+                        <td class="px-4 py-3" id="totalTardy">0</td>
+                        <td class="px-4 py-3" id="totalNightDiff">0.00</td>
+                        <td class="px-4 py-3" colspan="2"></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
 </div>
 
 <?= $this->endSection() ?>
 
 <?= $this->section('modals') ?>
-
+    <!-- Daily Time Log Modal -->
     <?php
-        $content = view('client_portal/modals/edit_timesheets_form');
-        echo view('components/modal', [
-            'id' => 'editTimesheetModal',
-            'title' => 'Timesheets Management',
-            'content' => $content
-        ]);
+        $content = view('client_portal/modals/view_daily_time_log', ['dailyTimeLog' => $dailyTimeLog ?? []]);
+        echo view('components/view_modal', ['id' => 'viewDailyTimeLog', 'title' => 'Daily Time Log', 'content' => $content]);
     ?>
 
-    <?php
-        $content = view('client_portal/modals/view_daily_time_log', [
-            'dailyTimeLog' => $dailyTimeLog ?? [],
-        ]);
-        echo view('components/view_modal', [
-            'id' => 'viewDailyTimeLog',
-            'title' => 'Daily Time Log',
-            'content' => $content
-        ]);
-    ?>
-
+    <!-- Timesheet History Modal -->
     <?php
         $content = view('client_portal/modals/view_timesheet_history');
-        echo view('components/view_modal', [
-            'id' => 'viewTimesheetHistoryModal',
-            'title' => 'Timesheets History',
-            'content' => $content
-        ]);
+        echo view('components/view_modal', ['id' => 'viewTimesheetHistoryModal', 'title' => 'Timesheets History', 'content' => $content]);
     ?>
 
+    <!-- Payslip Modal -->
     <?php
         $content = view('client_portal/modals/view_payslip');
-        echo view('components/view_modal', [
-            'id' => 'viewPayslipModal',
-            'title' => 'Payslip',
-            'content' => $content
-        ]);
-    ?> 
+        echo view('components/view_modal', ['id' => 'viewPayslipModal', 'title' => 'Payslip', 'content' => $content]);
+    ?>
 
+    <!-- Edit Attendance Modal -->
+    <div id="editAttendanceModal" class="modal-overlay" style="display:none;">
+        <div class="modal">
+            <div class="modal-header">
+                <span>Edit Attendance</span>
+                <button onclick="closeEditAttendanceModal()">✕</button>
+            </div>
+            <div class="modal-body">
+                <label>Date</label>
+                <input type="text" id="edit_att_date" readonly class="bg-gray-100">
+                <label>Time In</label>
+                <input type="time" id="edit_att_time_in" step="1">
+                <label>Time Out</label>
+                <input type="time" id="edit_att_time_out" step="1">
+                <input type="hidden" id="edit_att_id">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="cancel-btn" onclick="closeEditAttendanceModal()">Cancel</button>
+                <button type="button" class="submit-btn" onclick="saveAttendanceEdit()">Save</button>
+            </div>
+        </div>
+    </div>
 <?= $this->endSection() ?>
 
 <?= $this->section('scripts') ?>
-
 <script src="<?= base_url('js/components/flash-notifications.js') ?>"></script>
 <script src="<?= base_url('js/components/modal-handler.js') ?>"></script>
-<script src="<?= base_url('js/components/crud-actions.js') ?>"></script>
-<script src="<?= base_url('js/components/crud-table.js') ?>"></script>
 
 <script>
+const DAILY_DATA = <?= json_encode($dailyTimesheet) ?>;
+const TOTALS = <?= json_encode($totals) ?>;
+const UPDATE_ATTENDANCE_URL = "<?= site_url('client_portal/timesheet/update-attendance') ?>";
 
-const TIMESHEETS = <?= json_encode($timesheet) ?>;
-const TIMESHEET_HISTORY = <?= json_encode($timesheetHistory ?? []) ?>;
-const CURRENT_USER_ID = <?= (int) ($currentUserId ?? 0) ?>;
-const EDIT_ICON = "<?= base_url('icons/edit.png') ?>";
-const DELETE_ICON = "<?= base_url('icons/delete.png') ?>";
-const UPDATE_URL = "<?= site_url('client_portal/timesheets/update') ?>";
-const DELETE_URL = "<?= site_url('client_portal/timesheets/delete') ?>";
+let currentData = [...DAILY_DATA];
 
-    function toSortableDate(value) {
-        const date = new Date(value || '');
-        return Number.isNaN(date.getTime()) ? 0 : date.getTime();
+function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/[&<>]/g, m => m === '&' ? '&amp;' : (m === '<' ? '&lt;' : '&gt;'));
+}
+
+function formatDate(dateStr) {
+    const d = new Date(dateStr);
+    return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+}
+
+function convertToTimeInput(timeStr) {
+    if (timeStr === '-') return '08:00:00';
+    let match = timeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
+    if (!match) return timeStr;
+    let h = parseInt(match[1]);
+    let m = match[2];
+    let ampm = match[3].toUpperCase();
+    if (ampm === 'PM' && h !== 12) h += 12;
+    if (ampm === 'AM' && h === 12) h = 0;
+    return `${h.toString().padStart(2,'0')}:${m}:00`;
+}
+
+function renderTable() {
+    const tbody = document.getElementById('tableBody');
+    if (!tbody) return;
+    if (currentData.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="10" class="p-8 text-center text-gray-500">No attendance records for this period.</td></tr>';
+        return;
     }
-
-    function configureTimesheetFilterUi() {
-        const tableContainer = document.querySelector('[data-crud-table="timesheetTable"]');
-        if (!tableContainer) return;
-
-        const statusWrap = tableContainer.querySelector('[data-filter="status"]')?.closest('div');
-        const employmentWrap = tableContainer.querySelector('[data-filter="employment_type"]')?.closest('div');
-        if (statusWrap) statusWrap.classList.add('hidden');
-        if (employmentWrap) employmentWrap.classList.add('hidden');
-
-        const sortBy = tableContainer.querySelector('[data-filter="sort_by"]');
-        if (sortBy) {
-            sortBy.innerHTML = `
-                <option value="date">Date</option>
-                <option value="start_time">Start Time</option>
-                <option value="end_time">End Time</option>
-                <option value="department">Department</option>
-                <option value="task_performed">Task Performed</option>
-            `;
-            sortBy.value = 'date';
-        }
-    }
-
-    function htmlEsc(val) {
-        if (val == null) return '';
-        return String(val)
-            .replace(/&/g, '&amp;')
-            .replace(/"/g, '&quot;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;');
-    }
-
-    function formatPeriodRange(start, end) {
-        if (!start || !end) return '---';
-
-        const startDate = new Date(start);
-        const endDate = new Date(end);
-
-        if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
-            return `${htmlEsc(start)} - ${htmlEsc(end)}`;
-        }
-
-        const fmt = new Intl.DateTimeFormat('en-US', {
-            month: 'short',
-            day: 'numeric',
-            year: 'numeric',
-        });
-
-        return `${fmt.format(startDate)} - ${fmt.format(endDate)}`;
-    }
-
-    function timesheetsRowTemplate(p) {
-        return `
-            <div class="grid grid-cols-[2fr_1.5fr_1.5fr_1.2fr_1fr_1fr] items-center border-b hover:bg-gray-50">
-
-                <div class="p-4 flex items-center gap-3">
-                    ${htmlEsc(p.date) || '---'}
-                </div>
-
-                <div class="p-4">${htmlEsc(p.start_time) || '---'}</div>
-                <div class="p-4">${htmlEsc(p.end_time) || '---'}</div>
-                <div class="p-4">${htmlEsc(p.department) || '---'}</div>
-                <div class="p-4">${htmlEsc(p.task_performed) || '---'}</div>
-
-                <div class="p-4 flex justify-center gap-4">
-
-                    <div
-                        class="cursor-pointer w-7 h-7 hover:scale-110 transition"
-                        data-action="edit"
-                        data-modal="editTimesheetModal"
-                        data-update-url="${UPDATE_URL}"
-                        data-id="${htmlEsc(p.id)}"
-                        data-user_id="${htmlEsc(p.user_id)}"
-                        data-date="${htmlEsc(p.date)}"
-                        data-start_time="${htmlEsc(p.start_time)}"
-                        data-end_time="${htmlEsc(p.end_time)}"
-                        data-department="${htmlEsc(p.department)}"
-                        data-task_performed="${htmlEsc(p.task_performed)}">
-
-                        <img src="${EDIT_ICON}" class="w-7 h-7" alt="Edit">
-
+    let html = '';
+    currentData.forEach(day => {
+        html += `
+            <tr class="border-b hover:bg-gray-50">
+                <td class="px-4 py-3 whitespace-nowrap">${formatDate(day.date)}</td>
+                <td class="px-4 py-3 editable-time cursor-pointer whitespace-nowrap" data-id="${day.attendance_id}" data-field="time_in" title="Double-click to edit">${escapeHtml(day.in)}</td>
+                <td class="px-4 py-3 editable-time cursor-pointer whitespace-nowrap" data-id="${day.attendance_id}" data-field="time_out" title="Double-click to edit">${escapeHtml(day.out)}</td>
+                <td class="px-4 py-3 whitespace-nowrap">${day.regular_hours.toFixed(2)}</td>
+                <td class="px-4 py-3 whitespace-nowrap">${day.ot_hours.toFixed(2)}</td>
+                <td class="px-4 py-3 whitespace-nowrap">${day.rdot_hours.toFixed(2)}</td>
+                <td class="px-4 py-3 whitespace-nowrap">${Math.round(day.tardy_minutes)}</td>
+                <td class="px-4 py-3 whitespace-nowrap">${day.night_diff.toFixed(2)}</td>
+                <td class="px-4 py-3 max-w-xs truncate" title="${escapeHtml(day.remarks)}">${escapeHtml(day.remarks)}</td>
+                <td class="px-4 py-3 text-center whitespace-nowrap">
+                    <div class="cursor-pointer w-7 h-7 hover:scale-110 transition inline-block"
+                         onclick="openEditAttendanceModal(${day.attendance_id}, '${day.date}', '${escapeHtml(day.in)}', '${escapeHtml(day.out)}')">
+                        <img src="<?= base_url('icons/edit.png') ?>" class="w-7 h-7" alt="Edit">
                     </div>
-
-                    <div
-                        class="cursor-pointer w-7 h-7 hover:scale-110 transition"
-                        data-action="delete"
-                        data-delete-url="${DELETE_URL}"
-                        data-id="${htmlEsc(p.id)}">
-
-                        <img src="${DELETE_ICON}" class="w-7 h-7" alt="Delete">
-
-                    </div>
-
-                </div>
-
-            </div>
-            `;
-        }
-
-    function historyRowTemplate(item) {
-        const period = formatPeriodRange(item.period_start, item.period_end);
-        const hours = Number(item.total_hours ?? 0).toFixed(2);
-        const entriesCount = Number(item.entries_count ?? 0);
-        const daysCovered = Number(item.days_covered ?? 0);
-
-        return `
-            <div class="grid grid-cols-[2fr_1.5fr_1fr] items-center border-b hover:bg-gray-50">
-                <div class="p-4">${period}</div>
-                <div class="p-4">
-                    <div class="font-semibold text-gray-800">${hours} hrs</div>
-                    <div class="text-xs text-gray-500">${entriesCount} entries • ${daysCovered} days</div>
-                </div>
-                <div class="p-4 text-center">
-                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-violet-100 text-violet-700">
-                        Cutoff Saved
-                    </span>
-                </div>
-            </div>
+                </td>
+            </tr>
         `;
+    });
+    tbody.innerHTML = html;
+
+    document.getElementById('totalRegular').innerText = TOTALS.regular_hours.toFixed(2);
+    document.getElementById('totalOt').innerText = TOTALS.ot_hours.toFixed(2);
+    document.getElementById('totalRdot').innerText = TOTALS.rdot_hours.toFixed(2);
+    document.getElementById('totalTardy').innerText = Math.round(TOTALS.tardy_minutes);
+    document.getElementById('totalNightDiff').innerText = TOTALS.night_diff.toFixed(2);
+
+    attachDoubleClickEdit();
+}
+
+function attachDoubleClickEdit() {
+    document.querySelectorAll('.editable-time').forEach(cell => {
+        cell.removeEventListener('dblclick', handleDoubleClick);
+        cell.addEventListener('dblclick', handleDoubleClick);
+    });
+}
+
+function handleDoubleClick(e) {
+    const cell = e.currentTarget;
+    const currentValue = cell.innerText.trim();
+    const attendanceId = cell.getAttribute('data-id');
+    const field = cell.getAttribute('data-field');
+    if (!attendanceId) return;
+
+    const input = document.createElement('input');
+    input.type = 'time';
+    input.step = '1';
+    input.value = currentValue !== '-' ? convertToTimeInput(currentValue) : '08:00:00';
+    input.className = 'border rounded px-2 py-1 text-sm w-28';
+    cell.innerText = '';
+    cell.appendChild(input);
+    input.focus();
+
+    const save = () => {
+        let newValue = input.value;
+        newValue = newValue.includes(':') ? newValue + ':00' : newValue;
+        fetch(UPDATE_ATTENDANCE_URL + '/' + attendanceId, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+            },
+            body: JSON.stringify({ [field]: newValue })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) location.reload();
+            else alert('Update failed: ' + (data.message || 'Unknown error'));
+        })
+        .catch(err => {
+            console.error(err);
+            alert('Network error');
+        });
+        cell.innerText = currentValue;
+    };
+
+    input.addEventListener('blur', save);
+    input.addEventListener('keypress', (e) => { if (e.key === 'Enter') input.blur(); });
+}
+
+function openEditAttendanceModal(id, date, timeIn, timeOut) {
+    document.getElementById('edit_att_id').value = id;
+    document.getElementById('edit_att_date').value = date;
+    document.getElementById('edit_att_time_in').value = timeIn !== '-' ? convertToTimeInput(timeIn) : '08:00:00';
+    document.getElementById('edit_att_time_out').value = timeOut !== '-' ? convertToTimeInput(timeOut) : '17:00:00';
+    document.getElementById('editAttendanceModal').style.display = 'flex';
+}
+
+function closeEditAttendanceModal() {
+    document.getElementById('editAttendanceModal').style.display = 'none';
+}
+
+function saveAttendanceEdit() {
+    const id = document.getElementById('edit_att_id').value;
+    let timeIn = document.getElementById('edit_att_time_in').value;
+    let timeOut = document.getElementById('edit_att_time_out').value;
+    if (!timeIn || !timeOut) {
+        alert('Please fill both Time In and Time Out');
+        return;
     }
+    timeIn = timeIn.includes(':') ? timeIn + ':00' : timeIn;
+    timeOut = timeOut.includes(':') ? timeOut + ':00' : timeOut;
 
-    configureTimesheetFilterUi();
-
-    createCrudTable({
-        tableId: "timesheetTable",
-        data: Array.isArray(TIMESHEETS) ? TIMESHEETS : [],
-        renderRow: timesheetsRowTemplate,
-        search: (item, q) =>
-            `${item.date ?? ''} ${item.start_time ?? ''} ${item.end_time ?? ''} ${item.department ?? ''} ${item.task_performed ?? ''}`
-                .toLowerCase()
-                .includes(q),
-        filters: ({ item, query, department }) => {
-            const matchesSearch =
-                !query ||
-                `${item.date ?? ''} ${item.start_time ?? ''} ${item.end_time ?? ''} ${item.department ?? ''} ${item.task_performed ?? ''}`
-                    .toLowerCase()
-                    .includes(query);
-
-            const matchesDepartment =
-                !department || String(item.department ?? '').toLowerCase() === department;
-
-            return matchesSearch && matchesDepartment;
+    fetch(UPDATE_ATTENDANCE_URL + '/' + id, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
         },
-        sort: ({ a, b, sortBy, sortOrder }) => {
-            let left = '';
-            let right = '';
+        body: JSON.stringify({ time_in: timeIn, time_out: timeOut })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) location.reload();
+        else alert('Update failed: ' + (data.message || 'Unknown error'));
+    })
+    .catch(err => {
+        console.error(err);
+        alert('Network error');
+    });
+}
 
-            if (sortBy === 'date') {
-                left = toSortableDate(a.date);
-                right = toSortableDate(b.date);
-            } else {
-                left = String(a[sortBy] ?? '').toLowerCase();
-                right = String(b[sortBy] ?? '').toLowerCase();
-            }
+function filterAndSort() {
+    const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+    const sortBy = document.getElementById('sortBy').value;
+    const department = document.getElementById('departmentFilter').value;
 
-            if (left < right) return sortOrder === 'asc' ? -1 : 1;
-            if (left > right) return sortOrder === 'asc' ? 1 : -1;
-            return 0;
-        }
+    let filtered = DAILY_DATA.filter(day => {
+        const matchesSearch = !searchTerm || 
+            day.date.includes(searchTerm) ||
+            (day.remarks && day.remarks.toLowerCase().includes(searchTerm)) ||
+            day.in.toLowerCase().includes(searchTerm) ||
+            day.out.toLowerCase().includes(searchTerm);
+        const matchesDept = !department || (day.department && day.department === department);
+        return matchesSearch && matchesDept;
     });
 
-    createCrudTable({
-        tableId: 'timesheetHistoryTable',
-        data: Array.isArray(TIMESHEET_HISTORY) ? TIMESHEET_HISTORY : [],
-        renderRow: historyRowTemplate,
-        search: (item, q) =>
-            `${item.period_start ?? ''} ${item.period_end ?? ''} ${item.total_hours ?? ''}`
-                .toLowerCase()
-                .includes(q),
-        filters: ({ item, query }) => {
-            const haystack = `${item.period_start ?? ''} ${item.period_end ?? ''} ${item.total_hours ?? ''}`.toLowerCase();
-            return !query || haystack.includes(query);
-        },
-        sort: ({ a, b, sortOrder }) => {
-            const left = toSortableDate(a.period_start);
-            const right = toSortableDate(b.period_start);
-
-            if (left < right) return sortOrder === 'asc' ? -1 : 1;
-            if (left > right) return sortOrder === 'asc' ? 1 : -1;
-            return 0;
-        }
+    filtered.sort((a, b) => {
+        if (sortBy === 'date') return new Date(b.date) - new Date(a.date);
+        if (sortBy === 'regular_hours') return b.regular_hours - a.regular_hours;
+        if (sortBy === 'ot_hours') return b.ot_hours - a.ot_hours;
+        return 0;
     });
+
+    currentData = filtered;
+    renderTable();
+}
+
+document.getElementById('searchInput')?.addEventListener('input', filterAndSort);
+document.getElementById('sortBy')?.addEventListener('change', filterAndSort);
+document.getElementById('departmentFilter')?.addEventListener('change', filterAndSort);
+
+renderTable();
 </script>
-
 <?= $this->endSection() ?>

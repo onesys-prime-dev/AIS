@@ -118,4 +118,5 @@ $routes->group('client_portal', ['namespace' => 'App\Controllers\Client'], funct
     $routes->post('client_portal/payroll/sendPdf', 'Client\PayrollController::sendPdf');
     $routes->post('payroll/savePayslipRecord', 'PayrollController::savePayslipRecord');
     $routes->get('payroll/getAllPayslips', 'PayrollController::getAllPayslips');
+    $routes->post('client_portal/timesheet/update-attendance/(:num)', 'Client\TimesheetController::updateAttendance/$1');
 });

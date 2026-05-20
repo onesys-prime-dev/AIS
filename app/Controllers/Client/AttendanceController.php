@@ -52,7 +52,7 @@ class AttendanceController extends BaseController
 
     public function timeOut($id)
     {
-        $user   = auth()->user();
+        $user = auth()->user();
         $userId = $user->id;
 
         $attendance = $this->attendanceModel
@@ -72,51 +72,25 @@ class AttendanceController extends BaseController
         $end   = time();
 
         $totalHours = ($end - $start) / 3600;
-
-        // Auto-apply 1 hour break if no break was taken
-        $breakDuration = $attendance['break_duration'] ?? 0;
-        $autoBreak     = false;
-
-        if ($breakDuration == 0) {
-            $breakDuration = 1.0;
-            $autoBreak     = true;
-        }
-
+        $breakDuration = (float)($attendance['break_duration'] ?? 0);
         $workedHours = $totalHours - $breakDuration;
-        $cappedHours = min($workedHours, 8);
 
-        $timeOutTimestamp = $start + ($cappedHours + $breakDuration) * 3600;
-        $timeOut          = date('H:i:s', $timeOutTimestamp);
-
-        // Capture state before the update
-        $before = [
-            'time_out'    => $attendance['time_out'],
-            'total_hours' => $attendance['total_hours'],
-        ];
+        // Compute night differential hours (between 22:00 and 06:00)
+        $nightDiffHours = $this->computeNightDiffHours($attendance['date'], $timeIn, date('H:i:s', $end), $breakDuration);
 
         $this->attendanceModel->update($attendance['id'], [
-            'time_out'       => $timeOut,
-            'total_hours'    => round($cappedHours, 2),
-            'break_duration' => $breakDuration,
-            'break_end'      => (!empty($attendance['break_start']) && empty($attendance['break_end']))
-                ? date('Y-m-d H:i:s')
-                : ($attendance['break_end'] ?? null),
+            'time_out'         => date('H:i:s'),
+            'total_hours'      => round($totalHours, 2),
+            'break_duration'   => $breakDuration,
+            'night_diff_hours' => round($nightDiffHours, 2),
         ]);
 
-        service('activityLogger')->attendanceClockedOut($attendance['id'], $before, [
-            'time_out'    => $timeOut,
-            'total_hours' => round($cappedHours, 2),
+        service('activityLogger')->attendanceClockedOut($attendance['id'], [
+            'time_out'    => date('H:i:s'),
+            'total_hours' => round($totalHours, 2),
         ]);
 
-        $successMessage = $autoBreak
-            ? 'Time out recorded! (1 hour break auto-applied)'
-            : 'Time out recorded!';
-
-        return redirect()->back()
-            ->with('success', $successMessage)
-            ->with('timeout_time', $timeOut)
-            ->with('total_hours', round($cappedHours, 2))
-            ->with('break_hours', $breakDuration);
+        return redirect()->back()->with('success', 'Time out recorded!');
     }
 
     public function toggleBreak($id)
@@ -150,16 +124,8 @@ class AttendanceController extends BaseController
             ]);
 
             service('activityLogger')->attendanceBreakRecorded($id,
-                [
-                    'break_start'    => null,
-                    'break_end'      => $attendance['break_end'],
-                    'break_duration' => $attendance['break_duration'],
-                ],
-                [
-                    'break_start'    => $breakStartTime,
-                    'break_end'      => $attendance['break_end'],
-                    'break_duration' => $attendance['break_duration'],
-                ]
+                ['break_start' => null, 'break_end' => $attendance['break_end'], 'break_duration' => $attendance['break_duration']],
+                ['break_start' => $breakStartTime, 'break_end' => $attendance['break_end'], 'break_duration' => $attendance['break_duration']]
             );
 
             return redirect()->back()->with('success', 'Break started!');
@@ -178,21 +144,36 @@ class AttendanceController extends BaseController
             ]);
 
             service('activityLogger')->attendanceBreakRecorded($id,
-                [
-                    'break_start'    => $attendance['break_start'],
-                    'break_end'      => null,
-                    'break_duration' => $attendance['break_duration'],
-                ],
-                [
-                    'break_start'    => null,
-                    'break_end'      => $breakEndTime,
-                    'break_duration' => round($totalBreak, 2),
-                ]
+                ['break_start' => $attendance['break_start'], 'break_end' => null, 'break_duration' => $attendance['break_duration']],
+                ['break_start' => null, 'break_end' => $breakEndTime, 'break_duration' => round($totalBreak, 2)]
             );
 
             return redirect()->back()
                 ->with('success', 'Break ended!')
                 ->with('break_hours', round($totalBreak, 2));
         }
+    }
+
+    private function computeNightDiffHours($date, $timeIn, $timeOut, $breakDuration)
+    {
+        $start = new \DateTime($date . ' ' . $timeIn);
+        $end   = new \DateTime($date . ' ' . $timeOut);
+        if ($end < $start) {
+            $end->modify('+1 day');
+        }
+
+        $ndStart = new \DateTime($date . ' 22:00:00');
+        $ndEnd   = new \DateTime($date . ' 06:00:00');
+        $ndEnd->modify('+1 day');
+
+        $overlapStart = max($start, $ndStart);
+        $overlapEnd   = min($end, $ndEnd);
+        $nightMinutes = 0;
+        if ($overlapStart < $overlapEnd) {
+            $diff = $overlapStart->diff($overlapEnd);
+            $nightMinutes = $diff->h * 60 + $diff->i;
+        }
+        // Simple deduction: assume break does not overlap night diff; refine if needed
+        return $nightMinutes / 60;
     }
 }
