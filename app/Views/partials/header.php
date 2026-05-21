@@ -40,55 +40,55 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
 
                 <div class="header-notif-section-label">Today</div>
 
-                <div class="header-notif-list">
-                    <?php if (!empty($notifications)): ?>
-                        <?php foreach($notifications as $n): ?>
-                            <?php
-                                $notifId = (int) ($n['id'] ?? 0);
-                                $notifTime = (string) ($n['time_ago'] ?? '');
-                                $notifTitle = (string) ($n['title'] ?? 'Notification');
-                                $notifSummary = (string) ($n['summary'] ?? $n['message'] ?? '');
-                                $notifDetails = (string) ($n['details'] ?? $notifSummary);
-                                $notifPublished = (string) ($n['publish_at'] ?? '');
-                                $notifCategory = (string) ($n['category'] ?? 'General');
-                                $notifPriority = (string) ($n['priority'] ?? 'Normal');
-                                $notifAudience = (string) ($n['audience'] ?? 'All Employees');
-                            ?>
-                            <div
-                                class="header-notif-item <?= ! empty($n['is_viewed']) ? 'header-notif-viewed' : '' ?>"
-                                role="button"
-                                tabindex="0"
-                                data-id="<?= esc((string) $notifId, 'attr') ?>"
-                                data-title="<?= esc($notifTitle, 'attr') ?>"
-                                data-summary="<?= esc($notifSummary, 'attr') ?>"
-                                data-details="<?= esc($notifDetails, 'attr') ?>"
-                                data-publish="<?= esc($notifPublished !== '' ? date('M d, Y h:i A', strtotime($notifPublished)) : 'N/A', 'attr') ?>"
-                                data-category="<?= esc($notifCategory, 'attr') ?>"
-                                data-priority="<?= esc(ucfirst($notifPriority), 'attr') ?>"
-                                data-audience="<?= esc(ucfirst($notifAudience), 'attr') ?>"
-                                onclick="openNotificationModal(this)"
-                                onkeydown="handleNotificationKey(event, this)"
-                            >
-                                <div class="header-notif-icon-wrap">
-                                    <i class="fa-regular fa-bell"></i>
-                                </div>
-                                <div class="header-notif-content">
-                                    <div class="header-notif-topline">
-                                        <div class="header-notif-title-wrap">
-                                            <div class="header-notif-title"><?= esc($notifTitle) ?></div>
-                                            <span class="header-notif-dot"></span>
-                                        </div>
-                                        <?php if ($notifTime !== ''): ?>
-                                            <span class="header-notif-time"><?= esc($notifTime) ?></span>
-                                        <?php endif; ?>
+                <div class="header-notif-list notif-scroll-hide">
+                        <?php if (!empty($notifications)): ?>
+                            <?php foreach($notifications as $n): ?>
+                                <?php
+                                    $notifId = (int) ($n['id'] ?? 0);
+                                    $notifTime = (string) ($n['time_ago'] ?? '');
+                                    $notifTitle = (string) ($n['title'] ?? 'Notification');
+                                    $notifSummary = (string) ($n['summary'] ?? $n['message'] ?? '');
+                                    $notifDetails = (string) ($n['details'] ?? $notifSummary);
+                                    $notifPublished = (string) ($n['publish_at'] ?? '');
+                                    $notifCategory = (string) ($n['category'] ?? 'General');
+                                    $notifPriority = (string) ($n['priority'] ?? 'Normal');
+                                    $notifAudience = (string) ($n['audience'] ?? 'All Employees');
+                                ?>
+                                <div
+                                    class="header-notif-item <?= ! empty($n['is_viewed']) ? 'header-notif-viewed' : '' ?>"
+                                    role="button"
+                                    tabindex="0"
+                                    data-id="<?= esc((string) $notifId, 'attr') ?>"
+                                    data-title="<?= esc($notifTitle, 'attr') ?>"
+                                    data-summary="<?= esc($notifSummary, 'attr') ?>"
+                                    data-details="<?= esc($notifDetails, 'attr') ?>"
+                                    data-publish="<?= esc($notifPublished !== '' ? date('M d, Y h:i A', strtotime($notifPublished)) : 'N/A', 'attr') ?>"
+                                    data-category="<?= esc($notifCategory, 'attr') ?>"
+                                    data-priority="<?= esc(ucfirst($notifPriority), 'attr') ?>"
+                                    data-audience="<?= esc(ucfirst($notifAudience), 'attr') ?>"
+                                    onclick="openNotificationModal(this)"
+                                    onkeydown="handleNotificationKey(event, this)"
+                                >
+                                    <div class="header-notif-icon-wrap">
+                                        <i class="fa-regular fa-bell"></i>
                                     </div>
-                                    <div class="header-notif-desc"><?= esc($notifSummary) ?></div>
+                                    <div class="header-notif-content">
+                                        <div class="header-notif-topline">
+                                            <div class="header-notif-title-wrap">
+                                                <div class="header-notif-title"><?= esc($notifTitle) ?></div>
+                                                <span class="header-notif-dot"></span>
+                                            </div>
+                                            <?php if ($notifTime !== ''): ?>
+                                                <span class="header-notif-time"><?= esc($notifTime) ?></span>
+                                            <?php endif; ?>
+                                        </div>
+                                        <div class="header-notif-desc"><?= esc($notifSummary) ?></div>
+                                    </div>
                                 </div>
-                            </div>
-                        <?php endforeach; ?>
-                    <?php else: ?>
-                        <div class="header-notif-empty">No notifications</div>
-                    <?php endif; ?>
+                            <?php endforeach; ?>
+                        <?php else: ?>
+                            <div class="header-notif-empty">No notifications</div>
+                        <?php endif; ?>
                 </div>
             </div>
         </div>
@@ -254,15 +254,15 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
     position:absolute;
     right:0;
     top:56px;
-    width:460px;
+    width:400px;
     background: var(--dropdown-bg);
     border-radius:14px;
     box-shadow:0 18px 40px rgba(15,23,42,0.16);
     border:1px solid #e5e7eb;
     display:none;
-    padding:0;
+    padding: 0 0 5px 0;
     overflow:hidden;
-
+    height: 500px;
     z-index:99999;
 }
 
@@ -271,31 +271,38 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
     align-items:center;
     justify-content:space-between;
     gap:10px;
-    padding:14px 18px;
+    padding:0 18px;
     border-bottom:1px solid #e5e7eb;
     background:#ffffff;
+    box-sizing:border-box;
+    height:55px;
 }
 
 .header-notif-heading{
-    font-size: 22px;
+    font-size: 20px;
     font-weight: 700;
     color:var(--header-text);
     line-height: 1;
+    flex:0 0 auto;
 }
 
 .header-notif-mark-read{
     border:none;
     background:transparent;
     color:var(--accent-violet-deep);
-    font-size:13px;
+    font-size:12px;
     font-weight:700;
     display:flex;
     align-items:center;
     gap: 6px;
-    padding: 3px 5px;
+    padding: 0 4px;
+    height: 26px;
     border-radius: 5px;
     cursor:pointer;
     transition: color 0.2s ease;
+    line-height: 1;
+    flex:0 0 auto;
+    white-space:nowrap;
 }
 
 .header-notif-mark-read:hover{
@@ -310,14 +317,31 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
     color:#6b7280;
     font-size:13px;
     font-weight:700;
+    box-shadow: 0 10px 12px -12px rgba(31, 30, 9, 0.17);
 }
 
-.header-notif-list{
-    max-height:420px;
-    overflow:auto;
+.header-notif-list {
+    /* Make the list take the full dropdown space and lay items vertically */
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    height: calc(100% - 88px);
+    overflow-y: auto;
+    padding: 0;
 }
 
-.header-notif-item{
+.notif-scroll-hide {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.notif-scroll-hide::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+}
+
+.header-notif-item {
     display:flex;
     align-items:flex-start;
     gap:14px;
@@ -383,7 +407,7 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
 }
 
 .header-notif-desc{
-    font-size:15px;
+    font-size:14px;
     color:#475569;
     line-height:1.45;
 }
@@ -399,11 +423,13 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
     text-align:center;
     color:#6b7280;
     font-size:14px;
+    margin: auto; /* center within the flex container both vertically and horizontally */
+    width: 100%;
 }
 
 .double-check-icon{
-    width: 20px;
-    height: 20px;
+    width: 16px;
+    height: 16px;
 }
 
 .modal-overlay{
@@ -851,7 +877,7 @@ body .modal-overlay[style*="display: flex"] {
 
         const notificationId = Number(el.dataset.id || 0);
 
-        if (notificationId && !el.classList.contains('header-notif-viewed')) {
+        if (notificationId && !el.classList.contains('header-notif-viewed') && !el.classList.contains('notif-viewed')) {
             syncNotificationViewedState(notificationId, true);
             markNotificationAsViewed(notificationId);
         }
@@ -865,6 +891,7 @@ body .modal-overlay[style*="display: flex"] {
 
         document.querySelectorAll(`.header-notif-item[data-id="${notificationId}"], .notif[data-id="${notificationId}"]`).forEach(function (item) {
             item.classList.toggle('header-notif-viewed', isViewed);
+            item.classList.toggle('notif-viewed', isViewed);
         });
     }
 

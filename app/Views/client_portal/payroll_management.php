@@ -25,9 +25,19 @@ body{ font-family: 'Segoe UI', Arial, sans-serif; background: #f0f2f5; }
 .tab-content.active{ display:block; }
 
 /* Scroll area */
-.hide-scroll-bar{
+.payroll-scroll-area{
     overflow-y:auto;
     height:600px;
+}
+
+.payroll-scroll-hide{
+    scrollbar-width:none;
+    -ms-overflow-style:none;
+}
+
+.payroll-scroll-hide::-webkit-scrollbar{
+    width:0;
+    height:0;
 }
 
 .section{ margin-bottom:35px; }
@@ -205,6 +215,7 @@ input, select{
     overflow-y: auto;
     z-index: 20;
     display: none;
+    margin-top: 10px;
     box-shadow: 0 4px 6px rgba(0,0,0,0.1);
 }
 .employee-suggestion-item {
@@ -334,7 +345,7 @@ input, select{
     <div class="flex flex-col flex-1 overflow-hidden">
 
         <!-- ================= RAW SHEET ================= -->
-        <div class="tab-content active hide-scroll-bar" id="raw">
+        <div class="tab-content active payroll-scroll-area payroll-scroll-hide" id="raw">
             <!-- Mode Switch -->
             <div class="mode-switch">
                 <button type="button" class="mode-btn active" onclick="switchMode('individual', event)">Individual</button>
@@ -348,7 +359,7 @@ input, select{
                     <div id="individual-employee-select" class="employee-search-container">
                         <label>Employee Name</label>
                         <input type="text" id="empSearchInput" placeholder="Type to search..." autocomplete="off">
-                        <div id="employeeSuggestions" class="employee-suggestions"></div>
+                        <div id="employeeSuggestions" class="employee-suggestions payroll-scroll-hide"></div>
                         <input type="hidden" id="selectedEmployeeId" value="">
                     </div>
                     <div id="bulk-employee-select" style="display:none;">
@@ -359,7 +370,7 @@ input, select{
                 </div>
                 <div class="mt-3">
                     <label>Selected Employee(s)</label>
-                    <input type="text" id="empName" placeholder="e.g. 51 T" readonly class="bg-gray-200">-
+                    <input type="text" id="empName" placeholder="e.g. 51 T" readonly class="bg-gray-200">
                 </div>
             </div>
 
@@ -500,7 +511,7 @@ input, select{
         </div>
 
         <!-- ================= PAYROLL REGISTER ================= -->
-        <div class="tab-content hide-scroll-bar" id="register">
+        <div class="tab-content payroll-scroll-area payroll-scroll-hide" id="register">
             <div style="max-width: 100%;">
                 <h3 class="font-semibold">Details</h3>
                 <p class="subtitle">Please complete the employee data</p>
@@ -595,7 +606,7 @@ input, select{
         </div>
 
         <!-- ================= PAYSLIP TAB (Editable Preview + Generate Button) ================= -->
-        <div class="tab-content hide-scroll-bar" id="payslip">
+        <div class="tab-content payroll-scroll-area payroll-scroll-hide" id="payslip">
             <h3 class="font-semibold">Payslip Details</h3>
             <div class="sub-text">Please complete the employee data</div>
 

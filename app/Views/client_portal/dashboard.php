@@ -292,8 +292,8 @@ body{
 }
 
 .notifications-clear .dot{
-    width:23px;
-    height:23px;
+    width:25px;
+    height:25px;
 }
 
 .notifications-clear:hover{
@@ -305,7 +305,7 @@ body{
     display:flex;
     align-items:center;
     gap:10px;
-    margin: 12px 20px 8px;
+    margin: 12px 20px 15px;
 }
 
 .notifications-tab{
@@ -352,9 +352,15 @@ body{
     font-size:11px;
     font-weight:700;
     color:#6b7280;
-    margin:14px 0 10px;
+    margin:10px 0 10px;
     text-transform:uppercase;
     letter-spacing:0.06em;
+}
+
+.notifications-section{
+    display:flex;
+    flex-direction:column;
+    gap:10px;
 }
 
 .notifications-divider-title::after{
@@ -369,6 +375,10 @@ body{
     color:#7d7d7d;
     margin:10px 0 14px;
     text-align: center;
+    min-height:120px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
 }
 
 .notif-meta{
@@ -392,11 +402,11 @@ body{
     display: block;
 }
 
-.notifications-group::after{
+/* .notifications-group::after{
     content:'';
     display:block;
     height:18px;
-}
+} */
 
 /* NOTIFICATION ITEM */
 .notif{
@@ -404,8 +414,8 @@ body{
     display:flex;
     align-items:flex-start;
     gap:12px;
-    padding:14px 18px 14px 18px;
-    margin:10px 0;
+    padding:16px 18px 12px 18px;
+    height: 110px;
     background:#ffffff;
     border-radius:14px;
     cursor:pointer;
@@ -489,9 +499,9 @@ body{
 }
 
 .notif-time{
-    font-size:13px;
+    font-size:12px;
     color:#6b7280;
-    font-weight:600;
+    font-weight:500;
     white-space: nowrap;
     flex-shrink:0;
     margin-top:1px;
@@ -933,6 +943,29 @@ body{
 }
 </style>
 
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    ['toast-success', 'toast-error'].forEach(function (toastId) {
+        const toast = document.getElementById(toastId);
+        if (!toast) {
+            return;
+        }
+
+        setTimeout(function () {
+            toast.classList.remove('opacity-0', 'scale-95');
+        }, 100);
+
+        setTimeout(function () {
+            toast.classList.add('opacity-0', 'scale-95');
+        }, 3000);
+
+        setTimeout(function () {
+            toast.remove();
+        }, 3500);
+    });
+});
+</script>
+
 <div class="dashboard">
 
         <div class="header">
@@ -964,13 +997,13 @@ body{
 
                 <!-- success/error messages for taking break -->
                 <?php if(session()->getFlashdata('success')): ?>
-                    <div style="background:#dcfce7;padding:10px;border-radius:6px;margin-bottom:15px;">
+                    <div id="toast-success" class="opacity-0 scale-95 transition-all duration-300" style="background:#dcfce7;padding:10px;border-radius:6px;margin-bottom:15px;">
                         <?= session()->getFlashdata('success') ?>
                     </div>
                 <?php endif; ?>
 
                 <?php if(session()->getFlashdata('error')): ?>
-                    <div style="background:#fecaca;padding:10px;border-radius:6px;margin-bottom:15px;">
+                    <div id="toast-error" class="opacity-0 scale-95 transition-all duration-300" style="background:#fecaca;padding:10px;border-radius:6px;margin-bottom:15px;">
                         <?= session()->getFlashdata('error') ?>
                     </div>
                 <?php endif; ?> 
@@ -1149,21 +1182,25 @@ body{
                 <?php
             };
 
-            $renderNotificationSection = static function (string $title, array $items, callable $renderItem, callable $initials, callable $timeAgo, bool $showMeta = false): void {
+            $publishedBuckets = $groupNotificationsByPeriod($publishedItems);
+            $unpublishedBuckets = $groupNotificationsByPeriod($unpublishedItems);
+
+            $hasPublishedItems = ! empty($publishedBuckets['today']['items']) || ! empty($publishedBuckets['older']['items']);
+            $hasUnpublishedItems = ! empty($unpublishedBuckets['today']['items']) || ! empty($unpublishedBuckets['older']['items']);
+
+            $renderNotificationSection = static function (string $sectionClass, string $title, array $items, callable $renderItem, callable $initials, callable $timeAgo, bool $showMeta = false): void {
+                if (empty($items)) {
+                    return;
+                }
                 ?>
-                <div class="notifications-divider-title"><?= esc($title) ?></div>
-                <?php if (! empty($items)): ?>
+                <div class="notifications-section <?= esc($sectionClass, 'attr') ?>">
+                    <div class="notifications-divider-title"><?= esc($title) ?></div>
                     <?php foreach ($items as $n): ?>
                         <?php $renderItem($n, $initials, $timeAgo, $showMeta); ?>
                     <?php endforeach; ?>
-                <?php else: ?>
-                <div class="notifications-empty">No <?= strtolower($title) ?> notifications.</div>
-                <?php endif; ?>
+                </div>
                 <?php
             };
-
-            $publishedBuckets = $groupNotificationsByPeriod($publishedItems);
-            $unpublishedBuckets = $groupNotificationsByPeriod($unpublishedItems);
         ?>
 
         <div class="notifications">
@@ -1189,18 +1226,26 @@ body{
             </div>
 
             <div id="publishedGroup" class="notifications-group hide-scroll-bar active">
-                <?php
-                    $renderNotificationSection($publishedBuckets['today']['title'], $publishedBuckets['today']['items'], $renderNotificationItem, $initials, $timeAgo);
-                    $renderNotificationSection($publishedBuckets['older']['title'], $publishedBuckets['older']['items'], $renderNotificationItem, $initials, $timeAgo);
-                ?>
+                <?php if ($hasPublishedItems): ?>
+                    <?php
+                        $renderNotificationSection('today', $publishedBuckets['today']['title'], $publishedBuckets['today']['items'], $renderNotificationItem, $initials, $timeAgo);
+                        $renderNotificationSection('older', $publishedBuckets['older']['title'], $publishedBuckets['older']['items'], $renderNotificationItem, $initials, $timeAgo);
+                    ?>
+                <?php else: ?>
+                    <div class="notifications-empty">No notifications</div>
+                <?php endif; ?>
             </div>
 
             <?php if ($user->inGroup('client_payroll_staff')): ?>
             <div id="unpublishedGroup" class="notifications-group hide-scroll-bar">
-                <?php
-                    $renderNotificationSection($unpublishedBuckets['today']['title'], $unpublishedBuckets['today']['items'], $renderNotificationItem, $initials, $timeAgo, true);
-                    $renderNotificationSection($unpublishedBuckets['older']['title'], $unpublishedBuckets['older']['items'], $renderNotificationItem, $initials, $timeAgo, true);
-                ?>
+                <?php if ($hasUnpublishedItems): ?>
+                    <?php
+                        $renderNotificationSection('today', $unpublishedBuckets['today']['title'], $unpublishedBuckets['today']['items'], $renderNotificationItem, $initials, $timeAgo, true);
+                        $renderNotificationSection('older', $unpublishedBuckets['older']['title'], $unpublishedBuckets['older']['items'], $renderNotificationItem, $initials, $timeAgo, true);
+                    ?>
+                <?php else: ?>
+                    <div class="notifications-empty">No notifications</div>
+                <?php endif; ?>
             </div>
             <?php endif; ?>
         </div>
