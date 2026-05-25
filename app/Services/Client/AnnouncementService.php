@@ -33,9 +33,11 @@ class AnnouncementService
         $userDepartment = $this->getDepartmentByUserId($userId);
 
         $builder = $this->announcementModel
-            ->select('announcements.*, users.username as author_username')
+            ->select('announcements.*, users.username as author_username, CONCAT_WS(" ", employees.first_name, employees.middle_name, employees.last_name) as author_full_name, ea.photo_path as author_photo_path', false)
             ->select('CASE WHEN announcement_views.id IS NULL THEN 0 ELSE 1 END as is_viewed', false)
             ->join('users', 'users.id = announcements.created_by', 'left')
+            ->join('employees', 'employees.user_id = users.id', 'left')
+            ->join('employee_accounts ea', 'ea.employee_id = employees.id', 'left')
             ->join('announcement_views', 'announcement_views.announcement_id = announcements.id AND announcement_views.user_id = ' . $userId, 'left')
             ->join('announcement_dismissals', 'announcement_dismissals.announcement_id = announcements.id AND announcement_dismissals.user_id = ' . $userId, 'left')
             ->where('announcement_dismissals.id', null);

@@ -137,27 +137,19 @@ class RequestController extends BaseController
 
         $presetData = null;
         if (is_array($presetRaw) && ! empty($presetRaw)) {
-            $allowedTypes = ['leave', 'overtime', 'undertime'];
-            $pType        = isset($presetRaw['request_type']) && in_array($presetRaw['request_type'], $allowedTypes, true)
-                            ? $presetRaw['request_type'] : null;
-            $pStart       = isset($presetRaw['start_date']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $presetRaw['start_date'])
-                            ? $presetRaw['start_date'] : null;
-            $pEnd         = isset($presetRaw['end_date']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $presetRaw['end_date'])
-                            ? $presetRaw['end_date'] : null;
-            $pReason      = isset($presetRaw['reason']) ? trim((string) $presetRaw['reason']) : null;
+            $pDuration = isset($presetRaw['duration']) ? (int) $presetRaw['duration'] : null;
+            $pReview   = isset($presetRaw['review_message']) ? trim((string) $presetRaw['review_message']) : null;
 
-            // Only persist preset if at least one meaningful field is set
-            if ($pType !== null || $pStart !== null) {
-                // Ensure end date is not before start date
-                if ($pStart !== null && $pEnd !== null && $pEnd < $pStart) {
-                    $pEnd = null;
-                }
-                $presetData = json_encode(array_filter([
-                    'request_type' => $pType,
-                    'start_date'   => $pStart,
-                    'end_date'     => $pEnd,
-                    'reason'       => $pReason !== '' ? $pReason : null,
-                ], fn($v) => $v !== null));
+            $pd = [];
+            if ($pDuration !== null && $pDuration >= 1) {
+                $pd['duration'] = $pDuration;
+            }
+            if ($pReview !== null && $pReview !== '') {
+                $pd['review_message'] = $pReview;
+            }
+
+            if (! empty($pd)) {
+                $presetData = json_encode($pd);
             }
         }
 
@@ -187,6 +179,13 @@ class RequestController extends BaseController
             ])->setStatusCode(500);
         }
 
+        $generatedByName = db_connect()->table('users AS u')
+            ->select("COALESCE(NULLIF(CONCAT(e.last_name, ', ', e.first_name), ', '), u.username) AS generated_by_name", false)
+            ->join('employees AS e', 'e.user_id = u.id', 'left')
+            ->where('u.id', (int) $user->id)
+            ->get()
+            ->getRowArray();
+
         // logs the generation of approval code
         service('activityLogger')->log(
             'created',
@@ -200,6 +199,7 @@ class RequestController extends BaseController
         return $this->response->setJSON([
             'success'     => true,
             'code'        => $code,
+            'generated_by_name' => (string) ($generatedByName['generated_by_name'] ?? ($user->username ?? 'User')),
             'preset_data' => $presetData ? json_decode($presetData, true) : null,
         ]);
     }
@@ -273,29 +273,17 @@ class RequestController extends BaseController
                 ? json_decode((string) $codeRow['preset_data'], true)
                 : [];
 
-            $hasPreset    = is_array($preset) && ! empty($preset);
-            $presetOverride = false;
+            $hasPreset = is_array($preset) && ! empty($preset);
 
             // Collect user-submitted fields (always POSTed since the fields are always visible)
             $requestType = trim((string) $this->request->getPost('request_type'));
             $startDate   = trim((string) $this->request->getPost('start_date'));
             $endDate     = trim((string) $this->request->getPost('end_date'));
             $reason      = trim((string) $this->request->getPost('reason'));
+            $presetDuration = null;
 
-            if ($hasPreset) {
-                // Overwrite submitted values with preset where preset has a value
-                if (! empty($preset['request_type']) && in_array($preset['request_type'], $allowedTypes, true)) {
-                    $requestType    = $preset['request_type'];
-                    $presetOverride = true;
-                }
-                if (! empty($preset['start_date'])) {
-                    $startDate      = $preset['start_date'];
-                    $presetOverride = true;
-                }
-                $endDate = $preset['end_date'] ?? $endDate;
-                if (! empty($preset['reason'])) {
-                    $reason = $preset['reason'];
-                }
+            if ($hasPreset && ! empty($preset['duration']) && (int) $preset['duration'] > 0) {
+                $presetDuration = (int) $preset['duration'];
             }
 
             // Validate fields (whether they came from preset or user input)
@@ -320,8 +308,25 @@ class RequestController extends BaseController
                 return redirect()->back()->withInput()->with('error', 'Message is required.');
             }
 
-            $effectiveEndDate = $endDateObj ?? $startDateObj;
-            $duration         = (int) $startDateObj->diff($effectiveEndDate)->days + 1;
+            if ($presetDuration !== null) {
+                $endDateObj = clone $startDateObj;
+                if ($presetDuration > 1) {
+                    $endDateObj->modify('+' . ($presetDuration - 1) . ' day');
+                }
+                $endDate  = $endDateObj->format('Y-m-d');
+                $duration = $presetDuration;
+            } else {
+                $effectiveEndDate = $endDateObj ?? $startDateObj;
+                $duration         = (int) $startDateObj->diff($effectiveEndDate)->days + 1;
+            }
+
+            // Determine review message: prefer preset's review_message when present
+            $finalReviewMessage = null;
+            if ($hasPreset && ! empty($preset['review_message'])) {
+                $finalReviewMessage = $preset['review_message'];
+            } else {
+                $finalReviewMessage = 'Approved via approval code';
+            }
 
             $insertData = [
                 'requested_by'  => $userId,
@@ -333,6 +338,7 @@ class RequestController extends BaseController
                 'reason'        => $reason,
                 'status'        => 'approved',
                 'processed_by'  => $codeRow['generated_by'],
+                'review_message'=> $finalReviewMessage,
             ];
 
             $this->requestModel->insert($insertData);
@@ -342,9 +348,7 @@ class RequestController extends BaseController
             $this->approvalCodeModel->markUsed((int) $codeRow['id'], $userId);
             service('activityLogger')->requestApprovalCodeUsed($newRequestId);
 
-            $message = $presetOverride
-                ? 'Request submitted and automatically approved. The approval code\'s preset details were applied to your request.'
-                : 'Request submitted and automatically approved via approval code.';
+            $message = 'Request submitted and automatically approved via approval code.';
 
             return redirect()->back()->with('success', $message);
         }
@@ -354,6 +358,7 @@ class RequestController extends BaseController
         $startDate   = trim((string) $this->request->getPost('start_date'));
         $endDate     = trim((string) $this->request->getPost('end_date'));
         $reason      = trim((string) $this->request->getPost('reason'));
+        $presetDuration = null;
 
         // Validate request type
         if (! in_array($requestType, $allowedTypes, true)) {
@@ -392,7 +397,7 @@ class RequestController extends BaseController
         // Optional approval code in normal mode (no preset required — just auto-approves)
         $status  = 'pending';
         $codeRow = null;
-        $presetOverride = false;
+        $presetReviewMessage = null;
 
         if ($normalizedCode !== '') {
             $codeRow = $this->approvalCodeModel->findActiveCode($normalizedCode);
@@ -401,30 +406,32 @@ class RequestController extends BaseController
             }
             $status = 'approved';
 
-            // If the code happens to carry preset data, overwrite the submitted fields
+            // If the code carries a preset, extract duration and optional review message.
+            $presetReviewMessage = null;
             if (! empty($codeRow['preset_data'])) {
                 $preset = json_decode((string) $codeRow['preset_data'], true);
                 if (is_array($preset)) {
-                    if (! empty($preset['request_type']) && in_array($preset['request_type'], $allowedTypes, true)) {
-                        $requestType    = $preset['request_type'];
-                        $presetOverride = true;
+                    if (! empty($preset['duration']) && (int) $preset['duration'] > 0) {
+                        $presetDuration = (int) $preset['duration'];
                     }
-                    if (! empty($preset['start_date'])) {
-                        $startDate    = $preset['start_date'];
-                        $startDateObj = date_create($startDate);
-                        $presetOverride = true;
-                    }
-                    $endDate    = $preset['end_date'] ?? '';
-                    $endDateObj = $endDate ? date_create($endDate) : null;
-                    if (! empty($preset['reason'])) {
-                        $reason = $preset['reason'];
+                    if (! empty($preset['review_message'])) {
+                        $presetReviewMessage = (string) $preset['review_message'];
                     }
                 }
             }
         }
 
-        $effectiveEndDate = $endDateObj ?? $startDateObj;
-        $duration         = (int) $startDateObj->diff($effectiveEndDate)->days + 1;
+        if ($presetDuration !== null) {
+            $endDateObj = clone $startDateObj;
+            if ($presetDuration > 1) {
+                $endDateObj->modify('+' . ($presetDuration - 1) . ' day');
+            }
+            $endDate  = $endDateObj->format('Y-m-d');
+            $duration = $presetDuration;
+        } else {
+            $effectiveEndDate = $endDateObj ?? $startDateObj;
+            $duration         = (int) $startDateObj->diff($effectiveEndDate)->days + 1;
+        }
 
         $insertData = [
             'requested_by'  => $userId,
@@ -435,6 +442,9 @@ class RequestController extends BaseController
             'approval_code' => $normalizedCode !== '' ? $normalizedCode : null,
             'reason'        => $reason,
             'status'        => $status,
+            'review_message' => $presetReviewMessage !== null
+                ? $presetReviewMessage
+                : ($status === 'approved' && $normalizedCode !== '' ? 'Approved via approval code ' . $normalizedCode : null),
         ];
 
         if ($status === 'approved' && $codeRow !== null) {
@@ -451,9 +461,7 @@ class RequestController extends BaseController
             service('activityLogger')->requestApprovalCodeUsed($newRequestId);
         }
 
-        if ($status === 'approved' && $presetOverride) {
-            $message = 'Request submitted and automatically approved. The approval code\'s preset details were applied to your request.';
-        } elseif ($status === 'approved') {
+        if ($status === 'approved') {
             $message = 'Request submitted and automatically approved via approval code.';
         } else {
             $message = 'Request submitted successfully.';

@@ -59,6 +59,8 @@ class DashboardController extends BaseController
 
         $publishedNotifications = array_map(static function (array $announcement): array {
             $isUrgent = in_array(($announcement['priority'] ?? 'normal'), ['high', 'urgent'], true);
+               $authorName = trim((string) ($announcement['author_full_name'] ?? $announcement['author_username'] ?? ''));
+               $authorPhotoPath = trim((string) ($announcement['author_photo_path'] ?? ''));
 
             return [
                 'id' => (int) ($announcement['id'] ?? 0),
@@ -72,11 +74,15 @@ class DashboardController extends BaseController
                 'priority' => (string) ($announcement['priority'] ?? 'normal'),
                 'audience' => (string) ($announcement['audience'] ?? 'all'),
                 'is_viewed' => (int) ($announcement['is_viewed'] ?? 0),
+                   'author_name' => $authorName !== '' ? $authorName : 'System',
+                   'author_photo' => $authorPhotoPath !== '' ? base_url($authorPhotoPath) : '',
             ];
         }, $announcements);
 
         $unpublishedNotifications = array_map(static function (array $announcement): array {
             $isUrgent = in_array(($announcement['priority'] ?? 'normal'), ['high', 'urgent'], true);
+               $authorName = trim((string) ($announcement['author_full_name'] ?? $announcement['author_username'] ?? ''));
+               $authorPhotoPath = trim((string) ($announcement['author_photo_path'] ?? ''));
 
             return [
                 'id' => (int) ($announcement['id'] ?? 0),
@@ -90,6 +96,8 @@ class DashboardController extends BaseController
                 'priority' => (string) ($announcement['priority'] ?? 'normal'),
                 'audience' => (string) ($announcement['audience'] ?? 'all'),
                 'is_viewed' => (int) ($announcement['is_viewed'] ?? 0),
+                   'author_name' => $authorName !== '' ? $authorName : 'System',
+                   'author_photo' => $authorPhotoPath !== '' ? base_url($authorPhotoPath) : '',
             ];
         }, $unpublishedAnnouncements);
 

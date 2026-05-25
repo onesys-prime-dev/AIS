@@ -18,7 +18,7 @@ class ApprovalCodeModel extends Model
         'used_by',
         'used_at',
         'created_at',
-        'preset_data',   // nullable JSON: {request_type, start_date, end_date, reason}
+        'preset_data',   // nullable JSON: {duration}
     ];
 
     protected $useTimestamps  = false; // managed manually so we keep created_at only

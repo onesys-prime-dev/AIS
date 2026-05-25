@@ -66,6 +66,8 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
                                     data-category="<?= esc($notifCategory, 'attr') ?>"
                                     data-priority="<?= esc(ucfirst($notifPriority), 'attr') ?>"
                                     data-audience="<?= esc(ucfirst($notifAudience), 'attr') ?>"
+                                    data-author-name="<?= esc((string) ($n['author_name'] ?? 'System'), 'attr') ?>"
+                                    data-author-photo="<?= esc((string) ($n['author_photo'] ?? ''), 'attr') ?>"
                                     onclick="openNotificationModal(this)"
                                     onkeydown="handleNotificationKey(event, this)"
                                 >
@@ -481,6 +483,50 @@ body .modal-overlay[style*="display: flex"] {
     gap:16px;
 }
 
+.view-notification-author-card {
+    display:flex;
+    align-items:center;
+    gap:14px;
+    padding:16px 18px;
+    border-radius:18px;
+    background:linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%);
+    border:1px solid #dbe4ff;
+    box-shadow:0 10px 24px rgba(15,23,42,0.05);
+}
+
+.view-notification-author-avatar {
+    width:52px;
+    height:52px;
+    border-radius:50%;
+    flex-shrink:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background:linear-gradient(135deg, #1e293b 0%, #475569 100%);
+    color:#ffffff;
+    font-size:16px;
+    font-weight:800;
+    letter-spacing:0.04em;
+    background-size:cover;
+    background-position:center;
+    background-repeat:no-repeat;
+    box-shadow:0 10px 22px rgba(30,41,59,0.16);
+}
+
+.view-notification-author-meta {
+    display:flex;
+    flex-direction:column;
+    gap:4px;
+    min-width:0;
+}
+
+.view-notification-author-meta strong {
+    color:#0f172a;
+    font-size:16px;
+    line-height:1.35;
+    word-break:break-word;
+}
+
 .notification-modal-body{
     flex:1;
     min-height:0;
@@ -862,16 +908,31 @@ body .modal-overlay[style*="display: flex"] {
         const categoryNode = document.getElementById('viewNotificationCategory');
         const priorityNode = document.getElementById('viewNotificationPriority');
         const audienceNode = document.getElementById('viewNotificationAudience');
+        const authorNameNode = document.getElementById('viewNotificationAuthorName');
+        const authorAvatarNode = document.getElementById('viewNotificationAuthorAvatar');
         const summaryNode = document.getElementById('viewNotificationSummary');
         const detailsNode = document.getElementById('viewNotificationDetails');
 
         modal.dataset.notificationId = String(el.dataset.id || '');
+
+        const authorName = el.dataset.authorName || 'System';
+        const authorPhoto = el.dataset.authorPhoto || '';
+        const authorInitials = authorName.trim() !== ''
+            ? authorName.trim().split(/\s+/).slice(0, 2).map(function (part) {
+                return part.charAt(0).toUpperCase();
+            }).join('')
+            : 'SY';
 
         if (titleNode) titleNode.innerText = title;
         if (publishedNode) publishedNode.innerText = el.dataset.publish || 'N/A';
         if (categoryNode) categoryNode.innerText = el.dataset.category || 'General';
         if (priorityNode) priorityNode.innerText = el.dataset.priority || 'Normal';
         if (audienceNode) audienceNode.innerText = el.dataset.audience || 'All Employees';
+        if (authorNameNode) authorNameNode.innerText = authorName;
+        if (authorAvatarNode) {
+            authorAvatarNode.textContent = authorPhoto ? '' : (authorInitials || 'SY');
+            authorAvatarNode.style.backgroundImage = authorPhoto ? `url("${authorPhoto}")` : 'none';
+        }
         if (summaryNode) summaryNode.innerText = summary;
         if (detailsNode) detailsNode.innerText = details;
 

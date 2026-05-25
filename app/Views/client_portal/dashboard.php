@@ -1161,6 +1161,8 @@ document.addEventListener('DOMContentLoaded', function () {
                     data-category="<?= esc($category, 'attr') ?>"
                     data-priority="<?= esc(ucfirst($priority), 'attr') ?>"
                     data-audience="<?= esc(ucfirst($audience), 'attr') ?>"
+                    data-author-name="<?= esc((string) ($n['author_name'] ?? 'System'), 'attr') ?>"
+                    data-author-photo="<?= esc((string) ($n['author_photo'] ?? ''), 'attr') ?>"
                     onclick="openNotificationModal(this)"
                     onkeydown="handleNotificationKey(event, this)">
                     <div class="notif-avatar"><?= esc((string) $initials((string) ($n['title'] ?? ''))) ?></div>
@@ -1316,7 +1318,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     <!-- ── Code-mode panel (shown when toggle is ON) ── -->
                     <div id="codeModePanel" style="display:none;">
                         <div class="req-code-hint" id="codeHintText">
-                            Enter your approval code. If it has preset details, the fields below will be filled in automatically. Please wait until the fields are set.
+                            Enter your approval code to continue.
                         </div>
                         <label>Approval Code</label>
                         <input type="text" id="codeModeCodeInput" name="approval_code"
@@ -1500,9 +1502,6 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById("requestForm").reset();
     }
 
-    // Tracks which fields were preset by a code lookup (so we know what to lock)
-    let _presetFields = {};
-
     function toggleRequestCodeMode(on) {
         const codePanel   = document.getElementById("codeModePanel");
         const hiddenInput = document.getElementById("codeModeInput");
@@ -1523,6 +1522,97 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
+    // Tracks active preset duration (days) when a code provides one
+    let _currentPresetDuration = null;
+
+    // Helper: format Date -> YYYY-MM-DD
+    function _formatYMD(d) {
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        return `${yyyy}-${mm}-${dd}`;
+    }
+
+    // Set end-date `max` based on start date + (duration - 1)
+    function setEndDateMaxForPreset(duration) {
+        const startEl = document.getElementById('reqStartDate');
+        const endEl   = document.getElementById('reqEndDate');
+        if (!endEl) return;
+
+        _currentPresetDuration = duration !== null ? Number(duration) : null;
+
+        if (_currentPresetDuration === null) {
+            endEl.removeAttribute('max');
+            return;
+        }
+
+        // If start date exists, compute max; otherwise do not set max yet
+        const startVal = startEl ? startEl.value : '';
+        if (!startVal) {
+            endEl.removeAttribute('max');
+            return;
+        }
+
+        const startDate = new Date(startVal + 'T00:00:00');
+        if (isNaN(startDate.getTime())) {
+            endEl.removeAttribute('max');
+            return;
+        }
+
+        const maxDate = new Date(startDate);
+        maxDate.setDate(maxDate.getDate() + (_currentPresetDuration - 1));
+        const maxYmd = _formatYMD(maxDate);
+        endEl.setAttribute('max', maxYmd);
+
+        // If end empty, default it to the computed end date
+        if (!endEl.value) {
+            endEl.value = maxYmd;
+        }
+
+        // Enforce current value not past max
+        if (endEl.value > maxYmd) {
+            endEl.value = maxYmd;
+            const hint = document.getElementById('codeHintText');
+            if (hint) {
+                hint.style.background  = '#fef3c7';
+                hint.style.borderColor = '#facc15';
+                hint.innerHTML = `⚠️ End date limited to ${_currentPresetDuration} day${_currentPresetDuration === 1 ? '' : 's'} by preset.`;
+            }
+        }
+    }
+
+    // Enforce end date does not exceed max when user edits it
+    function enforceEndDateLimitOnChange() {
+        const endEl = document.getElementById('reqEndDate');
+        if (!endEl) return;
+        const max = endEl.getAttribute('max');
+        if (!max) return;
+        if (endEl.value && endEl.value > max) {
+            endEl.value = max;
+            const hint = document.getElementById('codeHintText');
+            if (hint) {
+                hint.style.background  = '#fef3c7';
+                hint.style.borderColor = '#facc15';
+                hint.innerHTML = `⚠️ End date cannot exceed the preset duration (${_currentPresetDuration} day${_currentPresetDuration === 1 ? '' : 's'}).`;
+            }
+        }
+    }
+
+    // Attach listeners so start/end changes update enforcement
+    (function attachPresetDateListeners() {
+        const startEl = document.getElementById('reqStartDate');
+        const endEl   = document.getElementById('reqEndDate');
+        if (startEl) {
+            startEl.addEventListener('change', () => {
+                if (_currentPresetDuration !== null) setEndDateMaxForPreset(_currentPresetDuration);
+            });
+        }
+        if (endEl) {
+            endEl.addEventListener('change', enforceEndDateLimitOnChange);
+            endEl.addEventListener('input', enforceEndDateLimitOnChange);
+        }
+    })();
+
     // Lock/unlock individual preset-capable fields
     function setNormalFieldsLocked(locked) {
         const fields = ["reqType", "reqStartDate", "reqEndDate", "reqReason"];
@@ -1534,26 +1624,12 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    // Apply per-field locking only for fields that have preset values
-    function applyPresetLocking() {
-        const fieldMap = {
-            reqType:      "request_type",
-            reqStartDate: "start_date",
-            reqEndDate:   "end_date",
-            reqReason:    "reason",
-        };
-        Object.entries(fieldMap).forEach(([elId, presetKey]) => {
-            const el = document.getElementById(elId);
-            if (!el) return;
-            const hasPreset = !!_presetFields[presetKey];
-            el.disabled = hasPreset;
-            el.style.opacity = hasPreset ? "0.5" : "";
-        });
-    }
-
     function resetPresetState() {
-        _presetFields = {};
+        _currentPresetDuration = null;
         setNormalFieldsLocked(false);
+        // Remove any end-date max applied by a preset
+        const endEl = document.getElementById('reqEndDate');
+        if (endEl) endEl.removeAttribute('max');
         // Restore field values to empty
         document.getElementById("reqType").value      = "leave";
         document.getElementById("reqStartDate").value = "";
@@ -1568,7 +1644,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (hint) {
             hint.style.background = "";
             hint.style.borderColor = "";
-            hint.innerHTML = "Enter your approval code. If it has preset details, the fields below will be filled in automatically.";
+            hint.innerHTML = "Enter your approval code to continue.";
         }
     }
 
@@ -1587,35 +1663,25 @@ document.addEventListener('DOMContentLoaded', function () {
                 hint.style.background  = "#fee2e2";
                 hint.style.borderColor = "#fca5a5";
                 hint.innerHTML = "⚠️ " + (data.message || "Invalid or already-used code.");
-                _presetFields = {};
                 setNormalFieldsLocked(false);
                 return;
             }
 
             const preset = data.preset_data || {};
-            const hasPreset = Object.keys(preset).length > 0;
+            const presetDuration = preset.duration && Number(preset.duration) > 0 ? Number(preset.duration) : null;
 
-            if (hasPreset) {
-                // Fill in preset values
-                if (preset.request_type) document.getElementById("reqType").value      = preset.request_type;
-                if (preset.start_date)   document.getElementById("reqStartDate").value = preset.start_date;
-                document.getElementById("reqEndDate").value = preset.end_date || "";
-                if (preset.reason)       document.getElementById("reqReason").value    = preset.reason;
+            setNormalFieldsLocked(false);
+            hint.style.background  = "#dcfce7";
+            hint.style.borderColor = "#86efac";
+            hint.innerHTML = presetDuration !== null
+                ? `✅ Code accepted. Duration preset: ${presetDuration} day${presetDuration === 1 ? "" : "s"}.`
+                : "✅ Code accepted. You can fill in the request details below.";
 
-                _presetFields = preset;
-                applyPresetLocking();
-
-                // Show overwrite notice if user had entered anything
-                hint.style.background  = "#fef9c3";
-                hint.style.borderColor = "#fde68a";
-                hint.innerHTML = "✅ Code accepted. Preset fields have been filled in and locked. Fields without a preset value can still be edited freely.";
+            // Activate client-side enforcement for end date when preset duration exists
+            if (presetDuration !== null) {
+                setEndDateMaxForPreset(presetDuration);
             } else {
-                // Valid code but no preset — user fills in everything manually
-                _presetFields = {};
-                setNormalFieldsLocked(false);
-                hint.style.background  = "#dcfce7";
-                hint.style.borderColor = "#86efac";
-                hint.innerHTML = "✅ Code accepted. No preset details — please fill in your request details below.";
+                setEndDateMaxForPreset(null);
             }
 
         } catch (e) {

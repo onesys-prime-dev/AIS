@@ -2,12 +2,21 @@
     <div class="notification-modal">
         <div class="notification-modal-header">
             <div class="notification-modal-heading">
+                <span class="notification-modal-kicker">Announcement details</span>
                 <span id="viewNotificationTitle" class="notification-modal-title">Notification</span>
             </div>
             <button type="button" class="notification-modal-close" aria-label="Close notification" onclick="closeNotificationModal()">✕</button>
         </div>
 
         <div class="notification-modal-body view-notification-body">
+            <div class="view-notification-author-card">
+                <div class="view-notification-author-avatar" id="viewNotificationAuthorAvatar">NA</div>
+                <div class="view-notification-author-meta">
+                    <span class="view-notification-label">Posted by</span>
+                    <strong id="viewNotificationAuthorName">System</strong>
+                </div>
+            </div>
+
             <div class="view-notification-meta">
                 <div class="view-notification-meta-item">
                     <span class="view-notification-label">Published</span>
