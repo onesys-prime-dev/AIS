@@ -17,7 +17,6 @@ class AnnouncementModel extends Model
         'priority',
         'publish_at',
         'expires_at',
-        'summary',
         'details',
         'require_acknowledgement',
         'created_by',

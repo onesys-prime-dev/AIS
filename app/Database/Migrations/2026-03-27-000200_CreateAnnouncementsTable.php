@@ -50,10 +50,6 @@ class CreateAnnouncementsTable extends Migration
                 'type' => 'DATETIME',
                 'null' => true,
             ],
-            'summary' => [
-                'type' => 'VARCHAR',
-                'constraint' => 180,
-            ],
             'details' => [
                 'type' => 'TEXT',
             ],

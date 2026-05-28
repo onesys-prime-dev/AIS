@@ -4,17 +4,20 @@ namespace App\Controllers\Client;
 
 use App\Models\Client\RequestModel;
 use App\Models\Client\ApprovalCodeModel;
+use App\Services\Client\RequestNotificationService;
 use App\Controllers\BaseController;
 
 class RequestController extends BaseController
 {
     protected $requestModel;
     protected $approvalCodeModel;
+    protected RequestNotificationService $requestNotificationService;
 
     public function __construct()
     {
         $this->requestModel      = new RequestModel();
         $this->approvalCodeModel = new ApprovalCodeModel();
+        $this->requestNotificationService = new RequestNotificationService();
     }
 
     public function index()
@@ -112,6 +115,18 @@ class RequestController extends BaseController
             'review_message' => $reviewMessage !== '' ? $reviewMessage : null,
             'updated_at'     => date('Y-m-d H:i:s'),
         ]);
+
+        $recipientUserId = (int) ($old['requested_by'] ?? 0);
+        $requestType = (string) ($old['request_type'] ?? 'request');
+
+        $this->requestNotificationService->createStatusNotification(
+            (int) $id,
+            $recipientUserId,
+            (int) $user->id,
+            $status,
+            $requestType,
+            $reviewMessage !== '' ? $reviewMessage : null
+        );
 
         service('activityLogger')->requestStatusChanged($id, $old['status'] ?? 'pending', $status, $user->id, $reviewMessage !== '' ? $reviewMessage : null);
 

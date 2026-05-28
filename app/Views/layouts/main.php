@@ -26,6 +26,8 @@
 
         <!-- Header -->
         <?php
+            helper('notification');
+
             $headerIdentity = [
                 'photo_url' => null,
                 'display_name' => 'User',
@@ -37,23 +39,8 @@
 
             if ($headerUser) {
                 $headerIdentity = (new \App\Services\Client\AccountService())->getHeaderIdentity((int) $headerUser->id);
-                $announcementService = new \App\Services\Client\AnnouncementService();
-                $announcementRows = $announcementService->getVisibleAnnouncementsForUser($headerUser, 10);
-
-                $notifications = array_map(static function (array $row): array {
-                    return [
-                        'id' => (int) ($row['id'] ?? 0),
-                        'title' => (string) ($row['title'] ?? 'Announcement'),
-                        'summary' => (string) ($row['summary'] ?? $row['details'] ?? ''),
-                        'details' => (string) ($row['details'] ?? $row['summary'] ?? ''),
-                        'publish_at' => (string) ($row['publish_at'] ?? ''),
-                        'category' => (string) ($row['category'] ?? 'General'),
-                        'priority' => (string) ($row['priority'] ?? 'Normal'),
-                        'audience' => (string) ($row['audience'] ?? 'All Employees'),
-                        'time_ago' => (string) ($row['time_ago'] ?? ''),
-                        'is_viewed' => (int) ($row['is_viewed'] ?? 0),
-                    ];
-                }, $announcementRows);
+                $notificationService = new \App\Services\Client\NotificationService();
+                $notifications = $notificationService->getVisibleNotificationsForUser($headerUser, 10);
             }
         ?>
         <?= view('partials/header', ['headerIdentity' => $headerIdentity, 'notifications' => $notifications]) ?>
@@ -98,6 +85,9 @@
 <script>
 window.notificationViewedUrl = <?= json_encode(site_url('client_portal/announcements/viewed')) ?>;
 window.notificationDismissedUrl = <?= json_encode(site_url('client_portal/announcements/dismiss')) ?>;
+window.requestNotificationViewedUrl = <?= json_encode(site_url('client_portal/request-notifications/viewed')) ?>;
+window.requestNotificationDismissedUrl = <?= json_encode(site_url('client_portal/request-notifications/dismiss')) ?>;
+window.requestsListUrl = <?= json_encode(site_url('client_portal/requests')) ?>;
 window.notificationCsrfTokenName = <?= json_encode(csrf_token()) ?>;
 window.notificationCsrfTokenHash = <?= json_encode(csrf_hash()) ?>;
 
@@ -219,8 +209,10 @@ document.addEventListener("DOMContentLoaded", function () {
 
 <!-- Modals placed at end of body to avoid stacking context issues -->
 <?= view('client_portal/modals/view_notification') ?>
+<?= view('client_portal/modals/view_request_notification') ?>
 
 <script src="<?= base_url('js/components/flash-notifications.js') ?>"></script>
+<script src="<?= base_url('js/components/notification-modals.js') ?>"></script>
 
 <?= $this->renderSection('scripts') ?>
 

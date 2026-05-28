@@ -9,6 +9,12 @@ class CreateEmployees extends Migration
 {
     public function up()
     {
+        $tableExists = $this->db->query("SHOW TABLES LIKE 'employees'")->getResultArray();
+
+        if (! empty($tableExists)) {
+            return;
+        }
+
         $this->forge->addField([
             'id' => [
                 'type' => 'INT',
@@ -61,6 +67,12 @@ class CreateEmployees extends Migration
 
     public function down()
     {
-        $this->forge->dropTable('employees');
+        $tableExists = $this->db->query("SHOW TABLES LIKE 'employees'")->getResultArray();
+
+        if (empty($tableExists)) {
+            return;
+        }
+
+        $this->forge->dropTable('employees', true);
     }
 }

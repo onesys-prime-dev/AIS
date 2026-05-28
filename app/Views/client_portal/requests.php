@@ -655,11 +655,12 @@
 
     <?php $requests = $requests ?? []; ?>
 
-    <div class="tabs">
-        <button type="button" class="tab active" id="tabBtnRequests" onclick="switchTab('requests')">Requests</button>
-        <button type="button" class="tab" id="tabBtnCodes" onclick="switchTab('codes')">Approval Codes</button>
-    </div>
-
+    <?php if (auth()->user()->inGroup('client_payroll_staff')): ?>
+        <div class="tabs">
+            <button type="button" class="tab active" id="tabBtnRequests" onclick="switchTab('requests')">Requests</button>
+            <button type="button" class="tab" id="tabBtnCodes" onclick="switchTab('codes')">Approval Codes</button>
+        </div>
+    <?php endif; ?>
     <div class="requests-content-container scroll-bar">
         <div class="page-header">
             <div class="page-holder">
@@ -700,7 +701,7 @@
                 <div class="request-grid-container scroll-bar">
                     <div class="request-grid">
                         <?php foreach ($requests as $request): ?>
-                        <div class="request-card" data-status="<?= $request['status'] ?>">
+                        <div class="request-card" id="request-<?= (int) $request['id'] ?>" data-status="<?= $request['status'] ?>">
 
                             <?php
                                 $startDate     = ! empty($request['start_date']) ? date('F j, Y', strtotime($request['start_date'])) : 'N/A';

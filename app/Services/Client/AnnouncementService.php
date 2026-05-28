@@ -15,6 +15,7 @@ class AnnouncementService
     protected EmployeeModel $employeeModel;
     protected EmployeePositionModel $employeePositionModel;
     protected ActivityLogger $logger;
+    protected \App\Models\Client\AnnouncementAttachmentModel $attachmentModel;
 
     public function __construct()
     {
@@ -23,6 +24,7 @@ class AnnouncementService
         $this->employeeModel = new EmployeeModel();
         $this->employeePositionModel = new EmployeePositionModel();
         $this->logger = service('activityLogger');
+        $this->attachmentModel = new \App\Models\Client\AnnouncementAttachmentModel();
     }
 
     private function applyVisibilityScope(object $user, bool $includeFuture = false)
@@ -69,7 +71,7 @@ class AnnouncementService
         return $builder->groupEnd();
     }
 
-    public function createAnnouncement(int $createdBy, array $data): bool
+    public function createAnnouncement(int $createdBy, array $data)
     {
         $this->announcementModel->insert([
             'title' => $data['title'],
@@ -79,20 +81,83 @@ class AnnouncementService
             'priority' => $data['priority'],
             'publish_at' => $data['publish_at'],
             'expires_at' => $data['expires_at'] !== '' ? $data['expires_at'] : null,
-            'summary' => $data['summary'],
             'details' => $data['details'],
             'require_acknowledgement' => $data['require_acknowledgement'] ? 1 : 0,
             'created_by' => $createdBy,
         ]);
 
-        $id = $this->announcementModel->getInsertID();
-        if (! $id) {
+        $id = (int) $this->announcementModel->getInsertID();
+        if ($id <= 0) {
             return false;
         }
 
         $this->logger->announcementPublished($id, $data);
 
-        return true;
+        return $id;
+    }
+
+    /**
+     * Try to associate saved attachment paths with the announcement.
+     * If the `attachments` column exists on `announcements`, update it with JSON array.
+     * Otherwise simply return false (caller may still treat save as successful).
+     *
+     * @param int $announcementId
+     * @param array $paths
+     * @return bool
+     */
+    public function saveAnnouncementAttachments(int $announcementId, array $attachments): bool
+    {
+        if ($announcementId <= 0 || empty($attachments)) {
+            return false;
+        }
+        // Insert one row per attachment into announcement_attachments
+        $saved = 0;
+        foreach ($attachments as $a) {
+            if (! is_array($a) || empty($a['file_path'])) continue;
+            $row = [
+                'announcement_id' => $announcementId,
+                'file_path' => $a['file_path'],
+                'original_name' => $a['original_name'] ?? null,
+                'mime_type' => $a['mime_type'] ?? null,
+                'file_size' => isset($a['file_size']) ? (int) $a['file_size'] : null,
+                'uploaded_by' => $a['uploaded_by'] ?? null,
+                'created_at' => date('Y-m-d H:i:s'),
+            ];
+
+            try {
+                if ($this->attachmentModel->insert($row)) {
+                    $saved++;
+                }
+            } catch (\Exception $e) {
+                // ignore single failures
+            }
+        }
+
+        return $saved > 0;
+    }
+
+    /**
+     * Fetch attachments grouped by announcement id.
+     * @param array $announcementIds
+     * @return array [announcement_id => [rows]]
+     */
+    public function getAttachmentsForAnnouncementIds(array $announcementIds): array
+    {
+        if (empty($announcementIds)) return [];
+
+        $rows = $this->attachmentModel
+            ->whereIn('announcement_id', array_values(array_filter(array_map('intval', $announcementIds))))
+            ->orderBy('id', 'ASC')
+            ->findAll();
+
+        $grouped = [];
+        foreach ($rows as $r) {
+            $aid = (int) ($r['announcement_id'] ?? 0);
+            if ($aid <= 0) continue;
+            $grouped[$aid][] = $r;
+        }
+
+        return $grouped;
     }
 
     public function getVisibleAnnouncementsForUser(object $user, int $limit = 15): array
@@ -170,6 +235,53 @@ class AnnouncementService
     public function dismissAllVisibleAnnouncementsForUser(object $user): int
     {
         return $this->dismissAnnouncementsForUser((int) $user->id, $this->getDismissibleAnnouncementIdsForUser($user));
+    }
+
+    /**
+     * Delete an announcement and its attachments (files + db rows).
+     * Returns true on success.
+     */
+    public function deleteAnnouncement(int $announcementId): bool
+    {
+        $announcementId = (int) $announcementId;
+        if ($announcementId <= 0) return false;
+
+        $attachments = $this->getAttachmentsForAnnouncementIds([$announcementId])[$announcementId] ?? [];
+
+        // attempt to delete files and rows in a transaction
+        $db = db_connect();
+        $db->transStart();
+
+        // delete attachment rows
+        try {
+            foreach ($attachments as $att) {
+                $attId = (int) ($att['id'] ?? 0);
+                if ($attId > 0) {
+                    $this->attachmentModel->delete($attId);
+                }
+                // remove file from disk
+                $fp = (string) ($att['file_path'] ?? '');
+                if ($fp !== '') {
+                    $full = FCPATH . ltrim($fp, '/');
+                    if (file_exists($full)) {
+                        @unlink($full);
+                    }
+                }
+            }
+        } catch (\Exception $e) {
+            // continue
+        }
+
+        // delete announcement
+        try {
+            $this->announcementModel->delete($announcementId);
+        } catch (\Exception $e) {
+            // fall through
+        }
+
+        $db->transComplete();
+
+        return $db->transStatus();
     }
 
     public function markAnnouncementViewed(int $announcementId, int $userId): bool

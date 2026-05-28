@@ -70,6 +70,7 @@ class AttendanceController extends BaseController
 
         $start = strtotime($date . ' ' . $timeIn);
         $end   = time();
+        $timeOut = date('H:i:s', $end);
 
         $totalHours = ($end - $start) / 3600;
         $breakDuration = (float)($attendance['break_duration'] ?? 0);
@@ -78,17 +79,24 @@ class AttendanceController extends BaseController
         // Compute night differential hours (between 22:00 and 06:00)
         $nightDiffHours = $this->computeNightDiffHours($attendance['date'], $timeIn, date('H:i:s', $end), $breakDuration);
 
+        $before = [
+            'time_out'    => $attendance['time_out'] ?? null,
+            'total_hours' => $attendance['total_hours'] ?? null,
+        ];
+
+        $after = [
+            'time_out'    => $timeOut,
+            'total_hours' => round($totalHours, 2),
+        ];
+
         $this->attendanceModel->update($attendance['id'], [
-            'time_out'         => date('H:i:s'),
+            'time_out'         => $timeOut,
             'total_hours'      => round($totalHours, 2),
             'break_duration'   => $breakDuration,
             'night_diff_hours' => round($nightDiffHours, 2),
         ]);
 
-        service('activityLogger')->attendanceClockedOut($attendance['id'], [
-            'time_out'    => date('H:i:s'),
-            'total_hours' => round($totalHours, 2),
-        ]);
+        service('activityLogger')->attendanceClockedOut($attendance['id'], $before, $after);
 
         return redirect()->back()->with('success', 'Time out recorded!');
     }

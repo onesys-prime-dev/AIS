@@ -9,6 +9,12 @@ class CreatePayroll extends Migration
 {
     public function up()
     {
+        $tableExists = $this->db->query("SHOW TABLES LIKE 'payroll'")->getResultArray();
+
+        if (! empty($tableExists)) {
+            return;
+        }
+
         $this->forge->addField([
             'id' => [
                 'type'           => 'INT',
@@ -70,6 +76,12 @@ class CreatePayroll extends Migration
 
     public function down()
     {
-        $this->forge->dropTable('payroll');
+        $tableExists = $this->db->query("SHOW TABLES LIKE 'payroll'")->getResultArray();
+
+        if (empty($tableExists)) {
+            return;
+        }
+
+        $this->forge->dropTable('payroll', true);
     }
 }

@@ -8,6 +8,12 @@ class CreateActivityLogsTable extends Migration
 {
     public function up(): void
     {
+        $tableExists = $this->db->query("SHOW TABLES LIKE 'activity_logs'")->getResultArray();
+
+        if (! empty($tableExists)) {
+            return;
+        }
+
         $this->forge->addField([
             'id' => [
                 'type'           => 'BIGINT',
@@ -82,6 +88,12 @@ class CreateActivityLogsTable extends Migration
 
     public function down(): void
     {
+        $tableExists = $this->db->query("SHOW TABLES LIKE 'activity_logs'")->getResultArray();
+
+        if (empty($tableExists)) {
+            return;
+        }
+
         $this->forge->dropTable('activity_logs', true);
     }
 }

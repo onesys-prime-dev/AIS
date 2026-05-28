@@ -375,7 +375,7 @@ body{
     color:#7d7d7d;
     margin:10px 0 14px;
     text-align: center;
-    min-height:120px;
+    min-height: 100%;
     display:flex;
     align-items:center;
     justify-content:center;
@@ -419,7 +419,7 @@ body{
     background:#ffffff;
     border-radius:14px;
     cursor:pointer;
-    border:1px solid transparent;
+    border:1px solid transparent;   
     box-shadow:0 6px 14px rgba(15, 23, 42, 0.09);
     transition:background-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
 }
@@ -447,19 +447,6 @@ body{
     transform:scale(1.2);
     box-shadow:0 0 0 4px rgba(126, 35, 253, 0.15);
 }
-
-/* .notif::after{
-    content:'>';
-    position:absolute;
-    right:14px;
-    top:50%;
-    transform:translateY(-50%);
-    color:#8b5cf6;
-    font-size:14px;
-    font-weight:700;
-    opacity:0.75;
-    transition:transform 0.2s ease, opacity 0.2s ease;
-} */
 
 .notif:hover::after{
     transform:translateY(-50%) translateX(2px);
@@ -792,6 +779,69 @@ body{
     text-align:right;
     font-size:12px;
     padding: 0;
+    color:#6b7280;
+}
+
+/* Attachments list for announcement modal */
+.announcement-attachments-list{
+    margin-top:8px;
+    display:flex;
+    gap:8px;
+    flex-wrap:wrap;
+}
+.attachment-item{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:6px;
+    width:110px;
+}
+.attachment-preview{
+    width:110px;
+    height:80px;
+    border-radius:8px;
+    background:#f8fafc;
+    border:1px solid #e5e7eb;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    overflow:hidden;
+    text-align:center;
+    padding:6px;
+}
+.attachment-preview img{
+    max-width:100%;
+    max-height:100%;
+    object-fit:cover;
+}
+
+/* file input + attach button */
+.file-input-wrapper{
+    display:flex;
+    align-items:center;
+    gap:8px;
+}
+.file-upload-button{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    width:36px;
+    height:36px;
+    border-radius:8px;
+    background:#eef2ff;
+    border:1px solid #e5e7eb;
+    cursor:pointer;
+}
+.file-upload-button:hover{ background:#e0e7ff; }
+.file-input-hidden{ /* keep native input but hide default UI */
+    opacity:0;
+    position:relative;
+    width:1px;
+    height:1px;
+    overflow:hidden;
+}
+.announcement-attachments-name{
+    font-size:13px;
     color:#6b7280;
 }
 
@@ -1140,44 +1190,47 @@ document.addEventListener('DOMContentLoaded', function () {
             };
 
             $renderNotificationItem = static function (array $n, callable $initials, callable $timeAgo, bool $showMeta = false): void {
-                $title = (string) ($n['title'] ?? 'Untitled Notification');
-                $summary = (string) ($n['summary'] ?? $n['message'] ?? '');
-                $details = (string) ($n['details'] ?? $summary);
-                $publishedAt = (string) ($n['publish_at'] ?? '');
-                $publishedOn = $publishedAt !== '' ? date('M d, Y h:i A', strtotime($publishedAt)) : 'N/A';
-                $category = (string) ($n['category'] ?? 'General');
-                $priority = (string) ($n['priority'] ?? 'Normal');
-                $audience = (string) ($n['audience'] ?? 'All Employees');
+                $notification = notification_data($n);
                 ?>
                 <div
                     class="notif <?= ! empty($n['is_viewed']) ? 'notif-viewed' : '' ?>"
                     role="button"
                     tabindex="0"
-                    data-id="<?= esc((string) ($n['id'] ?? 0), 'attr') ?>"
-                    data-title="<?= esc($title, 'attr') ?>"
-                    data-summary="<?= esc($summary, 'attr') ?>"
-                    data-details="<?= esc($details, 'attr') ?>"
-                    data-publish="<?= esc($publishedOn, 'attr') ?>"
-                    data-category="<?= esc($category, 'attr') ?>"
-                    data-priority="<?= esc(ucfirst($priority), 'attr') ?>"
-                    data-audience="<?= esc(ucfirst($audience), 'attr') ?>"
-                    data-author-name="<?= esc((string) ($n['author_name'] ?? 'System'), 'attr') ?>"
-                    data-author-photo="<?= esc((string) ($n['author_photo'] ?? ''), 'attr') ?>"
+                    data-id="<?= esc((string) $notification['id'], 'attr') ?>"
+                    data-title="<?= esc($notification['title'], 'attr') ?>"
+                    
+                    data-details="<?= esc($notification['details'], 'attr') ?>"
+                    data-publish="<?= esc($notification['published_at'] !== '' ? date('M d, Y h:i A', strtotime($notification['published_at'])) : 'N/A', 'attr') ?>"
+                    data-category="<?= esc($notification['category'], 'attr') ?>"
+                    data-priority="<?= esc(ucfirst($notification['priority']), 'attr') ?>"
+                    data-audience="<?= esc(ucfirst($notification['audience']), 'attr') ?>"
+                    data-status="<?= esc($notification['status'], 'attr') ?>"
+                    data-source="<?= esc($notification['source'], 'attr') ?>"
+                    data-request-id="<?= esc((string) $notification['request_id'], 'attr') ?>"
+                    data-actor-name="<?= esc($notification['actor_name'], 'attr') ?>"
+                    data-actor-position="<?= esc($notification['actor_position'], 'attr') ?>"
+                    data-author-name="<?= esc($notification['author_name'], 'attr') ?>"
+                    data-author-photo="<?= esc($notification['author_photo'], 'attr') ?>"
+                    data-requester-name="<?= esc($notification['requester_name'], 'attr') ?>"
+                    data-requester-department="<?= esc($notification['requester_department'], 'attr') ?>"
+                    data-requester-photo="<?= esc($notification['requester_photo'], 'attr') ?>"
+                    data-request-type="<?= esc($notification['request_type'], 'attr') ?>"
+                    data-attachments="<?= esc(json_encode($notification['attachments'] ?? []), 'attr') ?>"
                     onclick="openNotificationModal(this)"
                     onkeydown="handleNotificationKey(event, this)">
-                    <div class="notif-avatar"><?= esc((string) $initials((string) ($n['title'] ?? ''))) ?></div>
+                    <div class="notif-avatar"><?= esc((string) $initials((string) ($n['requester_name'] ?? $notification['title'] ?? ''))) ?></div>
                     <div class="notif-content">
                         <div class="notif-title-row">
-                            <div class="notif-title"><?= esc($title) ?></div>
-                            <div class="notif-time"><?= esc((string) $timeAgo((string) ($n['publish_at'] ?? ''))) ?></div>
+                            <div class="notif-title"><?= esc($notification['title']) ?></div>
+                            <div class="notif-time"><?= esc((string) $timeAgo((string) ($notification['published_at'] ?? ''))) ?></div>
                         </div>
-                        <div class="notif-desc"><?= esc($summary) ?></div>
+                        <div class="notif-desc"><?= esc($notification['details']) ?></div>
                         <div class="notif-tags">
-                            <span class="notif-pill priority-<?= strtolower($priority) ?>"><?= esc(ucfirst($priority)) ?></span>
-                            <span class="notif-pill muted"><?= esc(ucfirst($category)) ?></span>
+                            <span class="notif-pill priority-<?= strtolower($notification['priority']) ?>"><?= esc(ucfirst($notification['priority'])) ?></span>
+                            <span class="notif-pill muted"><?= esc(ucfirst($notification['category'])) ?></span>
                         </div>
                         <?php if ($showMeta): ?>
-                        <div class="notif-meta">Publish on <?= esc(date('M d, Y h:i A', strtotime((string) ($n['publish_at'] ?? 'now')))) ?></div>
+                        <div class="notif-meta">Publish on <?= esc(date('M d, Y h:i A', strtotime((string) ($notification['published_at'] ?? 'now')))) ?></div>
                         <?php endif; ?>
                     </div>
                 </div>
@@ -1187,8 +1240,13 @@ document.addEventListener('DOMContentLoaded', function () {
             $publishedBuckets = $groupNotificationsByPeriod($publishedItems);
             $unpublishedBuckets = $groupNotificationsByPeriod($unpublishedItems);
 
-            $hasPublishedItems = ! empty($publishedBuckets['today']['items']) || ! empty($publishedBuckets['older']['items']);
-            $hasUnpublishedItems = ! empty($unpublishedBuckets['today']['items']) || ! empty($unpublishedBuckets['older']['items']);
+            $hasPublishedTodayItems = ! empty($publishedBuckets['today']['items']);
+            $hasPublishedOlderItems = ! empty($publishedBuckets['older']['items']);
+            $hasPublishedItems = $hasPublishedTodayItems || $hasPublishedOlderItems;
+
+            $hasUnpublishedTodayItems = ! empty($unpublishedBuckets['today']['items']);
+            $hasUnpublishedOlderItems = ! empty($unpublishedBuckets['older']['items']);
+            $hasUnpublishedItems = $hasUnpublishedTodayItems || $hasUnpublishedOlderItems;
 
             $renderNotificationSection = static function (string $sectionClass, string $title, array $items, callable $renderItem, callable $initials, callable $timeAgo, bool $showMeta = false): void {
                 if (empty($items)) {
@@ -1230,8 +1288,13 @@ document.addEventListener('DOMContentLoaded', function () {
             <div id="publishedGroup" class="notifications-group hide-scroll-bar active">
                 <?php if ($hasPublishedItems): ?>
                     <?php
-                        $renderNotificationSection('today', $publishedBuckets['today']['title'], $publishedBuckets['today']['items'], $renderNotificationItem, $initials, $timeAgo);
-                        $renderNotificationSection('older', $publishedBuckets['older']['title'], $publishedBuckets['older']['items'], $renderNotificationItem, $initials, $timeAgo);
+                        if ($hasPublishedTodayItems) {
+                            $renderNotificationSection('today', $publishedBuckets['today']['title'], $publishedBuckets['today']['items'], $renderNotificationItem, $initials, $timeAgo);
+                        }
+
+                        if ($hasPublishedOlderItems) {
+                            $renderNotificationSection('older', $publishedBuckets['older']['title'], $publishedBuckets['older']['items'], $renderNotificationItem, $initials, $timeAgo);
+                        }
                     ?>
                 <?php else: ?>
                     <div class="notifications-empty">No notifications</div>
@@ -1242,8 +1305,13 @@ document.addEventListener('DOMContentLoaded', function () {
             <div id="unpublishedGroup" class="notifications-group hide-scroll-bar">
                 <?php if ($hasUnpublishedItems): ?>
                     <?php
-                        $renderNotificationSection('today', $unpublishedBuckets['today']['title'], $unpublishedBuckets['today']['items'], $renderNotificationItem, $initials, $timeAgo, true);
-                        $renderNotificationSection('older', $unpublishedBuckets['older']['title'], $unpublishedBuckets['older']['items'], $renderNotificationItem, $initials, $timeAgo, true);
+                        if ($hasUnpublishedTodayItems) {
+                            $renderNotificationSection('today', $unpublishedBuckets['today']['title'], $unpublishedBuckets['today']['items'], $renderNotificationItem, $initials, $timeAgo, true);
+                        }
+
+                        if ($hasUnpublishedOlderItems) {
+                            $renderNotificationSection('older', $unpublishedBuckets['older']['title'], $unpublishedBuckets['older']['items'], $renderNotificationItem, $initials, $timeAgo, true);
+                        }
                     ?>
                 <?php else: ?>
                     <div class="notifications-empty">No notifications</div>
@@ -1270,7 +1338,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     </select>
 
                     <label>Or write your task *</label>
-                    <textarea id="taskPerformed" name="task_performed" required></textarea>
+                    <textarea id="taskPerformed" name="task_performed" placeholder="e.g. Coding Session" required></textarea>
 
                     <label>Start Time *</label>
                     <input type="time" name="start_time" required>
@@ -1360,7 +1428,7 @@ document.addEventListener('DOMContentLoaded', function () {
     <!-- ANNOUNCEMENT MODAL -->
     <div class="modal-overlay" id="announcementModal">
         <div class="modal announcement-modal">
-            <form id="announcementForm" action="<?= site_url('client_portal/announcements/store') ?>" method="post" class="announcement-form">
+            <form id="announcementForm" action="<?= site_url('client_portal/announcements/store') ?>" method="post" enctype="multipart/form-data" class="announcement-form">
                 <div class="modal-header">
                     <span>Create Announcement</span>
                     <button type="button" onclick="closeAnnouncementForm()">✕</button>
@@ -1420,9 +1488,18 @@ document.addEventListener('DOMContentLoaded', function () {
                         </div>
 
                         <div class="announcement-field full-span">
-                            <label>Short Summary *</label>
-                            <textarea id="announcementSummary" name="summary" maxlength="180" placeholder="One-line summary visible in dashboard cards" required></textarea>
-                            <div class="announcement-counter"><span id="announcementSummaryCount">0</span>/180</div>
+                            <label>Attachments</label>
+                            <div class="file-input-wrapper">
+                                <button type="button" id="file-upload-button" class="file-upload-button" aria-label="Attach files">
+                                    <!-- paperclip / attach SVG -->
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                                        <path d="M21.44 11.05l-8.49 8.49a5 5 0 01-7.07 0 5 5 0 010-7.07l8.49-8.49a3.5 3.5 0 014.95 4.95L11.83 18.97a2 2 0 01-2.83 0 2 2 0 010-2.83l6.36-6.36" stroke="#374151" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                                    </svg>
+                                </button>
+                                <input class="file-input-hidden" type="file" id="announcementAttachments" name="attachments[]" multiple accept="image/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
+                                <span id="announcementAttachmentsName" class="announcement-attachments-name">No files chosen</span>
+                            </div>
+                            <div id="announcementAttachmentsList" class="announcement-attachments-list"></div>
                         </div>
 
                         <div class="announcement-field full-span">
@@ -1440,7 +1517,6 @@ document.addEventListener('DOMContentLoaded', function () {
                 </div>
 
                 <div class="modal-footer">
-                    <button type="button" class="cancel-btn" onclick="closeAnnouncementForm()">Cancel</button>
                     <button type="submit" class="submit-btn">Publish</button>
                 </div>
             </form>
@@ -1699,8 +1775,7 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById("announcementModal").style.display="none";
         document.getElementById("announcementForm").reset();
         toggleAnnouncementAudience();
-        updateAnnouncementSummaryCount();
-
+        
     }
 
     function toggleAnnouncementAudience() {
@@ -1718,12 +1793,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
-    function updateAnnouncementSummaryCount() {
-        const summary = document.getElementById("announcementSummary");
-        const counter = document.getElementById("announcementSummaryCount");
-        if (!summary || !counter) return;
-        counter.innerText = summary.value.length;
-    }
+    
 
     function toggleNotificationsGroup(target = "published") {
         const tabPublished = document.getElementById("tabPublished");
@@ -1794,8 +1864,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
-    document.getElementById("announcementSummary")?.addEventListener("input", updateAnnouncementSummaryCount);
-    updateAnnouncementSummaryCount();
+    
     toggleNotificationsGroup("published");
 
     /* CLOCK SYSTEM */
@@ -1932,6 +2001,108 @@ document.addEventListener('DOMContentLoaded', function () {
     updateDisplay();
     if (breakBtn) breakBtn.disabled = true;
 
+</script>
+
+<script>
+    // Preview and removal helpers for announcement attachments
+    let _announcementSelectedFiles = [];
+
+    function handleAnnouncementAttachments(filesArray) {
+        const list = document.getElementById('announcementAttachmentsList');
+        if (!list) return;
+        list.innerHTML = '';
+        if (!filesArray || filesArray.length === 0) return;
+        const files = Array.from(filesArray);
+        files.forEach((file, i) => {
+            const item = document.createElement('div');
+            item.className = 'attachment-item';
+
+            const preview = document.createElement('div');
+            preview.className = 'attachment-preview';
+
+            if (file.type && file.type.startsWith('image/')) {
+                const img = document.createElement('img');
+                img.src = URL.createObjectURL(file);
+                img.onload = () => URL.revokeObjectURL(img.src);
+                preview.appendChild(img);
+            } else {
+                const span = document.createElement('span');
+                span.textContent = file.name;
+                preview.appendChild(span);
+            }
+
+            const removeBtn = document.createElement('button');
+            removeBtn.type = 'button';
+            removeBtn.className = 'cancel-btn';
+            removeBtn.textContent = 'Remove';
+            removeBtn.addEventListener('click', function () {
+                removeAnnouncementAttachment(i);
+            });
+
+            item.appendChild(preview);
+            item.appendChild(removeBtn);
+            list.appendChild(item);
+        });
+    }
+
+    function removeAnnouncementAttachment(index) {
+        const input = document.getElementById('announcementAttachments');
+        if (!input) return;
+        // remove from our array
+        if (index >= 0 && index < _announcementSelectedFiles.length) {
+            _announcementSelectedFiles.splice(index, 1);
+        }
+        // sync back to input.files
+        const dt = new DataTransfer();
+        _announcementSelectedFiles.forEach(f => dt.items.add(f));
+        input.files = dt.files;
+        handleAnnouncementAttachments(_announcementSelectedFiles);
+        updateNameFromArray(_announcementSelectedFiles);
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        const el = document.getElementById('announcementAttachments');
+        const btn = document.getElementById('file-upload-button');
+        const nameEl = document.getElementById('announcementAttachmentsName');
+
+        function updateNameFromArray(arr){
+            if (!nameEl) return;
+            if (!arr || arr.length === 0) {
+                nameEl.textContent = 'No files chosen';
+                return;
+            }
+            if (arr.length === 1) {
+                nameEl.textContent = arr[0].name;
+            } else {
+                nameEl.textContent = arr.length + ' files chosen';
+            }
+        }
+
+        if (el) {
+            el.addEventListener('change', function (e) {
+                const added = Array.from(e.target.files || []);
+                // merge new files into our array (avoid duplicates by name+size+type)
+                added.forEach(f => {
+                    const exists = _announcementSelectedFiles.some(existing =>
+                        existing.name === f.name && existing.size === f.size && existing.type === f.type
+                    );
+                    if (!exists) _announcementSelectedFiles.push(f);
+                });
+
+                // sync back to the hidden input
+                const dt = new DataTransfer();
+                _announcementSelectedFiles.forEach(f => dt.items.add(f));
+                el.files = dt.files;
+
+                handleAnnouncementAttachments(_announcementSelectedFiles);
+                updateNameFromArray(_announcementSelectedFiles);
+            });
+        }
+
+        if (btn && el) {
+            btn.addEventListener('click', function () { el.click(); });
+        }
+    });
 </script>
 
 <?= $this->endSection() ?>

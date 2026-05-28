@@ -8,6 +8,12 @@ class CreateEmployeeGovernmentIds extends Migration
 {
     public function up()
     {
+        $tableExists = $this->db->query("SHOW TABLES LIKE 'employee_government_ids'")->getResultArray();
+
+        if (! empty($tableExists)) {
+            return;
+        }
+
         $this->forge->addField([
             'id' => [
                 'type' => 'INT',
@@ -44,6 +50,12 @@ class CreateEmployeeGovernmentIds extends Migration
 
     public function down()
     {
-        $this->forge->dropTable('employee_government_ids');
+        $tableExists = $this->db->query("SHOW TABLES LIKE 'employee_government_ids'")->getResultArray();
+
+        if (empty($tableExists)) {
+            return;
+        }
+
+        $this->forge->dropTable('employee_government_ids', true);
     }
 }
