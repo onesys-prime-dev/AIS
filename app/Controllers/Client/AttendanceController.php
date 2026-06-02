@@ -112,6 +112,7 @@ class AttendanceController extends BaseController
             return redirect()->back()->with('error', 'No active attendance found!');
         }
 
+<<<<<<< Updated upstream
         if (! empty($attendance['break_start']) && ! empty($attendance['break_end'])) {
             return redirect()->back()->with('error', "You've already used your 1 hour break!");
         }
@@ -135,6 +136,9 @@ class AttendanceController extends BaseController
 
             return redirect()->back()->with('success', 'Break started!');
         } else {
+=======
+        if (!empty($attendance['break_start'])) {
+>>>>>>> Stashed changes
             // End break
             $breakStart = strtotime($attendance['break_start']);
             $breakEnd   = time();
@@ -144,6 +148,7 @@ class AttendanceController extends BaseController
             $breakEndTime = date('Y-m-d H:i:s');
 
             $this->attendanceModel->update($id, [
+                'break_start'   => null,
                 'break_end'      => $breakEndTime,
                 'break_duration' => $totalBreak,
             ]);
@@ -157,6 +162,25 @@ class AttendanceController extends BaseController
                 ->with('success', 'Break ended!')
                 ->with('break_hours', round($totalBreak, 2));
         }
+
+        // Start break
+        if ($attendance['break_duration'] >= 1) {
+            return redirect()->back()->with('error', "You've used up your 1 hour break!");
+        }
+
+        $breakStartTime = date('Y-m-d H:i:s');
+
+        $this->attendanceModel->update($id, [
+            'break_start' => $breakStartTime,
+            'break_end'   => null,
+        ]);
+
+        service('activityLogger')->attendanceBreakRecorded($id,
+            ['break_start' => null, 'break_end' => $attendance['break_end'], 'break_duration' => $attendance['break_duration']],
+            ['break_start' => $breakStartTime, 'break_end' => null, 'break_duration' => $attendance['break_duration']]
+        );
+
+        return redirect()->back()->with('success', 'Break started!');
     }
 
     private function computeNightDiffHours($timeIn, $timeOut, $breakDuration)

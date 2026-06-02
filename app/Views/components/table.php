@@ -13,7 +13,19 @@
             <?php endforeach; ?>
         </div>
         <!-- BODY -->
-        <div class="crud-body scroll-bar text-gray-700 flex-1 min-h-0 overflow-y-auto"></div>
+            <div class="crud-body scroll-bar text-gray-700 flex-1 min-h-0 overflow-y-auto hide-scrollbar"
+                 style="max-height: 56vh; -webkit-overflow-scrolling: touch;"></div>
     </div>
 
 </div>
+
+<style>
+/* Hide scrollbars but preserve scrolling for targeted containers */
+.hide-scrollbar {
+    -ms-overflow-style: none; /* IE and Edge */
+    scrollbar-width: none; /* Firefox */
+}
+.hide-scrollbar::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
+}
+</style>

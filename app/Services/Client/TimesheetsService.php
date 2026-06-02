@@ -280,6 +280,16 @@ class TimesheetsService
             return ucfirst($request['request_type']) . ' (' . $request['reason'] . ')';
         }
 
+        // Auto-mark undertime when user clocked out before scheduled end
+        $scheduledEnd = '17:00:00';
+        $attendance = $this->attendanceModel
+            ->where('user_id', $userId)
+            ->where('date', $date)
+            ->first();
+        if ($attendance && !empty($attendance['time_out']) && $attendance['time_out'] < $scheduledEnd) {
+            return 'Undertime';
+        }
+
         // First task of the day
         $task = $this->tasksModel
             ->select('task_performed')
