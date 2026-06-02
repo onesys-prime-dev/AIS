@@ -33,17 +33,14 @@ class AttendanceController extends BaseController
             return redirect()->back()->with('error', 'Already timed in!');
         }
 
-        $timeIn = date('H:i:s');
-        $date   = date('Y-m-d');
+        $timeIn = date('Y-m-d H:i:s');
 
         $this->attendanceModel->insert([
             'user_id' => $userId,
-            'date'    => $date,
             'time_in' => $timeIn,
         ]);
 
         service('activityLogger')->attendanceClockedIn($this->attendanceModel->getInsertID(), [
-            'date'    => $date,
             'time_in' => $timeIn,
         ]);
 
@@ -52,7 +49,7 @@ class AttendanceController extends BaseController
 
     public function timeOut($id)
     {
-        $user = auth()->user();
+        $user   = auth()->user();
         $userId = $user->id;
 
         $attendance = $this->attendanceModel
@@ -61,23 +58,23 @@ class AttendanceController extends BaseController
             ->where('time_out', null)
             ->first();
 
-        if (!$attendance) {
+        if (! $attendance) {
             return redirect()->back()->with('error', 'No active time in found!');
         }
 
-        $timeIn = $attendance['time_in'];
-        $date   = $attendance['date'];
+        $start   = strtotime($attendance['time_in']);
+        $end     = time();
+        $timeOut = date('Y-m-d H:i:s', $end);
 
-        $start = strtotime($date . ' ' . $timeIn);
-        $end   = time();
-        $timeOut = date('H:i:s', $end);
-
-        $totalHours = ($end - $start) / 3600;
-        $breakDuration = (float)($attendance['break_duration'] ?? 0);
-        $workedHours = $totalHours - $breakDuration;
+        $totalHours    = ($end - $start) / 3600;
+        $breakDuration = (float) ($attendance['break_duration'] ?? 0);
 
         // Compute night differential hours (between 22:00 and 06:00)
-        $nightDiffHours = $this->computeNightDiffHours($attendance['date'], $timeIn, date('H:i:s', $end), $breakDuration);
+        $nightDiffHours = $this->computeNightDiffHours(
+            $attendance['time_in'],
+            $timeOut,
+            $breakDuration
+        );
 
         $before = [
             'time_out'    => $attendance['time_out'] ?? null,
@@ -115,7 +112,7 @@ class AttendanceController extends BaseController
             return redirect()->back()->with('error', 'No active attendance found!');
         }
 
-        if (!empty($attendance['break_start']) && !empty($attendance['break_end'])) {
+        if (! empty($attendance['break_start']) && ! empty($attendance['break_end'])) {
             return redirect()->back()->with('error', "You've already used your 1 hour break!");
         }
 
@@ -162,13 +159,13 @@ class AttendanceController extends BaseController
         }
     }
 
-    private function computeNightDiffHours($date, $timeIn, $timeOut, $breakDuration)
+    private function computeNightDiffHours($timeIn, $timeOut, $breakDuration)
     {
-        $start = new \DateTime($date . ' ' . $timeIn);
-        $end   = new \DateTime($date . ' ' . $timeOut);
-        if ($end < $start) {
-            $end->modify('+1 day');
-        }
+        $start = new \DateTime($timeIn);
+        $end   = new \DateTime($timeOut);
+
+        // Derive the date from time_in
+        $date = $start->format('Y-m-d');
 
         $ndStart = new \DateTime($date . ' 22:00:00');
         $ndEnd   = new \DateTime($date . ' 06:00:00');
@@ -178,9 +175,10 @@ class AttendanceController extends BaseController
         $overlapEnd   = min($end, $ndEnd);
         $nightMinutes = 0;
         if ($overlapStart < $overlapEnd) {
-            $diff = $overlapStart->diff($overlapEnd);
+            $diff         = $overlapStart->diff($overlapEnd);
             $nightMinutes = $diff->h * 60 + $diff->i;
         }
+
         // Simple deduction: assume break does not overlap night diff; refine if needed
         return $nightMinutes / 60;
     }

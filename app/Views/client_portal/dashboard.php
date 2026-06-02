@@ -1081,7 +1081,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 <!-- functioning break button -->
                 <?php if ($currentAttendance): ?>
                 <a href="<?= site_url('client_portal/toggle-break/'.$currentAttendance['id']) ?>"
-                    class="icon-btn coffee <?= $currentAttendance['break_start'] ? 'on-break' : '' ?>">
+                    class="icon-btn coffee <?= ($currentAttendance['break_start'] && !$currentAttendance['break_end']) ? 'on-break' : '' ?>"
                         <span></span><span></span><span></span>
                 </a>
 
@@ -1881,10 +1881,9 @@ document.addEventListener('DOMContentLoaded', function () {
     if (attendance) {
         isClockedIn = true;
 
-        // time in calculation
-        const [h, m, s] = attendance.time_in.split(":").map(Number);
-        const timeIn = new Date();
-        timeIn.setHours(h, m, s ?? 0, 0);
+        // time_in is now a full datetime string e.g. "2026-06-02 09:00:00"
+        // Replace space with T so all browsers parse it correctly
+        const timeIn = new Date(attendance.time_in.replace(' ', 'T'));
 
         const now = new Date();
         let workedMinutes = Math.floor((now - timeIn) / 60000);
@@ -1895,13 +1894,12 @@ document.addEventListener('DOMContentLoaded', function () {
         // Remaining shift
         shiftRemaining = SHIFT_MINUTES - (workedMinutes - breakUsed);
 
-        // if currently on break
-        if (attendance.break_start) {
+        // if currently on break (break_start set but break_end not yet set)
+        if (attendance.break_start && !attendance.break_end) {
             onBreak = true;
 
-            const [bh, bm, bs] = attendance.break_start.split(":").map(Number);
-            const breakStart = new Date();
-            breakStart.setHours(bh, bm, bs ?? 0, 0);
+            // break_start is also a full datetime string now
+            const breakStart = new Date(attendance.break_start.replace(' ', 'T'));
 
             let breakElapsed = Math.floor((now - breakStart) / 60000);
 

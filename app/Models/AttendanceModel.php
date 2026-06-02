@@ -10,13 +10,13 @@ class AttendanceModel extends Model
     protected $primaryKey = 'id';
     protected $allowedFields = [
         'user_id',
-        'date',
         'time_in',
         'break_start',
         'break_end',
         'break_duration',
         'time_out',
-        'total_hours'
+        'total_hours',
+        'night_diff_hours',
     ];
     protected $useTimestamps = true;
     protected $createdField = 'created_at';

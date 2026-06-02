@@ -91,7 +91,6 @@ class ActivityLogger
     public function attendanceClockedIn(int $attendanceId, array $data): bool
     {
         return $this->created('attendance', 'Clocked in', $attendanceId, [
-            'date'    => $data['date'],
             'time_in' => $data['time_in'],
         ]);
     }
