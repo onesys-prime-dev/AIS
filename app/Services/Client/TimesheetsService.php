@@ -23,13 +23,8 @@ class TimesheetsService
     // ---------- Existing methods ----------
     public function listByUserId(int $userId): array
     {
-        return $this->tasksModel
-            ->select('attendance.date, tasks.start_time, tasks.end_time, employee_positions.department, tasks.task_performed, tasks.id, tasks.user_id, tasks.attendance_id')
-            ->join('attendance', 'attendance.id = tasks.attendance_id')
-            ->join('employees', 'employees.user_id = tasks.user_id')
-            ->join('employee_positions', 'employee_positions.employee_id = employees.id')
-            ->where('tasks.user_id', $userId)
-            ->orderBy('attendance.date', 'DESC')
+        return $this->baseListByUserIdBuilder($userId)
+            ->orderBy('attendance.time_in', 'DESC')
             ->orderBy('tasks.start_time', 'ASC')
             ->findAll();
     }
@@ -37,9 +32,9 @@ class TimesheetsService
     public function listDailyTimeLogByUserId(int $userId): array
     {
         return $this->attendanceModel
-            ->select('id, user_id, date, time_in, break_start, break_end, break_duration, time_out, total_hours')
+            ->select('id, user_id, time_in, break_start, break_end, break_duration, time_out, total_hours')
             ->where('user_id', $userId)
-            ->orderBy('date', 'DESC')
+            ->orderBy('time_in', 'DESC')
             ->findAll();
     }
 
@@ -49,9 +44,9 @@ class TimesheetsService
         $period = $this->resolveCutoffByDate($now);
 
         return $this->baseListByUserIdBuilder($userId)
-            ->where('attendance.date >=', $period['start'])
-            ->where('attendance.date <=', $period['end'])
-            ->orderBy('attendance.date', 'DESC')
+            ->where('DATE(attendance.time_in) >=', $period['start'])
+            ->where('DATE(attendance.time_in) <=', $period['end'])
+            ->orderBy('attendance.time_in', 'DESC')
             ->orderBy('tasks.start_time', 'ASC')
             ->findAll();
     }
@@ -126,12 +121,18 @@ class TimesheetsService
         }
 
         if (isset($payload['date']) && $payload['date'] !== '') {
-            $ok = $ok && $this->attendanceModel
-                ->where('id', (int) $task['attendance_id'])
-                ->where('user_id', $userId)
-                ->set('date', $payload['date'])
-                ->update();
+            $att = $this->attendanceModel->find((int) $task['attendance_id']);
+            if ($att && !empty($att['time_in'])) {
+                $existingTime = date('H:i:s', strtotime($att['time_in']));
+                $newTimeIn    = $payload['date'] . ' ' . $existingTime;
+                $ok = $ok && $this->attendanceModel
+                    ->where('id', (int) $task['attendance_id'])
+                    ->where('user_id', $userId)
+                    ->set('time_in', $newTimeIn)
+                    ->update();
+            }
         }
+
         return $ok;
     }
 
@@ -150,9 +151,9 @@ class TimesheetsService
     {
         $attendances = $this->attendanceModel
             ->where('user_id', $userId)
-            ->where('date >=', $startDate)
-            ->where('date <=', $endDate)
-            ->orderBy('date', 'ASC')
+            ->where('DATE(time_in) >=', $startDate)
+            ->where('DATE(time_in) <=', $endDate)
+            ->orderBy('time_in', 'ASC')
             ->findAll();
 
         $dailyRecords = [];
@@ -171,9 +172,12 @@ class TimesheetsService
         $nightEnd       = '06:00:00';
 
         foreach ($attendances as $att) {
-            $date     = $att['date'];
-            $timeIn   = $att['time_in'] ?? null;
-            $timeOut  = $att['time_out'] ?? null;
+            // Derive date and time components from the datetime columns
+            $date    = $att['time_in'] ? date('Y-m-d', strtotime($att['time_in'])) : null;
+            $timeIn  = $att['time_in']  ? date('H:i:s', strtotime($att['time_in']))  : null;
+            $timeOut = $att['time_out'] ? date('H:i:s', strtotime($att['time_out'])) : null;
+
+            if (!$date) continue;
 
             // Regular Hours (worked minus breaks)
             $regularHours = 0;
@@ -285,7 +289,7 @@ class TimesheetsService
             ->select('task_performed')
             ->join('attendance', 'attendance.id = tasks.attendance_id')
             ->where('tasks.user_id', $userId)
-            ->where('attendance.date', $date)
+            ->where('DATE(attendance.time_in)', $date)
             ->first();
         return $task ? $task['task_performed'] : '';
     }
@@ -294,7 +298,7 @@ class TimesheetsService
     private function baseListByUserIdBuilder(int $userId): TasksModel
     {
         return $this->tasksModel
-            ->select('attendance.date, tasks.start_time, tasks.end_time, employee_positions.department, tasks.task_performed, tasks.id, tasks.user_id, tasks.attendance_id')
+            ->select('DATE(attendance.time_in) AS date, tasks.start_time, tasks.end_time, employee_positions.department, tasks.task_performed, tasks.id, tasks.user_id, tasks.attendance_id')
             ->join('attendance', 'attendance.id = tasks.attendance_id')
             ->join('employees', 'employees.user_id = tasks.user_id')
             ->join('employee_positions', 'employee_positions.employee_id = employees.id')

@@ -3,6 +3,7 @@
 namespace App\Controllers\Client;
 
 use App\Controllers\BaseController;
+use App\Models\Client\LeaveBalanceModel;
 use App\Services\Client\AccountService;
 
 class EmployeeAccountController extends BaseController
@@ -22,7 +23,20 @@ class EmployeeAccountController extends BaseController
             return redirect()->to('/login');
         }
 
-        return view('client_portal/employee_account', $this->accountService->getAccountViewData((int) $user->id));
+        $viewData = $this->accountService->getAccountViewData((int) $user->id);
+
+        // Resolve employee_id from the employment data already fetched by AccountService,
+        // falling back to a direct DB lookup if needed
+        $employeeId = (int) ($viewData['employment']['employee_id'] ?? 0);
+
+        if ($employeeId > 0) {
+            $leaveBalanceModel        = new LeaveBalanceModel();
+            $viewData['leaveBalance'] = $leaveBalanceModel->getBalance($employeeId, 'leave', (int) date('Y'));
+        } else {
+            $viewData['leaveBalance'] = null;
+        }
+
+        return view('client_portal/employee_account', $viewData);
     }
 
     public function updateContact()

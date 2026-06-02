@@ -4,6 +4,7 @@ namespace App\Controllers\Client;
 
 use App\Controllers\BaseController;
 use App\Models\Client\EmployeeModel;
+use App\Models\Client\LeaveBalanceModel;
 use App\Services\Client\EmployeeService;
 use CodeIgniter\Exceptions\PageNotFoundException;
 
@@ -38,6 +39,17 @@ class EmployeeController extends BaseController
             if (! empty($employee['photo_path'])) {
                 $employee['photo_path'] = base_url((string) $employee['photo_path']);
             }
+        }
+        unset($employee);
+
+        // Merge leave balance for the current year into each employee row
+        $leaveBalanceModel = new LeaveBalanceModel();
+        $currentYear       = (int) date('Y');
+
+        foreach ($employees as &$employee) {
+            $balance = $leaveBalanceModel->getBalance((int) $employee['id'], 'leave', $currentYear);
+            $employee['leave_total']     = $balance['total_entitlement'] ?? null;
+            $employee['leave_remaining'] = $balance['remaining']         ?? null;
         }
         unset($employee);
 

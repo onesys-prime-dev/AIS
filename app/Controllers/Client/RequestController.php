@@ -4,6 +4,7 @@ namespace App\Controllers\Client;
 
 use App\Models\Client\RequestModel;
 use App\Models\Client\ApprovalCodeModel;
+use App\Models\Client\LeaveBalanceModel;
 use App\Services\Client\RequestNotificationService;
 use App\Controllers\BaseController;
 
@@ -11,12 +12,14 @@ class RequestController extends BaseController
 {
     protected $requestModel;
     protected $approvalCodeModel;
+    protected $leaveBalanceModel;
     protected RequestNotificationService $requestNotificationService;
 
     public function __construct()
     {
         $this->requestModel      = new RequestModel();
         $this->approvalCodeModel = new ApprovalCodeModel();
+        $this->leaveBalanceModel = new LeaveBalanceModel();
         $this->requestNotificationService = new RequestNotificationService();
     }
 
@@ -115,6 +118,21 @@ class RequestController extends BaseController
             'review_message' => $reviewMessage !== '' ? $reviewMessage : null,
             'updated_at'     => date('Y-m-d H:i:s'),
         ]);
+
+        // Handle leave balance when a leave request changes status
+        if ($old['request_type'] === 'leave') {
+            $requestedBy = (int) $old['requested_by'];
+            $days        = (float) $old['duration'];
+            $year        = (int) date('Y', strtotime($old['start_date']));
+
+            if ($status === 'approved' && $old['status'] !== 'approved') {
+                $isPaid = $this->leaveBalanceModel->deduct($requestedBy, 'leave', $days, $year);
+                $this->requestModel->update($id, ['is_paid_leave' => $isPaid ? 1 : 0]);
+            } elseif ($status === 'rejected' && $old['status'] === 'approved') {
+                $this->leaveBalanceModel->refund($requestedBy, 'leave', $days, $year);
+                $this->requestModel->update($id, ['is_paid_leave' => null]);
+            }
+        }
 
         $recipientUserId = (int) ($old['requested_by'] ?? 0);
         $requestType = (string) ($old['request_type'] ?? 'request');
@@ -363,6 +381,13 @@ class RequestController extends BaseController
             $this->approvalCodeModel->markUsed((int) $codeRow['id'], $userId);
             service('activityLogger')->requestApprovalCodeUsed($newRequestId);
 
+            // Deduct leave balance for approved leave requests
+            if ($insertData['request_type'] === 'leave') {
+                $year   = (int) date('Y', strtotime($insertData['start_date']));
+                $isPaid = $this->leaveBalanceModel->deduct($userId, 'leave', (float) $duration, $year);
+                $this->requestModel->update($newRequestId, ['is_paid_leave' => $isPaid ? 1 : 0]);
+            }
+
             $message = 'Request submitted and automatically approved via approval code.';
 
             return redirect()->back()->with('success', $message);
@@ -474,6 +499,13 @@ class RequestController extends BaseController
         if ($codeRow !== null) {
             $this->approvalCodeModel->markUsed((int) $codeRow['id'], $userId);
             service('activityLogger')->requestApprovalCodeUsed($newRequestId);
+        }
+
+        // Deduct leave balance for approved leave requests
+        if ($status === 'approved' && $insertData['request_type'] === 'leave') {
+            $year   = (int) date('Y', strtotime($insertData['start_date']));
+            $isPaid = $this->leaveBalanceModel->deduct($userId, 'leave', (float) $duration, $year);
+            $this->requestModel->update($newRequestId, ['is_paid_leave' => $isPaid ? 1 : 0]);
         }
 
         if ($status === 'approved') {

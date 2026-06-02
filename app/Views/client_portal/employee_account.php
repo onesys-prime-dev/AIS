@@ -115,9 +115,47 @@
             </div>
         </div>
 
+        <!-- LEAVE BALANCE -->
+        <?php
+            $leaveBalance = $leaveBalance ?? null;
+            $leaveYear    = $leaveBalance['year']              ?? date('Y');
+            $leaveTotal   = (float) ($leaveBalance['total_entitlement'] ?? 0);
+            $leaveUsed    = (float) ($leaveBalance['used']              ?? 0);
+            $leaveLeft    = (float) ($leaveBalance['remaining']         ?? 0);
+            $leavePct     = $leaveTotal > 0 ? round(($leaveLeft / $leaveTotal) * 100) : 0;
+
+            if      ($leavePct <= 0)  { $barColor = '#ef4444'; $textColor = 'color:#ef4444'; }
+            elseif  ($leavePct <= 25) { $barColor = '#f97316'; $textColor = 'color:#f97316'; }
+            else                      { $barColor = '#22c55e'; $textColor = 'color:#22c55e'; }
+        ?>
+        <div class="card">
+            <h2>Leave Balance <span style="font-size:13px;font-weight:400;color:#9ca3af;">(<?= esc((string) $leaveYear) ?>)</span></h2>
+
+            <?php if ($leaveBalance): ?>
+                <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:8px;">
+                    <div>
+                        <div style="font-size:32px;font-weight:700;line-height:1;<?= $textColor ?>"><?= esc((string) $leaveLeft) ?></div>
+                        <div style="font-size:12px;color:#9ca3af;margin-top:4px;">days remaining</div>
+                    </div>
+                    <div style="text-align:right;font-size:13px;color:#6b7280;">
+                        <div><?= esc((string) $leaveUsed) ?>d used</div>
+                        <div><?= esc((string) $leaveTotal) ?>d total</div>
+                    </div>
+                </div>
+
+                <div style="background:#e5e7eb;border-radius:999px;height:8px;overflow:hidden;">
+                    <div style="height:100%;border-radius:999px;width:<?= esc((string) $leavePct) ?>%;background:<?= esc($barColor) ?>;transition:width 0.4s ease;"></div>
+                </div>
+                <div style="font-size:11px;color:#9ca3af;margin-top:6px;"><?= esc((string) $leavePct) ?>% remaining</div>
+            <?php else: ?>
+                <div style="color:#9ca3af;font-size:13px;margin-top:10px;">
+                    No leave balance on record for <?= esc((string) $leaveYear) ?>. Balance is created automatically when the first leave request is approved.
+                </div>
+            <?php endif; ?>
+        </div>
+
         <!-- CONTACT INFORMATION (EDITABLE) -->
         <div class="card">
-            <h2>Contact Information</h2>
 
             <form method="post" action="<?= site_url('client_portal/profile/contact') ?>">
                 <?= csrf_field() ?>
