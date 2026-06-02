@@ -3,6 +3,14 @@
 
 <?php
     $timesheet = $timesheet ?? [];
+    $dailyTimesheet = $dailyTimesheet ?? [];
+    $totals = $totals ?? [
+        'regular_hours' => 0,
+        'ot_hours' => 0,
+        'rdot_hours' => 0,
+        'tardy_minutes' => 0,
+        'night_diff' => 0,
+    ];
 ?>
 
 <div class="h-full flex flex-col min-h-0 overflow-hidden px-8 pb-8">
@@ -150,6 +158,7 @@
 <?= $this->section('scripts') ?>
 <script src="<?= base_url('js/components/flash-notifications.js') ?>"></script>
 <script src="<?= base_url('js/components/modal-handler.js') ?>"></script>
+<script src="<?= base_url('js/components/crud-table.js') ?>"></script>
 
 <script>
 const DAILY_DATA = <?= json_encode($dailyTimesheet) ?>;

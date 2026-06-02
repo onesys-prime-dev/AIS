@@ -35,7 +35,7 @@
     ]) ?>
 
     <div id="dailyTimeLogDetailModal" class="fixed inset-0 hidden items-center justify-center bg-black/40 z-[10000]">
-        <div class="w-full max-w-2xl rounded-xl bg-white p-6 shadow-xl relative mx-4">
+        <div class="w-full max-w-2xl h-[400px] rounded-xl bg-white p-6 shadow-xl relative">
             <button type="button" id="dailyTimeLogDetailClose" class="absolute right-4 top-4 text-gray-500 hover:text-black text-xl leading-none">
                 ✕
             </button>
