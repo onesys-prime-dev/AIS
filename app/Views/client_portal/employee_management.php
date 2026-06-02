@@ -27,13 +27,15 @@
     <?= view('components/crud_table', [
         'title' => 'Employee Management',
         'tableId' => 'employeeTable',
-        'grid' => 'grid-cols-[2fr_1.5fr_1.5fr_1.2fr_1fr_1fr_1fr]',
+        'grid' => 'grid-cols-[2fr_1.5fr_1.5fr_1.2fr_1fr_1fr_1fr_1fr_1fr]',
         'columns' => [
             'Employee Name',
             'Position',
             'Department',
             'ID',
             'Type',
+            'Leave Total',
+            'Leave Left',
             'Status',
             'Action'
         ]
@@ -105,9 +107,28 @@ const DELETE_URL = "<?= site_url('client_portal/employees/delete') ?>";
         const avatarHtml = photoUrl 
             ? `<div class="w-10 h-10 rounded-full" style="background-image:url('${photoUrl}');background-size:cover;background-position:center;"></div>`
             : `<div class="w-10 h-10 bg-gray-300 rounded-full flex items-center justify-center text-xs font-bold text-gray-700">${avatarInitials}</div>`;
+
+        // Leave balance
+        const leaveTotal     = p.leave_total     != null ? Number(p.leave_total)     : null;
+        const leaveRemaining = p.leave_remaining != null ? Number(p.leave_remaining) : null;
+
+        const leaveTotalHtml = leaveTotal != null
+            ? `${leaveTotal}d`
+            : '<span class="text-gray-400 text-xs">—</span>';
+
+        let leaveRemainingHtml;
+        if (leaveRemaining == null) {
+            leaveRemainingHtml = '<span class="text-gray-400 text-xs">—</span>';
+        } else if (leaveRemaining <= 0) {
+            leaveRemainingHtml = '<span class="text-red-600 font-semibold text-xs">0d</span>';
+        } else if (leaveTotal != null && leaveRemaining / leaveTotal <= 0.25) {
+            leaveRemainingHtml = `<span class="text-orange-500 font-semibold text-xs">${leaveRemaining}d</span>`;
+        } else {
+            leaveRemainingHtml = `<span class="text-green-600 font-semibold text-xs">${leaveRemaining}d</span>`;
+        }
         
         return `
-            <div class="grid grid-cols-[2fr_1.5fr_1.5fr_1.2fr_1fr_1fr_1fr] items-center border-b hover:bg-gray-50">
+            <div class="grid grid-cols-[2fr_1.5fr_1.5fr_1.2fr_1fr_1fr_1fr_1fr_1fr] items-center border-b hover:bg-gray-50">
 
                 <div class="p-4 flex items-center gap-3">
                     ${avatarHtml}
@@ -123,6 +144,9 @@ const DELETE_URL = "<?= site_url('client_portal/employees/delete') ?>";
                 <div class="p-4">${htmlEsc(p.department) || '---'}</div>
                 <div class="p-4">${htmlEsc(p.employee_number) || '---'}</div>
                 <div class="p-4">${htmlEsc(p.employment_type) || '---'}</div>
+
+                <div class="p-4">${leaveTotalHtml}</div>
+                <div class="p-4">${leaveRemainingHtml}</div>
 
                 <div class="p-4">
                     ${(() => {
@@ -188,7 +212,7 @@ const DELETE_URL = "<?= site_url('client_portal/employees/delete') ?>";
         search: (item, q) =>
             `${item.first_name} ${item.middle_name} ${item.last_name} 
             ${item.position} ${item.department} ${item.employee_number}
-            ${item.employment_type} ${item.status} `
+            ${item.employment_type} ${item.status} ${item.leave_remaining} `
             .toLowerCase()
             .includes(q)
     });

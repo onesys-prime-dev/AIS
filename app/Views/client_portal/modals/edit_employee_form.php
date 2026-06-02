@@ -72,6 +72,17 @@
                 </p>
             </div>
 
+            <div>
+                <label class="block text-sm mb-1">Leave Total (days)</label>
+                <input type="number" id="edit_leave_total" name="leave_total"
+                    min="0" step="0.5"
+                    class="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    placeholder="e.g. 15">
+                <p class="mt-1 text-xs text-gray-500">
+                    Remaining balance will be recalculated as (new total − days already used).
+                </p>
+            </div>
+
         </div>
 
     </div>

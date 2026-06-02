@@ -84,6 +84,29 @@ class LeaveBalanceModel extends Model
     }
 
     // =========================================================================
+    // Entitlement management
+    // =========================================================================
+
+    /**
+     * Set a new total entitlement for an employee.
+     * Recalculates remaining as (new total - used), floored at 0.
+     * Creates the row via getOrCreate if it doesn't exist yet.
+     */
+    public function setEntitlement(int $employeeId, float $total, ?int $year = null): void
+    {
+        $year ??= (int) date('Y');
+
+        $row = $this->getOrCreate($employeeId, 'leave', $year);
+
+        $newRemaining = max(0.0, $total - (float) $row['used']);
+
+        $this->update($row['id'], [
+            'total_entitlement' => $total,
+            'remaining'         => $newRemaining,
+        ]);
+    }
+
+    // =========================================================================
     // Deduction & refund
     // =========================================================================
 

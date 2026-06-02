@@ -107,7 +107,7 @@
 }
 
 /*
-! tailwindcss v3.4.17 | MIT License | https://tailwindcss.com
+! tailwindcss v3.4.19 | MIT License | https://tailwindcss.com
 */
 
 /*
@@ -685,6 +685,10 @@ video {
   top: 70px;
 }
 
+.top-0 {
+  top: 0px;
+}
+
 .z-10 {
   z-index: 10;
 }
@@ -707,11 +711,6 @@ video {
 
 .m-auto {
   margin: auto;
-}
-
-.mx-4 {
-  margin-left: 1rem;
-  margin-right: 1rem;
 }
 
 .mx-auto {
@@ -858,8 +857,8 @@ video {
   height: 1.75rem;
 }
 
-.h-\[450px\] {
-  height: 450px;
+.h-\[400px\] {
+  height: 400px;
 }
 
 .h-\[80vh\] {
@@ -874,12 +873,12 @@ video {
   height: 100vh;
 }
 
-.h-\[400px\] {
-  height: 400px;
-}
-
 .max-h-56 {
   max-height: 14rem;
+}
+
+.max-h-\[70vh\] {
+  max-height: 70vh;
 }
 
 .min-h-0 {
@@ -942,12 +941,24 @@ video {
   width: 100%;
 }
 
+.w-16 {
+  width: 4rem;
+}
+
+.w-24 {
+  width: 6rem;
+}
+
 .min-w-\[1100px\] {
   min-width: 1100px;
 }
 
 .min-w-full {
   min-width: 100%;
+}
+
+.min-w-\[1800px\] {
+  min-width: 1800px;
 }
 
 .max-w-2xl {
@@ -1041,6 +1052,10 @@ video {
 
 .grid-cols-\[2fr_1\.5fr_1\.5fr_1\.2fr_1fr_1fr_1fr\] {
   grid-template-columns: 2fr 1.5fr 1.5fr 1.2fr 1fr 1fr 1fr;
+}
+
+.grid-cols-\[2fr_1\.5fr_1\.5fr_1\.2fr_1fr_1fr_1fr_1fr_1fr\] {
+  grid-template-columns: 2fr 1.5fr 1.5fr 1.2fr 1fr 1fr 1fr 1fr 1fr;
 }
 
 .grid-cols-\[2fr_1\.5fr_1fr\] {
@@ -1408,6 +1423,11 @@ video {
   background-color: rgb(244 244 245 / var(--tw-bg-opacity, 1));
 }
 
+.bg-gray-500 {
+  --tw-bg-opacity: 1;
+  background-color: rgb(107 114 128 / var(--tw-bg-opacity, 1));
+}
+
 .bg-cover {
   background-size: cover;
 }
@@ -1723,6 +1743,11 @@ video {
   color: rgb(79 70 229 / var(--tw-text-opacity, 1));
 }
 
+.text-orange-500 {
+  --tw-text-opacity: 1;
+  color: rgb(249 115 22 / var(--tw-text-opacity, 1));
+}
+
 .text-purple-600 {
   --tw-text-opacity: 1;
   color: rgb(147 51 234 / var(--tw-text-opacity, 1));
@@ -1968,6 +1993,11 @@ video {
 .hover\:bg-slate-200:hover {
   --tw-bg-opacity: 1;
   background-color: rgb(226 232 240 / var(--tw-bg-opacity, 1));
+}
+
+.hover\:bg-gray-600:hover {
+  --tw-bg-opacity: 1;
+  background-color: rgb(75 85 99 / var(--tw-bg-opacity, 1));
 }
 
 .hover\:text-black:hover {

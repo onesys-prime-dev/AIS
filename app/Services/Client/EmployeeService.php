@@ -5,6 +5,7 @@ namespace App\Services\Client;
 use App\Models\Client\EmployeeGovernmentIdModel;
 use App\Models\Client\EmployeeModel;
 use App\Models\Client\EmployeePositionModel;
+use App\Models\Client\LeaveBalanceModel;
 use CodeIgniter\Shield\Models\UserModel;
 
 class EmployeeService
@@ -13,13 +14,15 @@ class EmployeeService
     protected $govModel;
     protected $posModel;
     protected $userModel;
+    protected $leaveBalanceModel;
 
     public function __construct()
     {
-        $this->employeeModel = new EmployeeModel();
-        $this->govModel = new EmployeeGovernmentIdModel();
-        $this->posModel = new EmployeePositionModel();
-        $this->userModel = new UserModel();
+        $this->employeeModel     = new EmployeeModel();
+        $this->govModel          = new EmployeeGovernmentIdModel();
+        $this->posModel          = new EmployeePositionModel();
+        $this->userModel         = new UserModel();
+        $this->leaveBalanceModel = new LeaveBalanceModel();
     }
 
     public function createEmployee(array $data)
@@ -346,6 +349,14 @@ class EmployeeService
                 if ($positionModel->errors()) {
                     throw new \Exception(json_encode($positionModel->errors()));
                 }
+            }
+
+            if (isset($data['leave_total']) && $data['leave_total'] !== '') {
+                $leaveTotal = (float) $data['leave_total'];
+                if ($leaveTotal < 0) {
+                    throw new \InvalidArgumentException('Leave total cannot be negative.');
+                }
+                $this->leaveBalanceModel->setEntitlement((int) $employeeId, $leaveTotal);
             }
 
             $db->transCommit();
