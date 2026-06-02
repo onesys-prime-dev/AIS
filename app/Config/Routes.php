@@ -58,7 +58,7 @@ $routes->post('client_portal/request-notifications/dismiss', 'Client\RequestNoti
 $routes->post('client_portal/announcements/store', 'Client\AnnouncementController::store');
 $routes->post('client_portal/announcements/viewed', 'Client\AnnouncementController::viewed');
 $routes->post('client_portal/announcements/dismiss', 'Client\AnnouncementController::dismiss');
-    $routes->post('client_portal/announcements/delete/(:num)', 'Client\AnnouncementController::delete/$1');
+$routes->post('client_portal/announcements/delete/(:num)', 'Client\AnnouncementController::delete/$1');
 $routes->post('client_portal/tasks/submit', 'Client\TaskController::submitTask');
 $routes->get('client_portal/tasks/saved', 'Client\TaskController::getSavedTasks');
 $routes->get('client_portal/timesheet', 'Client\TimesheetController::index');
@@ -70,7 +70,7 @@ $routes->get('settings/face-recognition/status', 'SettingsController::faceRecogn
 $routes->post('client_portal/requests/generate-code', 'Client\RequestController::generateApprovalCode');
 $routes->get('client_portal/requests/lookup-code', 'Client\RequestController::lookupCode');
 
-// ================= PAYROLL ROUTES (including new export/import) =================
+// ================= PAYROLL ROUTES =================
 $routes->group('client_portal', ['namespace' => 'App\Controllers\Client'], function($routes) {
     $routes->get('payroll', 'PayrollController::payrollView');
     $routes->get('payroll/employees_json', 'PayrollController::getEmployees');
@@ -89,7 +89,6 @@ $routes->group('client_portal', ['namespace' => 'App\Controllers\Client'], funct
     $routes->get('payroll/payslipHistory', 'PayrollController::payslipHistory');
     $routes->get('payroll/getPayslipData/(:num)', 'PayrollController::getPayslipData/$1');
     
-    // NEW: Export / Import routes
     $routes->get('payroll/exportRegister', 'PayrollController::exportRegister');
     $routes->get('payroll/exportTimesheet', 'PayrollController::exportTimesheet');
     $routes->post('payroll/importTimesheet', 'PayrollController::importTimesheet');
@@ -101,6 +100,17 @@ $routes->group('client_portal/payroll', ['namespace' => 'App\Controllers\Client'
     $routes->get('exportCSV/(:any)', 'PayrollController::exportCSV/$1');
     $routes->post('saveSettings', 'PayrollController::saveSettings');
     $routes->get('getSettings', 'PayrollController::getSettings');
+    
+    // ========== CRITICAL: Attendance summary endpoint ==========
+    $routes->get('attendance-summary/(:num)/(:any)/(:any)', 'PayrollController::getAttendanceSummary/$1/$2/$3');
+    
+    // ========== Additional compute & export endpoints ==========
+    $routes->post('compute', 'PayrollController::computeAndSave');
+    $routes->post('savePayslipRecord', 'PayrollController::savePayslipRecord');
+    $routes->post('sendPdf', 'PayrollController::sendPdf');
+    $routes->get('exportRegister', 'PayrollController::exportRegister');
+    $routes->get('exportTimesheet', 'PayrollController::exportTimesheet');
+    $routes->post('importTimesheet', 'PayrollController::importTimesheet');
 });
 
 $routes->group('client_portal', ['namespace' => 'App\Controllers\Client'], function($routes) {
@@ -122,4 +132,5 @@ $routes->group('client_portal', ['namespace' => 'App\Controllers\Client'], funct
     $routes->post('payroll/savePayslipRecord', 'PayrollController::savePayslipRecord');
     $routes->get('payroll/getAllPayslips', 'PayrollController::getAllPayslips');
     $routes->post('client_portal/timesheet/update-attendance/(:num)', 'Client\TimesheetController::updateAttendance/$1');
+    $routes->get('company-logo', 'Client\PayrollController::getCompanyLogo');
 });

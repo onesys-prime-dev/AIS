@@ -214,7 +214,94 @@ class PayrollController extends BaseController
         return $workingDays;
     }
 
-    // ================= COMPUTE AND SAVE PAYROLL (FULLY AUTOMATIC) =================
+    // ================= NEW: ATTENDANCE SUMMARY FOR RAW SHEET =================
+    public function getAttendanceSummary(int $employeeId, string $startDate, string $endDate)
+    {
+        $employeeModel = new EmployeeModel();
+        $employee = $employeeModel->find($employeeId);
+        if (!$employee) {
+            return $this->response->setStatusCode(404)->setJSON(['error' => 'Employee not found']);
+        }
+
+        $userId = $employee['user_id'];
+        $attendanceModel = new AttendanceModel();
+        $attendances = $attendanceModel
+            ->where('user_id', $userId)
+            ->where('date >=', $startDate)
+            ->where('date <=', $endDate)
+            ->findAll();
+
+        $summary = $this->aggregateAttendance($attendances, $startDate, $endDate);
+        return $this->response->setJSON($summary);
+    }
+
+    private function aggregateAttendance(array $attendances, string $startDate, string $endDate): array
+    {
+        $totalWorkingDays = $this->getWorkingDaysCount($startDate, $endDate);
+        $workedDays = 0;
+        $regularHours = 0;
+        $nightDiffHours = 0;
+        $tardyMinutes = 0;
+        $regOtHours = 0;
+        $restOtHours = 0;
+        $holidayOtHours = 0;
+
+        foreach ($attendances as $att) {
+            if (empty($att['time_in']) || empty($att['time_out'])) continue;
+
+            $workedDays++;
+            $totalHours = (float)($att['total_hours'] ?? 0);
+            // Regular hours = min(8, total hours)
+            $regularHours += min($totalHours, 8);
+            $nightDiffHours += (float)($att['night_diff_hours'] ?? 0);
+
+            // Tardy minutes (scheduled start 08:00)
+            $timeIn = strtotime($att['time_in']);
+            $scheduledStart = strtotime('08:00:00');
+            if ($timeIn > $scheduledStart) {
+                $tardyMinutes += round(($timeIn - $scheduledStart) / 60);
+            }
+
+            // Overtime: any hours beyond 8 per day
+            $ot = max(0, $totalHours - 8);
+            $isRestDay = (date('N', strtotime($att['date'])) == 7); // Sunday
+            $isHoliday = false; // implement holiday check if needed
+
+            if ($isHoliday) {
+                $holidayOtHours += $ot;
+            } elseif ($isRestDay) {
+                $restOtHours += $ot;
+            } else {
+                $regOtHours += $ot;
+            }
+        }
+
+        return [
+            'worked_days'      => $workedDays,
+            'absent_days'      => max(0, $totalWorkingDays - $workedDays),
+            'regular_hours'    => round($regularHours, 2),
+            'night_diff_hours' => round($nightDiffHours, 2),
+            'tardy_minutes'    => (int)$tardyMinutes,
+            'reg_ot_hours'     => round($regOtHours, 2),
+            'rest_ot_hours'    => round($restOtHours, 2),
+            'holiday_ot_hours' => round($holidayOtHours, 2),
+        ];
+    }
+
+    private function getWorkingDaysCount(string $start, string $end): int
+    {
+        $begin = new \DateTime($start);
+        $end   = (new \DateTime($end))->modify('+1 day');
+        $interval = new \DateInterval('P1D');
+        $period = new \DatePeriod($begin, $interval, $end);
+        $workingDays = 0;
+        foreach ($period as $dt) {
+            if ($dt->format('N') < 6) $workingDays++;
+        }
+        return $workingDays;
+    }
+
+    // ================= COMPUTE AND SAVE PAYROLL =================
     public function computeAndSave()
     {
         try {
@@ -231,63 +318,31 @@ class PayrollController extends BaseController
             $computed = $service->computePayroll($employeeId, $start, $end, $adjustments);
 
             $txModel = new PayrollTransactionModel();
-            $txData = [
-                'employee_id' => $employeeId,
+            $cleanTxData = [
+                'employee_id' => (int) $employeeId,
                 'period_start' => $start,
                 'period_end' => $end,
-                'basic_pay' => $computed['basic_pay'],
-                'overtime_pay' => $computed['overtime_pay'],
-                'night_diff_pay' => $computed['night_diff_pay'],
-                'holiday_pay' => $computed['holiday_pay'],
-                'de_minimis' => $computed['de_minimis'],
-                'other_earnings_taxable' => $computed['other_earnings_taxable'],
-                'other_earnings_non_taxable' => $computed['other_earnings_non_taxable'],
-                'total_earnings' => $computed['total_earnings'],
-                'sss_ee' => $computed['sss_ee'],
-                'phic_ee' => $computed['phic_ee'],
-                'hdmf_ee' => $computed['hdmf_ee'],
-                'withholding_tax' => $computed['withholding_tax'],
-                'sss_loan' => $computed['sss_loan'],
-                'calamity_loan' => $computed['calamity_loan'],
-                'salary_advance' => $computed['salary_advance'],
-                'other_deductions' => $computed['other_deductions'],
-                'total_deductions' => $computed['total_deductions'],
-                'net_pay' => $computed['net_pay'],
+                'basic_pay' => (float) ($computed['basic_pay'] ?? 0),
+                'overtime_pay' => (float) ($computed['overtime_pay'] ?? 0),
+                'night_diff_pay' => (float) ($computed['night_diff_pay'] ?? 0),
+                'holiday_pay' => (float) ($computed['holiday_pay'] ?? 0),
+                'de_minimis' => (float) ($computed['de_minimis'] ?? 0),
+                'other_earnings_taxable' => (float) ($computed['other_earnings_taxable'] ?? 0),
+                'other_earnings_non_taxable' => (float) ($computed['other_earnings_non_taxable'] ?? 0),
+                'total_earnings' => (float) ($computed['total_earnings'] ?? 0),
+                'sss_ee' => (float) ($computed['sss_ee'] ?? 0),
+                'phic_ee' => (float) ($computed['phic_ee'] ?? 0),
+                'hdmf_ee' => (float) ($computed['hdmf_ee'] ?? 0),
+                'withholding_tax' => (float) ($computed['withholding_tax'] ?? 0),
+                'sss_loan' => (float) ($computed['sss_loan'] ?? 0),
+                'calamity_loan' => (float) ($computed['calamity_loan'] ?? 0),
+                'salary_advance' => (float) ($computed['salary_advance'] ?? 0),
+                'other_deductions' => (float) ($computed['other_deductions'] ?? 0),
+                'total_deductions' => (float) ($computed['total_deductions'] ?? 0),
+                'net_pay' => (float) ($computed['net_pay'] ?? 0),
                 'status' => 'computed',
                 'computed_at' => date('Y-m-d H:i:s')
             ];
-            // Debug: log the transaction payload to diagnose any malformed keys/values
-            log_message('debug', 'computeAndSave txData: ' . print_r($txData, true));
-
-            // Build a sanitized, explicitly keyed array to avoid accidental numeric keys
-            $cleanTxData = [
-                'employee_id' => (int) ($txData['employee_id'] ?? 0),
-                'period_start' => $txData['period_start'] ?? null,
-                'period_end' => $txData['period_end'] ?? null,
-                'basic_pay' => (float) ($txData['basic_pay'] ?? 0),
-                'overtime_pay' => (float) ($txData['overtime_pay'] ?? 0),
-                'night_diff_pay' => (float) ($txData['night_diff_pay'] ?? 0),
-                'holiday_pay' => (float) ($txData['holiday_pay'] ?? 0),
-                'de_minimis' => (float) ($txData['de_minimis'] ?? 0),
-                'other_earnings_taxable' => (float) ($txData['other_earnings_taxable'] ?? 0),
-                'other_earnings_non_taxable' => (float) ($txData['other_earnings_non_taxable'] ?? 0),
-                'total_earnings' => (float) ($txData['total_earnings'] ?? 0),
-                'sss_ee' => (float) ($txData['sss_ee'] ?? 0),
-                'phic_ee' => (float) ($txData['phic_ee'] ?? 0),
-                'hdmf_ee' => (float) ($txData['hdmf_ee'] ?? 0),
-                'withholding_tax' => (float) ($txData['withholding_tax'] ?? 0),
-                'sss_loan' => (float) ($txData['sss_loan'] ?? 0),
-                'calamity_loan' => (float) ($txData['calamity_loan'] ?? 0),
-                'salary_advance' => (float) ($txData['salary_advance'] ?? 0),
-                'other_deductions' => (float) ($txData['other_deductions'] ?? 0),
-                'total_deductions' => (float) ($txData['total_deductions'] ?? 0),
-                'net_pay' => (float) ($txData['net_pay'] ?? 0),
-                'status' => $txData['status'] ?? 'computed',
-                'computed_by' => $txData['computed_by'] ?? null,
-                'computed_at' => $txData['computed_at'] ?? date('Y-m-d H:i:s'),
-            ];
-
-            log_message('debug', 'computeAndSave cleanTxData: ' . print_r($cleanTxData, true));
 
             $txModel->insert($cleanTxData);
             $txId = $txModel->getInsertID();
@@ -303,7 +358,7 @@ class PayrollController extends BaseController
         }
     }
 
-    // ================= EXPORT PAYROLL REGISTER TO CSV =================
+    // ================= EXPORT / IMPORT =================
     public function exportRegister()
     {
         $month = $this->request->getGet('month') ?? date('Y-m');
@@ -328,7 +383,6 @@ class PayrollController extends BaseController
         exit();
     }
 
-    // ================= EXPORT TIMESHEET (RAW SHEET) =================
     public function exportTimesheet()
     {
         $employeeId = $this->request->getGet('employee_id');
@@ -373,7 +427,6 @@ class PayrollController extends BaseController
         exit();
     }
 
-    // ================= IMPORT TIMESHEET (CSV) =================
     public function importTimesheet()
     {
         $file = $this->request->getFile('timesheet_file');
@@ -490,7 +543,7 @@ class PayrollController extends BaseController
 
             if ($email->send()) {
                 unlink($tempPath . $filename);
-                return $this->response->setJSON(['success' => true, 'message' => 'Payslip sent to ' . $user['email']]);
+                return $this->response->setJSON(['success' => true, 'message' => 'Payslip sent to ' . $emailAddress]);
             } else {
                 throw new \Exception('Failed to send email');
             }
@@ -647,7 +700,6 @@ class PayrollController extends BaseController
 
             $payslipModel = new \App\Models\Client\EmployeePayslipModel();
 
-            // Reuse the record created by savePayslipRecord if it exists
             $existing = $payslipModel
                 ->where('employee_id', $employeeId)
                 ->where('period_start', $data['period_start'])
@@ -671,7 +723,6 @@ class PayrollController extends BaseController
                     'generated_data' => json_encode($data),
                     'sent_at'        => null,
                 ]);
-                // Re-query to get the true inserted ID — avoids CI4 returning 0 on some drivers
                 $inserted = $payslipModel
                     ->where('employee_id', $employeeId)
                     ->where('period_start', $data['period_start'])
@@ -706,13 +757,11 @@ class PayrollController extends BaseController
 
             if ($email->send()) {
                 unlink($tempFile);
-                // Use raw DB builder to stamp sent_at — bypasses model $allowedFields whitelist
                 \Config\Database::connect()
                     ->table('employee_payslips')
                     ->where('id', $payslipRecordId)
                     ->update(['sent_at' => date('Y-m-d H:i:s')]);
 
-                // Activity log — payslip sent
                 service('activityLogger')->payslipSent(
                     $payslipRecordId,
                     $data['employee_name'] ?? trim(($employee['first_name'] ?? '') . ' ' . ($employee['last_name'] ?? '')),
@@ -733,7 +782,6 @@ class PayrollController extends BaseController
         }
     }
 
-    // ================= SAVE PAYSLIP RECORD (on Generate, before Send) =================
     public function savePayslipRecord()
     {
         try {
@@ -751,7 +799,6 @@ class PayrollController extends BaseController
             $employee = $employeeModel->find($employeeId);
             if (!$employee) throw new \Exception('Employee not found');
 
-            // Build the PDF so it can be stored on disk immediately
             $html = $this->buildPayslipHtmlForPdf($data, $employee);
             $options = new Options();
             $options->set('defaultFont', 'Courier');
@@ -769,7 +816,6 @@ class PayrollController extends BaseController
 
             $payslipModel = new \App\Models\Client\EmployeePayslipModel();
 
-            // Upsert: if a record with same employee + period + net_pay already exists, skip insert
             $existing = $payslipModel
                 ->where('employee_id', $employeeId)
                 ->where('period_start', $periodStart)
@@ -778,7 +824,6 @@ class PayrollController extends BaseController
                 ->first();
 
             if ($existing) {
-                // Update the stored PDF and data in case something changed, but keep sent_at intact
                 $payslipModel->update($existing['id'], [
                     'file_path'      => $permanentPath,
                     'generated_data' => json_encode($data),
@@ -794,7 +839,6 @@ class PayrollController extends BaseController
                     'generated_data' => json_encode($data),
                     'sent_at'        => null,
                 ]);
-                // Re-query to get real ID — avoids CI4 getInsertID() returning 0 on some drivers
                 $inserted = $payslipModel
                     ->where('employee_id', $employeeId)
                     ->where('period_start', $periodStart)
@@ -808,7 +852,6 @@ class PayrollController extends BaseController
                 throw new \Exception('Failed to resolve payslip record after save.');
             }
 
-            // Activity log — payslip generated
             $empName = $data['employee_name'] ?? trim(($employee['first_name'] ?? '') . ' ' . ($employee['last_name'] ?? ''));
             service('activityLogger')->payslipGenerated(
                 $recordId,
@@ -825,7 +868,6 @@ class PayrollController extends BaseController
         }
     }
 
-    // ================= PAYSLIP HISTORY METHODS =================
     public function getEmployeePayslips($employeeId)
     {
         $payslipModel = new \App\Models\Client\EmployeePayslipModel();
@@ -877,7 +919,6 @@ class PayrollController extends BaseController
         return $this->response->download((string) $filePath, null);
     }
 
-    // JSON endpoint used by the Payslip History tab in payroll_management
     public function getAllPayslips()
     {
         $payslipModel = new \App\Models\Client\EmployeePayslipModel();
@@ -973,7 +1014,7 @@ class PayrollController extends BaseController
 <body>
 <div class="wrap">
     <h2>PAY SLIP</h2>
-    <table>
+    <tr>
         <tr>
             <td><strong>Employee:</strong></td>
             <td>' . htmlspecialchars($data['employee_name'] ?? '') . '</td>
@@ -994,19 +1035,19 @@ class PayrollController extends BaseController
                 <td>
                     <table class="inner-table">
                         <tr><td>Basic Pay:</td><td class="right">' . $fmt($data['basic_pay']) . '</td></tr>
-                        <tr><td>Night Premium:</td><td class="right">' . $fmt($data['night_diff_pay']) . '</td></tr>
-                        <tr><td class="bold">Net Basic Pay:</td><td class="right bold">' . $fmt(($data['basic_pay'] ?? 0) + ($data['night_diff_pay'] ?? 0)) . '</td></tr>
-                        <tr><td class="bold">Reg. OT:</td><td class="right">' . $fmt($data['overtime_pay']) . '</td></tr>
+                        <tr><td class="bold">Night Premium:</td><td class="right">' . $fmt($data['night_diff_pay']) . '</td></tr>
+                        <tr><td class="bold">Net Basic Pay:</td><td class="right bold">' . $fmt(($data['basic_pay'] ?? 0) + ($data['night_diff_pay'] ?? 0)) . '</strong></td></tr>
+                        <tr><td class="bold">Reg. OT:</td><td class="right">' . $fmt($data['overtime_pay']) . '</strong></td></tr>
                     </table>
                 </td>
                 <td>
                     <table class="inner-table">
-                        <tr><td class="bold">Taxable Other:</td><td class="right">' . $fmt($data['other_earnings_taxable']) . '</td></tr>
+                        <tr><td class="bold">Taxable Other:</td><td class="right">' . $fmt($data['other_earnings_taxable']) . '</strong></td></tr>
                     </table>
                 </td>
                 <td>
                     <table class="inner-table">
-                        <tr><td class="bold">De Minimis:</td><td class="right">' . $fmt($data['de_minimis']) . '</td></tr>
+                        <tr><td class="bold">De Minimis:</td><td class="right">' . $fmt($data['de_minimis']) . '</strong></td></tr>
                     </table>
                 </td>
             </tr>
@@ -1016,24 +1057,24 @@ class PayrollController extends BaseController
             </tr>
         </tbody>
     </table>
-    <table>
+    </table>
         <thead><tr><th>REGULAR DEDUCTIONS</th><th>LOANS / ADVANCES</th></tr></thead>
         <tbody>
             <tr>
                 <td>
                     <table class="inner-table">
-                        <tr><td class="bold">SSS:</td><td class="right">' . $fmt($data['sss_ee']) . '</td></tr>
-                        <tr><td class="bold">Philhealth:</td><td class="right">' . $fmt($data['phic_ee']) . '</td></tr>
-                        <tr><td class="bold">Pag-IBIG:</td><td class="right">' . $fmt($data['hdmf_ee']) . '</td></tr>
-                        <tr><td class="bold">Withholding Tax:</td><td class="right">' . $fmt($data['withholding_tax']) . '</td></tr>
+                        <tr><td class="bold">SSS:</td><td class="right">' . $fmt($data['sss_ee']) . '</strong></td></tr>
+                        <tr><td class="bold">Philhealth:</td><td class="right">' . $fmt($data['phic_ee']) . '</strong></td></tr>
+                        <tr><td class="bold">Pag-IBIG:</td><td class="right">' . $fmt($data['hdmf_ee']) . '</strong></td></tr>
+                        <tr><td class="bold">Withholding Tax:</td><td class="right">' . $fmt($data['withholding_tax']) . '</strong></td></tr>
                     </table>
                 </td>
                 <td>
                     <table class="inner-table">
-                        <tr><td class="bold">SSS Loan:</td><td class="right">' . $fmt($data['sss_loan']) . '</td></tr>
-                        <tr><td class="bold">Calamity Loan:</td><td class="right">' . $fmt($data['calamity_loan']) . '</td></tr>
-                        <tr><td class="bold">Salary Advance:</td><td class="right">' . $fmt($data['salary_advance']) . '</td></tr>
-                        <tr><td class="bold">Other Deductions:</td><td class="right">' . $fmt($data['other_deductions']) . '</td></tr>
+                        <tr><td class="bold">SSS Loan:</td><td class="right">' . $fmt($data['sss_loan']) . '</strong></td></tr>
+                        <tr><td class="bold">Calamity Loan:</td><td class="right">' . $fmt($data['calamity_loan']) . '</strong></td></tr>
+                        <tr><td class="bold">Salary Advance:</td><td class="right">' . $fmt($data['salary_advance']) . '</strong></td></tr>
+                        <tr><td class="bold">Other Deductions:</td><td class="right">' . $fmt($data['other_deductions']) . '</strong></td></tr>
                     </table>
                 </td>
             </tr>
@@ -1091,4 +1132,12 @@ class PayrollController extends BaseController
         }
         return $employee['employee_number'] . date('Ymd', strtotime($employee['birthdate']));
     }
+
+    public function getCompanyLogo()
+{
+    $companyId = $this->resolveActiveCompanyId();
+    $branding = (new \App\Models\Client\CompanyBrandingModel())->where('company_id', $companyId)->first();
+    $logoUrl = !empty($branding['logo_path']) ? base_url($branding['logo_path']) : null;
+    return $this->response->setJSON(['logo_url' => $logoUrl]);
+}
 }
