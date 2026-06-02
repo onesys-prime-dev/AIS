@@ -288,11 +288,13 @@ class TimesheetsService
         $scheduledEnd = '17:00:00';
         $attendance = $this->attendanceModel
             ->where('user_id', $userId)
-            ->where('date', $date)
+            ->where('DATE(time_in)', $date)
             ->first();
-        if ($attendance && !empty($attendance['time_out']) && $attendance['time_out'] < $scheduledEnd) {
+        if ($attendance && !empty($attendance['time_out']) && date('H:i:s', strtotime($attendance['time_out'])) < $scheduledEnd) {
             return 'Undertime';
         }
+
+        // F
 
         // First task of the day
         $task = $this->tasksModel
