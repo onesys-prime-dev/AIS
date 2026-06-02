@@ -107,7 +107,7 @@
 }
 
 /*
-! tailwindcss v3.4.19 | MIT License | https://tailwindcss.com
+! tailwindcss v3.4.17 | MIT License | https://tailwindcss.com
 */
 
 /*
@@ -937,8 +937,16 @@ video {
   width: 350px;
 }
 
+.w-\[95vw\] {
+  width: 95vw;
+}
+
 .w-full {
   width: 100%;
+}
+
+.w-\[90vw\] {
+  width: 90vw;
 }
 
 .w-16 {
@@ -961,10 +969,6 @@ video {
   min-width: 1800px;
 }
 
-.max-w-2xl {
-  max-width: 42rem;
-}
-
 .max-w-6xl {
   max-width: 72rem;
 }
@@ -983,6 +987,14 @@ video {
 
 .max-w-xs {
   max-width: 20rem;
+}
+
+.max-w-2xl {
+  max-width: 42rem;
+}
+
+.max-w-4xl {
+  max-width: 56rem;
 }
 
 .flex-1 {
@@ -1054,12 +1066,88 @@ video {
   grid-template-columns: 2fr 1.5fr 1.5fr 1.2fr 1fr 1fr 1fr;
 }
 
-.grid-cols-\[2fr_1\.5fr_1\.5fr_1\.2fr_1fr_1fr_1fr_1fr_1fr\] {
-  grid-template-columns: 2fr 1.5fr 1.5fr 1.2fr 1fr 1fr 1fr 1fr 1fr;
-}
-
 .grid-cols-\[2fr_1\.5fr_1fr\] {
   grid-template-columns: 2fr 1.5fr 1fr;
+}
+
+.grid-cols-\[1\.2fr_1fr_1fr_1fr_1fr_0\.8fr\] {
+  grid-template-columns: 1.2fr 1fr 1fr 1fr 1fr 0.8fr;
+}
+
+.grid-cols-\[1fr_1fr_1fr_1fr_1fr_0\.8fr\] {
+  grid-template-columns: 1fr 1fr 1fr 1fr 1fr 0.8fr;
+}
+
+.grid-cols-\[1fr_0\.9fr_1fr_0\.8fr_0\.9fr_0\.7fr\] {
+  grid-template-columns: 1fr 0.9fr 1fr 0.8fr 0.9fr 0.7fr;
+}
+
+.grid-cols-\[1fr_0\.9fr_1fr_0\.8fr_0\.5fr_0\.7fr\] {
+  grid-template-columns: 1fr 0.9fr 1fr 0.8fr 0.5fr 0.7fr;
+}
+
+.grid-cols-\[1fr_0\.9fr_1fr_0\.5fr_0\.5fr_0\.7fr\] {
+  grid-template-columns: 1fr 0.9fr 1fr 0.5fr 0.5fr 0.7fr;
+}
+
+.grid-cols-\[1fr_0\.5fr_1fr_0\.5fr_0\.5fr_0\.7fr\] {
+  grid-template-columns: 1fr 0.5fr 1fr 0.5fr 0.5fr 0.7fr;
+}
+
+.grid-cols-\[0\.8fr_0\.5fr_1fr_0\.5fr_0\.5fr_0\.7fr\] {
+  grid-template-columns: 0.8fr 0.5fr 1fr 0.5fr 0.5fr 0.7fr;
+}
+
+.grid-cols-\[0\.8fr_0\.5fr_0\.fr_0\.5fr_0\.5fr_0\.7fr\] {
+  grid-template-columns: 0.8fr 0.5fr 0.fr 0.5fr 0.5fr 0.7fr;
+}
+
+.grid-cols-\[0\.8fr_0\.5fr_0\.7fr_0\.5fr_0\.5fr_0\.7fr\] {
+  grid-template-columns: 0.8fr 0.5fr 0.7fr 0.5fr 0.5fr 0.7fr;
+}
+
+.grid-cols-\[1fr_0\.9fr_1fr_0\.8fr_0\.6fr_0\.7fr\] {
+  grid-template-columns: 1fr 0.9fr 1fr 0.8fr 0.6fr 0.7fr;
+}
+
+.grid-cols-\[0\.7fr_0\.5fr_0\.7fr_0\.5fr_0\.5fr_0\.7fr\] {
+  grid-template-columns: 0.7fr 0.5fr 0.7fr 0.5fr 0.5fr 0.7fr;
+}
+
+.grid-cols-\[1fr_0\.9fr_08fr_0\.8fr_0\.9fr_0\.7fr\] {
+  grid-template-columns: 1fr 0.9fr 08fr 0.8fr 0.9fr 0.7fr;
+}
+
+.grid-cols-\[1fr_0\.9fr_0\.8fr_0\.8fr_0\.9fr_0\.7fr\] {
+  grid-template-columns: 1fr 0.9fr 0.8fr 0.8fr 0.9fr 0.7fr;
+}
+
+.grid-cols-\[1fr_0\.9fr_0\.8fr_0\.8fr_0\.fr_0\.7fr\] {
+  grid-template-columns: 1fr 0.9fr 0.8fr 0.8fr 0.fr 0.7fr;
+}
+
+.grid-cols-\[1fr_0\.9fr_0\.8fr_0\.8fr_0\.7fr_0\.7fr\] {
+  grid-template-columns: 1fr 0.9fr 0.8fr 0.8fr 0.7fr 0.7fr;
+}
+
+.grid-cols-\[0\.7fr_0\.5fr_0\.7fr_0\.5fr_0\.5fr_0\.fr\] {
+  grid-template-columns: 0.7fr 0.5fr 0.7fr 0.5fr 0.5fr 0.fr;
+}
+
+.grid-cols-\[0\.7fr_0\.5fr_0\.7fr_0\.5fr_0\.5fr_0\.6fr\] {
+  grid-template-columns: 0.7fr 0.5fr 0.7fr 0.5fr 0.5fr 0.6fr;
+}
+
+.grid-cols-\[0\.95fr_0\.55fr_0\.95fr_0\.55fr_0\.7fr_0\.35fr\] {
+  grid-template-columns: 0.95fr 0.55fr 0.95fr 0.55fr 0.7fr 0.35fr;
+}
+
+.grid-cols-\[0\.95fr_0\.55fr_0\.95fr_0\.55fr_0\.55fr_0\.28fr\] {
+  grid-template-columns: 0.95fr 0.55fr 0.95fr 0.55fr 0.55fr 0.28fr;
+}
+
+.grid-cols-\[2fr_1\.5fr_1\.5fr_1\.2fr_1fr_1fr_1fr_1fr_1fr\] {
+  grid-template-columns: 2fr 1.5fr 1.5fr 1.2fr 1fr 1fr 1fr 1fr 1fr;
 }
 
 .flex-col {
@@ -1538,6 +1626,11 @@ video {
   padding-bottom: 2rem;
 }
 
+.px-1 {
+  padding-left: 0.25rem;
+  padding-right: 0.25rem;
+}
+
 .pb-1 {
   padding-bottom: 0.25rem;
 }
@@ -1743,11 +1836,6 @@ video {
   color: rgb(79 70 229 / var(--tw-text-opacity, 1));
 }
 
-.text-orange-500 {
-  --tw-text-opacity: 1;
-  color: rgb(249 115 22 / var(--tw-text-opacity, 1));
-}
-
 .text-purple-600 {
   --tw-text-opacity: 1;
   color: rgb(147 51 234 / var(--tw-text-opacity, 1));
@@ -1791,6 +1879,11 @@ video {
 .text-zinc-700 {
   --tw-text-opacity: 1;
   color: rgb(63 63 70 / var(--tw-text-opacity, 1));
+}
+
+.text-orange-500 {
+  --tw-text-opacity: 1;
+  color: rgb(249 115 22 / var(--tw-text-opacity, 1));
 }
 
 .antialiased {
