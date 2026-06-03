@@ -656,8 +656,13 @@ class PayrollController extends BaseController
     public function getSettings()
     {
         $settingsModel = new PayrollSettingsModel();
-        $keys = ['monthly_hours', 'night_diff_start', 'night_diff_end', 'night_diff_rate', 
-                 'ot_regular_rate', 'ot_rest_rate', 'ot_holiday_rate', 'sss_table', 'phic_rate', 'hdmf_rate'];
+        $keys = [
+            'monthly_hours',
+            'night_diff_start', 'night_diff_end', 'night_diff_rate',
+            'ot_regular_rate',  'ot_rest_rate',   'ot_holiday_rate',
+            'phic_rate',        'phic_cap',
+            'hdmf_rate',        'hdmf_max',
+        ];
         $settings = [];
         foreach ($keys as $key) {
             $settings[$key] = $settingsModel->getSetting($key);
@@ -1168,10 +1173,246 @@ class PayrollController extends BaseController
     }
 
     public function getCompanyLogo()
-{
-    $companyId = $this->resolveActiveCompanyId();
-    $branding = (new \App\Models\Client\CompanyBrandingModel())->where('company_id', $companyId)->first();
-    $logoUrl = !empty($branding['logo_path']) ? base_url($branding['logo_path']) : null;
-    return $this->response->setJSON(['logo_url' => $logoUrl]);
-}
+    {
+        $companyId = $this->resolveActiveCompanyId();
+        $branding = (new \App\Models\Client\CompanyBrandingModel())->where('company_id', $companyId)->first();
+        $logoUrl = !empty($branding['logo_path']) ? base_url($branding['logo_path']) : null;
+        return $this->response->setJSON(['logo_url' => $logoUrl]);
+    }
+
+    // =========================================================================
+    // SSS BRACKETS
+    // =========================================================================
+
+    /** GET  client_portal/payroll/sss/years  → [{year, is_active}] */
+    public function sssYears()
+    {
+        $db   = \Config\Database::connect();
+        $rows = $db->query(
+            'SELECT effective_year AS `year`, MAX(is_active) AS is_active
+             FROM sss_brackets
+             GROUP BY effective_year
+             ORDER BY effective_year DESC'
+        )->getResultArray();
+        return $this->response->setJSON($rows);
+    }
+
+    /** GET  client_portal/payroll/sss/brackets?year=2025  → bracket rows */
+    public function sssBrackets()
+    {
+        $year = (int) ($this->request->getGet('year') ?? date('Y'));
+        $db   = \Config\Database::connect();
+        $rows = $db->query(
+            'SELECT id, range_start, range_end, monthly_salary_credit,
+                    ee_regular, ee_wisp, er_regular, er_wisp
+             FROM   sss_brackets
+             WHERE  effective_year = ?
+             ORDER  BY range_start ASC',
+            [$year]
+        )->getResultArray();
+        return $this->response->setJSON($rows);
+    }
+
+    /** POST client_portal/payroll/sss/saveBrackets  { year, brackets: [...] } */
+    public function sssSaveBrackets()
+    {
+        $body     = $this->request->getJSON(true);
+        $year     = (int) ($body['year'] ?? 0);
+        $brackets = $body['brackets'] ?? [];
+
+        if (!$year || !is_array($brackets)) {
+            return $this->response->setStatusCode(400)
+                ->setJSON(['success' => false, 'message' => 'Invalid payload.']);
+        }
+
+        $db = \Config\Database::connect();
+        $db->transStart();
+
+        $db->query('DELETE FROM sss_brackets WHERE effective_year = ?', [$year]);
+
+        foreach ($brackets as $b) {
+            $db->table('sss_brackets')->insert([
+                'effective_year'        => $year,
+                'range_start'           => $b['range_start']           ?? 0,
+                'range_end'             => isset($b['range_end']) && $b['range_end'] !== '' ? $b['range_end'] : null,
+                'monthly_salary_credit' => $b['monthly_salary_credit'] ?? 0,
+                'ee_regular'            => $b['ee_regular']            ?? 0,
+                'ee_wisp'               => $b['ee_wisp']               ?? 0,
+                'er_regular'            => $b['er_regular']            ?? 0,
+                'er_wisp'               => $b['er_wisp']               ?? 0,
+            ]);
+        }
+
+        $db->transComplete();
+        return $this->response->setJSON(['success' => $db->transStatus()]);
+    }
+
+    /** POST client_portal/payroll/sss/setActive  { year } */
+    public function sssSetActive()
+    {
+        $year = (int) ($this->request->getJSON(true)['year'] ?? 0);
+        if (!$year) {
+            return $this->response->setStatusCode(400)->setJSON(['success' => false]);
+        }
+
+        $db = \Config\Database::connect();
+        $db->query('UPDATE sss_brackets SET is_active = 0');
+        $db->query('UPDATE sss_brackets SET is_active = 1 WHERE effective_year = ?', [$year]);
+        return $this->response->setJSON(['success' => true]);
+    }
+
+    /** POST client_portal/payroll/sss/createYear  { year, copy_from? } */
+    public function sssCreateYear()
+    {
+        $body     = $this->request->getJSON(true);
+        $year     = (int) ($body['year']      ?? 0);
+        $copyFrom = (int) ($body['copy_from'] ?? 0);
+
+        if (!$year) {
+            return $this->response->setStatusCode(400)
+                ->setJSON(['success' => false, 'message' => 'Invalid year.']);
+        }
+
+        $db     = \Config\Database::connect();
+        $exists = $db->query(
+            'SELECT COUNT(*) AS n FROM sss_brackets WHERE effective_year = ?', [$year]
+        )->getRow()->n;
+
+        if ($exists) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => "Year {$year} already exists.",
+            ]);
+        }
+
+        if ($copyFrom) {
+            $db->query(
+                'INSERT INTO sss_brackets
+                    (effective_year, range_start, range_end, monthly_salary_credit,
+                     ee_regular, ee_wisp, er_regular, er_wisp, is_active)
+                 SELECT ?, range_start, range_end, monthly_salary_credit,
+                        ee_regular, ee_wisp, er_regular, er_wisp, 0
+                 FROM   sss_brackets
+                 WHERE  effective_year = ?',
+                [$year, $copyFrom]
+            );
+        }
+
+        return $this->response->setJSON(['success' => true]);
+    }
+
+    // =========================================================================
+    // WITHHOLDING TAX BRACKETS
+    // =========================================================================
+
+    /** GET  client_portal/payroll/wtax/years  → [{year, is_active}] */
+    public function wtaxYears()
+    {
+        $db   = \Config\Database::connect();
+        $rows = $db->query(
+            'SELECT effective_year AS `year`, MAX(is_active) AS is_active
+             FROM   wtax_brackets_monthly
+             GROUP  BY effective_year
+             ORDER  BY effective_year DESC'
+        )->getResultArray();
+        return $this->response->setJSON($rows);
+    }
+
+    /** GET  client_portal/payroll/wtax/brackets?year=2025  → bracket rows */
+    public function wtaxBrackets()
+    {
+        $year = (int) ($this->request->getGet('year') ?? date('Y'));
+        $db   = \Config\Database::connect();
+        $rows = $db->query(
+            'SELECT id, min_amount, max_amount, fixed_tax, percent_over
+             FROM   wtax_brackets_monthly
+             WHERE  effective_year = ?
+             ORDER  BY min_amount ASC',
+            [$year]
+        )->getResultArray();
+        return $this->response->setJSON($rows);
+    }
+
+    /** POST client_portal/payroll/wtax/saveBrackets  { year, brackets: [...] } */
+    public function wtaxSaveBrackets()
+    {
+        $body     = $this->request->getJSON(true);
+        $year     = (int) ($body['year'] ?? 0);
+        $brackets = $body['brackets'] ?? [];
+
+        if (!$year || !is_array($brackets)) {
+            return $this->response->setStatusCode(400)
+                ->setJSON(['success' => false, 'message' => 'Invalid payload.']);
+        }
+
+        $db = \Config\Database::connect();
+        $db->transStart();
+
+        $db->query('DELETE FROM wtax_brackets_monthly WHERE effective_year = ?', [$year]);
+
+        foreach ($brackets as $b) {
+            $db->table('wtax_brackets_monthly')->insert([
+                'effective_year' => $year,
+                'min_amount'     => $b['min_amount']   ?? 0,
+                'max_amount'     => isset($b['max_amount']) && $b['max_amount'] !== '' ? $b['max_amount'] : null,
+                'fixed_tax'      => $b['fixed_tax']    ?? 0,
+                'percent_over'   => $b['percent_over'] ?? 0,
+            ]);
+        }
+
+        $db->transComplete();
+        return $this->response->setJSON(['success' => $db->transStatus()]);
+    }
+
+    /** POST client_portal/payroll/wtax/setActive  { year } */
+    public function wtaxSetActive()
+    {
+        $year = (int) ($this->request->getJSON(true)['year'] ?? 0);
+        if (!$year) {
+            return $this->response->setStatusCode(400)->setJSON(['success' => false]);
+        }
+
+        $db = \Config\Database::connect();
+        $db->query('UPDATE wtax_brackets_monthly SET is_active = 0');
+        $db->query('UPDATE wtax_brackets_monthly SET is_active = 1 WHERE effective_year = ?', [$year]);
+        return $this->response->setJSON(['success' => true]);
+    }
+
+    /** POST client_portal/payroll/wtax/createYear  { year, copy_from? } */
+    public function wtaxCreateYear()
+    {
+        $body     = $this->request->getJSON(true);
+        $year     = (int) ($body['year']      ?? 0);
+        $copyFrom = (int) ($body['copy_from'] ?? 0);
+
+        if (!$year) {
+            return $this->response->setStatusCode(400)
+                ->setJSON(['success' => false, 'message' => 'Invalid year.']);
+        }
+
+        $db     = \Config\Database::connect();
+        $exists = $db->query(
+            'SELECT COUNT(*) AS n FROM wtax_brackets_monthly WHERE effective_year = ?', [$year]
+        )->getRow()->n;
+
+        if ($exists) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => "Year {$year} already exists.",
+            ]);
+        }
+
+        if ($copyFrom) {
+            $db->query(
+                'INSERT INTO wtax_brackets_monthly
+                    (effective_year, min_amount, max_amount, fixed_tax, percent_over, is_active)
+                 SELECT ?, min_amount, max_amount, fixed_tax, percent_over, 0
+                 FROM   wtax_brackets_monthly
+                 WHERE  effective_year = ?',
+                [$year, $copyFrom]
+            );
+        }
+
+        return $this->response->setJSON(['success' => true]);
+    }
 }

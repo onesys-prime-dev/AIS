@@ -101,10 +101,10 @@ $routes->group('client_portal/payroll', ['namespace' => 'App\Controllers\Client'
     $routes->get('exportCSV/(:any)', 'PayrollController::exportCSV/$1');
     $routes->post('saveSettings', 'PayrollController::saveSettings');
     $routes->get('getSettings', 'PayrollController::getSettings');
-    
+
     // ========== CRITICAL: Attendance summary endpoint ==========
     $routes->get('attendance-summary/(:num)/(:any)/(:any)', 'PayrollController::getAttendanceSummary/$1/$2/$3');
-    
+
     // ========== Additional compute & export endpoints ==========
     $routes->post('compute', 'PayrollController::computeAndSave');
     $routes->post('savePayslipRecord', 'PayrollController::savePayslipRecord');
@@ -112,6 +112,20 @@ $routes->group('client_portal/payroll', ['namespace' => 'App\Controllers\Client'
     $routes->get('exportRegister', 'PayrollController::exportRegister');
     $routes->get('exportTimesheet', 'PayrollController::exportTimesheet');
     $routes->post('importTimesheet', 'PayrollController::importTimesheet');
+
+    // ========== SSS Bracket Management ==========
+    $routes->get('sss/years',            'PayrollController::sssYears');
+    $routes->get('sss/brackets',         'PayrollController::sssBrackets');
+    $routes->post('sss/saveBrackets',    'PayrollController::sssSaveBrackets');
+    $routes->post('sss/setActive',       'PayrollController::sssSetActive');
+    $routes->post('sss/createYear',      'PayrollController::sssCreateYear');
+
+    // ========== Withholding Tax Bracket Management ==========
+    $routes->get('wtax/years',           'PayrollController::wtaxYears');
+    $routes->get('wtax/brackets',        'PayrollController::wtaxBrackets');
+    $routes->post('wtax/saveBrackets',   'PayrollController::wtaxSaveBrackets');
+    $routes->post('wtax/setActive',      'PayrollController::wtaxSetActive');
+    $routes->post('wtax/createYear',     'PayrollController::wtaxCreateYear');
 });
 
 $routes->group('client_portal', ['namespace' => 'App\Controllers\Client'], function($routes) {
