@@ -53,6 +53,26 @@ class EmployeeService
                 throw new \Exception('Password must be at least 8 characters long.');
             }
 
+            $startTime = trim((string) ($data['start_time'] ?? ''));
+            $endTime = trim((string) ($data['end_time'] ?? ''));
+            $workingDayType = trim((string) ($data['working_day_type'] ?? 'full_weekdays')) ?: 'full_weekdays';
+            $workingDays = array_values(array_filter(array_map(
+                static fn ($day) => strtolower(trim((string) $day)),
+                (array) ($data['working_days'] ?? [])
+            )));
+
+            if ($startTime === '' || $endTime === '') {
+                throw new \Exception('Start time and end time are required.');
+            }
+
+            if ($startTime >= $endTime) {
+                throw new \Exception('End time must be later than start time.');
+            }
+
+            if ($workingDays === []) {
+                throw new \Exception('Please select at least one working day.');
+            }
+
             $existingUser = $this->userModel
                 ->where('username', $email)
                 ->first();
@@ -136,6 +156,10 @@ class EmployeeService
                 'department' => $data['department'],
                 'position' => $data['position'],
                 'employment_type' => $data['employment_type'],
+                'working_day_type' => $workingDayType,
+                'start_time' => $startTime,
+                'end_time' => $endTime,
+                'working_days' => json_encode($workingDays),
             ]);
 
             if ($this->posModel->errors()) {
@@ -176,6 +200,13 @@ class EmployeeService
         $department = trim((string) ($details['department'] ?? '')) ?: ($role === 'client_payroll_staff' ? 'Payroll' : 'General');
         $position = trim((string) ($details['position'] ?? '')) ?: ($role === 'client_payroll_staff' ? 'Client Payroll Staff' : 'Employee');
         $employmentType = trim((string) ($details['employment_type'] ?? '')) ?: 'Regular';
+        $workingDayType = trim((string) ($details['working_day_type'] ?? 'full_weekdays')) ?: 'full_weekdays';
+        $workingDays = array_values(array_filter(array_map(
+            static fn ($day) => strtolower(trim((string) $day)),
+            (array) ($details['working_days'] ?? ['mon', 'tue', 'wed', 'thu', 'fri'])
+        )));
+        $startTime = trim((string) ($details['start_time'] ?? '08:00')) ?: '08:00';
+        $endTime = trim((string) ($details['end_time'] ?? '17:00')) ?: '17:00';
 
         $db = \Config\Database::connect();
         $db->transBegin();
@@ -211,6 +242,10 @@ class EmployeeService
                 'department' => $department,
                 'position' => $position,
                 'employment_type' => $employmentType,
+                'working_day_type' => $workingDayType,
+                'start_time' => $startTime,
+                'end_time' => $endTime,
+                'working_days' => json_encode($workingDays),
             ]);
 
             if ($this->posModel->errors()) {
@@ -282,13 +317,73 @@ class EmployeeService
         $db->transBegin();
 
         try {
+
             $employeeModel = new EmployeeModel();
             $positionModel = new EmployeePositionModel();
-            $status = isset($data['status']) ? (int) $data['status'] : 1;
+            $govModel      = new EmployeeGovernmentIdModel();
+
+            $status = isset($data['status'])
+                ? (int) $data['status']
+                : 1;
+
+            /*
+            |--------------------------------------------------------------------------
+            | Schedule Data
+            |--------------------------------------------------------------------------
+            */
+
+            $scheduleData = [];
+
+            if (isset($data['start_time']) && trim((string) $data['start_time']) !== '') {
+                $scheduleData['start_time'] = trim((string) $data['start_time']);
+            }
+
+            if (isset($data['end_time']) && trim((string) $data['end_time']) !== '') {
+                $scheduleData['end_time'] = trim((string) $data['end_time']);
+            }
+
+            if (isset($data['working_day_type']) && trim((string) $data['working_day_type']) !== '') {
+                $scheduleData['working_day_type'] = trim((string) $data['working_day_type']);
+            }
+
+            if (isset($data['working_days'])) {
+
+                $workingDays = array_values(array_filter(array_map(
+                    static fn ($day) => strtolower(trim((string) $day)),
+                    (array) $data['working_days']
+                )));
+
+                if ($workingDays !== []) {
+                    $scheduleData['working_days'] = json_encode($workingDays);
+                }
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | Schedule Validation
+            |--------------------------------------------------------------------------
+            */
+
+            if (
+                isset($scheduleData['start_time'], $scheduleData['end_time'])
+                && $scheduleData['start_time'] >= $scheduleData['end_time']
+            ) {
+                throw new \InvalidArgumentException(
+                    'End time must be later than start time.'
+                );
+            }
 
             if (! in_array($status, [0, 1], true)) {
-                throw new \InvalidArgumentException('Invalid account status.');
+                throw new \InvalidArgumentException(
+                    'Invalid account status.'
+                );
             }
+
+            /*
+            |--------------------------------------------------------------------------
+            | Find Employee
+            |--------------------------------------------------------------------------
+            */
 
             $employee = $employeeModel->find($employeeId);
 
@@ -296,105 +391,179 @@ class EmployeeService
                 throw new \RuntimeException('Employee not found.');
             }
 
-            $currentUser = auth()->user();
+            /*
+            |--------------------------------------------------------------------------
+            | Prevent Self Disable
+            |--------------------------------------------------------------------------
+            */
+
+            $currentUser   = auth()->user();
             $currentUserId = (int) ($currentUser->id ?? 0);
 
-            // Safety guard: prevent currently logged-in user from disabling their own account.
             if (
                 $status === 0
                 && ! empty($employee['user_id'])
                 && (int) $employee['user_id'] === $currentUserId
             ) {
-                throw new \RuntimeException('You cannot deactivate your own account while logged in.');
+                throw new \RuntimeException(
+                    'You cannot deactivate your own account while logged in.'
+                );
             }
 
+            /*
+            |--------------------------------------------------------------------------
+            | Update Employee Basic Info
+            |--------------------------------------------------------------------------
+            */
+
             $employeeModel->update($employeeId, [
-                'first_name' => $data['first_name'],
-                'middle_name' => $data['middle_name'],
-                'last_name' => $data['last_name'],
-                'birthdate' => $data['dob'],
+                'first_name' => $data['first_name'] ?? null,
+                'middle_name' => $data['middle_name'] ?? null,
+                'last_name' => $data['last_name'] ?? null,
+                'birthdate' => $data['dob'] ?? null,
             ]);
 
+            /*
+            |--------------------------------------------------------------------------
+            | Update User Status
+            |--------------------------------------------------------------------------
+            */
+
             if (! empty($employee['user_id'])) {
+
                 $this->userModel->update($employee['user_id'], [
                     'active' => $status,
-                    'status' => $status === 1 ? 'active' : 'inactive',
+                    'status' => $status === 1
+                        ? 'active'
+                        : 'inactive',
+                ]);
+
+                /*
+                |--------------------------------------------------------------------------
+                | Update Shield Email
+                |--------------------------------------------------------------------------
+                */
+
+                if (! empty($data['email'])) {
+
+                    $db->table('auth_identities')
+                        ->where('user_id', $employee['user_id'])
+                        ->where('type', 'email_password')
+                        ->update([
+                            'secret' => trim((string) $data['email'])
+                        ]);
+                }
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | Update Government IDs
+            |--------------------------------------------------------------------------
+            */
+
+            $existingGov = $govModel
+                ->where('employee_id', $employeeId)
+                ->first();
+
+            $govData = [
+                'sss' => $data['sss'] ?? null,
+                'tin' => $data['tin'] ?? null,
+                'pagibig' => $data['pagibig'] ?? null,
+                'philhealth' => $data['philhealth'] ?? null,
+            ];
+
+            if ($existingGov) {
+
+                $govModel
+                    ->where('employee_id', $employeeId)
+                    ->set($govData)
+                    ->update();
+
+            } else {
+
+                $govModel->insert([
+                    'employee_id' => $employeeId,
+                    ...$govData
                 ]);
             }
 
-            // Check if position record exists, if not create it
+            /*
+            |--------------------------------------------------------------------------
+            | Update Position / Schedule
+            |--------------------------------------------------------------------------
+            */
+
             $existingPosition = $positionModel
                 ->where('employee_id', $employeeId)
                 ->first();
 
+            $positionData = [
+                'department' => $data['department'] ?? null,
+                'position' => $data['position'] ?? null,
+                'employment_type' => $data['employment_type'] ?? null,
+            ] + $scheduleData;
+
             if ($existingPosition) {
-                // Update existing position record
+
                 $positionModel
                     ->where('employee_id', $employeeId)
-                    ->set([
-                        'department' => $data['department'],
-                        'position' => $data['position'],
-                        'employment_type' => $data['employment_type'],
-                    ])
+                    ->set($positionData)
                     ->update();
+
             } else {
-                // Insert new position record if it doesn't exist
+
                 $positionModel->insert([
                     'employee_id' => $employeeId,
-                    'department' => $data['department'],
-                    'position' => $data['position'],
-                    'employment_type' => $data['employment_type'],
+                    ...$positionData
                 ]);
 
                 if ($positionModel->errors()) {
-                    throw new \Exception(json_encode($positionModel->errors()));
+                    throw new \Exception(
+                        json_encode($positionModel->errors())
+                    );
                 }
             }
 
-            if (isset($data['leave_total']) && $data['leave_total'] !== '') {
+            /*
+            |--------------------------------------------------------------------------
+            | Update Leave Balance
+            |--------------------------------------------------------------------------
+            */
+
+            if (
+                isset($data['leave_total'])
+                && $data['leave_total'] !== ''
+            ) {
+
                 $leaveTotal = (float) $data['leave_total'];
+
                 if ($leaveTotal < 0) {
-                    throw new \InvalidArgumentException('Leave total cannot be negative.');
+                    throw new \InvalidArgumentException(
+                        'Leave total cannot be negative.'
+                    );
                 }
-                $this->leaveBalanceModel->setEntitlement((int) $employeeId, $leaveTotal);
+
+                $this->leaveBalanceModel
+                    ->setEntitlement(
+                        (int) $employeeId,
+                        $leaveTotal
+                    );
             }
+
+            /*
+            |--------------------------------------------------------------------------
+            | Commit
+            |--------------------------------------------------------------------------
+            */
 
             $db->transCommit();
 
             return true;
+
         } catch (\Throwable $e) {
+
             $db->transRollback();
-            throw $e;
-        }
-    }
 
-    public function deleteEmployee($employeeId)
-    {
-        $db = \Config\Database::connect();
-        $db->transBegin();
-
-        try {
-            $employeeModel = new EmployeeModel();
-            $govModel = new EmployeeGovernmentIdModel();
-            $posModel = new EmployeePositionModel();
-
-            $govModel->where('employee_id', $employeeId)->delete();
-            $posModel->where('employee_id', $employeeId)->delete();
-
-            $employee = $employeeModel->find($employeeId);
-
-            if ($employee) {
-                $employeeModel->delete($employeeId);
-
-                $userModel = new UserModel();
-                $userModel->delete($employee['user_id']);
-            }
-
-            $db->transCommit();
-
-            return true;
-        } catch (\Throwable $e) {
-            $db->transRollback();
             throw $e;
         }
     }

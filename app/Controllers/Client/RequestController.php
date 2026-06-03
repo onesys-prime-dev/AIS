@@ -125,11 +125,18 @@ class RequestController extends BaseController
             $days        = (float) $old['duration'];
             $year        = (int) date('Y', strtotime($old['start_date']));
 
+            $isPaid = $this->leaveBalanceModel->applyRequestStatusChange(
+                $requestedBy,
+                (string) $old['request_type'],
+                $days,
+                $status,
+                (string) ($old['status'] ?? null),
+                $year
+            );
+
             if ($status === 'approved' && $old['status'] !== 'approved') {
-                $isPaid = $this->leaveBalanceModel->deduct($requestedBy, 'leave', $days, $year);
                 $this->requestModel->update($id, ['is_paid_leave' => $isPaid ? 1 : 0]);
             } elseif ($status === 'rejected' && $old['status'] === 'approved') {
-                $this->leaveBalanceModel->refund($requestedBy, 'leave', $days, $year);
                 $this->requestModel->update($id, ['is_paid_leave' => null]);
             }
         }
@@ -384,7 +391,14 @@ class RequestController extends BaseController
             // Deduct leave balance for approved leave requests
             if ($insertData['request_type'] === 'leave') {
                 $year   = (int) date('Y', strtotime($insertData['start_date']));
-                $isPaid = $this->leaveBalanceModel->deduct($userId, 'leave', (float) $duration, $year);
+                $isPaid = $this->leaveBalanceModel->applyRequestStatusChange(
+                    $userId,
+                    (string) $insertData['request_type'],
+                    (float) $duration,
+                    'approved',
+                    null,
+                    $year
+                );
                 $this->requestModel->update($newRequestId, ['is_paid_leave' => $isPaid ? 1 : 0]);
             }
 
@@ -504,7 +518,14 @@ class RequestController extends BaseController
         // Deduct leave balance for approved leave requests
         if ($status === 'approved' && $insertData['request_type'] === 'leave') {
             $year   = (int) date('Y', strtotime($insertData['start_date']));
-            $isPaid = $this->leaveBalanceModel->deduct($userId, 'leave', (float) $duration, $year);
+            $isPaid = $this->leaveBalanceModel->applyRequestStatusChange(
+                $userId,
+                (string) $insertData['request_type'],
+                (float) $duration,
+                $status,
+                null,
+                $year
+            );
             $this->requestModel->update($newRequestId, ['is_paid_leave' => $isPaid ? 1 : 0]);
         }
 

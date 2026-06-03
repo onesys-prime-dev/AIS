@@ -22,9 +22,8 @@
     <?= view('components/table', [
         'title' => 'Daily Time Log',
         'tableId' => 'dailyTimeLogTable',
-        'grid' => 'grid-cols-[1fr_1fr_1fr_1fr_1fr_1fr_0.8fr]',
+        'grid' => 'grid-cols-[0.95fr_0.55fr_0.95fr_0.55fr_0.55fr_0.28fr]',
         'columns' => [
-            'Date',
             'Time In',
             'Break',
             'Time Out',
@@ -35,7 +34,7 @@
     ]) ?>
 
     <div id="dailyTimeLogDetailModal" class="fixed inset-0 hidden items-center justify-center bg-black/40 z-[10000]">
-        <div class="w-full max-w-2xl h-[400px] rounded-xl bg-white p-6 shadow-xl relative">
+        <div class="w-[90vw] max-w-2xl h-[400px] rounded-xl bg-white p-6 shadow-xl relative">
             <button type="button" id="dailyTimeLogDetailClose" class="absolute right-4 top-4 text-gray-500 hover:text-black text-xl leading-none">
                 ✕
             </button>
@@ -108,6 +107,23 @@
         });
     }
 
+    function getDateFromTimeIn(value) {
+        if (!value) return '';
+
+        const normalized = String(value).trim().replace(' ', 'T');
+        const date = new Date(normalized);
+
+        if (Number.isNaN(date.getTime())) {
+            return String(value).split(' ')[0] || String(value);
+        }
+
+        return date.toLocaleDateString([], {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit'
+        });
+    }
+
     function getDailyLogStatus(item) {
         if (!item.time_in && !item.time_out) return 'Incomplete';
         if (item.time_in && !item.time_out) return 'Ongoing';
@@ -135,8 +151,7 @@
         };
 
         return `
-            <div class="grid grid-cols-[1fr_1fr_1fr_1fr_1fr_1fr_0.8fr] items-center border-b hover:bg-gray-50">
-                <div class="p-4">${item.date || '---'}</div>
+            <div class="grid grid-cols-[0.95fr_0.55fr_0.95fr_0.55fr_0.55fr_0.28fr] items-center border-b hover:bg-gray-50 w-full">
                 <div class="p-4">${formatTimeValue(item.time_in)}</div>
                 <div class="p-4">${formatBreakValue(item)}</div>
                 <div class="p-4">${formatTimeValue(item.time_out)}</div>
@@ -146,12 +161,12 @@
                         ${status}
                     </span>
                 </div>
-                <div class="p-4 text-center">
+                <div class="px-1 py-4 flex items-center justify-center">
                     <button
                         type="button"
-                        class="rounded-lg bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-200"
+                        class="whitespace-nowrap rounded-lg bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-200"
                         data-action="view-daily-time-log"
-                        data-date="${item.date || ''}"
+                        data-date="${getDateFromTimeIn(item.time_in)}"
                         data-time_in="${item.time_in || ''}"
                         data-break_start="${item.break_start || ''}"
                         data-break_end="${item.break_end || ''}"
@@ -189,7 +204,7 @@
             data: dailyTimeLog,
             renderRow: dailyTimeLogRowTemplate,
             search: (item, q) =>
-                `${item.date ?? ''} ${item.time_in ?? ''} ${item.break_start ?? ''} ${item.break_end ?? ''} ${item.time_out ?? ''} ${getDailyLogStatus(item)}`
+                `${getDateFromTimeIn(item.time_in)} ${item.time_in ?? ''} ${item.break_start ?? ''} ${item.break_end ?? ''} ${item.time_out ?? ''} ${getDailyLogStatus(item)}`
                     .toLowerCase()
                     .includes(q)
         });
@@ -288,5 +303,12 @@
         display: flex;
         flex-direction: column;
         gap: 1rem;
+    }
+
+    /* Tighten Status and Action column padding for this specific table */
+    [data-crud-table="dailyTimeLogTable"] .grid > div:nth-child(5),
+    [data-crud-table="dailyTimeLogTable"] .grid > div:nth-child(6) {
+        padding-left: 0.5rem;
+        padding-right: 0.5rem;
     }
 </style>

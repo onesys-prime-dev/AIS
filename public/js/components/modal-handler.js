@@ -67,7 +67,7 @@ function prevStep(step)
 
 function resetSteps()
 {
-    const steps = ["step1","step2","step3"];
+    const steps = ["step1","step2","step3","step4"];
 
     steps.forEach((id,index)=>{
 
@@ -87,7 +87,7 @@ function resetSteps()
 
 function updateProgress(step)
 {
-    const steps = [1,2,3];
+    const steps = [1,2,3,4];
 
     steps.forEach(i => {
 

@@ -83,6 +83,55 @@ class LeaveBalanceModel extends Model
         return $this->getBalance($employeeId, $leaveType, $year);
     }
 
+    /**
+     * Rebuild the leave balance from the latest approved request of a given type.
+     *
+     * This is useful when a balance row exists but was not updated at the time
+     * the request was approved. The total entitlement is preserved and the
+     * used/remaining values are recalculated from the latest approved request
+     * in the selected year.
+     */
+    public function syncFromApprovedRequests(int $employeeId, ?int $year = null, string $requestType = 'leave'): array
+    {
+        $year ??= (int) date('Y');
+
+        $row = $this->getOrCreate($employeeId, 'leave', $year);
+
+        $employee = db_connect()
+            ->table('employees')
+            ->select('user_id')
+            ->where('id', $employeeId)
+            ->get()
+            ->getRowArray();
+
+        if (! $employee || empty($employee['user_id'])) {
+            return $row;
+        }
+
+        $latestRequest = db_connect()
+            ->table('requests')
+            ->select('duration')
+            ->where('requested_by', (int) $employee['user_id'])
+            ->where('request_type', $requestType)
+            ->where('status', 'approved')
+            ->where('YEAR(start_date)', $year, false)
+            ->orderBy('created_at', 'DESC')
+            ->orderBy('id', 'DESC')
+            ->limit(1)
+            ->get()
+            ->getRowArray();
+
+        $used = $latestRequest !== null ? (float) ($latestRequest['duration'] ?? 0) : 0.0;
+        $remaining = max(0.0, (float) $row['total_entitlement'] - $used);
+
+        $this->update($row['id'], [
+            'used'      => $used,
+            'remaining' => $remaining,
+        ]);
+
+        return $this->getBalance($employeeId, 'leave', $year) ?? $row;
+    }
+
     // =========================================================================
     // Entitlement management
     // =========================================================================
@@ -148,6 +197,39 @@ class LeaveBalanceModel extends Model
         ]);
 
         return true;
+    }
+
+    /**
+     * Apply request status changes to leave balances.
+     *
+     * Approving a leave request deducts from the balance.
+     * Rejecting an already approved leave request refunds it.
+     * Rejected pending requests do not change the balance.
+     *
+     * Returns the deduction result when approval triggers a deduction,
+     * null when no balance change is needed.
+     */
+    public function applyRequestStatusChange(
+        int $userId,
+        string $requestType,
+        float $days,
+        string $newStatus,
+        ?string $oldStatus = null,
+        ?int $year = null
+    ): ?bool {
+        if ($requestType !== 'leave') {
+            return null;
+        }
+
+        if ($newStatus === 'approved' && $oldStatus !== 'approved') {
+            return $this->deduct($userId, 'leave', $days, $year);
+        }
+
+        if ($newStatus === 'rejected' && $oldStatus === 'approved') {
+            $this->refund($userId, 'leave', $days, $year);
+        }
+
+        return null;
     }
 
     /**

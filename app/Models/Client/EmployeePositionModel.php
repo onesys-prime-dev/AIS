@@ -12,5 +12,6 @@ class EmployeePositionModel extends Model
     protected $useAutoIncrement = true;
     protected $allowedFields = [
         'employee_id', 'department', 'position', 'employment_type',
+        'start_time', 'end_time', 'working_day_type', 'working_days',
     ];
 }

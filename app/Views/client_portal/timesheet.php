@@ -116,12 +116,12 @@
     <!-- Daily Time Log Modal -->
     <?php
         $content = view('client_portal/modals/view_daily_time_log', ['dailyTimeLog' => $dailyTimeLog ?? []]);
-        echo view('components/view_modal', ['id' => 'viewDailyTimeLog', 'title' => 'Daily Time Log', 'content' => $content]);
+        echo view('components/view_modal', ['id' => 'viewDailyTimeLog', 'title' => 'Daily Time Log', 'content' => $content, 'maxWidthClass' => 'max-w-4xl']);
     ?>
 
     <!-- Timesheet History Modal -->
     <?php
-        $content = view('client_portal/modals/view_timesheet_history');
+        $content = view('client_portal/modals/view_timesheet_history', ['timesheetHistory' => $timesheetHistory ?? []]);
         echo view('components/view_modal', ['id' => 'viewTimesheetHistoryModal', 'title' => 'Timesheets History', 'content' => $content]);
     ?>
 

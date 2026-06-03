@@ -1,3 +1,7 @@
+<?php
+    $timesheetHistory = $timesheetHistory ?? [];
+?>
+
 <div class="view-timesheet-modal" data-modal="viewTimesheetHistoryModal" >
     <div class="history-search-wrap">
         <span class="search-icon-prefix">
@@ -30,6 +34,94 @@
         ]
     ]) ?>
 </div>
+
+<script>
+    const TIMESHEET_HISTORY = <?= json_encode($timesheetHistory) ?>;
+
+    function formatHistoryDate(value) {
+        if (!value) return '---';
+
+        const date = new Date(String(value).replace(' ', 'T'));
+        if (Number.isNaN(date.getTime())) {
+            return String(value);
+        }
+
+        return date.toLocaleDateString([], {
+            year: 'numeric',
+            month: 'short',
+            day: '2-digit'
+        });
+    }
+
+    function historyRowTemplate(item) {
+        const dateRange = `${formatHistoryDate(item.period_start)} - ${formatHistoryDate(item.period_end)}`;
+
+        return `
+            <div class="grid grid-cols-[2fr_1.5fr_1fr] items-center border-b hover:bg-gray-50 w-full">
+                <div class="p-4">${dateRange}</div>
+                <div class="p-4">${item.total_hours ? `${Number(item.total_hours).toFixed(2)} hrs` : '---'}</div>
+                <div class="p-4 text-center">
+                    <span class="inline-flex items-center rounded-lg bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700">
+                        View
+                    </span>
+                </div>
+            </div>
+        `;
+    }
+
+    (function () {
+        const tableId = 'timesheetHistoryTable';
+        const container = document.querySelector(`[data-crud-table="${tableId}"]`);
+        if (!container) return;
+
+        const body = container.querySelector('.crud-body');
+        const searchInput = container.querySelector('.crud-search');
+        const list = Array.isArray(TIMESHEET_HISTORY) ? TIMESHEET_HISTORY : [];
+
+        function renderEmptyMessage() {
+            if (!body) return;
+
+            body.innerHTML = `
+                <div class="min-h-full flex items-center justify-center px-6 py-10 text-gray-400">
+                    <div class="flex max-w-md flex-col items-center gap-3 rounded-2xl border border-dashed border-gray-300 bg-gray-50 px-8 py-10 text-center shadow-sm">
+                        <span class="text-lg font-semibold text-gray-500">No timesheets history found</span>
+                        <span class="text-sm leading-6 text-gray-400">There are no previous cutoff records to display.</span>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderRows(items) {
+            if (!body) return;
+
+            if (!items.length) {
+                renderEmptyMessage();
+                return;
+            }
+
+            body.innerHTML = items.map(historyRowTemplate).join('');
+        }
+
+        function applySearch() {
+            const query = (searchInput?.value || '').toLowerCase().trim();
+
+            const filtered = list.filter(item => {
+                const searchable = `${formatHistoryDate(item.period_start)} ${formatHistoryDate(item.period_end)} ${item.total_hours ?? ''} ${item.entries_count ?? ''} ${item.days_covered ?? ''}`
+                    .toLowerCase();
+
+                return !query || searchable.includes(query);
+            });
+
+            renderRows(filtered);
+        }
+
+        if (searchInput) {
+            searchInput.addEventListener('input', applySearch);
+        }
+
+        applySearch();
+    })();
+</script>
 
 <style>
     .history-search-wrap {
