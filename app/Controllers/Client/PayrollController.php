@@ -227,11 +227,37 @@ class PayrollController extends BaseController
         $attendanceModel = new AttendanceModel();
         $attendances = $attendanceModel
             ->where('user_id', $userId)
-            ->where('date >=', $startDate)
-            ->where('date <=', $endDate)
+            ->where('DATE(time_in) >=', $startDate)
+            ->where('DATE(time_in) <=', $endDate)
             ->findAll();
 
         $summary = $this->aggregateAttendance($attendances, $startDate, $endDate);
+
+        // Overlay approved leave requests to adjust absent/paid leave days
+        $requestModel = new \App\Models\Client\RequestModel();
+        $requests = $requestModel
+            ->where('requested_by', $userId)
+            ->where('status', 'approved')
+            ->where('request_type', 'leave')
+            ->where('start_date >=', $startDate)
+            ->where('end_date <=', $endDate)
+            ->findAll();
+
+        $paidLeaveDays   = 0;
+        $unpaidLeaveDays = 0;
+        foreach ($requests as $req) {
+            if ($req['is_paid_leave']) {
+                $paidLeaveDays   += (float) $req['duration'];
+            } else {
+                $unpaidLeaveDays += (float) $req['duration'];
+            }
+        }
+
+        // Paid leaves reduce the absent count; unpaid leaves are already captured as absent
+        $summary['paid_leave_days']   = $paidLeaveDays;
+        $summary['unpaid_leave_days'] = $unpaidLeaveDays;
+        $summary['absent_days']       = max(0, $summary['absent_days'] - $paidLeaveDays);
+
         return $this->response->setJSON($summary);
     }
 
@@ -249,6 +275,10 @@ class PayrollController extends BaseController
         foreach ($attendances as $att) {
             if (empty($att['time_in']) || empty($att['time_out'])) continue;
 
+            // Derive date and time-only from the datetime column
+            $attDate  = date('Y-m-d', strtotime($att['time_in']));
+            $timeOnly = date('H:i:s', strtotime($att['time_in']));
+
             $workedDays++;
             $totalHours = (float)($att['total_hours'] ?? 0);
             // Regular hours = min(8, total hours)
@@ -256,15 +286,14 @@ class PayrollController extends BaseController
             $nightDiffHours += (float)($att['night_diff_hours'] ?? 0);
 
             // Tardy minutes (scheduled start 08:00)
-            $timeIn = strtotime($att['time_in']);
-            $scheduledStart = strtotime('08:00:00');
-            if ($timeIn > $scheduledStart) {
-                $tardyMinutes += round(($timeIn - $scheduledStart) / 60);
+            $scheduledStart = '08:00:00';
+            if ($timeOnly > $scheduledStart) {
+                $tardyMinutes += round((strtotime($timeOnly) - strtotime($scheduledStart)) / 60);
             }
 
             // Overtime: any hours beyond 8 per day
             $ot = max(0, $totalHours - 8);
-            $isRestDay = (date('N', strtotime($att['date'])) == 7); // Sunday
+            $isRestDay = (date('N', strtotime($attDate)) == 7); // Sunday
             $isHoliday = false; // implement holiday check if needed
 
             if ($isHoliday) {
@@ -401,11 +430,11 @@ class PayrollController extends BaseController
 
         $attendanceModel = new AttendanceModel();
         $records = $attendanceModel
-            ->select('date, time_in, time_out, break_duration, total_hours')
+            ->select('DATE(time_in) as date, time_in, time_out, break_duration, total_hours')
             ->where('user_id', $employee['user_id'])
-            ->where('date >=', $startDate)
-            ->where('date <=', $endDate)
-            ->orderBy('date', 'ASC')
+            ->where('DATE(time_in) >=', $startDate)
+            ->where('DATE(time_in) <=', $endDate)
+            ->orderBy('time_in', 'ASC')
             ->findAll();
 
         $filename = "timesheet_{$employee['employee_number']}_{$startDate}_to_{$endDate}.csv";
@@ -443,15 +472,16 @@ class PayrollController extends BaseController
             $employee = $employeeModel->where('employee_number', $data['employee_number'])->first();
             if (!$employee) continue;
             $attendanceModel = new AttendanceModel();
-            $breakDur = isset($data['break_duration']) ? (float)$data['break_duration'] : 0;
-            $totalHours = $this->calculateTotalHours($data['time_in'], $data['time_out'], $breakDur);
+            $breakDur   = isset($data['break_duration']) ? (float)$data['break_duration'] : 0;
+            $timeInDt   = $data['date'] . ' ' . $data['time_in'];
+            $timeOutDt  = ! empty($data['time_out']) ? $data['date'] . ' ' . $data['time_out'] : null;
+            $totalHours = $this->calculateTotalHours($timeInDt, $timeOutDt, $breakDur);
             $attendanceModel->insert([
-                'user_id' => $employee['user_id'],
-                'date' => $data['date'],
-                'time_in' => $data['time_in'],
-                'time_out' => $data['time_out'] ?? null,
+                'user_id'        => $employee['user_id'],
+                'time_in'        => $timeInDt,
+                'time_out'       => $timeOutDt,
                 'break_duration' => $breakDur,
-                'total_hours' => $totalHours
+                'total_hours'    => $totalHours,
             ]);
             $successCount++;
         }
@@ -555,15 +585,19 @@ class PayrollController extends BaseController
     // ================= OTHER METHODS =================
     public function getTimesheet($employeeId, $startDate, $endDate)
     {
+        $employeeModel = new EmployeeModel();
+        $employee = $employeeModel->find($employeeId);
+        if (! $employee) {
+            return $this->response->setStatusCode(404)->setJSON(['error' => 'Employee not found']);
+        }
+
         $attendanceModel = new AttendanceModel();
         $data = $attendanceModel
-            ->select("date, time_in, time_out, break_duration, total_hours")
-            ->where('user_id', function($builder) use ($employeeId) {
-                $builder->select('user_id')->from('employees')->where('id', $employeeId);
-            })
-            ->where('date >=', $startDate)
-            ->where('date <=', $endDate)
-            ->orderBy('date', 'ASC')
+            ->select('DATE(time_in) as date, time_in, time_out, break_duration, total_hours')
+            ->where('user_id', $employee['user_id'])
+            ->where('DATE(time_in) >=', $startDate)
+            ->where('DATE(time_in) <=', $endDate)
+            ->orderBy('time_in', 'ASC')
             ->findAll();
         return $this->response->setJSON($data);
     }

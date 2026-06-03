@@ -31,12 +31,13 @@ class PayrollAggregationService
         $totalWorkingDays = $this->getTotalWorkingDays($start, $end);
 
         $employeeModel = new \App\Models\Client\EmployeeModel();
-        $employees = $employeeModel->select('id')->findAll();
+        // Fetch both employee id and user_id so attendance/requests can be queried correctly
+        $employees = $employeeModel->select('id, user_id')->findAll();
 
         foreach ($employees as $emp) {
             $summary = $this->summaryModel->getOrCreate($emp['id'], $cutoffId);
-            $this->aggregateForEmployee($summary['id'], $emp['id'], $start, $end, $totalWorkingDays);
-            $this->applyRequestsToSummary($summary['id'], $emp['id'], $start, $end);
+            $this->aggregateForEmployee($summary['id'], (int) $emp['user_id'], $start, $end, $totalWorkingDays);
+            $this->applyRequestsToSummary($summary['id'], (int) $emp['user_id'], $start, $end);
         }
     }
 
@@ -58,12 +59,12 @@ class PayrollAggregationService
         return $workingDays;
     }
 
-    private function aggregateForEmployee(int $summaryId, int $employeeId, string $start, string $end, int $totalWorkingDays): void
+    private function aggregateForEmployee(int $summaryId, int $userId, string $start, string $end, int $totalWorkingDays): void
     {
         $attendances = $this->attendanceModel
-            ->where('user_id', $employeeId)
-            ->where('date >=', $start)
-            ->where('date <=', $end)
+            ->where('user_id', $userId)
+            ->where('DATE(time_in) >=', $start)
+            ->where('DATE(time_in) <=', $end)
             ->findAll();
 
         $attendedDates = [];
@@ -84,16 +85,18 @@ class PayrollAggregationService
                 continue;
             }
 
-            $attendedDates[] = $att['date'];
+            // Derive date from time_in datetime
+            $attDate = date('Y-m-d', strtotime($att['time_in']));
+            $attendedDates[] = $attDate;
             
             $worked = (float) $att['total_hours'];
             $night = (float) $att['night_diff_hours'];
             $regularWorkHours = min($worked, 8);
             $otHours = max(0, $worked - 8);
 
-            $dayOfWeek = date('N', strtotime($att['date']));
+            $dayOfWeek = date('N', strtotime($attDate));
             $isRestDay = ($dayOfWeek == 7);
-            $isHoliday = $this->isHoliday($att['date']);
+            $isHoliday = $this->isHoliday($attDate);
 
             $first10 = min($otHours, 10);
             $excess = max(0, $otHours - 10);
@@ -114,7 +117,6 @@ class PayrollAggregationService
             $totalTardyMinutes += $this->calculateTardyMinutes($att['time_in']);
             $workedDays++;
         }
-
         // Calculate absent days
         $absentDays = max(0, $totalWorkingDays - $workedDays);
 
@@ -134,10 +136,10 @@ class PayrollAggregationService
         ]);
     }
 
-    private function applyRequestsToSummary(int $summaryId, int $employeeId, string $start, string $end): void
+    private function applyRequestsToSummary(int $summaryId, int $userId, string $start, string $end): void
     {
         $requests = $this->requestModel
-            ->where('requested_by', $employeeId)
+            ->where('requested_by', $userId)
             ->where('status', 'approved')
             ->where(function($query) use ($start, $end) {
                 $query->where('start_date >=', $start)
@@ -153,8 +155,7 @@ class PayrollAggregationService
         foreach ($requests as $req) {
             switch ($req['request_type']) {
                 case 'leave':
-                    // If you have an 'is_paid' column, use it; otherwise all leave is unpaid
-                    $isPaid = $req['is_paid'] ?? 0;
+                    $isPaid = $req['is_paid_leave'] ?? 0;
                     if ($isPaid) {
                         $paidLeaveDays += $req['duration'];
                     } else {
@@ -194,12 +195,16 @@ class PayrollAggregationService
 
     private function calculateTardyMinutes(?string $timeIn): int
     {
-        if (!$timeIn) return 0;
+        if (! $timeIn) return 0;
+
+        // time_in is now a full datetime — extract just the time portion for comparison
+        $timeOnly     = date('H:i:s', strtotime($timeIn));
         $scheduledStart = '08:00:00';
-        if ($timeIn <= $scheduledStart) return 0;
-        $in = new \DateTime($timeIn);
+        if ($timeOnly <= $scheduledStart) return 0;
+
+        $in    = new \DateTime($timeOnly);
         $start = new \DateTime($scheduledStart);
-        $diff = $in->diff($start);
+        $diff  = $start->diff($in);
         return ($diff->h * 60) + $diff->i;
     }
 
