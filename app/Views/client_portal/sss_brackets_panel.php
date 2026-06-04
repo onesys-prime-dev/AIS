@@ -182,7 +182,7 @@
     // ── Active badge ───────────────────────────────────────────────────────
     function updateActiveBadge() {
         const sel = years.find(y => y.year == current);
-        if (sel?.is_active) {
+        if (sel && parseInt(sel.is_active) === 1) {
             activeBadge.classList.remove('hidden');
             setActiveBtn.classList.add('hidden');
         } else {

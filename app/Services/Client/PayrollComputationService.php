@@ -4,8 +4,6 @@ namespace App\Services\Client;
 
 use App\Models\Client\PayrollSettingsModel;
 use App\Models\Client\RequestModel;
-use App\Models\Client\SssBracketModel;
-use App\Models\Client\WtaxBracketModel;
 use App\Models\Client\PayrollTransactionModel;
 
 class PayrollComputationService
@@ -158,89 +156,141 @@ class PayrollComputationService
     }
 
     // ========== Contribution Calculators using DB tables ==========
+
     protected function calculateSSS(float $monthlySalary): float
     {
-        $bracket = (new SssBracketModel())
+        // Only match brackets belonging to the currently active year.
+        // range_end NULL means the top open-ended bracket (no upper limit).
+        $db      = \Config\Database::connect();
+        $bracket = $db->table('sss_brackets')
+            ->where('is_active', 1)
             ->where('range_start <=', $monthlySalary)
+            ->groupStart()
+                ->where('range_end >=', $monthlySalary)
+                ->orWhere('range_end IS NULL')
+            ->groupEnd()
             ->orderBy('range_start', 'DESC')
-            ->first();
+            ->limit(1)
+            ->get()
+            ->getRowArray();
+
         if (!$bracket) return 0;
-        return (float)($bracket['ee_regular'] + ($bracket['ee_wisp'] ?? 0));
+        return (float)(($bracket['ee_regular'] ?? 0) + ($bracket['ee_wisp'] ?? 0));
     }
 
     protected function calculatePhilHealth(float $monthlySalary): float
     {
-        $premium = $monthlySalary * 0.05;   // 5% total premium
-        $share = $premium / 2;             // employee share = half
-        $maxShare = 600;                   // max employee share (1200 total / 2)
-        return min($share, $maxShare);
+        // Rate and income cap come from payroll_settings so admin can update
+        // without touching code (e.g. PhilHealth 5% on salary up to ₱80,000/mo).
+        $rate = (float)($this->settings->getSetting('phic_rate') ?? 0.05);
+        $cap  = (float)($this->settings->getSetting('phic_cap')  ?? 80000);
+
+        $cappedSalary  = min($monthlySalary, $cap);
+        $employeeShare = ($cappedSalary * $rate) / 2;   // total premium split 50/50
+
+        return round($employeeShare, 2);
     }
 
     protected function calculatePagIbig(float $monthlySalary): float
     {
-        $share = $monthlySalary * 0.02;    // 2% employee share
-        return min($share, 100);
+        // 2% of salary, capped at ₱100 employee share — both configurable.
+        $rate = (float)($this->settings->getSetting('hdmf_rate') ?? 0.02);
+        $max  = (float)($this->settings->getSetting('hdmf_max')  ?? 100);
+
+        return min(round($monthlySalary * $rate, 2), $max);
     }
 
     protected function calculateWithholdingTax(float $monthlyTaxableIncome): float
     {
-        $bracket = (new WtaxBracketModel())
+        // Use the active year's brackets only.
+        $db      = \Config\Database::connect();
+        $bracket = $db->table('wtax_brackets_monthly')
+            ->where('is_active', 1)
             ->where('min_amount <=', $monthlyTaxableIncome)
+            ->groupStart()
+                ->where('max_amount >=', $monthlyTaxableIncome)
+                ->orWhere('max_amount IS NULL')
+            ->groupEnd()
             ->orderBy('min_amount', 'DESC')
-            ->first();
+            ->limit(1)
+            ->get()
+            ->getRowArray();
+
         if (!$bracket) return 0;
-        $excess = $monthlyTaxableIncome - $bracket['min_amount'];
-        $tax = $bracket['fixed_tax'] + ($excess * $bracket['percent_over']);
-        return max(0, $tax);
+        $excess = $monthlyTaxableIncome - (float)$bracket['min_amount'];
+        $tax    = (float)$bracket['fixed_tax'] + ($excess * (float)$bracket['percent_over']);
+        return max(0, round($tax, 2));
     }
 
     // ========== Helpers for previous cut‑off data ==========
-    private function getPreviousCutoffTaxable(int $employeeId, string $currentStart): float
+
+    /**
+     * Resolve the [start, end] date strings for the cut-off period immediately
+     * before $currentStart.
+     *
+     * Semi-monthly cut-offs:
+     *   1st–15th  → previous cut-off was 16th–last-day of the prior month
+     *   16th–31st → previous cut-off was 1st–15th of the same month
+     *
+     * The original code mutated a single DateTime object for both $prevStart and
+     * $prevEnd, so by the time $prevEnd was formatted the object had already been
+     * moved, producing wrong dates.  We use immutable clones instead.
+     */
+    private function resolvePreviousCutoff(string $currentStart): array
     {
-        // Determine previous cut‑off end date (e.g., if current starts on 16th, previous ends on 15th)
-        $currentDate = new \DateTime($currentStart);
-        $day = (int)$currentDate->format('d');
+        $dt  = new \DateTime($currentStart);
+        $day = (int)$dt->format('d');
+
         if ($day <= 15) {
-            // Previous cut‑off is 1st-15th of previous month
-            $prevStart = $currentDate->modify('last day of previous month')->setDate(null, null, 1)->format('Y-m-01');
-            $prevEnd   = $currentDate->modify('last day of previous month')->setDate(null, null, 15)->format('Y-m-15');
+            // Current period is 1st–15th → previous is 16th–EOM of last month
+            $prevMonth     = (clone $dt)->modify('first day of last month');
+            $lastDayOfPrev = (int)(clone $prevMonth)->modify('last day of this month')->format('d');
+            $y = $prevMonth->format('Y');
+            $m = $prevMonth->format('m');
+            $prevStart = "{$y}-{$m}-16";
+            $prevEnd   = "{$y}-{$m}-{$lastDayOfPrev}";
         } else {
-            // Previous cut‑off is 16th-end of same month
-            $prevStart = $currentDate->setDate((int)$currentDate->format('Y'), (int)$currentDate->format('m'), 16)->format('Y-m-16');
-            $prevEnd   = $currentDate->setDate((int)$currentDate->format('Y'), (int)$currentDate->format('m'), (int)$currentDate->format('t'))->format('Y-m-t');
+            // Current period is 16th–EOM → previous is 1st–15th of same month
+            $y = $dt->format('Y');
+            $m = $dt->format('m');
+            $prevStart = "{$y}-{$m}-01";
+            $prevEnd   = "{$y}-{$m}-15";
         }
 
-        $txModel = new PayrollTransactionModel();
-        $prevTx = $txModel
+        return [$prevStart, $prevEnd];
+    }
+
+    private function getPreviousCutoffTaxable(int $employeeId, string $currentStart): float
+    {
+        [$prevStart, $prevEnd] = $this->resolvePreviousCutoff($currentStart);
+
+        $prevTx = (new PayrollTransactionModel())
             ->where('employee_id', $employeeId)
             ->where('period_start', $prevStart)
-            ->where('period_end', $prevEnd)
+            ->where('period_end',   $prevEnd)
             ->first();
 
         if (!$prevTx) return 0;
-        return (float)($prevTx['basic_pay'] + $prevTx['night_diff_pay'] + $prevTx['overtime_pay'] + $prevTx['other_earnings_taxable']);
+
+        return (float)(
+            ($prevTx['basic_pay']               ?? 0) +
+            ($prevTx['night_diff_pay']           ?? 0) +
+            ($prevTx['overtime_pay']             ?? 0) +
+            ($prevTx['other_earnings_taxable']   ?? 0)
+        );
     }
 
     private function getPreviousWtaxPaid(int $employeeId, string $currentStart): float
     {
-        $currentDate = new \DateTime($currentStart);
-        $day = (int)$currentDate->format('d');
-        if ($day <= 15) {
-            $prevStart = $currentDate->modify('last day of previous month')->setDate(null, null, 1)->format('Y-m-01');
-            $prevEnd   = $currentDate->modify('last day of previous month')->setDate(null, null, 15)->format('Y-m-15');
-        } else {
-            $prevStart = $currentDate->setDate((int)$currentDate->format('Y'), (int)$currentDate->format('m'), 16)->format('Y-m-16');
-            $prevEnd   = $currentDate->setDate((int)$currentDate->format('Y'), (int)$currentDate->format('m'), (int)$currentDate->format('t'))->format('Y-m-t');
-        }
+        [$prevStart, $prevEnd] = $this->resolvePreviousCutoff($currentStart);
 
-        $txModel = new PayrollTransactionModel();
-        $prevTx = $txModel
+        $prevTx = (new PayrollTransactionModel())
             ->where('employee_id', $employeeId)
             ->where('period_start', $prevStart)
-            ->where('period_end', $prevEnd)
+            ->where('period_end',   $prevEnd)
             ->first();
 
-        return $prevTx ? (float)$prevTx['withholding_tax'] : 0;
+        return $prevTx ? (float)($prevTx['withholding_tax'] ?? 0) : 0;
     }
 
     /**

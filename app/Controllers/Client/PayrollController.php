@@ -8,6 +8,7 @@ use App\Models\Client\EmployeeModel;
 use App\Models\Client\PayrollSettingsModel;
 use App\Models\Client\PayrollTransactionModel;
 use App\Services\Client\PayrollComputationService;
+use App\Services\Client\AnnouncementService;
 use App\Models\Client\AttendanceModel;
 use Dompdf\Dompdf;
 use Dompdf\Options;
@@ -644,12 +645,44 @@ class PayrollController extends BaseController
     {
         $settingsModel = new PayrollSettingsModel();
         $data = $this->request->getPost();
+
+        // Track which contribution-related settings actually changed
+        $contributionKeys = ['phic_rate', 'phic_cap', 'hdmf_rate', 'hdmf_max'];
+        $changed = [];
+
         foreach ($data as $key => $value) {
             if (strpos($key, 'setting_') === 0) {
                 $realKey = substr($key, 8);
+                if (in_array($realKey, $contributionKeys, true)) {
+                    $old = $settingsModel->getSetting($realKey);
+                    if ((string) $old !== (string) $value) {
+                        $changed[$realKey] = ['from' => $old, 'to' => $value];
+                    }
+                }
                 $settingsModel->setSetting($realKey, $value);
             }
         }
+
+        if (! empty($changed)) {
+            $lines = [];
+            $labels = [
+                'phic_rate' => 'PhilHealth Rate',
+                'phic_cap'  => 'PhilHealth Monthly Income Cap (₱)',
+                'hdmf_rate' => 'Pag-IBIG Rate',
+                'hdmf_max'  => 'Pag-IBIG Max Contribution (₱)',
+            ];
+            foreach ($changed as $key => $diff) {
+                $label = $labels[$key] ?? $key;
+                $lines[] = "• {$label}: {$diff['from']} → {$diff['to']}";
+            }
+            $this->postContributionAnnouncement(
+                'Government Contribution Settings Updated',
+                "Payroll contribution settings have been updated:\n\n" . implode("\n", $lines)
+                    . "\n\nThese changes will apply to the next payroll computation."
+            );
+            service('activityLogger')->payrollSettingsUpdated($changed);
+        }
+
         return redirect()->back()->with('success', 'Settings saved.');
     }
 
@@ -1226,6 +1259,12 @@ class PayrollController extends BaseController
         }
 
         $db = \Config\Database::connect();
+
+        // Preserve the active flag before wiping rows so a save never clears it
+        $isActive = (int) $db->query(
+            'SELECT MAX(is_active) AS a FROM sss_brackets WHERE effective_year = ?', [$year]
+        )->getRow()->a;
+
         $db->transStart();
 
         $db->query('DELETE FROM sss_brackets WHERE effective_year = ?', [$year]);
@@ -1240,11 +1279,28 @@ class PayrollController extends BaseController
                 'ee_wisp'               => $b['ee_wisp']               ?? 0,
                 'er_regular'            => $b['er_regular']            ?? 0,
                 'er_wisp'               => $b['er_wisp']               ?? 0,
+                'is_active'             => $isActive,
             ]);
         }
 
         $db->transComplete();
-        return $this->response->setJSON(['success' => $db->transStatus()]);
+        $success = $db->transStatus();
+
+        if ($success) {
+            service('activityLogger')->sssBracketsYearSaved($year, count($brackets));
+
+            // If this year is already the active one, announce the update
+            if ($isActive) {
+                $this->postContributionAnnouncement(
+                    "SSS Contribution Table Updated ({$year})",
+                    "The active SSS contribution bracket table ({$year}) has been updated "
+                        . "and will be applied to all upcoming payroll computations.\n\n"
+                        . "Please review your payslip details with your payroll officer if you have any questions."
+                );
+            }
+        }
+
+        return $this->response->setJSON(['success' => $success]);
     }
 
     /** POST client_portal/payroll/sss/setActive  { year } */
@@ -1258,6 +1314,16 @@ class PayrollController extends BaseController
         $db = \Config\Database::connect();
         $db->query('UPDATE sss_brackets SET is_active = 0');
         $db->query('UPDATE sss_brackets SET is_active = 1 WHERE effective_year = ?', [$year]);
+
+        service('activityLogger')->sssBracketsYearActivated($year);
+
+        $this->postContributionAnnouncement(
+            "SSS Contribution Table Updated to {$year}",
+            "The SSS contribution bracket table has been updated. The {$year} schedule is now active "
+                . "and will be used for all upcoming payroll computations.\n\n"
+                . "Please review your payslip details with your payroll officer if you have any questions."
+        );
+
         return $this->response->setJSON(['success' => true]);
     }
 
@@ -1297,6 +1363,8 @@ class PayrollController extends BaseController
                 [$year, $copyFrom]
             );
         }
+
+        service('activityLogger')->sssBracketsYearCreated($year, $copyFrom ?: null);
 
         return $this->response->setJSON(['success' => true]);
     }
@@ -1346,6 +1414,12 @@ class PayrollController extends BaseController
         }
 
         $db = \Config\Database::connect();
+
+        // Preserve the active flag before wiping rows so a save never clears it
+        $isActive = (int) $db->query(
+            'SELECT MAX(is_active) AS a FROM wtax_brackets_monthly WHERE effective_year = ?', [$year]
+        )->getRow()->a;
+
         $db->transStart();
 
         $db->query('DELETE FROM wtax_brackets_monthly WHERE effective_year = ?', [$year]);
@@ -1357,11 +1431,28 @@ class PayrollController extends BaseController
                 'max_amount'     => isset($b['max_amount']) && $b['max_amount'] !== '' ? $b['max_amount'] : null,
                 'fixed_tax'      => $b['fixed_tax']    ?? 0,
                 'percent_over'   => $b['percent_over'] ?? 0,
+                'is_active'      => $isActive,
             ]);
         }
 
         $db->transComplete();
-        return $this->response->setJSON(['success' => $db->transStatus()]);
+        $success = $db->transStatus();
+
+        if ($success) {
+            service('activityLogger')->wtaxBracketsYearSaved($year, count($brackets));
+
+            // If this year is already the active one, announce the update
+            if ($isActive) {
+                $this->postContributionAnnouncement(
+                    "Withholding Tax Table Updated ({$year})",
+                    "The active withholding tax bracket table ({$year}) has been updated "
+                        . "and will be applied to all upcoming payroll computations.\n\n"
+                        . "Please review your payslip details with your payroll officer if you have any questions."
+                );
+            }
+        }
+
+        return $this->response->setJSON(['success' => $success]);
     }
 
     /** POST client_portal/payroll/wtax/setActive  { year } */
@@ -1375,6 +1466,16 @@ class PayrollController extends BaseController
         $db = \Config\Database::connect();
         $db->query('UPDATE wtax_brackets_monthly SET is_active = 0');
         $db->query('UPDATE wtax_brackets_monthly SET is_active = 1 WHERE effective_year = ?', [$year]);
+
+        service('activityLogger')->wtaxBracketsYearActivated($year);
+
+        $this->postContributionAnnouncement(
+            "Withholding Tax Table Updated to {$year}",
+            "The withholding tax bracket table has been updated. The {$year} schedule is now active "
+                . "and will be applied to all upcoming payroll computations.\n\n"
+                . "Please review your payslip details with your payroll officer if you have any questions."
+        );
+
         return $this->response->setJSON(['success' => true]);
     }
 
@@ -1413,6 +1514,40 @@ class PayrollController extends BaseController
             );
         }
 
+        service('activityLogger')->wtaxBracketsYearCreated($year, $copyFrom ?: null);
+
         return $this->response->setJSON(['success' => true]);
+    }
+
+    // =========================================================================
+    // CONTRIBUTION CHANGE ANNOUNCEMENTS
+    // =========================================================================
+
+    /**
+     * Post a system-wide announcement whenever a contribution rule changes.
+     * Targets audience = 'all' so every employee sees it in their notification bell.
+     * Category is 'payroll' so it can be filtered/styled distinctly on the frontend.
+     */
+    private function postContributionAnnouncement(string $title, string $details): void
+    {
+        try {
+            $user = auth()->user();
+            if (! $user) return;
+
+            (new AnnouncementService())->createAnnouncement((int) $user->id, [
+                'title'                  => $title,
+                'category'               => 'payroll',
+                'audience'               => 'all',
+                'department'             => '',
+                'priority'               => 'normal',
+                'publish_at'             => date('Y-m-d H:i:s'),
+                'expires_at'             => '',
+                'details'                => $details,
+                'require_acknowledgement'=> false,
+            ]);
+        } catch (\Throwable $e) {
+            // Announcement failure must never break the actual save operation
+            log_message('error', 'postContributionAnnouncement failed: ' . $e->getMessage());
+        }
     }
 }

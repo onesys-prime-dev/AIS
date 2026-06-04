@@ -492,29 +492,159 @@ class ActivityLogger
     }
 
     // =========================================================================
+    // SSS BRACKETS
+    // =========================================================================
+
+    /**
+     * Entire bracket set for a year saved (delete-and-reinsert).
+     * Logs the row count rather than individual rows to keep the log concise.
+     */
+    public function sssBracketsYearSaved(int $year, int $rowCount): bool
+    {
+        return $this->log(
+            'updated',
+            'sss_brackets',
+            "SSS bracket table for {$year} saved ({$rowCount} rows)",
+            null,
+            null,
+            ['effective_year' => $year, 'row_count' => $rowCount]
+        );
+    }
+
+    /**
+     * A year's SSS bracket table was set as the active schedule.
+     */
+    public function sssBracketsYearActivated(int $year): bool
+    {
+        return $this->log(
+            'updated',
+            'sss_brackets',
+            "SSS bracket table for {$year} set as active",
+            null,
+            ['is_active_year' => 'previous'],
+            ['is_active_year' => $year]
+        );
+    }
+
+    /**
+     * A new year entry was created (optionally cloned from another year).
+     */
+    public function sssBracketsYearCreated(int $year, ?int $copiedFrom = null): bool
+    {
+        $desc = $copiedFrom
+            ? "SSS bracket table for {$year} created (copied from {$copiedFrom})"
+            : "SSS bracket table for {$year} created (blank)";
+
+        return $this->log(
+            'created',
+            'sss_brackets',
+            $desc,
+            null,
+            null,
+            array_filter(['effective_year' => $year, 'copied_from' => $copiedFrom])
+        );
+    }
+
+    // =========================================================================
     // WITHHOLDING TAX BRACKETS
     // =========================================================================
 
+    /**
+     * Entire bracket set for a year saved (delete-and-reinsert).
+     */
+    public function wtaxBracketsYearSaved(int $year, int $rowCount): bool
+    {
+        return $this->log(
+            'updated',
+            'wtax_brackets_monthly',
+            "Withholding tax bracket table for {$year} saved ({$rowCount} rows)",
+            null,
+            null,
+            ['effective_year' => $year, 'row_count' => $rowCount]
+        );
+    }
+
+    /**
+     * A year's withholding tax bracket table was set as the active schedule.
+     */
+    public function wtaxBracketsYearActivated(int $year): bool
+    {
+        return $this->log(
+            'updated',
+            'wtax_brackets_monthly',
+            "Withholding tax bracket table for {$year} set as active",
+            null,
+            ['is_active_year' => 'previous'],
+            ['is_active_year' => $year]
+        );
+    }
+
+    /**
+     * A new year entry was created (optionally cloned from another year).
+     */
+    public function wtaxBracketsYearCreated(int $year, ?int $copiedFrom = null): bool
+    {
+        $desc = $copiedFrom
+            ? "Withholding tax bracket table for {$year} created (copied from {$copiedFrom})"
+            : "Withholding tax bracket table for {$year} created (blank)";
+
+        return $this->log(
+            'created',
+            'wtax_brackets_monthly',
+            $desc,
+            null,
+            null,
+            array_filter(['effective_year' => $year, 'copied_from' => $copiedFrom])
+        );
+    }
+
+    // Keep old single-row methods for any legacy callers — corrected field names
     public function wtaxBracketCreated(int $bracketId, array $data): bool
     {
-        return $this->created('wtax_brackets', 'Tax bracket created', $bracketId,
-            $this->pick($data, ['min_amount', 'max_amount', 'flat', 'percentage'])
+        return $this->created('wtax_brackets_monthly', 'Tax bracket row created', $bracketId,
+            $this->pick($data, ['effective_year', 'min_amount', 'max_amount', 'fixed_tax', 'percent_over'])
         );
     }
 
     public function wtaxBracketUpdated(int $bracketId, array $before, array $after): bool
     {
-        $diff = $this->diff($before, $after, ['min_amount', 'max_amount', 'flat', 'percentage']);
+        $diff = $this->diff($before, $after, ['min_amount', 'max_amount', 'fixed_tax', 'percent_over']);
 
-        return $this->updated('wtax_brackets', 'Tax bracket updated', $bracketId,
+        return $this->updated('wtax_brackets_monthly', 'Tax bracket row updated', $bracketId,
             $diff['old'], $diff['new']
         );
     }
 
     public function wtaxBracketDeleted(int $bracketId, array $row): bool
     {
-        return $this->deleted('wtax_brackets', 'Tax bracket deleted', $bracketId,
-            $this->pick($row, ['min_amount', 'max_amount', 'flat', 'percentage'])
+        return $this->deleted('wtax_brackets_monthly', 'Tax bracket row deleted', $bracketId,
+            $this->pick($row, ['effective_year', 'min_amount', 'max_amount', 'fixed_tax', 'percent_over'])
+        );
+    }
+
+    // =========================================================================
+    // PAYROLL SETTINGS
+    // =========================================================================
+
+    /**
+     * One or more contribution-related payroll settings were changed.
+     * $changes is a map of setting_key => ['from' => old, 'to' => new].
+     */
+    public function payrollSettingsUpdated(array $changes): bool
+    {
+        if (empty($changes)) return false;
+
+        $keys    = implode(', ', array_keys($changes));
+        $oldVals = array_combine(array_keys($changes), array_column(array_values($changes), 'from'));
+        $newVals = array_combine(array_keys($changes), array_column(array_values($changes), 'to'));
+
+        return $this->log(
+            'updated',
+            'payroll_settings',
+            "Payroll contribution settings updated: {$keys}",
+            null,
+            $oldVals,
+            $newVals
         );
     }
 
