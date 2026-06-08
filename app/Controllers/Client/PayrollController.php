@@ -392,23 +392,75 @@ class PayrollController extends BaseController
     public function exportRegister()
     {
         $month = $this->request->getGet('month') ?? date('Y-m');
-        $payrollModel = new PayrollModel();
-        $records = $payrollModel
-            ->select("payroll.*, CONCAT(employees.first_name,' ',employees.last_name) as employee_name")
-            ->join('employees', 'employees.id = payroll.employee_id')
-            ->where('month_year', $month)
+
+        $payslipModel = new \App\Models\Client\EmployeePayslipModel();
+        $records = $payslipModel
+            ->select("employee_payslips.*, CONCAT(employees.first_name,' ',employees.last_name) as employee_name")
+            ->join('employees', 'employees.id = employee_payslips.employee_id')
+            ->where("DATE_FORMAT(employee_payslips.period_start, '%Y-%m')", $month)
+            ->orderBy('employee_name', 'ASC')
             ->findAll();
 
         $filename = "payroll_register_{$month}.csv";
         header('Content-Type: text/csv');
         header('Content-Disposition: attachment; filename="' . $filename . '"');
+
         $output = fopen('php://output', 'w');
-        fputcsv($output, ['Employee', 'Phone', 'Daily Rate', 'Currency', 'Status']);
+        fputcsv($output, [
+            'Employee', 'Period Start', 'Period End',
+            'Basic Pay', 'Night Premium',
+            'Less Absences', 'Less Undertime',
+            'Net Basic Pay',
+            'Reg OT', 'Sat OT', 'Sun OT', 'Hol OT',
+            'Salary Adjustment', 'De Minimis',
+            'Gross Pay',
+            'SSS', 'PhilHealth', 'Pag-IBIG', 'Withholding Tax',
+            'SSS Loan', 'Calamity Loan', 'Salary Advance',
+            'Total Deductions', 'Net Pay',
+        ]);
+
         foreach ($records as $row) {
+            $d = json_decode((string)($row['generated_data'] ?? ''), true) ?? [];
+            $f = fn($k) => number_format((float)($d[$k] ?? 0), 2, '.', '');
+
+            $sss     = (float)($d['sss_ee']          ?? 0);
+            $phic    = (float)($d['phic_ee']          ?? 0);
+            $hdmf    = (float)($d['hdmf_ee']          ?? 0);
+            $wtax    = (float)($d['withholding_tax']  ?? 0);
+            $sssL    = (float)($d['sss_loan']         ?? 0);
+            $calL    = (float)($d['calamity_loan']    ?? 0);
+            $adv     = (float)($d['salary_advance']   ?? 0);
+            $totalDed = $sss + $phic + $hdmf + $wtax + $sssL + $calL + $adv;
+            $netPay  = (float)($row['net_pay'] ?? 0);
+
             fputcsv($output, [
-                $row['employee_name'], $row['phone'], $row['daily_rate'], $row['currency'], $row['status']
+                $row['employee_name'],
+                $row['period_start'],
+                $row['period_end'],
+                $f('basic_pay'),
+                $f('night_diff_pay'),
+                $f('absent_amt'),
+                $f('undertime_amt'),
+                $f('net_basic_pay'),
+                $f('reg_ot'),
+                $f('sat_ot'),
+                $f('sun_ot'),
+                $f('hol_ot'),
+                $f('other_earnings_taxable'),
+                $f('de_minimis'),
+                number_format((float)($d['gross_pay'] ?? 0), 2, '.', ''),
+                number_format($sss,  2, '.', ''),
+                number_format($phic, 2, '.', ''),
+                number_format($hdmf, 2, '.', ''),
+                number_format($wtax, 2, '.', ''),
+                number_format($sssL, 2, '.', ''),
+                number_format($calL, 2, '.', ''),
+                number_format($adv,  2, '.', ''),
+                number_format($totalDed, 2, '.', ''),
+                number_format($netPay,   2, '.', ''),
             ]);
         }
+
         fclose($output);
         exit();
     }
@@ -739,49 +791,30 @@ class PayrollController extends BaseController
     public function sendPdf()
     {
         try {
-            $data = $this->request->getJSON(true);
-            $employeeId = $data['employee_id'];
+            $data       = $this->request->getJSON(true);
+            $employeeId = $data['employee_id'] ?? null;
+            if (!$employeeId) throw new \Exception('Missing employee_id');
 
             $employeeModel = new \App\Models\Client\EmployeeModel();
             $employee = $employeeModel->find($employeeId);
             if (!$employee) throw new \Exception('Employee not found');
 
             $emailAddress = $this->getUserEmail($employee['user_id']);
-            if (!$emailAddress) {
-                throw new \Exception('Employee email not found');
-            }
-
-            $html = $this->buildPayslipHtmlForPdf($data, $employee);
-
-            $options = new \Dompdf\Options();
-            $options->set('defaultFont', 'Courier');
-            $dompdf = new \Dompdf\Dompdf($options);
-            $dompdf->loadHtml($html);
-            $dompdf->setPaper('A4', 'portrait');
-            $dompdf->render();
-
-            $password = $this->resolvePayslipPassword($employee);
-            $dompdf->getCanvas()->get_cpdf()->setEncryption($password, "owner-password", ['print']);
-            $pdfOutput = $dompdf->output();
-
-            $permanentDir = WRITEPATH . 'uploads/payslips/permanent/';
-            if (!is_dir($permanentDir)) mkdir($permanentDir, 0777, true);
-            $filename = "payslip_{$employee['employee_number']}_{$data['period_start']}.pdf";
-            $permanentPath = $permanentDir . $filename;
-            file_put_contents($permanentPath, $pdfOutput);
+            if (!$emailAddress) throw new \Exception('Employee email not found');
 
             $payslipModel = new \App\Models\Client\EmployeePayslipModel();
 
+            // --- Step 1: Upsert DB record with generated_data FIRST ---
+            // Match by employee + period only (no net_pay) so we don't create duplicates.
             $existing = $payslipModel
                 ->where('employee_id', $employeeId)
                 ->where('period_start', $data['period_start'])
-                ->where('period_end', $data['period_end'])
-                ->where('net_pay', round((float)$data['net_pay'], 2))
+                ->where('period_end',   $data['period_end'])
                 ->first();
 
             if ($existing) {
                 $payslipModel->update($existing['id'], [
-                    'file_path'      => $permanentPath,
+                    'net_pay'        => round((float)($data['net_pay'] ?? 0), 2),
                     'generated_data' => json_encode($data),
                 ]);
                 $payslipRecordId = $existing['id'];
@@ -790,16 +823,14 @@ class PayrollController extends BaseController
                     'employee_id'    => $employeeId,
                     'period_start'   => $data['period_start'],
                     'period_end'     => $data['period_end'],
-                    'net_pay'        => round((float)$data['net_pay'], 2),
-                    'file_path'      => $permanentPath,
+                    'net_pay'        => round((float)($data['net_pay'] ?? 0), 2),
                     'generated_data' => json_encode($data),
                     'sent_at'        => null,
                 ]);
                 $inserted = $payslipModel
                     ->where('employee_id', $employeeId)
                     ->where('period_start', $data['period_start'])
-                    ->where('period_end', $data['period_end'])
-                    ->where('net_pay', round((float)$data['net_pay'], 2))
+                    ->where('period_end',   $data['period_end'])
                     ->first();
                 $payslipRecordId = $inserted['id'] ?? null;
             }
@@ -808,35 +839,66 @@ class PayrollController extends BaseController
                 throw new \Exception('Could not resolve payslip record ID after save.');
             }
 
+            // --- Step 2: Generate PDF ---
+            ini_set('memory_limit', '1G');
+            $html = $this->buildPayslipHtmlForPdf($data, $employee);
+            $options = new Options();
+            $options->set('defaultFont', 'Courier');
+            $dompdf = new Dompdf($options);
+            $dompdf->loadHtml($html);
+            $dompdf->setPaper('A4', 'portrait');
+            $dompdf->render();
+
+            $password = $this->resolvePayslipPassword($employee);
+            $dompdf->getCanvas()->get_cpdf()->setEncryption($password, 'owner-password', ['print']);
+            $pdfOutput = $dompdf->output();
+
+            $permanentDir = WRITEPATH . 'uploads/payslips/permanent/';
+            if (!is_dir($permanentDir)) mkdir($permanentDir, 0777, true);
+            $filename      = "payslip_{$employee['employee_number']}_{$data['period_start']}.pdf";
+            $permanentPath = $permanentDir . $filename;
+            file_put_contents($permanentPath, $pdfOutput);
+            $payslipModel->update($payslipRecordId, ['file_path' => $permanentPath]);
+
+            // --- Step 3: Send email with PDF attachment ---
             $tempPath = WRITEPATH . 'uploads/payslips/temp/';
             if (!is_dir($tempPath)) mkdir($tempPath, 0777, true);
             $tempFile = $tempPath . $filename;
             file_put_contents($tempFile, $pdfOutput);
 
+            $empName = $data['employee_name'] ?? trim(($employee['first_name'] ?? '') . ' ' . ($employee['last_name'] ?? ''));
+
             $email = service('email');
             $email->setMailType('html');
             $email->setTo($emailAddress);
-            $email->setSubject("Payslip for period {$data['period_start']} to {$data['period_end']}");
+            $email->setSubject("Your Payslip for {$data['period_start']} to {$data['period_end']}");
             $email->setMessage("
-                Dear {$data['employee_name']},<br><br>
-                Please find attached your payslip. It is password-protected.<br><br>
-                <strong>PDF Password:</strong> Use the payslip password set in your account profile.
-                If you have not changed it, the default is your Employee Number + Birthdate (YYYYMMDD).<br><br>
+                Dear {$empName},<br><br>
+                Please find your payslip attached as a PDF. The file is password-protected.<br><br>
+                <strong>PDF Password:</strong> Your payslip password as set in your account profile.
+                If you have not changed it, the default is your Employee Number followed by your Birthdate (YYYYMMDD).<br><br>
                 Regards,<br>
                 Payroll Team
             ");
             $email->attach($tempFile);
 
             if ($email->send()) {
-                unlink($tempFile);
+                if (is_file($tempFile)) unlink($tempFile);
+
+                $sender     = auth()->user();
+                $senderName = $sender ? ($sender->username ?? 'Unknown') : 'System';
+
                 \Config\Database::connect()
                     ->table('employee_payslips')
                     ->where('id', $payslipRecordId)
-                    ->update(['sent_at' => date('Y-m-d H:i:s')]);
+                    ->update([
+                        'sent_at' => date('Y-m-d H:i:s'),
+                        'sent_by' => $senderName,
+                    ]);
 
                 service('activityLogger')->payslipSent(
                     $payslipRecordId,
-                    $data['employee_name'] ?? trim(($employee['first_name'] ?? '') . ' ' . ($employee['last_name'] ?? '')),
+                    $empName,
                     $data['period_start'],
                     $data['period_end'],
                     $emailAddress
@@ -846,7 +908,11 @@ class PayrollController extends BaseController
             } else {
                 $debugInfo = $email->printDebugger(['headers', 'subject', 'body']);
                 log_message('error', 'sendPdf email failed: ' . $debugInfo);
-                throw new \Exception('Failed to send email. Check logs for details.');
+                // Record is already saved — return partial success so portal is updated.
+                return $this->response->setJSON([
+                    'success' => false,
+                    'error'   => 'Payslip saved to portal but email delivery failed. Check spam or SMTP settings.',
+                ])->setStatusCode(500);
             }
         } catch (\Exception $e) {
             log_message('error', 'sendPdf exception: ' . $e->getMessage());
@@ -871,33 +937,19 @@ class PayrollController extends BaseController
             $employee = $employeeModel->find($employeeId);
             if (!$employee) throw new \Exception('Employee not found');
 
-            $html = $this->buildPayslipHtmlForPdf($data, $employee);
-            $options = new Options();
-            $options->set('defaultFont', 'Courier');
-            $dompdf = new Dompdf($options);
-            $dompdf->loadHtml($html);
-            $dompdf->setPaper('A4', 'portrait');
-            $dompdf->render();
-            $pdfOutput = $dompdf->output();
-
-            $permanentDir = WRITEPATH . 'uploads/payslips/permanent/';
-            if (!is_dir($permanentDir)) mkdir($permanentDir, 0777, true);
-            $filename     = "payslip_{$employee['employee_number']}_{$periodStart}.pdf";
-            $permanentPath = $permanentDir . $filename;
-            file_put_contents($permanentPath, $pdfOutput);
-
             $payslipModel = new \App\Models\Client\EmployeePayslipModel();
 
+            // --- Step 1: Save/update the record with generated_data immediately ---
+            // This ensures the portal can display the payslip even if PDF generation fails.
             $existing = $payslipModel
                 ->where('employee_id', $employeeId)
                 ->where('period_start', $periodStart)
-                ->where('period_end', $periodEnd)
-                ->where('net_pay', round((float)$netPay, 2))
+                ->where('period_end',   $periodEnd)
                 ->first();
 
             if ($existing) {
                 $payslipModel->update($existing['id'], [
-                    'file_path'      => $permanentPath,
+                    'net_pay'        => round((float)$netPay, 2),
                     'generated_data' => json_encode($data),
                 ]);
                 $recordId = $existing['id'];
@@ -907,21 +959,42 @@ class PayrollController extends BaseController
                     'period_start'   => $periodStart,
                     'period_end'     => $periodEnd,
                     'net_pay'        => round((float)$netPay, 2),
-                    'file_path'      => $permanentPath,
                     'generated_data' => json_encode($data),
                     'sent_at'        => null,
                 ]);
                 $inserted = $payslipModel
                     ->where('employee_id', $employeeId)
                     ->where('period_start', $periodStart)
-                    ->where('period_end', $periodEnd)
-                    ->where('net_pay', round((float)$netPay, 2))
+                    ->where('period_end',   $periodEnd)
                     ->first();
                 $recordId = $inserted['id'] ?? null;
             }
 
             if (!$recordId) {
                 throw new \Exception('Failed to resolve payslip record after save.');
+            }
+
+            // --- Step 2: Generate PDF and update file_path (best-effort, non-fatal) ---
+            try {
+                ini_set('memory_limit', '1G');
+                $html = $this->buildPayslipHtmlForPdf($data, $employee);
+                $options = new Options();
+                $options->set('defaultFont', 'Courier');
+                $dompdf = new Dompdf($options);
+                $dompdf->loadHtml($html);
+                $dompdf->setPaper('A4', 'portrait');
+                $dompdf->render();
+                $pdfOutput = $dompdf->output();
+
+                $permanentDir = WRITEPATH . 'uploads/payslips/permanent/';
+                if (!is_dir($permanentDir)) mkdir($permanentDir, 0777, true);
+                $filename      = "payslip_{$employee['employee_number']}_{$periodStart}.pdf";
+                $permanentPath = $permanentDir . $filename;
+                file_put_contents($permanentPath, $pdfOutput);
+
+                $payslipModel->update($recordId, ['file_path' => $permanentPath]);
+            } catch (\Throwable $pdfErr) {
+                log_message('error', 'savePayslipRecord PDF generation failed: ' . $pdfErr->getMessage());
             }
 
             $empName = $data['employee_name'] ?? trim(($employee['first_name'] ?? '') . ' ' . ($employee['last_name'] ?? ''));
@@ -970,25 +1043,53 @@ class PayrollController extends BaseController
         $payslipModel = new \App\Models\Client\EmployeePayslipModel();
         $payslip = (array) $payslipModel->find($id);
         if (!$payslip) {
-            throw new \Exception('Payslip not found');
+            throw new \CodeIgniter\Exceptions\PageNotFoundException('Payslip not found');
         }
 
         $user = auth()->user();
         $employeeModel = new \App\Models\Client\EmployeeModel();
         $employee = (array) $employeeModel->find($payslip['employee_id']);
-        $isOwner = ($employee && $employee['user_id'] == $user->id);
-        $isAdmin = $user->inGroup('client_payroll_staff');
+        $isOwner = ($employee && (string)$employee['user_id'] === (string)$user->id);
+        $isAdmin = $user->inGroup('client_payroll_staff')
+                || $user->inGroup('superadmin')
+                || $user->inGroup('admin');
 
         if (!$isOwner && !$isAdmin) {
-            return $this->response->setStatusCode(403)->setJSON(['error' => 'Unauthorized']);
+            return $this->response->setStatusCode(403)->setBody('Unauthorized');
         }
 
-        $filePath = $payslip['file_path'];
-        if (! file_exists((string) $filePath)) {
-            throw new \Exception('File not found');
+        // Regenerate the PDF on-the-fly so it always reflects the current layout + logo.
+        $data = json_decode((string)($payslip['generated_data'] ?? ''), true) ?? [];
+        if (empty($data)) {
+            // Fallback: serve the stored file if no generated_data
+            $filePath = (string)($payslip['file_path'] ?? '');
+            if (!is_file($filePath)) {
+                throw new \CodeIgniter\Exceptions\PageNotFoundException('Payslip file not found');
+            }
+            return $this->response->download($filePath, null);
         }
 
-        return $this->response->download((string) $filePath, null);
+        ini_set('memory_limit', '1G');
+
+        $html = $this->buildPayslipHtmlForPdf($data, $employee);
+
+        $options = new Options();
+        $options->set('defaultFont', 'Courier');
+        $dompdf = new Dompdf($options);
+        $dompdf->loadHtml($html);
+        $dompdf->setPaper('A4', 'portrait');
+        $dompdf->render();
+
+        $password = $this->resolvePayslipPassword($employee);
+        $dompdf->getCanvas()->get_cpdf()->setEncryption($password, 'owner-password', ['print']);
+        $pdfOutput = $dompdf->output();
+
+        $filename = 'payslip_' . ($payslip['period_start'] ?? 'unknown') . '.pdf';
+
+        return $this->response
+            ->setHeader('Content-Type', 'application/pdf')
+            ->setHeader('Content-Disposition', 'attachment; filename="' . $filename . '"')
+            ->setBody($pdfOutput);
     }
 
     public function getAllPayslips()
@@ -1025,9 +1126,9 @@ class PayrollController extends BaseController
         $user = auth()->user();
         $employeeModel = new \App\Models\Client\EmployeeModel();
         $employee = (array) $employeeModel->find($payslip['employee_id']);
-        $isOwner = ($employee && $employee['user_id'] == $user->id);
-        $isAdmin = $user->inGroup('client_payroll_staff');
-        
+        $isOwner = ($employee && (string)$employee['user_id'] === (string)$user->id);
+        $isAdmin = $user->inGroup('client_payroll_staff') || $user->inGroup('superadmin') || $user->inGroup('admin');
+
         if (!$isOwner && !$isAdmin) {
             return $this->response->setStatusCode(403)->setJSON(['error' => 'Unauthorized']);
         }
@@ -1065,107 +1166,146 @@ class PayrollController extends BaseController
                         + ($data['salary_advance'] ?? 0)
                         + ($data['other_deductions'] ?? 0);
 
+        // ── Recompute display values matching generatePayslipHTML() in the view ──
+        $netBasicPay   = (float)($data['net_basic_pay']  ?? 0);
+        $regOt         = (float)($data['reg_ot']         ?? 0);
+        $satOt         = (float)($data['sat_ot']         ?? 0);
+        $sunOt         = (float)($data['sun_ot']         ?? 0);
+        $holOt         = (float)($data['hol_ot']         ?? 0);
+        $totalOvertime = $regOt + $satOt + $sunOt + $holOt;
+        $taxableOther  = (float)($data['other_earnings_taxable'] ?? 0);
+        $nonTaxable    = (float)($data['de_minimis']     ?? 0);
+        $grossPay      = $netBasicPay + $totalOvertime + $taxableOther + $nonTaxable;
+
+        // Browser totalDeductions = government contributions only (loans excluded from the label row)
+        $govDeductions = (float)($data['sss_ee']         ?? 0)
+                       + (float)($data['phic_ee']        ?? 0)
+                       + (float)($data['hdmf_ee']        ?? 0)
+                       + (float)($data['withholding_tax'] ?? 0);
+
+        $logoDataUri = $this->getLogoDataUri();
+        $logoHtml    = $logoDataUri
+            ? '<div style="text-align:center;margin-bottom:20px;"><img src="' . $logoDataUri . '" style="max-height:80px;"></div>'
+            : '';
+
+        $period = $fmtDate($data['period_start'] ?? '') . ' &ndash; ' . $fmtDate($data['period_end'] ?? '');
+
+        // Inner-table cell style (no border, small padding — matches browser)
+        $ic = 'style="border:none;padding:2px 4px;"';
+        $ir = 'style="border:none;padding:2px 4px;text-align:right;"';
+
         return '<!DOCTYPE html>
 <html>
 <head>
 <meta charset="UTF-8">
 <style>
-    body { font-family: Arial, sans-serif; font-size: 11px; }
-    .wrap { border: 1px solid #000; padding: 20px; max-width: 900px; margin: auto; }
-    h2 { text-align: center; margin: 0 0 10px 0; }
-    table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
-    td, th { border: 1px solid #000; padding: 5px; }
-    th { background: #eee; }
-    .inner-table { width: 100%; border-collapse: collapse; }
-    .inner-table td { border: none; padding: 2px 4px; }
-    .right { text-align: right; }
-    .bold { font-weight: bold; }
-    .highlight { background: #f8d7da; }
+    body  { font-family: Arial, sans-serif; font-size: 13px; margin: 0; }
+    .wrap { background:#fff; border:1px solid #000; padding:20px; width:100%; box-sizing:border-box; }
+    h2    { text-align:center; margin:5px 0 10px; }
+    table { width:100%; border-collapse:collapse; font-size:13px; margin-top:10px; }
+    td, th { border:1px solid #000; padding:5px; vertical-align:top; }
+    th { background:#eee; text-align:center; }
 </style>
 </head>
 <body>
 <div class="wrap">
-    <h2>PAY SLIP</h2>
+' . $logoHtml . '
+<h2>PAY SLIP</h2>
+
+<!-- Employee / period info -->
+<table>
     <tr>
-        <tr>
-            <td><strong>Employee:</strong></td>
-            <td>' . htmlspecialchars($data['employee_name'] ?? '') . '</td>
-            <td><strong>Period Start:</strong></td>
-            <td>' . $fmtDate($data['period_start'] ?? '') . '</td>
-            <td><strong>Period End:</strong></td>
-            <td>' . $fmtDate($data['period_end'] ?? '') . '</td>
-        </tr>
-        <tr>
-            <td><strong>Position:</strong></td>
-            <td colspan="5">' . htmlspecialchars($data['position'] ?? 'N/A') . '</td>
-        </tr>
-    </table>
-    <table>
-        <thead><tr><th>REGULAR EARNINGS</th><th>TAXABLE OTHER EARNINGS</th><th>NON-TAXABLE OTHER EARNINGS</th></tr></thead>
-        <tbody>
-            <tr>
-                <td>
-                    <table class="inner-table">
-                        <tr><td>Basic Pay:</td><td class="right">' . $fmt($data['basic_pay']) . '</td></tr>
-                        <tr><td class="bold">Night Premium:</td><td class="right">' . $fmt($data['night_diff_pay']) . '</td></tr>
-                        <tr><td class="bold">Net Basic Pay:</td><td class="right bold">' . $fmt(($data['basic_pay'] ?? 0) + ($data['night_diff_pay'] ?? 0)) . '</strong></td></tr>
-                        <tr><td class="bold">Reg. OT:</td><td class="right">' . $fmt($data['overtime_pay']) . '</strong></td></tr>
-                    </table>
-                </td>
-                <td>
-                    <table class="inner-table">
-                        <tr><td class="bold">Taxable Other:</td><td class="right">' . $fmt($data['other_earnings_taxable']) . '</strong></td></tr>
-                    </table>
-                </td>
-                <td>
-                    <table class="inner-table">
-                        <tr><td class="bold">De Minimis:</td><td class="right">' . $fmt($data['de_minimis']) . '</strong></td></tr>
-                    </table>
-                </td>
-            </tr>
-            <tr>
-                <td colspan="2" class="right"><strong>GROSS PAY</strong></td>
-                <td class="right"><strong>' . $fmt($grossPay) . '</strong></td>
-            </tr>
-        </tbody>
-    </table>
-    </table>
-        <thead><tr><th>REGULAR DEDUCTIONS</th><th>LOANS / ADVANCES</th></tr></thead>
-        <tbody>
-            <tr>
-                <td>
-                    <table class="inner-table">
-                        <tr><td class="bold">SSS:</td><td class="right">' . $fmt($data['sss_ee']) . '</strong></td></tr>
-                        <tr><td class="bold">Philhealth:</td><td class="right">' . $fmt($data['phic_ee']) . '</strong></td></tr>
-                        <tr><td class="bold">Pag-IBIG:</td><td class="right">' . $fmt($data['hdmf_ee']) . '</strong></td></tr>
-                        <tr><td class="bold">Withholding Tax:</td><td class="right">' . $fmt($data['withholding_tax']) . '</strong></td></tr>
-                    </table>
-                </td>
-                <td>
-                    <table class="inner-table">
-                        <tr><td class="bold">SSS Loan:</td><td class="right">' . $fmt($data['sss_loan']) . '</strong></td></tr>
-                        <tr><td class="bold">Calamity Loan:</td><td class="right">' . $fmt($data['calamity_loan']) . '</strong></td></tr>
-                        <tr><td class="bold">Salary Advance:</td><td class="right">' . $fmt($data['salary_advance']) . '</strong></td></tr>
-                        <tr><td class="bold">Other Deductions:</td><td class="right">' . $fmt($data['other_deductions']) . '</strong></td></tr>
-                    </table>
-                </td>
-            </tr>
-            <tr>
-                <td class="right"><strong>TOTAL DEDUCTIONS</strong></td>
-                <td class="right"><strong>' . $fmt($totalDeductions) . '</strong></td>
-            </tr>
-        </tbody>
-    </table>
-    <table>
-        <tr>
-            <td style="width:50%"><strong>Employee Signature:</strong></td>
-            <td style="width:50%; height: 40px;">&nbsp;</td>
-        </tr>
-        <tr>
-            <td class="right"><strong>NET PAY:</strong></td>
-            <td class="right highlight"><strong>' . $fmt($data['net_pay']) . '</strong></td>
-        </tr>
-    </table>
+        <td><strong>Employee:</strong></td>
+        <td>' . htmlspecialchars($data['employee_name'] ?? '') . '</td>
+        <td></td>
+        <td><strong>Payroll period:</strong></td>
+        <td colspan="2">' . $period . '</td>
+    </tr>
+    <tr>
+        <td><strong>Position:</strong></td>
+        <td colspan="5">' . htmlspecialchars($data['position'] ?? 'N/A') . '</td>
+    </tr>
+</table>
+
+<!-- Earnings -->
+<table>
+    <tr>
+        <th>REGULAR EARNINGS</th>
+        <th>TAXABLE OTHER EARNINGS</th>
+        <th>NON-TAXABLE OTHER EARNINGS</th>
+    </tr>
+    <tr>
+        <td>
+            <table style="width:100%;border-collapse:collapse;">
+                <tr><td ' . $ic . '>Basic pay:</td>                <td ' . $ir . '>' . $fmt($data['basic_pay']      ?? 0) . '</td></tr>
+                <tr><td ' . $ic . '>Rate per hour:</td>            <td ' . $ir . '>' . $fmt($data['rate_per_hour']  ?? 0) . '</td></tr>
+                <tr><td ' . $ic . '>No. of hours worked:</td>      <td ' . $ir . '>' . $fmt($data['hours_worked']   ?? 0) . '</td></tr>
+                <tr><td ' . $ic . '>Night premium:</td>            <td ' . $ir . '>' . $fmt($data['night_diff_pay'] ?? 0) . '</td></tr>
+                <tr><td ' . $ic . '>Less: Absences</td>            <td ' . $ir . '>' . $fmt($data['absent_amt']     ?? 0) . '</td></tr>
+                <tr><td ' . $ic . '>Late/Undertime</td>            <td ' . $ir . '>' . $fmt($data['undertime_amt']  ?? 0) . '</td></tr>
+                <tr><td ' . $ic . '><strong>Net basic pay</strong></td><td ' . $ir . '><strong>' . $fmt($netBasicPay) . '</strong></td></tr>
+                <tr><td ' . $ic . '>Reg. OT</td>                   <td ' . $ir . '>' . $fmt($regOt)  . '</td></tr>
+                <tr><td ' . $ic . '>Sat OT</td>                    <td ' . $ir . '>' . $fmt($satOt)  . '</td></tr>
+                <tr><td ' . $ic . '>Sun OT</td>                    <td ' . $ir . '>' . $fmt($sunOt)  . '</td></tr>
+                <tr><td ' . $ic . '>Holiday OT</td>                <td ' . $ir . '>' . $fmt($holOt)  . '</td></tr>
+            </table>
+        </td>
+        <td>
+            <table style="width:100%;border-collapse:collapse;">
+                <tr><td ' . $ic . '>Salary adjustment:</td><td ' . $ir . '>' . $fmt($taxableOther) . '</td></tr>
+            </table>
+        </td>
+        <td>
+            <table style="width:100%;border-collapse:collapse;">
+                <tr><td ' . $ic . '>De Minimis Benefit:</td><td ' . $ir . '>' . $fmt($nonTaxable) . '</td></tr>
+            </table>
+        </td>
+    </tr>
+    <tr>
+        <td colspan="2" style="border:1px solid #000;padding:5px;text-align:right;"><strong>GROSS PAY</strong></td>
+        <td style="border:1px solid #000;padding:5px;text-align:right;"><strong>' . $fmt($grossPay) . '</strong></td>
+    </tr>
+</table>
+
+<!-- Deductions -->
+<table>
+    <tr>
+        <th>REGULAR DEDUCTIONS</th>
+        <th>LOANS/ADVANCES</th>
+    </tr>
+    <tr>
+        <td>
+            <table style="width:100%;border-collapse:collapse;">
+                <tr><td ' . $ic . '>SSS</td>              <td ' . $ir . '>' . $fmt($data['sss_ee']         ?? 0) . '</td></tr>
+                <tr><td ' . $ic . '>PhilHealth</td>       <td ' . $ir . '>' . $fmt($data['phic_ee']        ?? 0) . '</td></tr>
+                <tr><td ' . $ic . '>Pag-IBIG</td>         <td ' . $ir . '>' . $fmt($data['hdmf_ee']        ?? 0) . '</td></tr>
+                <tr><td ' . $ic . '>Withholding tax</td>  <td ' . $ir . '>' . $fmt($data['withholding_tax']?? 0) . '</td></tr>
+            </table>
+        </td>
+        <td>
+            <table style="width:100%;border-collapse:collapse;">
+                <tr><td ' . $ic . '>Salary Loan</td>      <td ' . $ir . '>' . $fmt($data['sss_loan']       ?? 0) . '</td></tr>
+                <tr><td ' . $ic . '>Calamity Loan</td>    <td ' . $ir . '>' . $fmt($data['calamity_loan']  ?? 0) . '</td></tr>
+                <tr><td ' . $ic . '>Salary Advance</td>   <td ' . $ir . '>' . $fmt($data['salary_advance'] ?? 0) . '</td></tr>
+            </table>
+        </td>
+    </tr>
+    <tr>
+        <td style="border:1px solid #000;padding:5px;text-align:right;"><strong>TOTAL DEDUCTIONS</strong></td>
+        <td style="border:1px solid #000;padding:5px;text-align:right;"><strong>' . $fmt($govDeductions) . '</strong></td>
+    </tr>
+</table>
+
+<!-- Signature / Net pay -->
+<table>
+    <tr>
+        <td style="width:25%;border:1px solid #000;padding:5px;">Employee signature:</td>
+        <td style="width:25%;border:1px solid #000;padding:5px;height:40px;"></td>
+        <td style="width:25%;border:1px solid #000;padding:5px;text-align:right;"><strong>NET PAY:</strong></td>
+        <td style="width:25%;border:1px solid #000;padding:5px;text-align:right;background:#f8d7da;"><strong>' . $fmt($data['net_pay'] ?? 0) . '</strong></td>
+    </tr>
+</table>
+
 </div>
 </body>
 </html>';
@@ -1203,6 +1343,69 @@ class PayrollController extends BaseController
             }
         }
         return $employee['employee_number'] . date('Ymd', strtotime($employee['birthdate']));
+    }
+
+    private function getCompanyLogoUrl(): ?string
+    {
+        try {
+            $companyId = $this->resolveActiveCompanyId();
+            $branding  = (new \App\Models\Client\CompanyBrandingModel())
+                ->where('company_id', $companyId)->first();
+            return (!empty($branding['logo_path']))
+                ? base_url($branding['logo_path'])
+                : null;
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    /**
+     * Returns a base64 data URI for the company logo (resized to thumbnail)
+     * so DomPDF can embed it without HTTP requests or memory exhaustion from
+     * processing a large full-resolution image.
+     */
+    private function getLogoDataUri(): ?string
+    {
+        try {
+            $companyId = $this->resolveActiveCompanyId();
+            $branding  = (new \App\Models\Client\CompanyBrandingModel())
+                ->where('company_id', $companyId)->first();
+            if (empty($branding['logo_path'])) return null;
+
+            $rel      = ltrim(str_replace(['/', '\\'], DIRECTORY_SEPARATOR, (string)$branding['logo_path']), DIRECTORY_SEPARATOR);
+            $filePath = rtrim(FCPATH, '/\\') . DIRECTORY_SEPARATOR . $rel;
+            if (!is_file($filePath)) return null;
+
+            // Resize to at most 300×90 px via GD to keep base64 tiny and
+            // avoid DomPDF exhausting memory when decoding a large PNG.
+            $src = @imagecreatefromstring(file_get_contents($filePath));
+            if ($src === false) return null;
+
+            $origW = imagesx($src);
+            $origH = imagesy($src);
+            $maxW  = 300;
+            $maxH  = 90;
+            $scale = min($maxW / max($origW, 1), $maxH / max($origH, 1), 1.0);
+            $newW  = max(1, (int)round($origW * $scale));
+            $newH  = max(1, (int)round($origH * $scale));
+
+            $dst = imagecreatetruecolor($newW, $newH);
+            imagealphablending($dst, false);
+            imagesavealpha($dst, true);
+            $trans = imagecolorallocatealpha($dst, 0, 0, 0, 127);
+            imagefilledrectangle($dst, 0, 0, $newW - 1, $newH - 1, $trans);
+            imagecopyresampled($dst, $src, 0, 0, 0, 0, $newW, $newH, $origW, $origH);
+            imagedestroy($src);
+
+            ob_start();
+            imagepng($dst, null, 6);
+            $pngData = ob_get_clean();
+            imagedestroy($dst);
+
+            return 'data:image/png;base64,' . base64_encode($pngData);
+        } catch (\Throwable $e) {
+            return null;
+        }
     }
 
     public function getCompanyLogo()
@@ -1517,6 +1720,225 @@ class PayrollController extends BaseController
         service('activityLogger')->wtaxBracketsYearCreated($year, $copyFrom ?: null);
 
         return $this->response->setJSON(['success' => true]);
+    }
+
+    // =========================================================================
+    // 13TH MONTH PAY & ANNUALIZATION
+    // =========================================================================
+
+    /**
+     * POST client_portal/payroll/computeYearEnd  { year: 2025 }
+     *
+     * Computes 13th month pay (PD 851) and year-end withholding tax annualization
+     * (BIR) for every employee that has payroll transactions in the requested year.
+     * Results are upserted into thirteenth_month_records and annualization_records.
+     */
+    public function computeYearEnd()
+    {
+        $body = $this->request->getJSON(true) ?: [];
+        $year = (int)($body['year'] ?? date('Y'));
+
+        if ($year < 2000 || $year > 2100) {
+            return $this->response->setStatusCode(400)
+                ->setJSON(['error' => 'Invalid year.']);
+        }
+
+        $db      = \Config\Database::connect();
+        $service = new PayrollComputationService();
+
+        // employee_payslips is the primary payroll record store (generated via Generate Payslip tab).
+        // We fetch every payslip for the year and parse the generated_data JSON blob in PHP.
+        $rows = $db->table('employee_payslips ep')
+            ->select([
+                'ep.employee_id',
+                'ep.generated_data',
+                "CONCAT(
+                    TRIM(e.first_name), ' ',
+                    IF(COALESCE(TRIM(e.middle_name),'')='','',
+                       CONCAT(UPPER(LEFT(TRIM(e.middle_name),1)),'. ')
+                    ),
+                    TRIM(e.last_name)
+                ) AS employee_name",
+            ], false)
+            ->join('employees e', 'e.id = ep.employee_id', 'left')
+            ->where('YEAR(ep.period_start)', $year)
+            ->orderBy('ep.employee_id, ep.period_start', 'ASC')
+            ->get()->getResultArray();
+
+        if (empty($rows)) {
+            return $this->response->setJSON([
+                'success'          => true,
+                'year'             => $year,
+                'thirteenth_month' => [],
+                'annualization'    => [],
+                'message'          => "No payslip records found for {$year}. Generate payslips first.",
+            ]);
+        }
+
+        // Aggregate by employee from JSON blobs
+        $byEmployee = [];
+        foreach ($rows as $row) {
+            $empId = (int)$row['employee_id'];
+            $gd    = json_decode($row['generated_data'] ?? '{}', true) ?: [];
+
+            if (!isset($byEmployee[$empId])) {
+                $byEmployee[$empId] = [
+                    'employee_name'       => $row['employee_name'],
+                    'total_pure_basic'    => 0,  // basic_pay − absent − undertime (13th month base)
+                    'total_net_basic'     => 0,  // net_basic_pay (includes night diff, for tax)
+                    'total_overtime'      => 0,
+                    'total_other_taxable' => 0,
+                    'total_wtax'          => 0,
+                    'periods_count'       => 0,
+                ];
+            }
+
+            // Pure basic for 13th month (DOLE PD 851: excludes ND, OT, allowances)
+            $basicPay     = (float)($gd['basic_pay']     ?? 0);
+            $absentAmt    = (float)($gd['absent_amt']    ?? 0);
+            $undertimeAmt = (float)($gd['undertime_amt'] ?? 0);
+            $pureBasic    = max(0, $basicPay - $absentAmt - $undertimeAmt);
+
+            // net_basic_pay from JSON already includes night diff
+            $netBasic = (float)($gd['net_basic_pay'] ?? $pureBasic);
+
+            $byEmployee[$empId]['total_pure_basic']    += $pureBasic;
+            $byEmployee[$empId]['total_net_basic']      += $netBasic;
+            $byEmployee[$empId]['total_overtime']       += (float)($gd['overtime_pay']            ?? 0);
+            $byEmployee[$empId]['total_other_taxable']  += (float)($gd['other_earnings_taxable']  ?? 0);
+            $byEmployee[$empId]['total_wtax']           += (float)($gd['withholding_tax']         ?? 0);
+            $byEmployee[$empId]['periods_count']++;
+        }
+
+        // TRAIN Law: 13th month exempt up to ₱90,000 (configurable via payroll_settings)
+        $settings    = new PayrollSettingsModel();
+        $exemptLimit = (float)($settings->getSetting('thirteenth_month_exempt_limit') ?? 90000);
+
+        $thirteenthModel    = new \App\Models\Client\ThirteenthMonthModel();
+        $annualizationModel = new \App\Models\Client\AnnualizationModel();
+        $thirteenthData     = [];
+        $annualizationData  = [];
+
+        foreach ($byEmployee as $empId => $agg) {
+            // ── 13th Month ───────────────────────────────────────────────────
+            $totalPureBasic = $agg['total_pure_basic'];
+            $thirteenth     = round($totalPureBasic / 12, 2);
+            $taxExempt      = round(min($thirteenth, $exemptLimit), 2);
+            $taxable13th    = round(max(0, $thirteenth - $exemptLimit), 2);
+
+            // ── Annualization ─────────────────────────────────────────────────
+            // Taxable compensation = net_basic (includes ND) + OT + other taxable
+            $totalTaxable  = $agg['total_net_basic']
+                           + $agg['total_overtime']
+                           + $agg['total_other_taxable'];
+            $annualTaxable = round($totalTaxable + $taxable13th, 2);
+            $annualTaxDue  = $service->calculateAnnualWithholdingTax($annualTaxable);
+            $totalWtax     = round($agg['total_wtax'], 2);
+            $adjustment    = round($annualTaxDue - $totalWtax, 2);
+
+            $now = date('Y-m-d H:i:s');
+
+            // Upsert 13th month record
+            $rec13  = $thirteenthModel->where('employee_id', $empId)->where('year', $year)->first();
+            $data13 = [
+                'employee_id'             => $empId,
+                'year'                    => $year,
+                'total_basic_earned'      => round($totalPureBasic, 2),
+                'periods_count'           => $agg['periods_count'],
+                'thirteenth_month_amount' => $thirteenth,
+                'tax_exempt_amount'       => $taxExempt,
+                'taxable_amount'          => $taxable13th,
+                'status'                  => 'computed',
+                'computed_at'             => $now,
+            ];
+            $rec13 ? $thirteenthModel->update($rec13['id'], $data13)
+                   : $thirteenthModel->insert($data13);
+
+            // Upsert annualization record
+            $recAnn  = $annualizationModel->where('employee_id', $empId)->where('year', $year)->first();
+            $dataAnn = [
+                'employee_id'                => $empId,
+                'year'                       => $year,
+                'total_taxable_compensation' => round($totalTaxable, 2),
+                'thirteenth_month_taxable'   => $taxable13th,
+                'annual_taxable_income'      => $annualTaxable,
+                'annual_tax_due'             => $annualTaxDue,
+                'total_tax_withheld'         => $totalWtax,
+                'year_end_adjustment'        => $adjustment,
+                'status'                     => 'computed',
+                'computed_at'                => $now,
+            ];
+            $recAnn ? $annualizationModel->update($recAnn['id'], $dataAnn)
+                    : $annualizationModel->insert($dataAnn);
+
+            $thirteenthData[] = [
+                'employee_id'             => $empId,
+                'employee_name'           => $agg['employee_name'],
+                'total_basic_earned'      => round($totalPureBasic, 2),
+                'periods_count'           => $agg['periods_count'],
+                'thirteenth_month_amount' => $thirteenth,
+                'tax_exempt_amount'       => $taxExempt,
+                'taxable_amount'          => $taxable13th,
+            ];
+
+            $annualizationData[] = [
+                'employee_id'                => $empId,
+                'employee_name'              => $agg['employee_name'],
+                'total_taxable_compensation' => round($totalTaxable, 2),
+                'thirteenth_month_taxable'   => $taxable13th,
+                'annual_taxable_income'      => $annualTaxable,
+                'annual_tax_due'             => $annualTaxDue,
+                'total_tax_withheld'         => $totalWtax,
+                'year_end_adjustment'        => $adjustment,
+            ];
+        }
+
+        return $this->response->setJSON([
+            'success'          => true,
+            'year'             => $year,
+            'exempt_limit'     => $exemptLimit,
+            'thirteenth_month' => $thirteenthData,
+            'annualization'    => $annualizationData,
+        ]);
+    }
+
+    /**
+     * GET client_portal/payroll/getYearEndRecords?year=2025
+     *
+     * Returns previously saved 13th month and annualization records for the year.
+     */
+    public function getYearEndRecords()
+    {
+        $year = (int)($this->request->getGet('year') ?? date('Y'));
+        $db   = \Config\Database::connect();
+
+        $nameExpr = "CONCAT(
+            TRIM(e.first_name), ' ',
+            IF(COALESCE(TRIM(e.middle_name),'')='','',
+               CONCAT(UPPER(LEFT(TRIM(e.middle_name),1)),'. ')
+            ),
+            TRIM(e.last_name)
+        ) AS employee_name";
+
+        $thirteenth = $db->table('thirteenth_month_records t')
+            ->select("t.*, {$nameExpr}", false)
+            ->join('employees e', 'e.id = t.employee_id', 'left')
+            ->where('t.year', $year)
+            ->orderBy('e.last_name', 'ASC')
+            ->get()->getResultArray();
+
+        $annualization = $db->table('annualization_records a')
+            ->select("a.*, {$nameExpr}", false)
+            ->join('employees e', 'e.id = a.employee_id', 'left')
+            ->where('a.year', $year)
+            ->orderBy('e.last_name', 'ASC')
+            ->get()->getResultArray();
+
+        return $this->response->setJSON([
+            'year'             => $year,
+            'thirteenth_month' => $thirteenth,
+            'annualization'    => $annualization,
+        ]);
     }
 
     // =========================================================================

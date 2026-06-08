@@ -42,7 +42,14 @@
             </div>
 
             <div class="payslip-logo-wrap">
-                <img src="<?= base_url('icons/ecovis_logo.png'); ?>" alt="Ecovis logo" class="payslip-logo">
+                <?php
+                    $__branding = model(\App\Models\Client\CompanyBrandingModel::class)
+                        ->where('company_id', 1)->first();
+                    $__logoSrc = (!empty($__branding['logo_path']))
+                        ? base_url($__branding['logo_path'])
+                        : base_url('icons/ecovis_logo.png');
+                ?>
+                <img id="portalPayslipLogo" src="<?= esc($__logoSrc) ?>" alt="Company logo" class="payslip-logo">
             </div>
         </div>
 
@@ -380,49 +387,115 @@ async function loadPayslipPreview(payslipId) {
 }
 
 function renderPayslipHtml(d) {
-    const formatMoney = (val) => parseFloat(val || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    
-    const basicPay = parseFloat(d.basic_pay) || 0;
-    const nightDiff = parseFloat(d.night_diff_pay) || 0;
-    const overtime = parseFloat(d.overtime_pay) || 0;
-    const deMinimis = parseFloat(d.de_minimis) || 0;
-    const taxableOther = parseFloat(d.other_earnings_taxable) || 0;
-    const grossPay = basicPay + nightDiff + overtime + deMinimis + taxableOther;
-    
-    const sss = parseFloat(d.sss_ee) || 0;
-    const phic = parseFloat(d.phic_ee) || 0;
-    const hdmf = parseFloat(d.hdmf_ee) || 0;
-    const wtax = parseFloat(d.withholding_tax) || 0;
-    const sssLoan = parseFloat(d.sss_loan) || 0;
-    const calamityLoan = parseFloat(d.calamity_loan) || 0;
-    const salaryAdv = parseFloat(d.salary_advance) || 0;
-    const otherDed = parseFloat(d.other_deductions) || 0;
-    const totalDed = sss + phic + hdmf + wtax + sssLoan + calamityLoan + salaryAdv + otherDed;
-    const netPay = grossPay - totalDed;
-    
+    function n(v)   { return parseFloat(v || 0); }
+    function fmt(v) { return n(v).toFixed(2); }
+    function esc(s) {
+        return String(s || '').replace(/[&<>"]/g, function(c) {
+            return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];
+        });
+    }
+    function fmtDate(s) {
+        if (!s) return '';
+        const dt = new Date(s + 'T00:00:00');
+        return dt.toLocaleDateString('en-US', {month: 'short', day: '2-digit', year: 'numeric'});
+    }
+
+    const grossPay = n(d.net_basic_pay) + n(d.reg_ot) + n(d.sat_ot) + n(d.sun_ot) + n(d.hol_ot)
+                   + n(d.other_earnings_taxable) + n(d.de_minimis);
+    const govDed   = n(d.sss_ee) + n(d.phic_ee) + n(d.hdmf_ee) + n(d.withholding_tax);
+    const loanDed  = n(d.sss_loan) + n(d.calamity_loan) + n(d.salary_advance);
+    const totalDed = govDed + loanDed;
+
     return `
-        <div style="padding: 12px;">
-            <table style="width:100%; border-collapse: collapse; margin-bottom:15px;">
-                <tr><td colspan="4"><strong>EARNINGS</strong></td></tr>
-                <tr><td style="width:25%">Basic Pay</td><td class="right" style="width:25%">${formatMoney(basicPay)}</td><td style="width:25%">Night Differential</td><td class="right" style="width:25%">${formatMoney(nightDiff)}</td></tr>
-                <tr><td>Overtime Pay</td><td class="right">${formatMoney(overtime)}</td><td>De Minimis</td><td class="right">${formatMoney(deMinimis)}</td></tr>
-                <tr><td>Other Taxable Earnings</td><td class="right">${formatMoney(taxableOther)}</td><td></td><td></td></tr>
-                <tr style="background:#f9f9f9;"><td><strong>GROSS PAY</strong></td><td class="right"><strong>${formatMoney(grossPay)}</strong></td><td colspan="2"></td></tr>
-            </table>
-            <table style="width:100%; border-collapse: collapse; margin-bottom:15px;">
-                <tr><td colspan="4"><strong>DEDUCTIONS</strong></td></tr>
-                <tr><td>SSS</td><td class="right">${formatMoney(sss)}</td><td>PhilHealth</td><td class="right">${formatMoney(phic)}</td></tr>
-                <tr><td>Pag-IBIG</td><td class="right">${formatMoney(hdmf)}</td><td>Withholding Tax</td><td class="right">${formatMoney(wtax)}</td></tr>
-                <tr><td>SSS Loan</td><td class="right">${formatMoney(sssLoan)}</td><td>Calamity Loan</td><td class="right">${formatMoney(calamityLoan)}</td></tr>
-                <tr><td>Salary Advance</td><td class="right">${formatMoney(salaryAdv)}</td><td>Other Deductions</td><td class="right">${formatMoney(otherDed)}</td></tr>
-                <tr style="background:#f9f9f9;"><td><strong>TOTAL DEDUCTIONS</strong></td><td class="right"><strong>${formatMoney(totalDed)}</strong></td><td colspan="2"></td></tr>
-            </table>
-            <div style="text-align:right; font-size:18px; font-weight:bold; margin-top:20px;">
-                NET PAY: ${formatMoney(netPay)}
-            </div>
-            <div style="margin-top:30px; font-style:italic; text-align:right;">Employee signature: ___________________________</div>
-        </div>
-    `;
+    <div style="font-family:Arial,sans-serif;background:#fff;border:1px solid #000;padding:20px;box-sizing:border-box;">
+        <h2 style="text-align:center;margin:5px 0 10px;">PAY SLIP</h2>
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+            <tr>
+                <td style="border:1px solid #000;padding:5px;"><strong>Employee:</strong></td>
+                <td style="border:1px solid #000;padding:5px;">${esc(d.employee_name)}</td>
+                <td style="border:1px solid #000;padding:5px;"></td>
+                <td style="border:1px solid #000;padding:5px;"><strong>Payroll period:</strong></td>
+                <td style="border:1px solid #000;padding:5px;" colspan="2">${fmtDate(d.period_start)} &ndash; ${fmtDate(d.period_end)}</td>
+            </tr>
+            <tr>
+                <td style="border:1px solid #000;padding:5px;"><strong>Position:</strong></td>
+                <td colspan="5" style="border:1px solid #000;padding:5px;">${esc(d.position)}</td>
+            </tr>
+        </table>
+        <table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:10px;">
+            <tr>
+                <th style="border:1px solid #000;padding:5px;background:#eee;text-align:center;">REGULAR EARNINGS</th>
+                <th style="border:1px solid #000;padding:5px;background:#eee;text-align:center;">TAXABLE OTHER EARNINGS</th>
+                <th style="border:1px solid #000;padding:5px;background:#eee;text-align:center;">NON-TAXABLE OTHER EARNINGS</th>
+            </tr>
+            <tr>
+                <td style="border:1px solid #000;padding:5px;vertical-align:top;">
+                    <table style="width:100%;font-size:12px;border-collapse:collapse;">
+                        <tr><td style="border:none;padding:2px 4px;">Basic pay:</td>                   <td style="border:none;padding:2px 4px;text-align:right;">${fmt(d.basic_pay)}</td></tr>
+                        <tr><td style="border:none;padding:2px 4px;">Rate per hour:</td>               <td style="border:none;padding:2px 4px;text-align:right;">${fmt(d.rate_per_hour)}</td></tr>
+                        <tr><td style="border:none;padding:2px 4px;">No. of hours worked:</td>         <td style="border:none;padding:2px 4px;text-align:right;">${fmt(d.hours_worked)}</td></tr>
+                        <tr><td style="border:none;padding:2px 4px;">Night premium:</td>               <td style="border:none;padding:2px 4px;text-align:right;">${fmt(d.night_diff_pay)}</td></tr>
+                        <tr><td style="border:none;padding:2px 4px;">Less: Absences</td>               <td style="border:none;padding:2px 4px;text-align:right;">${fmt(d.absent_amt)}</td></tr>
+                        <tr><td style="border:none;padding:2px 4px;">Late/Undertime</td>               <td style="border:none;padding:2px 4px;text-align:right;">${fmt(d.undertime_amt)}</td></tr>
+                        <tr><td style="border:none;padding:2px 4px;"><strong>Net basic pay</strong></td><td style="border:none;padding:2px 4px;text-align:right;"><strong>${fmt(d.net_basic_pay)}</strong></td></tr>
+                        <tr><td style="border:none;padding:2px 4px;">Reg. OT</td>                      <td style="border:none;padding:2px 4px;text-align:right;">${fmt(d.reg_ot)}</td></tr>
+                        <tr><td style="border:none;padding:2px 4px;">Sat OT</td>                       <td style="border:none;padding:2px 4px;text-align:right;">${fmt(d.sat_ot)}</td></tr>
+                        <tr><td style="border:none;padding:2px 4px;">Sun OT</td>                       <td style="border:none;padding:2px 4px;text-align:right;">${fmt(d.sun_ot)}</td></tr>
+                        <tr><td style="border:none;padding:2px 4px;">Holiday OT</td>                   <td style="border:none;padding:2px 4px;text-align:right;">${fmt(d.hol_ot)}</td></tr>
+                    </table>
+                </td>
+                <td style="border:1px solid #000;padding:5px;vertical-align:top;">
+                    <table style="width:100%;font-size:12px;border-collapse:collapse;">
+                        <tr><td style="border:none;padding:2px 4px;">Salary adjustment:</td><td style="border:none;padding:2px 4px;text-align:right;">${fmt(d.other_earnings_taxable)}</td></tr>
+                    </table>
+                </td>
+                <td style="border:1px solid #000;padding:5px;vertical-align:top;">
+                    <table style="width:100%;font-size:12px;border-collapse:collapse;">
+                        <tr><td style="border:none;padding:2px 4px;">De Minimis Benefit:</td><td style="border:none;padding:2px 4px;text-align:right;">${fmt(d.de_minimis)}</td></tr>
+                    </table>
+                </td>
+            </tr>
+            <tr>
+                <td colspan="2" style="border:1px solid #000;padding:5px;text-align:right;"><strong>GROSS PAY</strong></td>
+                <td style="border:1px solid #000;padding:5px;text-align:right;"><strong>${grossPay.toFixed(2)}</strong></td>
+            </tr>
+        </table>
+        <table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:10px;">
+            <tr>
+                <th style="border:1px solid #000;padding:5px;background:#eee;text-align:center;">REGULAR DEDUCTIONS</th>
+                <th style="border:1px solid #000;padding:5px;background:#eee;text-align:center;">LOANS/ADVANCES</th>
+            </tr>
+            <tr>
+                <td style="border:1px solid #000;padding:5px;vertical-align:top;">
+                    <table style="width:100%;font-size:12px;border-collapse:collapse;">
+                        <tr><td style="border:none;padding:2px 4px;">SSS</td>             <td style="border:none;padding:2px 4px;text-align:right;">${fmt(d.sss_ee)}</td></tr>
+                        <tr><td style="border:none;padding:2px 4px;">PhilHealth</td>      <td style="border:none;padding:2px 4px;text-align:right;">${fmt(d.phic_ee)}</td></tr>
+                        <tr><td style="border:none;padding:2px 4px;">Pag-IBIG</td>        <td style="border:none;padding:2px 4px;text-align:right;">${fmt(d.hdmf_ee)}</td></tr>
+                        <tr><td style="border:none;padding:2px 4px;">Withholding tax</td> <td style="border:none;padding:2px 4px;text-align:right;">${fmt(d.withholding_tax)}</td></tr>
+                    </table>
+                </td>
+                <td style="border:1px solid #000;padding:5px;vertical-align:top;">
+                    <table style="width:100%;font-size:12px;border-collapse:collapse;">
+                        <tr><td style="border:none;padding:2px 4px;">Salary Loan</td>    <td style="border:none;padding:2px 4px;text-align:right;">${fmt(d.sss_loan)}</td></tr>
+                        <tr><td style="border:none;padding:2px 4px;">Calamity Loan</td>  <td style="border:none;padding:2px 4px;text-align:right;">${fmt(d.calamity_loan)}</td></tr>
+                        <tr><td style="border:none;padding:2px 4px;">Salary Advance</td> <td style="border:none;padding:2px 4px;text-align:right;">${fmt(d.salary_advance)}</td></tr>
+                    </table>
+                </td>
+            </tr>
+            <tr>
+                <td colspan="2" style="border:1px solid #000;padding:5px;text-align:right;"><strong>TOTAL DEDUCTIONS</strong></td>
+                <td style="border:1px solid #000;padding:5px;text-align:right;"><strong>${totalDed.toFixed(2)}</strong></td>
+            </tr>
+        </table>
+        <table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:10px;">
+            <tr>
+                <td style="border:1px solid #000;padding:5px;">Employee signature:</td>
+                <td style="border:1px solid #000;padding:5px;height:40px;"></td>
+                <td style="border:1px solid #000;padding:5px;text-align:right;"><strong>NET PAY:</strong></td>
+                <td style="border:1px solid #000;padding:5px;text-align:right;background:#f8d7da;"><strong>${fmt(d.net_pay)}</strong></td>
+            </tr>
+        </table>
+    </div>`;
 }
 
 // Event listeners

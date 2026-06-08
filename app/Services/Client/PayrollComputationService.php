@@ -181,9 +181,9 @@ class PayrollComputationService
     protected function calculatePhilHealth(float $monthlySalary): float
     {
         // Rate and income cap come from payroll_settings so admin can update
-        // without touching code (e.g. PhilHealth 5% on salary up to ₱80,000/mo).
+        // without touching code. 2025 PhilHealth: 5% on salary up to ₱100,000/mo.
         $rate = (float)($this->settings->getSetting('phic_rate') ?? 0.05);
-        $cap  = (float)($this->settings->getSetting('phic_cap')  ?? 80000);
+        $cap  = (float)($this->settings->getSetting('phic_cap')  ?? 100000);
 
         $cappedSalary  = min($monthlySalary, $cap);
         $employeeShare = ($cappedSalary * $rate) / 2;   // total premium split 50/50
@@ -291,6 +291,38 @@ class PayrollComputationService
             ->first();
 
         return $prevTx ? (float)($prevTx['withholding_tax'] ?? 0) : 0;
+    }
+
+    /**
+     * Annual withholding tax using the active monthly brackets scaled ×12.
+     * Brackets are fetched from DB and matched in PHP to avoid CI4 query-builder
+     * backtick-escaping arithmetic expressions (e.g. `min_amount * 12`).
+     */
+    public function calculateAnnualWithholdingTax(float $annualTaxableIncome): float
+    {
+        $db       = \Config\Database::connect();
+        $brackets = $db->table('wtax_brackets_monthly')
+            ->where('is_active', 1)
+            ->orderBy('min_amount', 'DESC')
+            ->get()
+            ->getResultArray();
+
+        foreach ($brackets as $bracket) {
+            $annualMin = (float)$bracket['min_amount'] * 12;
+            $annualMax = $bracket['max_amount'] !== null
+                ? (float)$bracket['max_amount'] * 12
+                : null;
+
+            if ($annualTaxableIncome >= $annualMin &&
+                ($annualMax === null || $annualTaxableIncome <= $annualMax)
+            ) {
+                $annualFixed = (float)$bracket['fixed_tax'] * 12;
+                $excess      = $annualTaxableIncome - $annualMin;
+                return max(0, round($annualFixed + ($excess * (float)$bracket['percent_over']), 2));
+            }
+        }
+
+        return 0;
     }
 
     /**

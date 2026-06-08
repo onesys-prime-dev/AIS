@@ -10,6 +10,7 @@
         <button type="button" class="tab" data-tab="generate-payslip">Generate Payslip</button>
         <button type="button" class="tab" data-tab="payroll-settings">Payroll Settings</button>
         <button type="button" class="tab" data-tab="payslip-history">Payslip History</button>
+        <button type="button" class="tab" data-tab="year-end">13th Month &amp; Annualization</button>
     </div>
 
     <div class="tab-panel h-full flex flex-col min-h-0 overflow-hidden px-8 pb-8" data-panel="payroll-status" style="display:flex;">
@@ -26,6 +27,10 @@
 
     <div class="tab-panel h-full flex flex-col min-h-0 overflow-hidden p-8" data-panel="payslip-history" style="display:none;">
         <?= view('client_portal/payroll_payslip_history') ?>
+    </div>
+
+    <div class="tab-panel h-full flex flex-col min-h-0 overflow-y-auto p-8" data-panel="year-end" style="display:none;">
+        <?= view('client_portal/payroll_13th_month') ?>
     </div>
 
 </div>
@@ -136,10 +141,20 @@
                 panel.style.display = panel.dataset.panel === tabKey ? 'flex' : 'none';
             });
         }
+        // Expose globally so child views (13th month panel) can switch tabs
+        window.activatePayrollTab = activateTab;
 
+        let yearEndLoaded = false;
         tabs.forEach(tab => {
             tab.addEventListener('click', function () {
                 activateTab(tab.dataset.tab);
+                if (tab.dataset.tab === 'year-end' && !yearEndLoaded) {
+                    yearEndLoaded = true;
+                    const yr = document.getElementById('yearEndYear')?.value ?? new Date().getFullYear();
+                    if (typeof window._loadYearEndRecords === 'function') {
+                        window._loadYearEndRecords(yr);
+                    }
+                }
             });
         });
 

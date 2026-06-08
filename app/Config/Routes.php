@@ -126,6 +126,10 @@ $routes->group('client_portal/payroll', ['namespace' => 'App\Controllers\Client'
     $routes->post('wtax/saveBrackets',   'PayrollController::wtaxSaveBrackets');
     $routes->post('wtax/setActive',      'PayrollController::wtaxSetActive');
     $routes->post('wtax/createYear',     'PayrollController::wtaxCreateYear');
+
+    // ========== 13th Month Pay & Annualization ==========
+    $routes->post('computeYearEnd',      'PayrollController::computeYearEnd');
+    $routes->get('getYearEndRecords',    'PayrollController::getYearEndRecords');
 });
 
 $routes->group('client_portal', ['namespace' => 'App\Controllers\Client'], function($routes) {
