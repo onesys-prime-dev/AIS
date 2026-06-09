@@ -56,6 +56,7 @@
 .default-modal-title {
     font-size: 22px;
     font-weight: 700;
+    margin-bottom: 20px;
 }
 
 @keyframes modalPop {
