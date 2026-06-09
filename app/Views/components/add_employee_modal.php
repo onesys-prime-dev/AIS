@@ -1,18 +1,102 @@
-<div id="<?= $id ?>" 
-    class="fixed inset-0 bg-black/40 flex items-center justify-center modal-overlay"
-    style="display: none;">
+<style>
+.add-employee-overlay {
+    position: fixed;
+    inset: 0;
 
-    <div class="bg-white rounded-xl shadow-xl w-full max-w-[600px] h-[550px] p-6 relative flex flex-col">
+    background: rgba(0,0,0,.45);
 
-        <button type="button" class="absolute right-4 top-4 text-gray-500 hover:text-black modal-close">
+    display: none;
+    align-items: center;
+    justify-content: center;
+
+    z-index: 99999;
+}
+
+.add-employee-overlay.show {
+    display: flex;
+}
+
+.add-employee-box {
+    background: #fff;
+
+    width: 100%;
+    max-width: 600px;
+
+    height: 550px;
+
+    border-radius: 18px;
+
+    position: relative;
+
+    display: flex;
+    flex-direction: column;
+
+    padding: 24px;
+
+    box-shadow:
+        0 25px 50px rgba(0,0,0,.25);
+
+    animation: modalPop .18s ease;
+}
+
+.add-employee-close {
+    position: absolute;
+
+    right: 16px;
+    top: 16px;
+
+    border: none;
+    background: none;
+
+    font-size: 24px;
+
+    cursor: pointer;
+}
+
+.add-employee-title {
+    font-size: 22px;
+    font-weight: 700;
+
+    margin-bottom: 20px;
+
+    flex-shrink: 0;
+}
+
+.add-employee-content {
+    flex: 1;
+    overflow-y: auto;
+}
+
+@keyframes modalPop {
+    from {
+        opacity: 0;
+        transform: scale(.95);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+</style>
+
+<div id="<?= $id ?>" class="add-employee-overlay modal-overlay">
+
+    <div class="add-employee-box">
+
+        <button
+            type="button"
+            class="add-employee-close modal-close">
             ✕
         </button>
 
         <?php if(isset($title)): ?>
-            <h2 class="text-xl font-bold mb-5 shrink-0"><?= esc($title) ?></h2>
+            <h2 class="add-employee-title">
+                <?= esc($title) ?>
+            </h2>
         <?php endif; ?>
 
-        <div class="flex-1 overflow-y-auto">
+        <div class="add-employee-content">
             <?= $content ?>
         </div>
 

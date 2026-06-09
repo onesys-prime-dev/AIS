@@ -55,7 +55,7 @@
 
         <hr class="payslip-divider">
 
-        <div class="payslip-preview scroll-bar" id="payslipPreview">
+        <div class="payslip-preview hide-scroll-bar" id="payslipPreview">
             <div style="text-align: center; padding: 40px;">Select a payslip from the dropdown</div>
         </div>
     </div>

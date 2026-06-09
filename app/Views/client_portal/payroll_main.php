@@ -109,9 +109,6 @@
                 <div class="cursor-pointer w-7 h-7 hover:scale-110 transition" data-action="edit" data-modal="editPayrollModal" data-update-url="${UPDATE_URL}" data-id="${htmlEsc(p.id)}" data-employee_id="${htmlEsc(p.employee_id)}" data-employee_name="${htmlEsc(p.employee_name)}" data-phone="${htmlEsc(p.phone)}" data-daily_rate="${htmlEsc(p.daily_rate)}" data-dst="${htmlEsc(p.dst)}" data-currency="${htmlEsc(p.currency)}" data-status="${htmlEsc(p.status ?? 'Pending')}">
                     <img src="${EDIT_ICON}" class="w-7 h-7" alt="Edit">
                 </div>
-                <div class="cursor-pointer w-7 h-7 hover:scale-110 transition" data-action="delete" data-delete-url="${DELETE_URL}" data-id="${htmlEsc(p.id)}">
-                    <img src="${DELETE_ICON}" class="w-7 h-7" alt="Delete">
-                </div>
             </div>
         </div>`;
     }

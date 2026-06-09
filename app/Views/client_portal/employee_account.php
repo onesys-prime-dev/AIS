@@ -32,7 +32,6 @@
             <h2>Personal Identity</h2>
 
             <div class="about-content">
-                <div class="about-avatar" style="<?= ! empty($identity['photo_url']) ? 'background-image:url(\'' . str_replace("'", "\\'", (string) $identity['photo_url']) . '\');background-size:cover;background-position:center;' : '' ?>"></div>
 
                 <div class="about-info">
                     <div class="name"><?= esc($identity['last_name'] ?? '') ?>, <?= esc($identity['first_name'] ?? '') ?> <?= esc($identity['middle_name'] ?? '') ?></div>

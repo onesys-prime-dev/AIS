@@ -3,9 +3,17 @@
 namespace App\Services\Client;
 
 use App\Models\Client\PayrollModel;
+use App\Services\Client\LoanService;
 
 class PayrollService
 {
+    protected LoanService $loanService;
+
+    public function __construct()
+    {
+        $this->loanService = new LoanService();
+    }
+    
     public function createPayroll(array $data)
     {
         $model = new PayrollModel();

@@ -28,6 +28,19 @@ $routes->group('client_portal', ['filter' => 'auth'], function($routes){
     $routes->post('employees/update/(:num)', 'Client\EmployeeController::updateEmployee/$1');
     $routes->post('employees/import','Client\EmployeeController::importEmployees');
     $routes->get('employees/export','Client\EmployeeController::exportEmployees');
+
+    $routes->get('loans', 'Client\LoanController::loanView');
+    $routes->post('loans/addLoan', 'Client\LoanController::newLoan');
+    $routes->get('loans/loanEmployees', 'Client\LoanController::getLoanEmployees');
+    $routes->get('loans/getLoans', 'Client\LoanController::getLoans');
+    $routes->get('loans/viewSchedule/(:num)','Client\LoanController::viewSchedule/$1');
+    $routes->get('loans/close/(:num)','Client\LoanController::closeLoan/$1');
+    $routes->get('loans/complete/(:num)','Client\LoanController::completeLoan/$1');
+    $routes->post('loans/update/(:num)','Client\LoanController::updateLoan/$1');
+    $routes->get('loans/settings','Client\LoanController::getLoanSettings');
+    $routes->post('loans/settings/save','Client\LoanController::saveLoanSettings');
+    $routes->post('loans/payments/(:num)','Client\LoanController::getLoanPayments/$1');
+
     $routes->post('timesheets/update/(:num)', 'Client\TimesheetController::update/$1');
     $routes->get('timesheets/delete/(:num)', 'Client\TimesheetController::delete/$1');
     $routes->get('timesheets/daily-log', 'Client\TimesheetController::dailyTimeLog');

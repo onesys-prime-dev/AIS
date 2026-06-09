@@ -1,0 +1,707 @@
+<!-- STEP 1 + STEP 2 WRAPPER -->
+<div id="loanStepWrapper">
+
+    <!-- ===================================================== -->
+    <!-- STEP 1 : LOAN FORM -->
+    <!-- ===================================================== -->
+
+    <div id="loanStep1">
+
+        <form
+            id="addNewloanForm"
+            action="<?= site_url('client_portal/loans/addLoan') ?>"
+            method="post"
+            class="flex flex-col h-full">
+
+            <?= csrf_field() ?>
+
+            <!-- EMPLOYEE -->
+            <div class="mb-4">
+
+                <label class="block text-sm font-medium text-gray-700 mb-1">
+                    Employee
+                </label>
+
+                <div class="relative">
+
+                    <input
+                        type="text"
+                        id="loanEmployeeSearch"
+                        placeholder="Search employee..."
+                        autocomplete="off"
+                        class="w-full border rounded-lg px-3 py-2"
+                        required>
+
+                    <input
+                        type="hidden"
+                        name="loan_employee_id"
+                        id="loan_employee_id"
+                        required>
+
+                    <div
+                        id="loanEmployeeDropdown"
+                        class="absolute left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 hidden max-h-56 overflow-auto hide-scroll-bar">
+                    </div>
+
+                </div>
+
+                <p
+                    id="loan_employee_error"
+                    class="text-red-500 text-xs mt-1 hidden">
+
+                    Please select a valid employee from the list.
+
+                </p>
+
+            </div>
+
+            <!-- LOAN TYPE -->
+            <div class="mb-4">
+
+                <label class="block text-sm font-medium text-gray-700 mb-1">
+                    Loan Type
+                </label>
+
+                <select
+                    name="loan_type"
+                    id="loan_type"
+                    class="w-full border rounded-lg px-3 py-2">
+
+                    <option value="Salary Loan">
+                        Salary Loan
+                    </option>
+
+                    <option value="Emergency Loan">
+                        Emergency Loan
+                    </option>
+
+                    <option value="Cash Advance">
+                        Cash Advance
+                    </option>
+
+                </select>
+
+            </div>
+
+            <!-- PRINCIPAL -->
+            <div class="mb-4">
+
+                <label class="block text-sm font-medium text-gray-700 mb-1">
+                    Principal Amount
+                </label>
+
+                <input
+                    type="number"
+                    step="0.01"
+                    name="principal_amount"
+                    id="principal_amount"
+                    placeholder="Enter principal amount"
+                    required
+                    class="w-full border rounded-lg px-3 py-2">
+
+            </div>
+
+            <!-- DEDUCTION FREQUENCY -->
+            <div class="mb-4">
+
+                <label class="block text-sm font-medium text-gray-700 mb-1">
+                    Deduction Frequency
+                </label>
+
+                <select
+                    id="deduction_frequency"
+                    disabled
+                    class="w-full border rounded-lg px-3 py-2 bg-gray-100">
+
+                    <option value="Semi-Monthly">
+                        Every Cutoff
+                    </option>
+
+                    <option value="Monthly">
+                        Once per Month
+                    </option>
+
+                </select>
+
+                <input
+                    type="hidden"
+                    name="deduction_frequency"
+                    id="deduction_frequency_hidden">
+
+            </div>
+
+            <!-- INSTALLMENT COUNT -->
+            <div class="mb-4">
+
+                <label class="block text-sm font-medium text-gray-700 mb-1">
+                    Installment Count
+                </label>
+
+                <input
+                    type="number"
+                    name="installment_count"
+                    id="installment_count"
+                    placeholder="Enter number of installments"
+                    required
+                    class="w-full border rounded-lg px-3 py-2">
+
+            </div>
+
+            <!-- START DATE -->
+            <div class="mb-6">
+
+                <label class="block text-sm font-medium text-gray-700 mb-1">
+                    Start Date
+                </label>
+
+                <input
+                    type="date"
+                    name="start_date"
+                    id="start_date"
+                    required
+                    class="w-full border rounded-lg px-3 py-2">
+
+            </div>
+
+            <!-- HIDDEN COMPUTED FIELDS -->
+            <input type="hidden" name="interest_rate" id="interest_rate">
+            <input type="hidden" name="total_interest" id="total_interest">
+            <input type="hidden" name="total_payable" id="total_payable">
+            <input type="hidden" name="deduction_per_payroll" id="deduction_per_payroll">
+            <input type="hidden" name="remaining_balance" id="remaining_balance">
+            <input type="hidden" name="estimated_end_date" id="estimated_end_date">
+            <input type="hidden" name="loan_status" value="active">
+
+            <!-- EMPLOYEE RATE INFO -->
+            <input type="hidden" id="employee_daily_rate">
+            <input type="hidden" id="employee_monthly_salary">
+            <input type="hidden" id="max_loan_amount">
+
+            <!-- ACTIONS -->
+            <div class="flex justify-end gap-2">
+
+                <button
+                    type="button"
+                    onclick="goToLoanPreview()"
+                    class="px-4 py-2 bg-[#A891FC] hover:bg-[#9277fc] text-white rounded-lg">
+
+                    Next
+
+                </button>
+
+            </div>
+
+        </form>
+
+    </div>
+
+    <!-- ===================================================== -->
+    <!-- STEP 2 : LOAN PREVIEW -->
+    <!-- ===================================================== -->
+
+    <div id="loanStep2" class="hidden">
+
+        <div class="mb-6">
+
+            <h2 class="text-xl font-bold text-gray-800">
+                Loan Summary
+            </h2>
+
+            <p class="text-sm text-gray-500 mt-1">
+                Review and confirm the employee loan details.
+            </p>
+
+        </div>
+
+        <!-- SUMMARY CARDS -->
+        <div class="grid grid-cols-2 gap-4 mb-6">
+
+            <div class="border rounded-xl p-4 bg-gray-50">
+
+                <p class="text-xs uppercase text-gray-400 mb-1">
+                    Principal Amount
+                </p>
+
+                <p
+                    id="preview_principal"
+                    class="text-lg font-bold text-gray-800">
+
+                    ₱0.00
+
+                </p>
+
+            </div>
+
+            <div class="border rounded-xl p-4 bg-gray-50">
+
+                <p class="text-xs uppercase text-gray-400 mb-1">
+                    Total Payable
+                </p>
+
+                <p
+                    id="preview_total_payable"
+                    class="text-lg font-bold text-gray-800">
+
+                    ₱0.00
+
+                </p>
+
+            </div>
+
+            <div class="border rounded-xl p-4 bg-gray-50">
+
+                <p class="text-xs uppercase text-gray-400 mb-1">
+                    Interest Rate
+                </p>
+
+                <p
+                    id="preview_interest"
+                    class="text-lg font-bold text-gray-800">
+
+                    0%
+
+                </p>
+
+            </div>
+
+            <div class="border rounded-xl p-4 bg-gray-50">
+
+                <p class="text-xs uppercase text-gray-400 mb-1">
+                    Deduction Per Payroll
+                </p>
+
+                <p
+                    id="preview_deduction"
+                    class="text-lg font-bold text-gray-800">
+
+                    ₱0.00
+
+                </p>
+
+            </div>
+
+        </div>
+
+        <!-- DETAILS -->
+        <div class="border rounded-xl overflow-hidden mb-6">
+
+            <div class="bg-gray-50 px-4 py-3 border-b">
+
+                <h3 class="font-semibold text-gray-700">
+                    Loan Details
+                </h3>
+
+            </div>
+
+            <div class="p-5 grid grid-cols-2 gap-x-8 gap-y-5">
+
+                <div>
+
+                    <p class="text-xs text-gray-400 uppercase tracking-widest mb-1">
+                        Employee
+                    </p>
+
+                    <p
+                        id="preview_employee"
+                        class="text-sm font-semibold text-gray-800">
+
+                        —
+
+                    </p>
+
+                </div>
+
+                <div>
+
+                    <p class="text-xs text-gray-400 uppercase tracking-widest mb-1">
+                        Loan Type
+                    </p>
+
+                    <p
+                        id="preview_loan_type"
+                        class="text-sm font-semibold text-gray-800">
+
+                        —
+
+                    </p>
+
+                </div>
+
+                <div>
+
+                    <p class="text-xs text-gray-400 uppercase tracking-widest mb-1">
+                        Installments
+                    </p>
+
+                    <p
+                        id="preview_installments"
+                        class="text-sm font-semibold text-gray-800">
+
+                        —
+
+                    </p>
+
+                </div>
+
+                <div>
+
+                    <p class="text-xs text-gray-400 uppercase tracking-widest mb-1">
+                        Deduction Frequency
+                    </p>
+
+                    <p
+                        id="preview_frequency"
+                        class="text-sm font-semibold text-gray-800">
+
+                        —
+
+                    </p>
+
+                </div>
+
+                <div>
+
+                    <p class="text-xs text-gray-400 uppercase tracking-widest mb-1">
+                        Start Date
+                    </p>
+
+                    <p
+                        id="preview_start_date"
+                        class="text-sm font-semibold text-gray-800">
+
+                        —
+
+                    </p>
+
+                </div>
+
+                <div>
+
+                    <p class="text-xs text-gray-400 uppercase tracking-widest mb-1">
+                        Estimated End Date
+                    </p>
+
+                    <p
+                        id="preview_end_date"
+                        class="text-sm font-semibold text-gray-800">
+
+                        —
+
+                    </p>
+
+                </div>
+
+            </div>
+
+        </div>
+
+        <!-- ACTIONS -->
+        <div class="flex justify-end gap-2">
+
+            <button
+                type="button"
+                onclick="backToLoanForm()"
+                class="px-4 py-2 border rounded-lg hover:bg-gray-100">
+
+                Back
+
+            </button>
+
+            <button
+                type="button"
+                onclick="submitLoanForm()"
+                class="px-4 py-2 bg-[#A891FC] hover:bg-[#9277fc] text-white rounded-lg">
+
+                Confirm Loan
+
+            </button>
+
+        </div>
+
+    </div>
+    <!-- END STEP 2 -->
+
+</div>
+<!-- END WRAPPER -->
+
+<script>
+
+let LOAN_SETTINGS = [];
+
+/*
+|--------------------------------------------------------------------------
+| LOAD SETTINGS
+|--------------------------------------------------------------------------
+*/
+
+async function loadLoanSettings()
+{
+    try
+    {
+        const response = await fetch(
+            "<?= site_url('client_portal/loans/settings') ?>"
+        );
+
+        LOAN_SETTINGS = await response.json();
+    }
+    catch (err)
+    {
+        console.error(
+            'Failed to load loan settings.',
+            err
+        );
+    }
+}
+
+loadLoanSettings();
+
+function formatCurrency(value)
+{
+    return new Intl.NumberFormat('en-PH', {
+
+        style: 'currency',
+        currency: 'PHP'
+
+    }).format(value);
+}
+
+function goToLoanPreview()
+{
+    const principal = parseFloat(
+        document.getElementById('principal_amount').value || 0
+    );
+
+    const installments = parseInt(
+        document.getElementById('installment_count').value || 1
+    );
+
+    const startDate =
+        document.getElementById('start_date').value;
+
+    const loanType =
+        document.getElementById('loan_type').value;
+
+    const employee =
+        document.getElementById('loanEmployeeSearch').value;
+
+    const setting =
+        LOAN_SETTINGS.find(
+            s => s.loan_type === loanType
+        );
+
+    if (!setting)
+    {
+        alert('Loan settings not configured.');
+        return;
+    }
+
+    const interestRate =
+        parseFloat(setting.interest_rate || 0);
+
+    const frequency =
+        setting.deduction_frequency;
+
+    document.getElementById(
+        'deduction_frequency'
+    ).value = frequency;
+
+    document.getElementById(
+        'deduction_frequency_hidden'
+    ).value = frequency;
+
+    if (
+        !principal ||
+        !installments ||
+        !startDate ||
+        !employee
+    )
+    {
+        alert(
+            'Please complete all required fields.'
+        );
+
+        return;
+    }
+
+    if (installments <= 0)
+    {
+        alert(
+            'Installment count must be greater than 0.'
+        );
+
+        return;
+    }
+
+    if (
+        installments >
+        parseInt(setting.max_installments)
+    )
+    {
+        alert(
+            `Maximum installment allowed is ${setting.max_installments}`
+        );
+
+        return;
+    }
+
+    const totalInterest =
+        parseFloat(
+            (principal * (interestRate / 100)).toFixed(2)
+        );
+
+    const totalPayable =
+        parseFloat(
+            (principal + totalInterest).toFixed(2)
+        );
+
+    const deductionPerPayroll =
+        parseFloat(
+            (totalPayable / installments).toFixed(2)
+        );
+
+    document.getElementById(
+        'interest_rate'
+    ).value = interestRate;
+
+    document.getElementById(
+        'total_interest'
+    ).value = totalInterest;
+
+    document.getElementById(
+        'total_payable'
+    ).value = totalPayable;
+
+    document.getElementById(
+        'deduction_per_payroll'
+    ).value = deductionPerPayroll;
+
+    document.getElementById(
+        'remaining_balance'
+    ).value = totalPayable;
+
+    const monthlySalary = parseFloat(
+        document.getElementById('employee_monthly_salary').value || 0
+    );
+
+    const maxLoan =
+        monthlySalary *
+        parseFloat(
+            setting.max_salary_multiplier || 0
+        );
+
+    document.getElementById(
+        'max_loan_amount'
+    ).value = maxLoan;
+
+    if (principal > maxLoan)
+    {
+        alert(
+            `Maximum allowed loan for ${loanType} is ${formatCurrency(maxLoan)}`
+        );
+
+        return;
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | PREVIEW VALUES
+    |--------------------------------------------------------------------------
+    */
+
+    document.getElementById(
+        'preview_employee'
+    ).innerText = employee;
+
+    document.getElementById(
+        'preview_loan_type'
+    ).innerText = loanType;
+
+    document.getElementById(
+        'preview_principal'
+    ).innerText = formatCurrency(principal);
+
+    document.getElementById(
+        'preview_interest'
+    ).innerText = interestRate + '%';
+
+    document.getElementById(
+        'preview_total_payable'
+    ).innerText = formatCurrency(totalPayable);
+
+    document.getElementById(
+        'preview_deduction'
+    ).innerText = formatCurrency(deductionPerPayroll);
+
+    document.getElementById(
+        'preview_installments'
+    ).innerText = installments;
+
+    document.getElementById(
+        'preview_frequency'
+    ).innerText = frequency;
+
+    document.getElementById(
+        'preview_start_date'
+    ).innerText = startDate;
+
+    /*
+    |--------------------------------------------------------------------------
+    | END DATE
+    |--------------------------------------------------------------------------
+    */
+
+    const endDate = new Date(startDate);
+
+    if (frequency === 'Monthly')
+    {
+        endDate.setMonth(
+            endDate.getMonth() + installments
+        );
+    }
+    else
+    {
+        endDate.setDate(
+            endDate.getDate() + (installments * 15)
+        );
+    }
+
+    document.getElementById(
+        'preview_end_date'
+    ).innerText =
+        endDate.toLocaleDateString();
+
+    document.getElementById(
+        'estimated_end_date'
+    ).value =
+        endDate.toISOString().split('T')[0];
+
+    /*
+    |--------------------------------------------------------------------------
+    | SWITCH STEP
+    |--------------------------------------------------------------------------
+    */
+
+    document.getElementById('loanStep1')
+        .classList.add('hidden');
+
+    document.getElementById('loanStep2')
+        .classList.remove('hidden');
+}
+
+function backToLoanForm()
+{
+    document.getElementById('loanStep2')
+        .classList.add('hidden');
+
+    document.getElementById('loanStep1')
+        .classList.remove('hidden');
+}
+
+function submitLoanForm()
+{
+    document.getElementById(
+        'addNewloanForm'
+    ).submit();
+}
+
+</script>

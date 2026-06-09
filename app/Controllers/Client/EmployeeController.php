@@ -5,6 +5,7 @@ namespace App\Controllers\Client;
 use App\Controllers\BaseController;
 use App\Models\Client\EmployeeModel;
 use App\Models\Client\LeaveBalanceModel;
+use App\Models\Client\LoanModel;
 use App\Services\Client\EmployeeService;
 use CodeIgniter\Exceptions\PageNotFoundException;
 
@@ -95,11 +96,64 @@ class EmployeeController extends BaseController
         }
         unset($employee);
 
+        $loanModel = new LoanModel();
+
+        $loans = $loanModel
+            ->select("
+                employee_loans.*,
+
+                employees.first_name,
+                employees.middle_name,
+                employees.last_name
+            ")
+            ->join(
+                'employees',
+                'employees.id = employee_loans.employee_id',
+                'left'
+            )
+            ->orderBy(
+                'employee_loans.created_at',
+                'DESC'
+            )
+            ->findAll();
+
+        $formattedLoans = array_map(function ($loan) {
+
+            $first = trim($loan['first_name'] ?? '');
+            $middle = trim($loan['middle_name'] ?? '');
+            $last = trim($loan['last_name'] ?? '');
+
+            $mi = $middle !== ''
+                ? strtoupper(substr($middle, 0, 1)) . '.'
+                : '';
+
+            $employeeName = trim(
+                $first . ' ' .
+                ($mi !== '' ? $mi . ' ' : '') .
+                $last
+            );
+
+            return [
+                'id' => $loan['id'],
+                'employee_name' => $employeeName,
+                'loan_type' => $loan['loan_type'],
+                'principal_amount' => $loan['principal_amount'],
+                'remaining_balance' => $loan['remaining_balance'],
+                'deduction_per_payroll' => $loan['deduction_per_payroll'],
+                'installment_count' => $loan['installment_count'],
+                'start_date' => $loan['start_date'],
+                'estimated_end_date' => $loan['estimated_end_date'],
+                'loan_status' => $loan['loan_status'],
+            ];
+
+        }, $loans);
+
+        $data['loans'] = $formattedLoans;
         $data['employees'] = $employees;
 
         $data['currentUserId'] = (int) ($currentUser->id ?? 0);
 
-        return view('client_portal/employee_management', $data);
+        return view('client_portal/employee_main', $data);
     }
 
     public function createEmployee()
@@ -401,5 +455,4 @@ class EmployeeController extends BaseController
 
         exit;
     }
-
 }

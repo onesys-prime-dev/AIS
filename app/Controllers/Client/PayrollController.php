@@ -366,6 +366,7 @@ class PayrollController extends BaseController
                 'withholding_tax' => (float) ($computed['withholding_tax'] ?? 0),
                 'sss_loan' => (float) ($computed['sss_loan'] ?? 0),
                 'calamity_loan' => (float) ($computed['calamity_loan'] ?? 0),
+                'loan_deduction' => (float) ($computed['loan_deduction'] ?? 0),
                 'salary_advance' => (float) ($computed['salary_advance'] ?? 0),
                 'other_deductions' => (float) ($computed['other_deductions'] ?? 0),
                 'total_deductions' => (float) ($computed['total_deductions'] ?? 0),
@@ -376,6 +377,15 @@ class PayrollController extends BaseController
 
             $txModel->insert($cleanTxData);
             $txId = $txModel->getInsertID();
+
+            $loanService = new \App\Services\Client\LoanService();
+
+            $loanService->markInstallmentPaid(
+                (int) $employeeId,
+                $start,
+                $end,
+                $txId
+            );
 
             return $this->response->setJSON([
                 'success' => true,

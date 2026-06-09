@@ -5,6 +5,7 @@ namespace App\Services\Client;
 use App\Models\Client\PayrollSettingsModel;
 use App\Models\Client\RequestModel;
 use App\Models\Client\PayrollTransactionModel;
+use App\Services\Client\LoanService;
 
 class PayrollComputationService
 {
@@ -22,6 +23,8 @@ class PayrollComputationService
      */
     public function computeFromRawSheet(array $raw, int $employeeId, string $periodStart, string $periodEnd): array
     {
+        $loanService = new LoanService();
+
         // 1. Basic pay components
         $basicPay = (float)($raw['basic_pay'] ?? 0);
         $absentAmount = (float)($raw['absent_amount'] ?? 0);
@@ -57,12 +60,13 @@ class PayrollComputationService
         $withholdingTax = max(0, $monthlyWtax - $previousWtax);
 
         // 6. Loans & other deductions
+        $loanDeduction = $loanService->getEmployeeLoanDeduction($employeeId, $periodStart, $periodEnd);
         $sssLoan = (float)($raw['sss_loan'] ?? 0);
         $calamityLoan = (float)($raw['calamity_loan'] ?? 0);
         $salaryAdvance = (float)($raw['salary_advance'] ?? 0);
         $otherDeductions = (float)($raw['other_deductions'] ?? 0);
 
-        $totalDeductions = $sss + $phic + $hdmf + $withholdingTax + $sssLoan + $calamityLoan + $salaryAdvance + $otherDeductions;
+        $totalDeductions = $sss + $phic + $hdmf + $withholdingTax + $sssLoan + $calamityLoan + $salaryAdvance +  $loanDeduction + $loanDeduction + $otherDeductions;
         $netPay = $totalEarnings - $totalDeductions;
 
         return [
@@ -88,6 +92,7 @@ class PayrollComputationService
             'sss_loan' => round($sssLoan, 2),
             'calamity_loan' => round($calamityLoan, 2),
             'salary_advance' => round($salaryAdvance, 2),
+            'loan_deduction' => round($loanDeduction, 2),
             'other_deductions' => round($otherDeductions, 2),
             'total_deductions' => round($totalDeductions, 2),
             'net_pay' => round($netPay, 2),
@@ -99,6 +104,7 @@ class PayrollComputationService
      */
     public function computePayroll(int $employeeId, string $start, string $end, array $adjustments): array
     {
+        $loanService = new LoanService();
         // For simplicity, we assume adjustments contain all needed fields
         // This method is called from computeAndSave with adjustments = full payload.
         $basicPay = (float)($adjustments['basic_pay'] ?? 0);
@@ -123,12 +129,13 @@ class PayrollComputationService
         $monthlyWtax = $this->calculateWithholdingTax($monthlyTaxable);
         $withholdingTax = max(0, $monthlyWtax - $previousWtax);
 
+        $loanDeduction = $loanService->getEmployeeLoanDeduction($employeeId, $start, $end);
         $sssLoan = (float)($adjustments['sss_loan'] ?? 0);
         $calamityLoan = (float)($adjustments['calamity_loan'] ?? 0);
         $salaryAdvance = (float)($adjustments['salary_advance'] ?? 0);
         $otherDeductions = (float)($adjustments['other_deductions'] ?? 0);
 
-        $totalDeductions = $sss + $phic + $hdmf + $withholdingTax + $sssLoan + $calamityLoan + $salaryAdvance + $otherDeductions;
+        $totalDeductions = $sss + $phic + $hdmf + $withholdingTax + $sssLoan + $calamityLoan + $salaryAdvance + $loanDeduction + $otherDeductions;
         $netPay = $totalEarnings - $totalDeductions;
 
         return [
@@ -149,6 +156,7 @@ class PayrollComputationService
             'sss_loan' => round($sssLoan, 2),
             'calamity_loan' => round($calamityLoan, 2),
             'salary_advance' => round($salaryAdvance, 2),
+            'loan_deduction' => round($loanDeduction, 2),
             'other_deductions' => round($otherDeductions, 2),
             'total_deductions' => round($totalDeductions, 2),
             'net_pay' => round($netPay, 2),

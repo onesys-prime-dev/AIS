@@ -1,84 +1,109 @@
-function openModalById(id) {
-    const modal = document.getElementById(id);
+function openModalById(id)
+{
+    const modal =
+        document.getElementById(id);
 
-    if (!modal) {
-        console.warn(`Modal not found: ${id}`);
-        return;
-    }
+    if (!modal) return;
 
-    modal.style.display = "flex";
+    modal.classList.add('show');
 
-    if (typeof resetSteps === "function") {
-        resetSteps();
-    }
+    document.body.style.overflow = 'hidden';
 }
 
-function closeModalElement(modal) {
+function closeModal(modal)
+{
     if (!modal) return;
-    modal.style.display = "none";
+
+    modal.classList.remove('show');
+
+    document.body.style.overflow = '';
 }
 
 window.openModalById = openModalById;
-window.closeModalById = function (id) {
-    closeModalElement(document.getElementById(id));
+
+window.closeModalById = function(id)
+{
+    closeModal(
+        document.getElementById(id)
+    );
 };
 
-document.addEventListener("click", (event) => {
-    const openButton = event.target.closest("[data-modal-open]");
-    if (openButton) {
-        openModalById(openButton.dataset.modalOpen);
+document.addEventListener('click', function(e)
+{
+    const closeBtn =
+        e.target.closest('.modal-close');
+
+    if (closeBtn)
+    {
+        closeModal(
+            closeBtn.closest('.modal-overlay')
+        );
+
         return;
     }
 
-    const closeButton = event.target.closest(".modal-close");
-    if (closeButton) {
-        closeModalElement(closeButton.closest(".modal-overlay"));
-        return;
-    }
+    const overlay =
+        e.target.classList.contains('modal-overlay')
+            ? e.target
+            : null;
 
-    const overlay = event.target.closest(".modal-overlay");
-    if (overlay && event.target === overlay) {
-        closeModalElement(overlay);
+    if (overlay)
+    {
+        closeModal(overlay);
     }
 });
+
+/*
+|--------------------------------------------------------------------------
+| MULTI STEP FORMS
+|--------------------------------------------------------------------------
+*/
 
 function nextStep(step)
 {
     document.querySelectorAll(".form-step")
         .forEach(el => el.classList.add("hidden"));
 
-    document.getElementById("step"+step)
-        .classList.remove("hidden");
+    document.getElementById("step" + step)
+        ?.classList.remove("hidden");
 
     updateProgress(step);
 }
-
 
 function prevStep(step)
 {
     document.querySelectorAll(".form-step")
         .forEach(el => el.classList.add("hidden"));
 
-    document.getElementById("step"+step)
-        .classList.remove("hidden");
+    document.getElementById("step" + step)
+        ?.classList.remove("hidden");
 
     updateProgress(step);
 }
 
 function resetSteps()
 {
-    const steps = ["step1","step2","step3","step4"];
+    const steps = [
+        "step1",
+        "step2",
+        "step3",
+        "step4"
+    ];
 
-    steps.forEach((id,index)=>{
+    steps.forEach((id, index) => {
 
         const step = document.getElementById(id);
 
-        if(!step) return;
+        if (!step) return;
 
-        if(index === 0)
+        if (index === 0)
+        {
             step.classList.remove("hidden");
+        }
         else
+        {
             step.classList.add("hidden");
+        }
 
     });
 
@@ -91,19 +116,34 @@ function updateProgress(step)
 
     steps.forEach(i => {
 
-        const progress = document.getElementById("progress"+i);
+        const progress =
+            document.getElementById("progress" + i);
 
-        if(!progress) return;
+        if (!progress) return;
 
-        if(i <= step)
+        if (i <= step)
         {
-            progress.classList.remove("bg-gray-300","text-gray-700");
-            progress.classList.add("bg-[#A891FC]","text-white");
+            progress.classList.remove(
+                "bg-gray-300",
+                "text-gray-700"
+            );
+
+            progress.classList.add(
+                "bg-[#A891FC]",
+                "text-white"
+            );
         }
         else
         {
-            progress.classList.remove("bg-[#A891FC]","text-white");
-            progress.classList.add("bg-gray-300","text-gray-700");
+            progress.classList.remove(
+                "bg-[#A891FC]",
+                "text-white"
+            );
+
+            progress.classList.add(
+                "bg-gray-300",
+                "text-gray-700"
+            );
         }
     });
 }
