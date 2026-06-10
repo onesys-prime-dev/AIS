@@ -945,5 +945,35 @@ createCrudTable({
         .includes(q)
 });
 
+// ========== EMPLOYEE IMPORT / EXPORT ==========
+
+document.getElementById('exportEmployeesBtn')?.addEventListener('click', function() {
+    window.location.href = '<?= site_url('client_portal/employees/export') ?>';
+});
+
+document.getElementById('employeeImportInput')?.addEventListener('change', async function() {
+    const file = this.files[0];
+    if (!file) return;
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+        const res = await fetch('<?= site_url('client_portal/employees/import') ?>', {
+            method: 'POST',
+            body: formData,
+        });
+        const result = await res.json();
+        if (result.success) {
+            alert(result.message || 'Employees imported successfully.');
+            window.location.reload();
+        } else {
+            alert('Import failed: ' + (result.message || 'Unknown error'));
+        }
+    } catch (err) {
+        alert('Network error during import.');
+        console.error(err);
+    }
+    this.value = '';
+});
+
 </script>
 <?= $this->endSection() ?>

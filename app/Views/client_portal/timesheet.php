@@ -46,25 +46,27 @@
         </div>
     </div>
 
-    <!-- Card (same as original) -->
-    <div class="bg-white rounded-lg shadow flex flex-col">
-        <!-- Filter bar (unchanged) -->
-        <div class="p-4 border-b flex justify-between items-center gap-4 flex-wrap">
-            <div class="relative w-64">
-                <span class="absolute inset-y-0 left-0 flex items-center pl-3">
-                    <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+    <!-- Main Card -->
+    <div class="bg-white rounded-2xl shadow-lg border border-gray-400 flex flex-col overflow-hidden">
+
+        <!-- Filter bar -->
+        <div class="px-5 py-4 border-b border-gray-200 flex justify-between items-center gap-4 flex-wrap">
+            <div class="relative w-72">
+                <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-500">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                        <path fill-rule="evenodd" d="M10.5 3.75a6.75 6.75 0 1 0 0 13.5 6.75 6.75 0 0 0 0-13.5ZM2.25 10.5a8.25 8.25 0 1 1 14.59 5.28l4.69 4.69a.75.75 0 1 1-1.06 1.06l-4.69-4.69A8.25 8.25 0 0 1 2.25 10.5Z" clip-rule="evenodd"/>
                     </svg>
                 </span>
-                <input type="text" id="searchInput" placeholder="Search..." class="w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500">
+                <input type="text" id="searchInput" placeholder="Search date, remarks…"
+                    class="w-full bg-gray-100 text-gray-700 text-sm pl-10 pr-4 py-2.5 rounded-lg outline-none focus:ring-2 focus:ring-purple-400 border border-transparent focus:border-purple-300">
             </div>
-            <div class="flex gap-4">
-                <select id="sortBy" class="border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
-                    <option value="date">Sort by Date</option>
-                    <option value="regular_hours">Sort by Regular Hours</option>
-                    <option value="ot_hours">Sort by OT Hours</option>
+            <div class="flex gap-3">
+                <select id="sortBy" class="bg-gray-100 text-gray-700 text-sm border border-gray-200 rounded-lg px-3 py-2.5 outline-none focus:ring-2 focus:ring-purple-400">
+                    <option value="date">Sort: Date</option>
+                    <option value="regular_hours">Sort: Regular Hrs</option>
+                    <option value="ot_hours">Sort: OT Hrs</option>
                 </select>
-                <select id="departmentFilter" class="border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
+                <select id="departmentFilter" class="bg-gray-100 text-gray-700 text-sm border border-gray-200 rounded-lg px-3 py-2.5 outline-none focus:ring-2 focus:ring-purple-400">
                     <option value="">All Departments</option>
                     <option value="Information Technology">IT</option>
                     <option value="Human Resource">HR</option>
@@ -74,35 +76,42 @@
             </div>
         </div>
 
-        <!-- TABLE: Excel‑style with horizontal scroll (matches Payroll Status look) -->
-        <div class="overflow-x-auto">
-            <table class="min-w-[1100px] w-full text-sm border-collapse">
-                <thead class="bg-gray-100">
-                    <tr class="border-b">
-                        <th class="px-4 py-3 text-left font-semibold text-gray-700 whitespace-nowrap">Date</th>
-                        <th class="px-4 py-3 text-left font-semibold text-gray-700 whitespace-nowrap">IN</th>
-                        <th class="px-4 py-3 text-left font-semibold text-gray-700 whitespace-nowrap">OUT</th>
-                        <th class="px-4 py-3 text-left font-semibold text-gray-700 whitespace-nowrap">Regular Hrs</th>
-                        <th class="px-4 py-3 text-left font-semibold text-gray-700 whitespace-nowrap">OT Hrs</th>
-                        <th class="px-4 py-3 text-left font-semibold text-gray-700 whitespace-nowrap">RDOT Hrs</th>
-                        <th class="px-4 py-3 text-left font-semibold text-gray-700 whitespace-nowrap">Tardy (min)</th>
-                        <th class="px-4 py-3 text-left font-semibold text-gray-700 whitespace-nowrap">Night Diff</th>
-                        <th class="px-4 py-3 text-left font-semibold text-gray-700">Remarks</th>
-                        <th class="px-4 py-3 text-center font-semibold text-gray-700 whitespace-nowrap">Action</th>
+        <!-- TABLE -->
+        <div class="overflow-x-auto flex-1">
+            <table class="min-w-[1050px] w-full text-sm border-collapse">
+                <thead>
+                    <tr class="bg-[#DCDCDC] text-[#737373] border border-[#9E9E9E]">
+                        <th class="px-4 py-3 text-left font-bold whitespace-nowrap">Date</th>
+                        <th class="px-4 py-3 text-left font-bold whitespace-nowrap">Time In</th>
+                        <th class="px-4 py-3 text-left font-bold whitespace-nowrap">Time Out</th>
+                        <th class="px-4 py-3 text-right font-bold whitespace-nowrap">Regular Hrs</th>
+                        <th class="px-4 py-3 text-right font-bold whitespace-nowrap">OT Hrs</th>
+                        <th class="px-4 py-3 text-right font-bold whitespace-nowrap">RDOT Hrs</th>
+                        <th class="px-4 py-3 text-right font-bold whitespace-nowrap">Tardy (min)</th>
+                        <th class="px-4 py-3 text-right font-bold whitespace-nowrap">Night Diff</th>
+                        <th class="px-4 py-3 text-left font-bold whitespace-nowrap">Remarks</th>
+                        <th class="px-4 py-3 text-left font-bold whitespace-nowrap">
+                            Client
+                            <span class="ml-1 text-[10px] font-normal text-purple-500 align-middle">✎</span>
+                        </th>
+                        <th class="px-4 py-3 text-left font-bold">
+                            Task Performed
+                            <span class="ml-1 text-[10px] font-normal text-purple-500 align-middle">✎</span>
+                        </th>
+                        <th class="px-4 py-3 text-center font-bold whitespace-nowrap">Action</th>
                     </tr>
                 </thead>
                 <tbody id="tableBody">
-                    <!-- Dynamic rows will be inserted here -->
                 </tbody>
-                <tfoot class="bg-gray-50 font-semibold border-t">
-                    <tr>
-                        <td class="px-4 py-3 text-right" colspan="3">TOTAL</td>
-                        <td class="px-4 py-3" id="totalRegular">0.00</td>
-                        <td class="px-4 py-3" id="totalOt">0.00</td>
-                        <td class="px-4 py-3" id="totalRdot">0.00</td>
-                        <td class="px-4 py-3" id="totalTardy">0</td>
-                        <td class="px-4 py-3" id="totalNightDiff">0.00</td>
-                        <td class="px-4 py-3" colspan="2"></td>
+                <tfoot>
+                    <tr class="bg-[#DCDCDC] text-[#737373] border-t border-[#9E9E9E] font-bold text-sm">
+                        <td class="px-4 py-3 text-right font-bold text-gray-600" colspan="3">TOTALS</td>
+                        <td class="px-4 py-3 text-right" id="totalRegular">0.00</td>
+                        <td class="px-4 py-3 text-right" id="totalOt">0.00</td>
+                        <td class="px-4 py-3 text-right" id="totalRdot">0.00</td>
+                        <td class="px-4 py-3 text-right" id="totalTardy">0</td>
+                        <td class="px-4 py-3 text-right" id="totalNightDiff">0.00</td>
+                        <td class="px-4 py-3" colspan="4"></td>
                     </tr>
                 </tfoot>
             </table>
@@ -131,25 +140,36 @@
         echo view('components/view_modal', ['id' => 'viewPayslipModal', 'title' => 'Payslip', 'content' => $content]);
     ?>
 
-    <!-- Edit Attendance Modal -->
-    <div id="editAttendanceModal" class="modal-overlay" style="display:none;">
-        <div class="modal">
-            <div class="modal-header">
-                <span>Edit Attendance</span>
-                <button onclick="closeEditAttendanceModal()">✕</button>
+    <!-- Task Log Modal -->
+    <div id="taskLogModal" class="fixed inset-0 z-50 items-center justify-center bg-black/40 backdrop-blur-sm" style="display:none;">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
+            <div class="flex justify-between items-center px-6 py-4 border-b border-gray-100">
+                <div>
+                    <h3 class="text-lg font-bold text-gray-800">Edit Task Log</h3>
+                    <p id="task_att_date" class="text-xs text-gray-400 mt-0.5"></p>
+                </div>
+                <button onclick="closeTaskLogModal()" class="text-gray-400 hover:text-gray-600 transition text-xl leading-none">&times;</button>
             </div>
-            <div class="modal-body">
-                <label>Date</label>
-                <input type="text" id="edit_att_date" readonly class="bg-gray-100">
-                <label>Time In</label>
-                <input type="time" id="edit_att_time_in" step="1">
-                <label>Time Out</label>
-                <input type="time" id="edit_att_time_out" step="1">
-                <input type="hidden" id="edit_att_id">
+            <div class="px-6 py-5 space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-500 mb-1">Client</label>
+                    <input type="text" id="task_att_client"
+                        placeholder="e.g. Acme Corp"
+                        class="w-full bg-gray-50 rounded-lg px-3 py-2.5 text-sm text-gray-700 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-400">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-500 mb-1">Task Performed</label>
+                    <textarea id="task_att_text" rows="4"
+                        placeholder="Describe the tasks you performed…"
+                        class="w-full bg-gray-50 rounded-lg px-3 py-2.5 text-sm text-gray-700 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-400 resize-none"></textarea>
+                </div>
+                <input type="hidden" id="task_att_id">
             </div>
-            <div class="modal-footer">
-                <button type="button" class="cancel-btn" onclick="closeEditAttendanceModal()">Cancel</button>
-                <button type="button" class="submit-btn" onclick="saveAttendanceEdit()">Save</button>
+            <div class="flex justify-end gap-3 px-6 py-4 bg-gray-50 border-t border-gray-100">
+                <button type="button" onclick="closeTaskLogModal()"
+                    class="px-4 py-2 text-sm rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-100 transition">Cancel</button>
+                <button type="button" onclick="saveTaskLog()"
+                    class="px-5 py-2 text-sm rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-semibold transition">Save</button>
             </div>
         </div>
     </div>
@@ -163,7 +183,7 @@
 <script>
 const DAILY_DATA = <?= json_encode($dailyTimesheet) ?>;
 const TOTALS = <?= json_encode($totals) ?>;
-const UPDATE_ATTENDANCE_URL = "<?= site_url('client_portal/timesheet/update-attendance') ?>";
+const UPDATE_TASK_LOG_URL = "<?= site_url('client_portal/timesheet/update-task-log') ?>";
 
 let currentData = [...DAILY_DATA];
 
@@ -177,41 +197,69 @@ function formatDate(dateStr) {
     return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
-function convertToTimeInput(timeStr) {
-    if (timeStr === '-') return '08:00:00';
-    let match = timeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
-    if (!match) return timeStr;
-    let h = parseInt(match[1]);
-    let m = match[2];
-    let ampm = match[3].toUpperCase();
-    if (ampm === 'PM' && h !== 12) h += 12;
-    if (ampm === 'AM' && h === 12) h = 0;
-    return `${h.toString().padStart(2,'0')}:${m}:00`;
+
+function badge(value, formatted, type) {
+    if (!value || value === 0) return `<span class="text-gray-400">—</span>`;
+    const styles = {
+        ot:    'bg-green-100 text-green-700',
+        rdot:  'bg-blue-100 text-blue-700',
+        tardy: 'bg-yellow-100 text-yellow-700',
+        nd:    'bg-purple-100 text-purple-700',
+        reg:   'text-gray-800 font-medium',
+    };
+    const cls = styles[type] || 'text-gray-800';
+    const pill = ['ot','rdot','tardy','nd'].includes(type);
+    return pill
+        ? `<span class="inline-block ${cls} px-2 py-0.5 rounded-full text-xs font-semibold">${formatted}</span>`
+        : `<span class="${cls}">${formatted}</span>`;
 }
 
 function renderTable() {
     const tbody = document.getElementById('tableBody');
     if (!tbody) return;
     if (currentData.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="10" class="p-8 text-center text-gray-500">No attendance records for this period.</td></tr>';
+        tbody.innerHTML = `
+            <tr><td colspan="12" class="px-6 py-12 text-center">
+                <div class="flex flex-col items-center gap-2 text-gray-400">
+                    <svg class="w-10 h-10 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                            d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                    </svg>
+                    <span class="text-base font-semibold text-gray-500">No attendance records</span>
+                    <span class="text-sm">No records found for this period</span>
+                </div>
+            </td></tr>`;
         return;
     }
     let html = '';
-    currentData.forEach(day => {
+    currentData.forEach((day, i) => {
+        const rowBg = i % 2 === 0 ? '' : 'bg-gray-50/60';
+        const timeInDisplay  = day.in  && day.in  !== '-' ? escapeHtml(day.in)  : '<span class="text-gray-400">—</span>';
+        const timeOutDisplay = day.out && day.out !== '-' ? escapeHtml(day.out) : '<span class="text-gray-400">—</span>';
+        const safeTask   = (day.task_performed || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+        const safeClient = (day.client || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+        const clientCell = day.client
+            ? `<span class="text-gray-700">${escapeHtml(day.client)}</span>`
+            : `<span class="text-gray-300">—</span>`;
+        const taskCell = day.task_performed
+            ? `<span class="text-gray-700">${escapeHtml(day.task_performed)}</span>`
+            : `<span class="text-gray-300">—</span>`;
         html += `
-            <tr class="border-b hover:bg-gray-50">
-                <td class="px-4 py-3 whitespace-nowrap">${formatDate(day.date)}</td>
-                <td class="px-4 py-3 editable-time cursor-pointer whitespace-nowrap" data-id="${day.attendance_id}" data-field="time_in" title="Double-click to edit">${escapeHtml(day.in)}</td>
-                <td class="px-4 py-3 editable-time cursor-pointer whitespace-nowrap" data-id="${day.attendance_id}" data-field="time_out" title="Double-click to edit">${escapeHtml(day.out)}</td>
-                <td class="px-4 py-3 whitespace-nowrap">${day.regular_hours.toFixed(2)}</td>
-                <td class="px-4 py-3 whitespace-nowrap">${day.ot_hours.toFixed(2)}</td>
-                <td class="px-4 py-3 whitespace-nowrap">${day.rdot_hours.toFixed(2)}</td>
-                <td class="px-4 py-3 whitespace-nowrap">${Math.round(day.tardy_minutes)}</td>
-                <td class="px-4 py-3 whitespace-nowrap">${day.night_diff.toFixed(2)}</td>
-                <td class="px-4 py-3 max-w-xs truncate" title="${escapeHtml(day.remarks)}">${escapeHtml(day.remarks)}</td>
+            <tr class="border-b border-gray-100 hover:bg-purple-50/40 transition-colors ${rowBg}">
+                <td class="px-4 py-3 whitespace-nowrap font-medium text-gray-700">${formatDate(day.date)}</td>
+                <td class="px-4 py-3 whitespace-nowrap text-gray-600">${timeInDisplay}</td>
+                <td class="px-4 py-3 whitespace-nowrap text-gray-600">${timeOutDisplay}</td>
+                <td class="px-4 py-3 text-right whitespace-nowrap">${badge(day.regular_hours, day.regular_hours.toFixed(2), 'reg')}</td>
+                <td class="px-4 py-3 text-right whitespace-nowrap">${badge(day.ot_hours, day.ot_hours.toFixed(2), 'ot')}</td>
+                <td class="px-4 py-3 text-right whitespace-nowrap">${badge(day.rdot_hours, day.rdot_hours.toFixed(2), 'rdot')}</td>
+                <td class="px-4 py-3 text-right whitespace-nowrap">${badge(Math.round(day.tardy_minutes), Math.round(day.tardy_minutes), 'tardy')}</td>
+                <td class="px-4 py-3 text-right whitespace-nowrap">${badge(day.night_diff, day.night_diff.toFixed(2), 'nd')}</td>
+                <td class="px-4 py-3 max-w-[160px] truncate text-sm text-gray-500" title="${escapeHtml(day.remarks)}">${escapeHtml(day.remarks) || '<span class="text-gray-300">—</span>'}</td>
+                <td class="px-4 py-3 max-w-[160px] truncate text-sm" title="${escapeHtml(day.client)}">${clientCell}</td>
+                <td class="px-4 py-3 max-w-[200px] truncate text-sm" title="${escapeHtml(day.task_performed)}">${taskCell}</td>
                 <td class="px-4 py-3 text-center whitespace-nowrap">
                     <div class="cursor-pointer w-7 h-7 hover:scale-110 transition inline-block"
-                         onclick="openEditAttendanceModal(${day.attendance_id}, '${day.date}', '${escapeHtml(day.in)}', '${escapeHtml(day.out)}')">
+                         onclick="openTaskLogModal(${day.attendance_id}, '${day.date}', '${safeTask}', '${safeClient}')">
                         <img src="<?= base_url('icons/edit.png') ?>" class="w-7 h-7" alt="Edit">
                     </div>
                 </td>
@@ -225,102 +273,36 @@ function renderTable() {
     document.getElementById('totalRdot').innerText = TOTALS.rdot_hours.toFixed(2);
     document.getElementById('totalTardy').innerText = Math.round(TOTALS.tardy_minutes);
     document.getElementById('totalNightDiff').innerText = TOTALS.night_diff.toFixed(2);
-
-    attachDoubleClickEdit();
 }
 
-function attachDoubleClickEdit() {
-    document.querySelectorAll('.editable-time').forEach(cell => {
-        cell.removeEventListener('dblclick', handleDoubleClick);
-        cell.addEventListener('dblclick', handleDoubleClick);
-    });
+function openTaskLogModal(attendanceId, date, currentTask, currentClient) {
+    document.getElementById('task_att_id').value       = attendanceId;
+    document.getElementById('task_att_date').textContent = date;
+    document.getElementById('task_att_text').value     = currentTask   || '';
+    document.getElementById('task_att_client').value   = currentClient || '';
+    const modal = document.getElementById('taskLogModal');
+    modal.style.display = 'flex';
 }
 
-function handleDoubleClick(e) {
-    const cell = e.currentTarget;
-    const currentValue = cell.innerText.trim();
-    const attendanceId = cell.getAttribute('data-id');
-    const field = cell.getAttribute('data-field');
-    if (!attendanceId) return;
-
-    const input = document.createElement('input');
-    input.type = 'time';
-    input.step = '1';
-    input.value = currentValue !== '-' ? convertToTimeInput(currentValue) : '08:00:00';
-    input.className = 'border rounded px-2 py-1 text-sm w-28';
-    cell.innerText = '';
-    cell.appendChild(input);
-    input.focus();
-
-    const save = () => {
-        let newValue = input.value;
-        newValue = newValue.includes(':') ? newValue + ':00' : newValue;
-        fetch(UPDATE_ATTENDANCE_URL + '/' + attendanceId, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest',
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
-            },
-            body: JSON.stringify({ [field]: newValue })
-        })
-        .then(res => res.json())
-        .then(data => {
-            if (data.success) location.reload();
-            else alert('Update failed: ' + (data.message || 'Unknown error'));
-        })
-        .catch(err => {
-            console.error(err);
-            alert('Network error');
-        });
-        cell.innerText = currentValue;
-    };
-
-    input.addEventListener('blur', save);
-    input.addEventListener('keypress', (e) => { if (e.key === 'Enter') input.blur(); });
+function closeTaskLogModal() {
+    document.getElementById('taskLogModal').style.display = 'none';
 }
 
-function openEditAttendanceModal(id, date, timeIn, timeOut) {
-    document.getElementById('edit_att_id').value = id;
-    document.getElementById('edit_att_date').value = date;
-    document.getElementById('edit_att_time_in').value = timeIn !== '-' ? convertToTimeInput(timeIn) : '08:00:00';
-    document.getElementById('edit_att_time_out').value = timeOut !== '-' ? convertToTimeInput(timeOut) : '17:00:00';
-    document.getElementById('editAttendanceModal').style.display = 'flex';
-}
-
-function closeEditAttendanceModal() {
-    document.getElementById('editAttendanceModal').style.display = 'none';
-}
-
-function saveAttendanceEdit() {
-    const id = document.getElementById('edit_att_id').value;
-    let timeIn = document.getElementById('edit_att_time_in').value;
-    let timeOut = document.getElementById('edit_att_time_out').value;
-    if (!timeIn || !timeOut) {
-        alert('Please fill both Time In and Time Out');
-        return;
-    }
-    timeIn = timeIn.includes(':') ? timeIn + ':00' : timeIn;
-    timeOut = timeOut.includes(':') ? timeOut + ':00' : timeOut;
-
-    fetch(UPDATE_ATTENDANCE_URL + '/' + id, {
+function saveTaskLog() {
+    const id     = document.getElementById('task_att_id').value;
+    const text   = document.getElementById('task_att_text').value.trim();
+    const client = document.getElementById('task_att_client').value.trim();
+    fetch(UPDATE_TASK_LOG_URL + '/' + id, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-Requested-With': 'XMLHttpRequest',
-            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
-        },
-        body: JSON.stringify({ time_in: timeIn, time_out: timeOut })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ task_performed: text, client: client })
     })
     .then(res => res.json())
     .then(data => {
         if (data.success) location.reload();
         else alert('Update failed: ' + (data.message || 'Unknown error'));
     })
-    .catch(err => {
-        console.error(err);
-        alert('Network error');
-    });
+    .catch(err => { console.error(err); alert('Network error'); });
 }
 
 function filterAndSort() {

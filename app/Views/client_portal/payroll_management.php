@@ -599,12 +599,7 @@ $companyLogoUrl = $companyBranding && !empty($companyBranding['logo_path'])
             <div style="max-width: 100%;">
                 <div class="flex justify-between items-center mb-4">
                     <h3 class="font-semibold">Details</h3>
-                    <div class="flex items-center gap-2">
-                        <label class="text-sm font-medium text-gray-600 whitespace-nowrap">Month:</label>
-                        <input type="month" id="monthPicker" class="border rounded px-2 py-1 text-sm"
-                            value="<?= date('Y-m') ?>">
-                        <button type="button" class="next-btn" id="exportRegisterBtn" style="background:#28a745;">Export Register (CSV)</button>
-                    </div>
+                    <button type="button" class="next-btn" id="exportRegisterBtn" style="background:#28a745;">Export Register (CSV)</button>
                 </div>
                 <p class="subtitle">Please complete the employee data</p>
                 <div class="grid-2">
@@ -1875,8 +1870,72 @@ function exportRawSheet() {
 
 // ================= EXPORT REGISTER (CSV) =================
 function exportRegister() {
-    const month = document.getElementById('monthPicker')?.value || new Date().toISOString().slice(0,7);
-    window.location.href = `<?= site_url('client_portal/payroll/exportRegister') ?>?month=${month}`;
+    const employeeId = document.getElementById('selectedEmployeeId').value;
+    if (!employeeId) {
+        alert('Please select an employee first, then fill in the register fields before exporting.');
+        return;
+    }
+    const g = id => document.getElementById(id)?.value ?? '';
+    const fields = {
+        employee_id:               employeeId,
+        employee_name:             g('empName'),
+        period_start:              g('periodStart'),
+        period_end:                g('periodEnd'),
+        monthly_basic_salary:      g('monthlyBasicSalary'),
+        semi_monthly_basic_salary: g('semiMonthlyBasicSalary'),
+        de_min_year_end:           g('deMinYearEnd'),
+        de_min_rice_subsidy:       g('deMinRiceSubsidy'),
+        de_min_uniform:            g('deMinUniform'),
+        de_min_laundry:            g('deMinLaundry'),
+        de_min_medical:            g('deMinMedical'),
+        other_non_taxable:         g('otherNonTaxable'),
+        salary_adjustment:         g('salaryAdjustmentReg'),
+        overtime:                  g('overtimeReg'),
+        night_diff:                g('ndReg'),
+        absences_tardiness:        g('absencesTardiness'),
+        holiday_pay:               g('holidayPayReg'),
+        gross_compensation:        g('grossCompReg'),
+        gross_taxable_comp:        g('grossTaxableComp'),
+        gross_non_taxable_comp:    g('grossNonTaxableComp'),
+        sss_ee:                    g('sssEE'),
+        sss_wisp:                  g('sssWisp'),
+        sss_total:                 g('sssTotal'),
+        phic_ee:                   g('phicEE'),
+        hdmf_ee:                   g('hdmfEE'),
+        reg_net_taxable:           g('regNetTaxable'),
+        net_tax_prev_cutoff:       g('netTaxProv'),
+        monthly_taxable_comp:      g('monthlyTaxableComp'),
+        wt_bracket:                g('wtBracket'),
+        wt_basic:                  g('wtBasic'),
+        wt_percentage:             g('wtPercentage'),
+        wt_excess:                 g('wtExcess'),
+        wt_paid_last:              g('wtPaidLast'),
+        wt_payable:                g('wtPayable'),
+        sss_loan_salary:           g('regSssLoanSalary'),
+        sss_loan_calamity:         g('regSssLoanCalamity'),
+        advance_to_employees:      g('advWorkingLeave'),
+        non_taxable_comp:          g('advNonTaxable'),
+        net_pay:                   g('netPayRegister'),
+        monthly_gross_comp:        g('monthlyGrossComp'),
+        sss_contribution:          g('sssContribution'),
+        phic_contribution:         g('phicContribution'),
+        hdmf_contribution:         g('hdmfContribution'),
+    };
+    const esc = v => '"' + String(v).replace(/"/g, '""') + '"';
+    const csvRows = [
+        Object.keys(fields).join(','),
+        Object.values(fields).map(esc).join(','),
+    ];
+    const BOM = '﻿';
+    const empSlug = (g('empName') || employeeId).replace(/[^a-z0-9]/gi, '_');
+    const period  = (g('periodStart') || new Date().toISOString().slice(0,10)).replace(/-/g, '');
+    const blob = new Blob([BOM + csvRows.join('\n')], {type: 'text/csv;charset=utf-8;'});
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = `payroll_register_${empSlug}_${period}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
 }
 
 // ================= INITIALIZATION =================
@@ -1919,10 +1978,11 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         const result = await response.json();
         if (result.success) {
-            alert('Timesheet imported successfully.');
+            alert(result.message || 'Timesheet imported successfully.');
             closeImportModal();
+            document.getElementById('importTimesheetForm').reset();
         } else {
-            alert('Import failed: ' + result.error);
+            alert('Import failed: ' + (result.error || result.message || 'Unknown error'));
         }
     });
     

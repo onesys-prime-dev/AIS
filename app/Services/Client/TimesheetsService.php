@@ -226,6 +226,16 @@ class TimesheetsService
             // Remarks (leave or task)
             $remarks = $this->getRemarksForDay($userId, $date);
 
+            // Raw task_performed + client for the editable task-log modal
+            $taskRow = $this->tasksModel
+                ->select('task_performed, client')
+                ->join('attendance', 'attendance.id = tasks.attendance_id')
+                ->where('tasks.user_id', $userId)
+                ->where('DATE(attendance.time_in)', $date)
+                ->first();
+            $taskPerformed = $taskRow ? ($taskRow['task_performed'] ?? '') : '';
+            $taskClient    = $taskRow ? ($taskRow['client']         ?? '') : '';
+
             $dailyRecords[] = [
                 'attendance_id'   => $att['id'],
                 'date'            => $date,
@@ -237,6 +247,8 @@ class TimesheetsService
                 'tardy_minutes'   => $tardyMinutes,
                 'night_diff'      => $nightDiff,
                 'remarks'         => $remarks,
+                'task_performed'  => $taskPerformed,
+                'client'          => $taskClient,
             ];
 
             $totals['regular_hours'] += $regularHours;

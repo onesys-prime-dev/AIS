@@ -95,7 +95,46 @@ class TimesheetController extends BaseController
         return $this->response->setJSON($dailyTimeLog);
     }
 
-    // NEW: AJAX endpoint to update IN/OUT times
+    // AJAX endpoint to update the task log (task_performed) for a day
+    public function updateTaskLog(int $attendanceId)
+    {
+        $user = auth()->user();
+        if (!$user) {
+            return $this->response->setStatusCode(401)->setJSON(['success' => false, 'message' => 'Unauthenticated']);
+        }
+
+        $data          = $this->request->getJSON(true);
+        $taskPerformed = trim($data['task_performed'] ?? '');
+        $client        = trim($data['client']         ?? '');
+
+        $attModel   = new AttendanceModel();
+        $attendance = $attModel->where('id', $attendanceId)->where('user_id', $user->id)->first();
+        if (!$attendance) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Attendance record not found']);
+        }
+
+        $tasksModel = new \App\Models\Client\TasksModel();
+        $existing   = $tasksModel->where('attendance_id', $attendanceId)->where('user_id', $user->id)->first();
+
+        $payload = [
+            'task_performed' => $taskPerformed,
+            'client'         => $client,
+        ];
+
+        if ($existing) {
+            $tasksModel->update($existing['id'], $payload);
+        } else {
+            $tasksModel->insert(array_merge($payload, [
+                'attendance_id' => $attendanceId,
+                'user_id'       => $user->id,
+                'saved_at'      => date('Y-m-d H:i:s'),
+            ]));
+        }
+
+        return $this->response->setJSON(['success' => true]);
+    }
+
+    // AJAX endpoint to update IN/OUT times (admin use)
     public function updateAttendance(int $attendanceId)
     {
         $user = auth()->user();

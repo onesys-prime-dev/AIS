@@ -164,5 +164,6 @@ $routes->group('client_portal', ['namespace' => 'App\Controllers\Client'], funct
     $routes->post('payroll/savePayslipRecord', 'PayrollController::savePayslipRecord');
     $routes->get('payroll/getAllPayslips', 'PayrollController::getAllPayslips');
     $routes->post('client_portal/timesheet/update-attendance/(:num)', 'Client\TimesheetController::updateAttendance/$1');
+    $routes->post('client_portal/timesheet/update-task-log/(:num)', 'Client\TimesheetController::updateTaskLog/$1');
     $routes->get('company-logo', 'Client\PayrollController::getCompanyLogo');
 });

@@ -529,15 +529,21 @@ class PayrollController extends BaseController
         $handle = fopen($file->getTempName(), 'r');
         $headers = fgetcsv($handle);
         $successCount = 0;
+        $employeeModel = new EmployeeModel();
+        $attendanceModel = new AttendanceModel();
         while (($row = fgetcsv($handle)) !== false) {
+            if (count($row) !== count($headers)) continue;
             $data = array_combine($headers, $row);
-            $employeeModel = new EmployeeModel();
             $employee = $employeeModel->where('employee_number', $data['employee_number'])->first();
             if (!$employee) continue;
-            $attendanceModel = new AttendanceModel();
-            $breakDur   = isset($data['break_duration']) ? (float)$data['break_duration'] : 0;
-            $timeInDt   = $data['date'] . ' ' . $data['time_in'];
-            $timeOutDt  = ! empty($data['time_out']) ? $data['date'] . ' ' . $data['time_out'] : null;
+            $breakDur = (float)($data['break_duration'] ?? 0);
+            // time_in / time_out from our own export are full datetimes already;
+            // handle both "HH:MM:SS" and "YYYY-MM-DD HH:MM:SS" formats.
+            $rawIn  = trim($data['time_in']  ?? '');
+            $rawOut = trim($data['time_out'] ?? '');
+            $date   = trim($data['date']     ?? '');
+            $timeInDt  = (strpos($rawIn,  ' ') !== false) ? $rawIn  : "{$date} {$rawIn}";
+            $timeOutDt = $rawOut !== '' ? ((strpos($rawOut, ' ') !== false) ? $rawOut : "{$date} {$rawOut}") : null;
             $totalHours = $this->calculateTotalHours($timeInDt, $timeOutDt, $breakDur);
             $attendanceModel->insert([
                 'user_id'        => $employee['user_id'],
@@ -549,7 +555,7 @@ class PayrollController extends BaseController
             $successCount++;
         }
         fclose($handle);
-        return $this->response->setJSON(['success' => true, 'imported' => $successCount]);
+        return $this->response->setJSON(['success' => true, 'imported' => $successCount, 'message' => "{$successCount} record(s) imported successfully."]);
     }
 
     private function calculateTotalHours($timeIn, $timeOut, $breakDuration)

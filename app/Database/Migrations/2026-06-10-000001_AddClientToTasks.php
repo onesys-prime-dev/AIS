@@ -4,23 +4,23 @@ namespace App\Database\Migrations;
 
 use CodeIgniter\Database\Migration;
 
-class AddSentByToEmployeePayslips extends Migration
+class AddClientToTasks extends Migration
 {
     public function up()
     {
-        $this->forge->addColumn('employee_payslips', [
-            'sent_by' => [
+        $this->forge->addColumn('tasks', [
+            'client' => [
                 'type'       => 'VARCHAR',
-                'constraint' => 100,
+                'constraint' => 255,
                 'null'       => true,
                 'default'    => null,
-                'after'      => 'sent_at',
+                'after'      => 'task_performed',
             ],
         ]);
     }
 
     public function down()
     {
-        $this->forge->dropColumn('employee_payslips', 'sent_by');
+        $this->forge->dropColumn('tasks', 'client');
     }
 }

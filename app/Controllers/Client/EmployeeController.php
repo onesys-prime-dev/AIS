@@ -256,23 +256,31 @@ class EmployeeController extends BaseController
             $header = fgetcsv($handle);
 
             $employeeModel = new EmployeeModel();
+            $imported = 0;
 
             while (($row = fgetcsv($handle)) !== false) {
 
+                if (count($row) !== count($header)) continue;
+                $data = array_combine($header, $row);
+
+                // Use header-based mapping so the file round-trips with exportEmployees.
                 $employeeModel->insert([
-                    'first_name' => $row[0] ?? '',
-                    'middle_name' => $row[1] ?? '',
-                    'last_name' => $row[2] ?? '',
-                    'birthdate' => $row[3] ?? null,
-                    'employee_number' => $row[4] ?? '',
+                    'employee_number' => $data['Employee Number'] ?? ($data['employee_number'] ?? ''),
+                    'first_name'      => $data['First Name']      ?? ($data['first_name']      ?? ''),
+                    'middle_name'     => $data['Middle Name']     ?? ($data['middle_name']     ?? ''),
+                    'last_name'       => $data['Last Name']       ?? ($data['last_name']       ?? ''),
+                    'birthdate'       => !empty($data['Birthdate'] ?? $data['birthdate'] ?? '')
+                                            ? ($data['Birthdate'] ?? $data['birthdate'])
+                                            : null,
                 ]);
+                $imported++;
             }
 
             fclose($handle);
 
             return $this->response->setJSON([
                 'success' => true,
-                'message' => 'Employees imported successfully.'
+                'message' => "{$imported} employee(s) imported successfully.",
             ]);
 
         } catch (\Throwable $e) {
