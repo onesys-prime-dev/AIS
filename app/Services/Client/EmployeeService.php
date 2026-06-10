@@ -133,6 +133,8 @@ class EmployeeService
                 'middle_name' => $data['middle_name'],
                 'last_name' => $data['last_name'],
                 'birthdate' => $data['dob'],
+                'gender' => $data['gender'] ?? null,
+                'civil_status' => $data['civil_status'] ?? null,
             ]);
 
             if (! $employeeId) {
@@ -160,10 +162,32 @@ class EmployeeService
                 'start_time' => $startTime,
                 'end_time' => $endTime,
                 'working_days' => json_encode($workingDays),
+                'monthly_salary' => isset($data['monthly_salary']) && $data['monthly_salary'] !== '' ? (float) $data['monthly_salary'] : null,
+                'de_minimis_benefit' => isset($data['de_minimis_benefit']) && $data['de_minimis_benefit'] !== '' ? (float) $data['de_minimis_benefit'] : 0,
+                'allowances' => isset($data['allowances']) && $data['allowances'] !== '' ? (float) $data['allowances'] : 0,
             ]);
 
             if ($this->posModel->errors()) {
                 throw new \Exception(json_encode($this->posModel->errors()));
+            }
+
+            // Save employee_accounts (contact + bank info)
+            $db->table('employee_accounts')->insert([
+                'employee_id'    => $employeeId,
+                'mobile_number'  => $data['mobile_number'] ?? null,
+                'address'        => $data['address'] ?? null,
+                'bank'           => $data['bank'] ?? null,
+                'bank_address'   => $data['bank_address'] ?? null,
+                'account_number' => $data['account_number'] ?? null,
+                'swift_code'     => $data['swift_code'] ?? null,
+            ]);
+
+            // Vacation / Sick / Emergency leave entitlements
+            foreach (['vacation', 'sick', 'emergency'] as $lt) {
+                $key = $lt . '_leave';
+                if (isset($data[$key]) && $data[$key] !== '') {
+                    $this->leaveBalanceModel->setLeaveTypeEntitlement($employeeId, $lt, (float) $data[$key]);
+                }
             }
 
             $db->transCommit();
@@ -417,10 +441,12 @@ class EmployeeService
             */
 
             $employeeModel->update($employeeId, [
-                'first_name' => $data['first_name'] ?? null,
-                'middle_name' => $data['middle_name'] ?? null,
-                'last_name' => $data['last_name'] ?? null,
-                'birthdate' => $data['dob'] ?? null,
+                'first_name'   => $data['first_name']   ?? null,
+                'middle_name'  => $data['middle_name']  ?? null,
+                'last_name'    => $data['last_name']    ?? null,
+                'birthdate'    => $data['dob']          ?? null,
+                'gender'       => $data['gender']       ?? null,
+                'civil_status' => $data['civil_status'] ?? null,
             ]);
 
             /*
@@ -498,9 +524,12 @@ class EmployeeService
                 ->first();
 
             $positionData = [
-                'department' => $data['department'] ?? null,
-                'position' => $data['position'] ?? null,
-                'employment_type' => $data['employment_type'] ?? null,
+                'department'         => $data['department']      ?? null,
+                'position'           => $data['position']        ?? null,
+                'employment_type'    => $data['employment_type'] ?? null,
+                'monthly_salary'     => isset($data['monthly_salary'])     && $data['monthly_salary']     !== '' ? (float) $data['monthly_salary']     : null,
+                'de_minimis_benefit' => isset($data['de_minimis_benefit']) && $data['de_minimis_benefit'] !== '' ? (float) $data['de_minimis_benefit'] : 0,
+                'allowances'         => isset($data['allowances'])         && $data['allowances']         !== '' ? (float) $data['allowances']         : 0,
             ] + $scheduleData;
 
             if ($existingPosition) {
@@ -522,6 +551,34 @@ class EmployeeService
                         json_encode($positionModel->errors())
                     );
                 }
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | Update Employee Accounts (contact + bank)
+            |--------------------------------------------------------------------------
+            */
+
+            $accountFields = [
+                'mobile_number'  => $data['mobile_number']  ?? null,
+                'address'        => $data['address']        ?? null,
+                'bank'           => $data['bank']           ?? null,
+                'bank_address'   => $data['bank_address']   ?? null,
+                'account_number' => $data['account_number'] ?? null,
+                'swift_code'     => $data['swift_code']     ?? null,
+            ];
+
+            $existingAccount = $db->table('employee_accounts')
+                ->where('employee_id', $employeeId)
+                ->get()->getRowArray();
+
+            if ($existingAccount) {
+                $db->table('employee_accounts')
+                    ->where('employee_id', $employeeId)
+                    ->update($accountFields);
+            } else {
+                $db->table('employee_accounts')
+                    ->insert(array_merge(['employee_id' => $employeeId], $accountFields));
             }
 
             /*
@@ -548,6 +605,14 @@ class EmployeeService
                         (int) $employeeId,
                         $leaveTotal
                     );
+            }
+
+            // Per-type leave entitlements
+            foreach (['vacation', 'sick', 'emergency'] as $lt) {
+                $key = $lt . '_leave';
+                if (isset($data[$key]) && $data[$key] !== '') {
+                    $this->leaveBalanceModel->setLeaveTypeEntitlement((int) $employeeId, $lt, (float) $data[$key]);
+                }
             }
 
             /*

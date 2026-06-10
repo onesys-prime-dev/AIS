@@ -30,10 +30,17 @@ class EmployeeAccountController extends BaseController
         $employeeId = (int) ($viewData['employment']['employee_id'] ?? 0);
 
         if ($employeeId > 0) {
-            $leaveBalanceModel        = new LeaveBalanceModel();
-            $viewData['leaveBalance'] = $leaveBalanceModel->getBalance($employeeId, 'leave', (int) date('Y'));
+            $leaveBalanceModel             = new LeaveBalanceModel();
+            $year                          = (int) date('Y');
+            $viewData['leaveBalance']      = $leaveBalanceModel->getBalance($employeeId, 'leave', $year);
+            $viewData['vacationBalance']   = $leaveBalanceModel->getBalance($employeeId, 'vacation',  $year);
+            $viewData['sickBalance']       = $leaveBalanceModel->getBalance($employeeId, 'sick',      $year);
+            $viewData['emergencyBalance']  = $leaveBalanceModel->getBalance($employeeId, 'emergency', $year);
         } else {
-            $viewData['leaveBalance'] = null;
+            $viewData['leaveBalance']     = null;
+            $viewData['vacationBalance']  = null;
+            $viewData['sickBalance']      = null;
+            $viewData['emergencyBalance'] = null;
         }
 
         return view('client_portal/employee_account', $viewData);

@@ -155,6 +155,33 @@ class LeaveBalanceModel extends Model
         ]);
     }
 
+    /**
+     * Set entitlement for a specific leave type (vacation/sick/emergency).
+     */
+    public function setLeaveTypeEntitlement(int $employeeId, string $leaveType, float $total, ?int $year = null): void
+    {
+        $year ??= (int) date('Y');
+
+        $row = $this->getOrCreate($employeeId, $leaveType, $year);
+
+        $newRemaining = max(0.0, $total - (float) $row['used']);
+
+        $this->update($row['id'], [
+            'total_entitlement' => $total,
+            'remaining'         => $newRemaining,
+        ]);
+    }
+
+    /**
+     * Get entitlement for a specific leave type, returns 0 if none.
+     */
+    public function getTypeEntitlement(int $employeeId, string $leaveType, ?int $year = null): float
+    {
+        $year ??= (int) date('Y');
+        $row = $this->getBalance($employeeId, $leaveType, $year);
+        return $row ? (float) $row['total_entitlement'] : 0.0;
+    }
+
     // =========================================================================
     // Deduction & refund
     // =========================================================================
@@ -172,11 +199,6 @@ class LeaveBalanceModel extends Model
      */
     public function deduct(int $userId, string $leaveType = 'leave', float $days = 1.0, ?int $year = null): bool
     {
-        // Only deduct for leave-type requests; overtime/undertime don't touch balances
-        if ($leaveType !== 'leave') {
-            return true;
-        }
-
         $year ??= (int) date('Y');
 
         $employeeId = $this->resolveEmployeeId($userId);
@@ -215,18 +237,19 @@ class LeaveBalanceModel extends Model
         float $days,
         string $newStatus,
         ?string $oldStatus = null,
-        ?int $year = null
+        ?int $year = null,
+        string $leaveCategory = 'leave'
     ): ?bool {
         if ($requestType !== 'leave') {
             return null;
         }
 
         if ($newStatus === 'approved' && $oldStatus !== 'approved') {
-            return $this->deduct($userId, 'leave', $days, $year);
+            return $this->deduct($userId, $leaveCategory, $days, $year);
         }
 
         if ($newStatus === 'rejected' && $oldStatus === 'approved') {
-            $this->refund($userId, 'leave', $days, $year);
+            $this->refund($userId, $leaveCategory, $days, $year);
         }
 
         return null;
@@ -243,10 +266,6 @@ class LeaveBalanceModel extends Model
      */
     public function refund(int $userId, string $leaveType = 'leave', float $days = 1.0, ?int $year = null): void
     {
-        if ($leaveType !== 'leave') {
-            return;
-        }
-
         $year ??= (int) date('Y');
 
         $employeeId = $this->resolveEmployeeId($userId);

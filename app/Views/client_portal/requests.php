@@ -752,9 +752,17 @@
                                     <div class="request-row ">
                                         <span class="label">Request Type:</span>
                                         <p class="message">
-                                            <span class="value"><?= ucfirst($request['request_type']) ?></span>
+                                            <span class="value">
+                                                <?php
+                                                    $typeLabel = ucfirst($request['request_type']);
+                                                    if ($request['request_type'] === 'leave' && !empty($request['leave_category']) && $request['leave_category'] !== 'leave') {
+                                                        $typeLabel = ucfirst($request['leave_category']) . ' Leave';
+                                                    }
+                                                    echo esc($typeLabel);
+                                                ?>
+                                            </span>
                                         </p>
-                                    </div> 
+                                    </div>
                                 </div>
                                 <?php if ((string) ($request['status'] ?? '') === 'pending'): ?>                       
                                     <div class="request-row">
@@ -989,7 +997,10 @@ function openRequestReviewModal(requestId) {
     if (!request) return;
 
     document.getElementById('reviewEmployeeName').textContent = request.requested_by_name || 'N/A';
-    document.getElementById('reviewRequestType').textContent = request.request_type ? request.request_type.charAt(0).toUpperCase() + request.request_type.slice(1) : 'N/A';
+    const typeLabel = (request.request_type === 'leave' && request.leave_category && request.leave_category !== 'leave')
+        ? request.leave_category.charAt(0).toUpperCase() + request.leave_category.slice(1) + ' Leave'
+        : (request.request_type ? request.request_type.charAt(0).toUpperCase() + request.request_type.slice(1) : 'N/A');
+    document.getElementById('reviewRequestType').textContent = typeLabel;
     document.getElementById('reviewRequestDates').textContent = formatRequestDateRange(request);
     document.getElementById('reviewRequestReason').textContent = request.reason || '---';
     document.getElementById('reviewApprovalCondition').textContent = request.approval_code ? `Approved via approval code: ${request.approval_code}` : 'Manual review required';

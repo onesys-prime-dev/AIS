@@ -19,36 +19,63 @@
 
             <div>
                 <label class="block text-sm mb-1">First Name</label>
-                <input type="text"
-                    id="edit_first_name"
-                    name="first_name"
+                <input type="text" id="edit_first_name" name="first_name"
                     class="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
             </div>
 
             <div>
                 <label class="block text-sm mb-1">Middle Name</label>
-                <input type="text"
-                    id="edit_middle_name"
-                    name="middle_name"
+                <input type="text" id="edit_middle_name" name="middle_name"
                     class="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
             </div>
 
             <div>
                 <label class="block text-sm mb-1">Last Name</label>
-                <input type="text"
-                    id="edit_last_name"
-                    name="last_name"
+                <input type="text" id="edit_last_name" name="last_name"
                     class="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
             </div>
 
             <div>
                 <label class="block text-sm mb-1">Date of Birth</label>
-                <input type="date"
-                    id="edit_dob"
-                    name="dob"
+                <input type="date" id="edit_dob" name="dob"
                     class="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
             </div>
 
+            <div>
+                <label class="block text-sm mb-1">Gender</label>
+                <select id="edit_gender" name="gender"
+                    class="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
+                    <option value="">-- Select --</option>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Other">Other</option>
+                </select>
+            </div>
+
+            <div>
+                <label class="block text-sm mb-1">Civil Status</label>
+                <select id="edit_civil_status" name="civil_status"
+                    class="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
+                    <option value="">-- Select --</option>
+                    <option value="Single">Single</option>
+                    <option value="Married">Married</option>
+                    <option value="Widowed">Widowed</option>
+                    <option value="Separated">Separated</option>
+                </select>
+            </div>
+
+            <div>
+                <label class="block text-sm mb-1">Contact No.</label>
+                <input type="text" id="edit_mobile_number" name="mobile_number"
+                    class="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
+            </div>
+
+        </div>
+
+        <div class="mt-4">
+            <label class="block text-sm mb-1">Address</label>
+            <input type="text" id="edit_address" name="address"
+                class="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
         </div>
 
     </div>
@@ -235,67 +262,112 @@
 
             <div>
                 <label class="block text-sm mb-1">Department</label>
-                <input type="text"
-                    id="edit_department"
-                    name="department"
+                <input type="text" id="edit_department" name="department"
                     class="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
             </div>
 
             <div>
                 <label class="block text-sm mb-1">Position</label>
-                <input type="text"
-                    id="edit_position"
-                    name="position"
+                <input type="text" id="edit_position" name="position"
                     class="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
             </div>
 
             <div>
                 <label class="block text-sm mb-1">Email</label>
-                <input type="email"
-                    id="edit_email"
-                    name="email"
+                <input type="email" id="edit_email" name="email"
                     class="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
             </div>
 
             <div>
-                <label class="block text-sm mb-1">
-                    Leave Total (days)
-                </label>
-
-                <input type="number"
-                    id="edit_leave_total"
-                    name="leave_total"
-                    min="0"
-                    step="0.5"
+                <label class="block text-sm mb-1">Basic Salary</label>
+                <input type="number" id="edit_monthly_salary" name="monthly_salary" min="0" step="0.01"
                     class="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
             </div>
 
-            <div class="col-span-2">
-
-                <label class="block text-sm mb-1">
-                    Status
-                </label>
-
-                <select
-                    id="edit_status"
-                    name="status"
+            <div>
+                <label class="block text-sm mb-1">De Minimis Benefit</label>
+                <input type="number" id="edit_de_minimis_benefit" name="de_minimis_benefit" min="0" step="0.01"
                     class="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
+            </div>
 
+            <div>
+                <label class="block text-sm mb-1">Allowances</label>
+                <input type="number" id="edit_allowances" name="allowances" min="0" step="0.01"
+                    class="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
+            </div>
+
+        </div>
+
+        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mt-4 mb-2">Leave Entitlements (days)</p>
+        <div class="grid grid-cols-3 gap-4">
+            <div>
+                <label class="block text-sm mb-1">Vacation Leave</label>
+                <input type="number" id="edit_vacation_leave" name="vacation_leave" min="0" step="0.5"
+                    class="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
+            </div>
+            <div>
+                <label class="block text-sm mb-1">Sick Leave</label>
+                <input type="number" id="edit_sick_leave" name="sick_leave" min="0" step="0.5"
+                    class="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
+            </div>
+            <div>
+                <label class="block text-sm mb-1">Emergency Leave</label>
+                <input type="number" id="edit_emergency_leave" name="emergency_leave" min="0" step="0.5"
+                    class="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
+            </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4 mt-4">
+            <div class="col-span-2">
+                <label class="block text-sm mb-1">Status</label>
+                <select id="edit_status" name="status"
+                    class="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
                     <option value="1">Active</option>
                     <option value="0">Inactive / Deactivated</option>
-
                 </select>
-
-                <p class="mt-1 text-xs text-gray-500">
-                    Inactive employees can no longer log in.
-                </p>
-
-                <p id="selfDeactivateGuardNote"
-                    class="mt-1 text-xs text-amber-700 hidden">
-
+                <p class="mt-1 text-xs text-gray-500">Inactive employees can no longer log in.</p>
+                <p id="selfDeactivateGuardNote" class="mt-1 text-xs text-amber-700 hidden">
                     You cannot deactivate your own account.
                 </p>
+            </div>
+        </div>
 
+    </div>
+
+    <!-- ===================================================== -->
+    <!-- BANKING INFORMATION -->
+    <!-- ===================================================== -->
+
+    <div>
+
+        <h2 class="text-lg font-bold text-[#9764F6] mb-4">
+            Banking Information
+        </h2>
+
+        <div class="grid grid-cols-2 gap-4">
+
+            <div>
+                <label class="block text-sm mb-1">Bank</label>
+                <input type="text" id="edit_bank" name="bank"
+                    class="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
+            </div>
+
+            <div>
+                <label class="block text-sm mb-1">Swift Code</label>
+                <input type="text" id="edit_swift_code" name="swift_code"
+                    class="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
+            </div>
+
+            <div>
+                <label class="block text-sm mb-1">Account Number</label>
+                <input type="text" id="edit_account_number" name="account_number"
+                    class="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
+            </div>
+
+            <div>
+                <label class="block text-sm mb-1">Bank Address</label>
+                <input type="text" id="edit_bank_address" name="bank_address"
+                    class="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
             </div>
 
         </div>

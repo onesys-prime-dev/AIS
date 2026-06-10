@@ -121,9 +121,10 @@ class RequestController extends BaseController
 
         // Handle leave balance when a leave request changes status
         if ($old['request_type'] === 'leave') {
-            $requestedBy = (int) $old['requested_by'];
-            $days        = (float) $old['duration'];
-            $year        = (int) date('Y', strtotime($old['start_date']));
+            $requestedBy   = (int) $old['requested_by'];
+            $days          = (float) $old['duration'];
+            $year          = (int) date('Y', strtotime($old['start_date']));
+            $leaveCategory = (string) ($old['leave_category'] ?? 'leave');
 
             $isPaid = $this->leaveBalanceModel->applyRequestStatusChange(
                 $requestedBy,
@@ -131,7 +132,8 @@ class RequestController extends BaseController
                 $days,
                 $status,
                 (string) ($old['status'] ?? null),
-                $year
+                $year,
+                $leaveCategory
             );
 
             if ($status === 'approved' && $old['status'] !== 'approved') {
@@ -368,17 +370,26 @@ class RequestController extends BaseController
                 $finalReviewMessage = 'Approved via approval code';
             }
 
+            $leaveCategory = 'leave';
+            if ($requestType === 'leave') {
+                $lc = trim((string) $this->request->getPost('leave_category'));
+                if (in_array($lc, ['leave', 'vacation', 'sick', 'emergency'], true)) {
+                    $leaveCategory = $lc;
+                }
+            }
+
             $insertData = [
-                'requested_by'  => $userId,
-                'request_type'  => $requestType,
-                'start_date'    => $startDate,
-                'end_date'      => $endDate !== '' ? $endDate : null,
-                'duration'      => $duration,
-                'approval_code' => $normalizedCode,
-                'reason'        => $reason,
-                'status'        => 'approved',
-                'processed_by'  => $codeRow['generated_by'],
-                'review_message'=> $finalReviewMessage,
+                'requested_by'   => $userId,
+                'request_type'   => $requestType,
+                'leave_category' => $leaveCategory,
+                'start_date'     => $startDate,
+                'end_date'       => $endDate !== '' ? $endDate : null,
+                'duration'       => $duration,
+                'approval_code'  => $normalizedCode,
+                'reason'         => $reason,
+                'status'         => 'approved',
+                'processed_by'   => $codeRow['generated_by'],
+                'review_message' => $finalReviewMessage,
             ];
 
             $this->requestModel->insert($insertData);
@@ -397,7 +408,8 @@ class RequestController extends BaseController
                     (float) $duration,
                     'approved',
                     null,
-                    $year
+                    $year,
+                    $leaveCategory
                 );
                 $this->requestModel->update($newRequestId, ['is_paid_leave' => $isPaid ? 1 : 0]);
             }
@@ -487,15 +499,24 @@ class RequestController extends BaseController
             $duration         = (int) $startDateObj->diff($effectiveEndDate)->days + 1;
         }
 
+        $leaveCategory = 'leave';
+        if ($requestType === 'leave') {
+            $lc = trim((string) $this->request->getPost('leave_category'));
+            if (in_array($lc, ['leave', 'vacation', 'sick', 'emergency'], true)) {
+                $leaveCategory = $lc;
+            }
+        }
+
         $insertData = [
-            'requested_by'  => $userId,
-            'request_type'  => $requestType,
-            'start_date'    => $startDate,
-            'end_date'      => $endDate !== '' ? $endDate : null,
-            'duration'      => $duration,
-            'approval_code' => $normalizedCode !== '' ? $normalizedCode : null,
-            'reason'        => $reason,
-            'status'        => $status,
+            'requested_by'   => $userId,
+            'request_type'   => $requestType,
+            'leave_category' => $leaveCategory,
+            'start_date'     => $startDate,
+            'end_date'       => $endDate !== '' ? $endDate : null,
+            'duration'       => $duration,
+            'approval_code'  => $normalizedCode !== '' ? $normalizedCode : null,
+            'reason'         => $reason,
+            'status'         => $status,
             'review_message' => $presetReviewMessage !== null
                 ? $presetReviewMessage
                 : ($status === 'approved' && $normalizedCode !== '' ? 'Approved via approval code ' . $normalizedCode : null),
@@ -524,7 +545,8 @@ class RequestController extends BaseController
                 (float) $duration,
                 $status,
                 null,
-                $year
+                $year,
+                $leaveCategory
             );
             $this->requestModel->update($newRequestId, ['is_paid_leave' => $isPaid ? 1 : 0]);
         }

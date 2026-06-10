@@ -25,6 +25,8 @@ class EmployeeModel extends Model
         'middle_name',
         'last_name',
         'birthdate',
+        'gender',
+        'civil_status',
         'created_at',
         'updated_at',
     ];

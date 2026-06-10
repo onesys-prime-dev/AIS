@@ -116,39 +116,46 @@
 
         <!-- LEAVE BALANCE -->
         <?php
-            $leaveBalance = $leaveBalance ?? null;
-            $leaveYear    = $leaveBalance['year']              ?? date('Y');
-            $leaveTotal   = (float) ($leaveBalance['total_entitlement'] ?? 0);
-            $leaveUsed    = (float) ($leaveBalance['used']              ?? 0);
-            $leaveLeft    = (float) ($leaveBalance['remaining']         ?? 0);
-            $leavePct     = $leaveTotal > 0 ? round(($leaveLeft / $leaveTotal) * 100) : 0;
+            $currentYear = (int) date('Y');
 
-            if      ($leavePct <= 0)  { $barColor = '#ef4444'; $textColor = 'color:#ef4444'; }
-            elseif  ($leavePct <= 25) { $barColor = '#f97316'; $textColor = 'color:#f97316'; }
-            else                      { $barColor = '#22c55e'; $textColor = 'color:#22c55e'; }
+            $leaveTypes = [
+                'vacation'  => ['label' => 'Vacation Leave',  'data' => $vacationBalance  ?? null, 'color' => '#8b5cf6'],
+                'sick'      => ['label' => 'Sick Leave',      'data' => $sickBalance      ?? null, 'color' => '#3b82f6'],
+                'emergency' => ['label' => 'Emergency Leave', 'data' => $emergencyBalance ?? null, 'color' => '#f97316'],
+            ];
+
+            $hasAnyBalance = array_reduce($leaveTypes, fn($c, $t) => $c || ($t['data'] !== null), false);
         ?>
         <div class="card">
-            <h2>Leave Balance <span style="font-size:13px;font-weight:400;color:#9ca3af;">(<?= esc((string) $leaveYear) ?>)</span></h2>
+            <h2>Leave Balance <span style="font-size:13px;font-weight:400;color:#9ca3af;">(<?= esc((string) $currentYear) ?>)</span></h2>
 
-            <?php if ($leaveBalance): ?>
-                <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:8px;">
-                    <div>
-                        <div style="font-size:32px;font-weight:700;line-height:1;<?= $textColor ?>"><?= esc((string) $leaveLeft) ?></div>
-                        <div style="font-size:12px;color:#9ca3af;margin-top:4px;">days remaining</div>
+            <?php if ($hasAnyBalance): ?>
+                <?php foreach ($leaveTypes as $typeKey => $typeInfo):
+                    $bal   = $typeInfo['data'];
+                    $total = (float) ($bal['total_entitlement'] ?? 0);
+                    $used  = (float) ($bal['used']              ?? 0);
+                    $left  = (float) ($bal['remaining']         ?? 0);
+                    $pct   = $total > 0 ? round(($left / $total) * 100) : 0;
+                    $col   = $typeInfo['color'];
+                ?>
+                <div style="margin-bottom:18px;">
+                    <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;">
+                        <span style="font-size:13px;font-weight:600;color:#374151;"><?= esc($typeInfo['label']) ?></span>
+                        <span style="font-size:12px;color:#6b7280;"><?= $total > 0 ? esc((string) $left) . 'd / ' . esc((string) $total) . 'd' : 'Not set' ?></span>
                     </div>
-                    <div style="text-align:right;font-size:13px;color:#6b7280;">
-                        <div><?= esc((string) $leaveUsed) ?>d used</div>
-                        <div><?= esc((string) $leaveTotal) ?>d total</div>
-                    </div>
+                    <?php if ($total > 0): ?>
+                        <div style="background:#e5e7eb;border-radius:999px;height:7px;overflow:hidden;">
+                            <div style="height:100%;border-radius:999px;width:<?= esc((string) $pct) ?>%;background:<?= esc($col) ?>;transition:width 0.4s ease;"></div>
+                        </div>
+                        <div style="font-size:11px;color:#9ca3af;margin-top:3px;"><?= esc((string) $used) ?>d used &middot; <?= esc((string) $pct) ?>% remaining</div>
+                    <?php else: ?>
+                        <div style="font-size:11px;color:#9ca3af;">No entitlement set for this year.</div>
+                    <?php endif; ?>
                 </div>
-
-                <div style="background:#e5e7eb;border-radius:999px;height:8px;overflow:hidden;">
-                    <div style="height:100%;border-radius:999px;width:<?= esc((string) $leavePct) ?>%;background:<?= esc($barColor) ?>;transition:width 0.4s ease;"></div>
-                </div>
-                <div style="font-size:11px;color:#9ca3af;margin-top:6px;"><?= esc((string) $leavePct) ?>% remaining</div>
+                <?php endforeach; ?>
             <?php else: ?>
                 <div style="color:#9ca3af;font-size:13px;margin-top:10px;">
-                    No leave balance on record for <?= esc((string) $leaveYear) ?>. Balance is created automatically when the first leave request is approved.
+                    No leave balance on record for <?= esc((string) $currentYear) ?>. Balances appear here once leave entitlements are set by HR.
                 </div>
             <?php endif; ?>
         </div>

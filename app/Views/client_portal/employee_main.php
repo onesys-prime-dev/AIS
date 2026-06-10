@@ -231,6 +231,10 @@ function employeeRowTemplate(p) {
                         data-middle_name="${htmlEsc(p.middle_name)}"
                         data-last_name="${htmlEsc(p.last_name)}"
                         data-dob="${htmlEsc(p.birthdate)}"
+                        data-gender="${htmlEsc(p.gender)}"
+                        data-civil_status="${htmlEsc(p.civil_status)}"
+                        data-mobile_number="${htmlEsc(p.mobile_number)}"
+                        data-address="${htmlEsc(p.address)}"
 
                         data-department="${htmlEsc(p.department)}"
                         data-position="${htmlEsc(p.position)}"
@@ -247,6 +251,18 @@ function employeeRowTemplate(p) {
                         data-philhealth="${htmlEsc(p.philhealth)}"
 
                         data-email="${htmlEsc(p.email)}"
+                        data-monthly_salary="${htmlEsc(p.monthly_salary)}"
+                        data-de_minimis_benefit="${htmlEsc(p.de_minimis_benefit)}"
+                        data-allowances="${htmlEsc(p.allowances)}"
+
+                        data-vacation_leave="${htmlEsc(p.vacation_leave)}"
+                        data-sick_leave="${htmlEsc(p.sick_leave)}"
+                        data-emergency_leave="${htmlEsc(p.emergency_leave)}"
+
+                        data-bank="${htmlEsc(p.bank)}"
+                        data-bank_address="${htmlEsc(p.bank_address)}"
+                        data-account_number="${htmlEsc(p.account_number)}"
+                        data-swift_code="${htmlEsc(p.swift_code)}"
 
                         data-leave_total="${htmlEsc(p.leave_total)}"
                         data-status="${htmlEsc(p.status ?? 0)}">
@@ -317,36 +333,25 @@ function viewEmployeeDetails(employeeId) {
                 <!-- FIXED TOP DETAILS -->
                 <div class="shrink-0 px-2">
 
-                    <!-- ADDRESS / CONTACTS ROW -->
                     <div class="flex divide-x divide-gray-200 mb-6">
                         <div class="flex-1 pr-6">
-                            <p class="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-2">
-                                Department
-                            </p>
-
-                            <p class="text-sm text-gray-700">
-                                ${employee.department ?? '—'}
-                            </p>
+                            <p class="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-2">Department</p>
+                            <p class="text-sm text-gray-700">${employee.department ?? '—'}</p>
                         </div>
 
                         <div class="flex-1 px-6">
-                            <p class="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-2">
-                                Email
-                            </p>
+                            <p class="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-2">Email</p>
+                            <p class="text-sm text-gray-700">${employee.email ?? '—'}</p>
+                        </div>
 
-                            <p class="text-sm text-gray-700">
-                                ${employee.email ?? '—'}
-                            </p>
+                        <div class="flex-1 px-6">
+                            <p class="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-2">Birthdate</p>
+                            <p class="text-sm text-gray-700">${employee.birthdate ?? '—'}</p>
                         </div>
 
                         <div class="flex-1 pl-6">
-                            <p class="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-2">
-                                Birthdate
-                            </p>
-
-                            <p class="text-sm text-gray-700">
-                                ${employee.birthdate ?? '—'}
-                            </p>
+                            <p class="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-2">Contact No.</p>
+                            <p class="text-sm text-gray-700">${employee.mobile_number ?? '—'}</p>
                         </div>
                     </div>
 
@@ -369,6 +374,10 @@ function viewEmployeeDetails(employeeId) {
                                 ${viewField('First Name', employee.first_name)}
                                 ${viewField('Middle Name', employee.middle_name)}
                                 ${viewField('Last Name', employee.last_name)}
+                                ${viewField('Gender', employee.gender)}
+                                ${viewField('Civil Status', employee.civil_status)}
+                                ${viewField('Contact No.', employee.mobile_number)}
+                                ${viewField('Address', employee.address)}
                             </div>
                         </div>
 
@@ -379,10 +388,10 @@ function viewEmployeeDetails(employeeId) {
                             </p>
 
                             <div class="space-y-3">
-                                ${viewField('SSS', employee.sss)}
+                                ${viewField('SSS No.', employee.sss)}
                                 ${viewField('TIN', employee.tin)}
-                                ${viewField('Pagibig', employee.pagibig)}
-                                ${viewField('PhilHealth', employee.philhealth)}
+                                ${viewField('Pag-IBIG No.', employee.pagibig)}
+                                ${viewField('PhilHealth No.', employee.philhealth)}
                             </div>
                         </div>
 
@@ -434,10 +443,10 @@ function viewEmployeeDetails(employeeId) {
 
                     <hr class="border-gray-200 mb-6">
 
-                    <!-- JOB DETAILS -->
-                    <div class="pb-6">
+                    <!-- JOB DETAILS + COMPENSATION -->
+                    <div class="mb-6">
                         <p class="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-4">
-                            Job Details
+                            Job Details &amp; Compensation
                         </p>
 
                         <div class="flex divide-x divide-gray-200">
@@ -445,11 +454,36 @@ function viewEmployeeDetails(employeeId) {
                                 ${viewField('Department', employee.department)}
                                 ${viewField('Position', employee.position)}
                                 ${viewField('Status', employee.status == 1 ? 'Active' : 'Inactive')}
+                                ${viewField('Basic Salary', employee.monthly_salary ? '₱' + Number(employee.monthly_salary).toLocaleString() : '—')}
                             </div>
 
                             <div class="flex-1 pl-6 space-y-3">
-                                ${viewField('Leave Total', employee.leave_total + ' days')}
-                                ${viewField('Leave Remaining', employee.leave_remaining + ' days')}
+                                ${viewField('De Minimis Benefit', employee.de_minimis_benefit ? '₱' + Number(employee.de_minimis_benefit).toLocaleString() : '—')}
+                                ${viewField('Allowances', employee.allowances ? '₱' + Number(employee.allowances).toLocaleString() : '—')}
+                                ${viewField('Vacation Leave', (employee.vacation_leave || 0) + ' days')}
+                                ${viewField('Sick Leave', (employee.sick_leave || 0) + ' days')}
+                                ${viewField('Emergency Leave', (employee.emergency_leave || 0) + ' days')}
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr class="border-gray-200 mb-6">
+
+                    <!-- BANKING -->
+                    <div class="pb-6">
+                        <p class="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-4">
+                            Banking Information
+                        </p>
+
+                        <div class="flex divide-x divide-gray-200">
+                            <div class="flex-1 pr-6 space-y-3">
+                                ${viewField('Bank', employee.bank)}
+                                ${viewField('Account Number', employee.account_number)}
+                            </div>
+
+                            <div class="flex-1 pl-6 space-y-3">
+                                ${viewField('Bank Address', employee.bank_address)}
+                                ${viewField('Swift Code', employee.swift_code)}
                             </div>
                         </div>
                     </div>
@@ -767,35 +801,75 @@ window.addEventListener('click', function(e)
 
     if (button)
     {
-        document.getElementById('edit_employee_id').value =
-            button.dataset.id || '';
+        const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
 
-        document.getElementById('edit_first_name').value =
-            button.dataset.first_name || '';
+        setVal('edit_employee_id',       button.dataset.id);
+        setVal('edit_first_name',        button.dataset.first_name);
+        setVal('edit_middle_name',       button.dataset.middle_name);
+        setVal('edit_last_name',         button.dataset.last_name);
+        setVal('edit_dob',               button.dataset.dob);
+        setVal('edit_gender',            button.dataset.gender);
+        setVal('edit_civil_status',      button.dataset.civil_status);
+        setVal('edit_mobile_number',     button.dataset.mobile_number);
+        setVal('edit_address',           button.dataset.address);
 
-        document.getElementById('edit_middle_name').value =
-            button.dataset.middle_name || '';
+        setVal('edit_department',        button.dataset.department);
+        setVal('edit_position',          button.dataset.position);
+        setVal('edit_employment_type',   button.dataset.employment_type);
+        setVal('edit_email',             button.dataset.email);
+        setVal('edit_monthly_salary',    button.dataset.monthly_salary);
+        setVal('edit_de_minimis_benefit',button.dataset.de_minimis_benefit);
+        setVal('edit_allowances',        button.dataset.allowances);
+        setVal('edit_vacation_leave',    button.dataset.vacation_leave);
+        setVal('edit_sick_leave',        button.dataset.sick_leave);
+        setVal('edit_emergency_leave',   button.dataset.emergency_leave);
+        setVal('edit_leave_total',       button.dataset.leave_total);
 
-        document.getElementById('edit_last_name').value =
-            button.dataset.last_name || '';
+        setVal('edit_bank',              button.dataset.bank);
+        setVal('edit_bank_address',      button.dataset.bank_address);
+        setVal('edit_account_number',    button.dataset.account_number);
+        setVal('edit_swift_code',        button.dataset.swift_code);
 
-        document.getElementById('edit_dob').value =
-            button.dataset.dob || '';
+        setVal('edit_sss',               button.dataset.sss);
+        setVal('edit_tin',               button.dataset.tin);
+        setVal('edit_pagibig',           button.dataset.pagibig);
+        setVal('edit_philhealth',        button.dataset.philhealth);
+        setVal('edit_status',            button.dataset.status);
 
-        document.getElementById('edit_department').value =
-            button.dataset.department || '';
+        setVal('edit_working_day_type',  button.dataset.working_day_type);
+        setVal('edit_start_time',        button.dataset.start_time);
+        setVal('edit_end_time',          button.dataset.end_time);
 
-        document.getElementById('edit_position').value =
-            button.dataset.position || '';
+        // Restore working day checkboxes
+        try {
+            const days = JSON.parse(button.dataset.working_days || '[]');
+            document.querySelectorAll('#editEmployeeForm .edit-day-checkbox').forEach(cb => {
+                const active = days.includes(cb.value);
+                cb.checked = active;
+                const btn = cb.closest('.edit-day-toggle')?.querySelector('.edit-day-btn');
+                if (btn) {
+                    btn.classList.toggle('bg-[#A891FC]', active);
+                    btn.classList.toggle('border-[#A891FC]', active);
+                    btn.classList.toggle('text-white', active);
+                    btn.classList.toggle('bg-white', !active);
+                    btn.classList.toggle('border-gray-300', !active);
+                    btn.classList.toggle('text-gray-500', !active);
+                }
+            });
+        } catch(e) {}
 
-        document.getElementById('edit_employment_type').value =
-            button.dataset.employment_type || '';
+        // Guard self-deactivate note
+        const selfGuard = document.getElementById('selfDeactivateGuardNote');
+        if (selfGuard) selfGuard.classList.add('hidden');
+        const statusSel = document.getElementById('edit_status');
+        if (statusSel && button.dataset.user_id == CURRENT_USER_ID) {
+            statusSel.addEventListener('change', function() {
+                if (selfGuard) selfGuard.classList.toggle('hidden', this.value !== '0');
+            }, {once: true});
+        }
 
-        const form =
-            document.getElementById('editEmployeeForm');
-
-        form.action =
-            `${UPDATE_URL}/${button.dataset.id}`;
+        const form = document.getElementById('editEmployeeForm');
+        form.action = `${UPDATE_URL}/${button.dataset.id}`;
 
         openModalById('editEmployeeModal');
 

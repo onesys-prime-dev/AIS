@@ -1399,11 +1399,20 @@ document.addEventListener('DOMContentLoaded', function () {
                     <!-- ── Normal-mode fields (always visible, locked only when preset data exists) ── -->
                     <div id="normalModePanel">
                         <label>Select Form</label>
-                        <select name="request_type" id="reqType" required>
+                        <select name="request_type" id="reqType" required onchange="toggleLeaveCategoryField(this.value)">
                             <option value="leave">Leave Request</option>
                             <option value="overtime">Overtime Request</option>
                             <option value="undertime">Undertime Request</option>
                         </select>
+
+                        <div id="leaveCategoryWrap">
+                            <label>Leave Type</label>
+                            <select name="leave_category" id="reqLeaveCategory">
+                                <option value="vacation">Vacation Leave</option>
+                                <option value="sick">Sick Leave</option>
+                                <option value="emergency">Emergency Leave</option>
+                            </select>
+                        </div>
 
                         <label>Start Date</label>
                         <input type="date" name="start_date" id="reqStartDate" required>
@@ -1598,6 +1607,11 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
+    function toggleLeaveCategoryField(type) {
+        const wrap = document.getElementById('leaveCategoryWrap');
+        if (wrap) wrap.style.display = (type === 'leave') ? '' : 'none';
+    }
+
     // Tracks active preset duration (days) when a code provides one
     let _currentPresetDuration = null;
 
@@ -1691,7 +1705,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Lock/unlock individual preset-capable fields
     function setNormalFieldsLocked(locked) {
-        const fields = ["reqType", "reqStartDate", "reqEndDate", "reqReason"];
+        const fields = ["reqType", "reqLeaveCategory", "reqStartDate", "reqEndDate", "reqReason"];
         fields.forEach(id => {
             const el = document.getElementById(id);
             if (!el) return;

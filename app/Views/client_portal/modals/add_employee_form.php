@@ -32,25 +32,58 @@
 
     <!-- ================= STEP 1 ================= -->
     <div class="form-step absolute inset-0 flex flex-col" id="step1">
-        <div class="flex-1 space-y-4 overflow-y-auto px-1">
-            <div>
-                <label class="block text-sm mb-1">First Name:</label>
-                <input type="text" name="first_name"
-                    class="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
+        <div class="flex-1 space-y-3 overflow-y-auto px-1">
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-sm mb-1">First Name:</label>
+                    <input type="text" name="first_name"
+                        class="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
+                </div>
+                <div>
+                    <label class="block text-sm mb-1">Middle Name:</label>
+                    <input type="text" name="middle_name"
+                        class="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
+                </div>
+                <div>
+                    <label class="block text-sm mb-1">Last Name:</label>
+                    <input type="text" name="last_name"
+                        class="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
+                </div>
+                <div>
+                    <label class="block text-sm mb-1">Date of Birth:</label>
+                    <input type="date" name="dob"
+                        class="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
+                </div>
+                <div>
+                    <label class="block text-sm mb-1">Gender:</label>
+                    <select name="gender"
+                        class="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
+                        <option value="">-- Select --</option>
+                        <option value="Male">Male</option>
+                        <option value="Female">Female</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm mb-1">Civil Status:</label>
+                    <select name="civil_status"
+                        class="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
+                        <option value="">-- Select --</option>
+                        <option value="Single">Single</option>
+                        <option value="Married">Married</option>
+                        <option value="Widowed">Widowed</option>
+                        <option value="Separated">Separated</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm mb-1">Contact No.:</label>
+                    <input type="text" name="mobile_number"
+                        class="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
+                </div>
             </div>
             <div>
-                <label class="block text-sm mb-1">Middle Name:</label>
-                <input type="text" name="middle_name"
-                    class="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
-            </div>
-            <div>
-                <label class="block text-sm mb-1">Last Name:</label>
-                <input type="text" name="last_name"
-                    class="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
-            </div>
-            <div>
-                <label class="block text-sm mb-1">Date of Birth:</label>
-                <input type="date" name="dob"
+                <label class="block text-sm mb-1">Address:</label>
+                <input type="text" name="address"
                     class="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
             </div>
         </div>
@@ -189,41 +222,99 @@
 
     <!-- ================= STEP 4 ================= -->
     <div class="form-step absolute inset-0 flex flex-col hidden" id="step4">
-        <div class="flex-1 space-y-4 overflow-y-auto px-1">
-            <div>
-                <label class="block text-sm mb-1">Department:</label>
-                <input type="text" name="department"
-                    class="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
+        <div class="flex-1 space-y-3 overflow-y-auto px-1">
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-sm mb-1">Department:</label>
+                    <input type="text" name="department"
+                        class="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
+                </div>
+                <div>
+                    <label class="block text-sm mb-1">Position:</label>
+                    <input type="text" name="position"
+                        class="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
+                </div>
+                <div>
+                    <label class="block text-sm mb-1">Email:</label>
+                    <input type="email" name="email" required
+                        class="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                        placeholder="employee@company.com">
+                </div>
+                <div>
+                    <label class="block text-sm mb-1">Password:</label>
+                    <div class="relative">
+                        <input id="employee-password" type="password" name="password" required
+                            class="w-full border rounded-lg p-2 focus:outline-none focus:border-purple-500"
+                            placeholder="Enter a strong password">
+                        <button type="button" id="toggle-password"
+                            class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none">
+                            <svg id="eye-closed" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3l18 18" />
+                            </svg>
+                            <svg id="eye-open" class="h-5 w-5 hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm mb-1">Basic Salary:</label>
+                    <input type="number" name="monthly_salary" min="0" step="0.01"
+                        class="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
+                </div>
+                <div>
+                    <label class="block text-sm mb-1">De Minimis Benefit:</label>
+                    <input type="number" name="de_minimis_benefit" min="0" step="0.01"
+                        class="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
+                </div>
+                <div>
+                    <label class="block text-sm mb-1">Allowances:</label>
+                    <input type="number" name="allowances" min="0" step="0.01"
+                        class="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
+                </div>
             </div>
-            <div>
-                <label class="block text-sm mb-1">Position:</label>
-                <input type="text" name="position"
-                    class="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
+            <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide pt-1">Leave Entitlements (days)</p>
+            <div class="grid grid-cols-3 gap-3">
+                <div>
+                    <label class="block text-sm mb-1">Vacation:</label>
+                    <input type="number" name="vacation_leave" min="0" step="0.5"
+                        class="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
+                </div>
+                <div>
+                    <label class="block text-sm mb-1">Sick:</label>
+                    <input type="number" name="sick_leave" min="0" step="0.5"
+                        class="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
+                </div>
+                <div>
+                    <label class="block text-sm mb-1">Emergency:</label>
+                    <input type="number" name="emergency_leave" min="0" step="0.5"
+                        class="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
+                </div>
             </div>
-            <div>
-                <label class="block text-sm mb-1">Email:</label>
-                <input type="email" name="email" required
-                    class="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                    placeholder="employee@company.com">
-            </div>
-            <div>
-                <label class="block text-sm mb-1">Password:</label>
-                <div class="relative">
-                    <input id="employee-password" type="password" name="password" required
-                        class="w-full border rounded-lg p-2 2 focus:outline-none focus:border-purple-500"
-                        placeholder="Enter a strong password">
-                    <button type="button" id="toggle-password"
-                        class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none">
-                        <svg id="eye-closed" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3l18 18" />
-                        </svg>
-                        <svg id="eye-open" class="h-5 w-5 hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                        </svg>
-                    </button>
+            <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide pt-1">Banking Information</p>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-sm mb-1">Bank:</label>
+                    <input type="text" name="bank"
+                        class="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
+                </div>
+                <div>
+                    <label class="block text-sm mb-1">Swift Code:</label>
+                    <input type="text" name="swift_code"
+                        class="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
+                </div>
+                <div>
+                    <label class="block text-sm mb-1">Account Number:</label>
+                    <input type="text" name="account_number"
+                        class="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
+                </div>
+                <div>
+                    <label class="block text-sm mb-1">Bank Address:</label>
+                    <input type="text" name="bank_address"
+                        class="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
                 </div>
             </div>
         </div>
