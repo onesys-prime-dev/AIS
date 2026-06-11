@@ -31,12 +31,19 @@
                     <input type="number" step="0.01" name="setting_night_diff_rate" id="setting_night_diff_rate" class="w-full border rounded p-2">
                 </div>
                 <div class="bg-gray-50 p-4 rounded shadow">
+                    <h4 class="font-semibold border-b pb-1 mb-2">Holiday Pay Rates</h4>
+                    <label>Regular Holiday Rate (x) <span class="text-xs text-gray-400">&le;8 hrs &mdash; 200%</span></label>
+                    <input type="number" step="0.01" name="setting_reg_holiday_rate" id="setting_reg_holiday_rate" class="w-full border rounded p-2" placeholder="2.00">
+                    <label class="mt-2">Special Holiday Rate (x) <span class="text-xs text-gray-400">&le;8 hrs &mdash; 130%</span></label>
+                    <input type="number" step="0.01" name="setting_spec_holiday_rate" id="setting_spec_holiday_rate" class="w-full border rounded p-2" placeholder="1.30">
+                </div>
+                <div class="bg-gray-50 p-4 rounded shadow">
                     <h4 class="font-semibold border-b pb-1 mb-2">Overtime Rates</h4>
                     <label>Regular OT (x)</label>
                     <input type="number" step="0.01" name="setting_ot_regular_rate" id="setting_ot_regular_rate" class="w-full border rounded p-2">
-                    <label class="mt-2">Rest Day OT (x)</label>
+                    <label class="mt-2">Rest Day / Spec Holiday OT (x) <span class="text-xs text-gray-400">130%&times;130%=169%</span></label>
                     <input type="number" step="0.01" name="setting_ot_rest_rate" id="setting_ot_rest_rate" class="w-full border rounded p-2">
-                    <label class="mt-2">Holiday OT (x)</label>
+                    <label class="mt-2">Regular Holiday OT (x) <span class="text-xs text-gray-400">200%&times;130%=260%</span></label>
                     <input type="number" step="0.01" name="setting_ot_holiday_rate" id="setting_ot_holiday_rate" class="w-full border rounded p-2">
                 </div>
                 <div class="bg-gray-50 p-4 rounded shadow">
@@ -106,9 +113,11 @@
         document.getElementById('setting_night_diff_start').value = s.night_diff_start || '22:00';
         document.getElementById('setting_night_diff_end').value   = s.night_diff_end   || '06:00';
         document.getElementById('setting_night_diff_rate').value  = s.night_diff_rate  || '0.10';
+        document.getElementById('setting_reg_holiday_rate').value  = s.reg_holiday_rate  || '2.00';
+        document.getElementById('setting_spec_holiday_rate').value = s.spec_holiday_rate || '1.30';
         document.getElementById('setting_ot_regular_rate').value  = s.ot_regular_rate  || '1.25';
-        document.getElementById('setting_ot_rest_rate').value     = s.ot_rest_rate     || '1.30';
-        document.getElementById('setting_ot_holiday_rate').value  = s.ot_holiday_rate  || '2.00';
+        document.getElementById('setting_ot_rest_rate').value     = s.ot_rest_rate     || '1.69';
+        document.getElementById('setting_ot_holiday_rate').value  = s.ot_holiday_rate  || '2.60';
         document.getElementById('setting_phic_rate').value        = s.phic_rate        || '0.05';
         document.getElementById('setting_phic_cap').value         = s.phic_cap         || '80000';
         document.getElementById('setting_hdmf_rate').value        = s.hdmf_rate        || '0.02';

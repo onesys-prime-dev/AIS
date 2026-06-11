@@ -356,7 +356,7 @@
 
 <?= $this->section('scripts') ?>
 <script src="<?= base_url('js/components/flash-notifications.js') ?>"></script>
-<script src="<?= base_url('js/components/modal-handler.js') ?>"></script>
+<script src="<?= base_url('js/components/modal-handler.js') ?>?v=2"></script>
 <script src="<?= base_url('js/components/crud-table.js') ?>"></script>
 
 <script>

@@ -5,6 +5,7 @@ function openModalById(id)
 
     if (!modal) return;
 
+    modal.style.display = 'flex';
     modal.classList.add('show');
 
     document.body.style.overflow = 'hidden';
@@ -14,6 +15,7 @@ function closeModal(modal)
 {
     if (!modal) return;
 
+    modal.style.display = 'none';
     modal.classList.remove('show');
 
     document.body.style.overflow = '';

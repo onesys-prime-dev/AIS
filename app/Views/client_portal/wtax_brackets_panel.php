@@ -32,17 +32,18 @@
             <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 100 20A10 10 0 0012 2z"/>
         </svg>
         <span>
-            <strong>Formula:</strong> Tax = Fixed Tax + ( (Taxable Income − Min Amount) × % Over ).<br>
-            "% Over" should be entered as a decimal: 0.15 = 15%, 0.20 = 20%, etc. The first bracket (0%) has no fixed tax.
+            <strong>Formula:</strong> Withholding Tax = <strong>(Excess &times; % Over) + Fixed Tax</strong><br>
+            where <em>Excess = Taxable Income &minus; Excess Over</em>. &nbsp;"% Over" is a decimal: 0.15 = 15%, 0.20 = 20%, etc.
         </span>
     </div>
 
     <!-- Table -->
     <div class="flex flex-col flex-1 min-h-0 rounded-xl border border-gray-200 overflow-hidden shadow-sm">
         <!-- Head -->
-        <div class="grid grid-cols-[1fr_1fr_1fr_1fr_80px] bg-[#DCDCDC] text-[#737373] border-b border-[#9E9E9E] text-xs font-bold">
+        <div class="grid grid-cols-[1fr_1fr_1fr_1fr_1fr_80px] bg-[#DCDCDC] text-[#737373] border-b border-[#9E9E9E] text-xs font-bold">
             <div class="p-3">Min Amount (₱)</div>
             <div class="p-3">Max Amount (₱)</div>
+            <div class="p-3">Excess Over (₱) <span class="font-normal opacity-70">= Min</span></div>
             <div class="p-3">Fixed Tax (₱)</div>
             <div class="p-3">% Over (decimal)</div>
             <div class="p-3 text-center">Action</div>
@@ -126,8 +127,12 @@
             return;
         }
 
-        tableBody.innerHTML = rows.map((r, i) => `
-            <div class="grid grid-cols-[1fr_1fr_1fr_1fr_80px] items-center hover:bg-gray-50 transition" data-idx="${i}">
+        tableBody.innerHTML = rows.map((r, i) => {
+            const minFmt = r.min_amount != null
+                ? Number(r.min_amount).toLocaleString('en-PH', { minimumFractionDigits: 2 })
+                : '—';
+            return `
+            <div class="grid grid-cols-[1fr_1fr_1fr_1fr_1fr_80px] items-center hover:bg-gray-50 transition" data-idx="${i}">
                 <div class="p-2">
                     <input type="number" step="0.01" name="min_amount" class="w-full border rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-[#7b5cff]"
                         value="${r.min_amount ?? ''}">
@@ -135,6 +140,11 @@
                 <div class="p-2">
                     <input type="number" step="0.01" name="max_amount" class="w-full border rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-[#7b5cff]"
                         value="${r.max_amount ?? ''}" placeholder="∞ (leave blank for top bracket)">
+                </div>
+                <div class="p-2">
+                    <div class="w-full border border-gray-200 bg-gray-50 rounded px-2 py-1 text-sm text-gray-500 select-none" title="Excess = Taxable Income − this value">
+                        ₱${minFmt}
+                    </div>
                 </div>
                 <div class="p-2">
                     <input type="number" step="0.01" name="fixed_tax" class="w-full border rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-[#7b5cff]"
@@ -152,7 +162,7 @@
                     </button>
                 </div>
             </div>
-        `).join('');
+        `; }).join('');
 
         tableBody.querySelectorAll('input').forEach(inp => {
             inp.addEventListener('change', e => {
@@ -160,6 +170,16 @@
                 const idx   = parseInt(row.dataset.idx);
                 const field = e.target.name;
                 rows[idx][field] = e.target.value === '' ? null : parseFloat(e.target.value);
+                // Keep Excess Over display in sync with min_amount
+                if (field === 'min_amount') {
+                    const excessCell = row.querySelector('[title="Excess = Taxable Income − this value"]');
+                    if (excessCell) {
+                        const v = rows[idx].min_amount;
+                        excessCell.textContent = v != null
+                            ? '₱' + Number(v).toLocaleString('en-PH', { minimumFractionDigits: 2 })
+                            : '—';
+                    }
+                }
             });
         });
 
@@ -257,13 +277,25 @@
         const { tax, fixed, pct, minAmt } = result;
         const php = v => `₱${v.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+        const excess    = income - minAmt;
+        const excessTax = excess * pct;
         previewResult.innerHTML = `
-            <div class="grid grid-cols-2 gap-x-6 gap-y-1">
-                <span class="text-gray-500">Taxable income:</span>     <span class="font-medium">${php(income)}</span>
-                <span class="text-gray-500">Fixed tax:</span>          <span>${php(fixed)}</span>
-                <span class="text-gray-500">Excess over ${php(minAmt)} × ${(pct*100).toFixed(2)}%:</span>
-                <span>${php((income - minAmt) * pct)}</span>
-                <span class="text-gray-500 font-semibold">Monthly withholding tax:</span>
+            <div class="grid grid-cols-2 gap-x-6 gap-y-1 text-sm">
+                <span class="text-gray-500">Taxable income:</span>
+                <span class="font-medium">${php(income)}</span>
+
+                <span class="text-gray-500">Excess over (${php(minAmt)}):</span>
+                <span>${php(excess)}</span>
+
+                <span class="text-gray-500">Excess × ${(pct*100).toFixed(2)}%:</span>
+                <span>${php(excessTax)}</span>
+
+                <span class="text-gray-500">Fixed tax:</span>
+                <span>+ ${php(fixed)}</span>
+
+                <span class="col-span-2 border-t border-gray-200 my-1"></span>
+
+                <span class="text-gray-600 font-semibold">= (${php(excessTax)} × ${(pct*100).toFixed(2)}%) + ${php(fixed)}</span>
                 <span class="font-bold text-[#7b5cff] text-base">${php(tax)}</span>
             </div>
         `;

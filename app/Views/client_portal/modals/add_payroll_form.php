@@ -34,8 +34,8 @@
         </div>
 
         <div class="mb-4">
-            <label class="block text-sm font-medium text-gray-700 mb-1">Daily Rate</label>
-            <input type="number" step="0.01" name="daily_rate" required class="w-full border rounded-lg px-3 py-2">
+            <label class="block text-sm font-medium text-gray-700 mb-1">Daily Rate Override <span class="text-gray-400 font-normal">(optional — leave blank to use employee's salary)</span></label>
+            <input type="number" step="0.01" name="daily_rate" class="w-full border rounded-lg px-3 py-2" placeholder="Auto from Employee Management">
         </div>
 
         <div class="mb-4 flex items-center">

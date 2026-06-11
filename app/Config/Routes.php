@@ -94,7 +94,8 @@ $routes->group('client_portal', ['namespace' => 'App\Controllers\Client'], funct
     $routes->post('payroll/update/(:num)', 'PayrollController::updatePayroll/$1');
     $routes->get('payroll/delete/(:num)', 'PayrollController::deletePayroll/$1');
     $routes->get('payroll/get/(:num)', 'PayrollController::getPayroll/$1');
-    
+    $routes->post('payroll/markStatus', 'PayrollController::markPayrollStatus');
+
     $routes->post('payroll/compute', 'PayrollController::computeAndSave');
     $routes->get('payroll/generate/(:num)', 'PayrollController::generatePayslip/$1');
     $routes->post('payroll/send/(:num)', 'PayrollController::sendPayslip/$1');

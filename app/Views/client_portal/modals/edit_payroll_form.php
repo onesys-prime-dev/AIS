@@ -14,8 +14,8 @@
     </div>
 
     <div class="mb-4">
-        <label for="edit_daily_rate" class="block text-sm font-medium text-gray-700 mb-1">Daily Rate</label>
-        <input type="number" step="0.01" name="daily_rate" id="edit_daily_rate" class="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500" required>
+        <label for="edit_daily_rate" class="block text-sm font-medium text-gray-700 mb-1">Daily Rate Override <span class="text-gray-400 font-normal">(optional)</span></label>
+        <input type="number" step="0.01" name="daily_rate" id="edit_daily_rate" class="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500" placeholder="Auto from Employee Management">
     </div>
 
     <div class="mb-4 flex items-center">

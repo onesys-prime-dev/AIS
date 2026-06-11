@@ -139,7 +139,7 @@ class RequestController extends BaseController
             if ($status === 'approved' && $old['status'] !== 'approved') {
                 $this->requestModel->update($id, ['is_paid_leave' => $isPaid ? 1 : 0]);
             } elseif ($status === 'rejected' && $old['status'] === 'approved') {
-                $this->requestModel->update($id, ['is_paid_leave' => null]);
+                $this->requestModel->update($id, ['is_paid_leave' => 0]);
             }
         }
 

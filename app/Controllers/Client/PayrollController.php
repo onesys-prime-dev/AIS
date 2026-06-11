@@ -22,66 +22,103 @@ class PayrollController extends BaseController
     // ================= PAYROLL STATUS TAB =================
     public function payrollView()
     {
-        $payrollModel = new PayrollModel();
-        $employeeModel = new EmployeeModel();
-
         $month = $this->request->getGet('month') ?? date('Y-m');
         $data['selected_month'] = $month;
 
-        $data['payrolls'] = $payrollModel
-            ->select("
-                payroll.*,
-                CONCAT(
-                    TRIM(employees.first_name), ' ',
-                    IF(
-                        COALESCE(TRIM(employees.middle_name), '') = '',
-                        '',
-                        CONCAT(UPPER(LEFT(TRIM(employees.middle_name), 1)), '. ')
-                    ),
-                    TRIM(employees.last_name)
-                ) AS employee_name,
-                employees.employee_number,
-                MAX(ea.photo_path) as photo_path
-            ", false)
-            ->join('employees', 'employees.id = payroll.employee_id', 'left')
-            ->join('employee_accounts as ea', 'employees.id = ea.employee_id', 'left')
-            ->where('payroll.month_year', $month)
-            ->groupBy('payroll.id')
-            ->findAll();
+        $db = \Config\Database::connect();
 
-        $data['employees'] = $employeeModel
-            ->select("
-                employees.id,
+        // ALL active employees, enriched with employee-management data and
+        // a LEFT JOIN to payroll (for the selected month) and employee_payslips.
+        $rows = $db->query("
+            SELECT
+                e.id            AS employee_id,
+                e.employee_number,
                 CONCAT(
-                    TRIM(employees.first_name), ' ',
-                    IF(
-                        COALESCE(TRIM(employees.middle_name), '') = '',
-                        '',
-                        CONCAT(UPPER(LEFT(TRIM(employees.middle_name), 1)), '. ')
-                    ),
-                    TRIM(employees.last_name)
-                ) AS full_name
-            ")
-            ->join('users', 'users.id = employees.user_id', 'left')
-            ->where('users.active', 1)
-            ->findAll();
+                    TRIM(e.first_name), ' ',
+                    IF(COALESCE(TRIM(e.middle_name),'')='','',
+                       CONCAT(UPPER(LEFT(TRIM(e.middle_name),1)),'. ')),
+                    TRIM(e.last_name)
+                ) AS employee_name,
+                COALESCE(MAX(ea.photo_path), '')   AS photo_path,
+                COALESCE(ep.position, '')           AS position,
+                COALESCE(ep.monthly_salary, 0)      AS monthly_salary,
+                p.id                                AS payroll_id,
+                p.status                            AS payroll_status,
+                p.daily_rate,
+                p.phone,
+                p.dst,
+                p.currency,
+                MAX(ps.sent_at)                     AS payslip_sent_at
+            FROM employees e
+            INNER JOIN users u ON u.id = e.user_id AND u.active = 1
+            LEFT JOIN employee_accounts ea  ON ea.employee_id = e.id
+            LEFT JOIN employee_positions ep ON ep.employee_id = e.id
+            LEFT JOIN payroll p
+                ON p.employee_id = e.id AND p.month_year = ?
+            LEFT JOIN employee_payslips ps
+                ON ps.employee_id = e.id
+                AND DATE_FORMAT(ps.period_start,'%Y-%m') = ?
+            GROUP BY e.id, p.id, ep.id
+            ORDER BY e.first_name, e.last_name
+        ", [$month, $month])->getResultArray();
+
+        foreach ($rows as &$row) {
+            if (!empty($row['photo_path'])) {
+                $row['photo_path'] = base_url((string)$row['photo_path']);
+            }
+        }
+        unset($row);
+
+        $data['payrolls'] = $rows;
 
         $payslipModel = new \App\Models\Client\EmployeePayslipModel();
         $data['payslips'] = $payslipModel
-            ->select("employee_payslips.*, CONCAT(employees.first_name, ' ', employees.last_name) as employee_name")
+            ->select("employee_payslips.*, CONCAT(employees.first_name,' ',employees.last_name) AS employee_name")
             ->join('employees', 'employees.id = employee_payslips.employee_id')
             ->orderBy('employee_payslips.created_at', 'DESC')
             ->findAll();
 
-        // convert photo_path to absolute URL where available
-        foreach ($data['payrolls'] as &$pr) {
-            if (! empty($pr['photo_path'])) {
-                $pr['photo_path'] = base_url((string) $pr['photo_path']);
-            }
-        }
-        unset($pr);
-
         return view('client_portal/payroll_main', $data);
+    }
+
+    // ================= QUICK STATUS MARK (AJAX) =================
+    public function markPayrollStatus()
+    {
+        try {
+            $post       = $this->request->getJSON(true) ?: $this->request->getPost();
+            $employeeId = $post['employee_id'] ?? null;
+            $monthYear  = $post['month_year']  ?? null;
+            $status     = $post['status']      ?? 'Paid';
+
+            if (!$employeeId || !$monthYear) {
+                return $this->response->setStatusCode(400)->setJSON(['error' => 'Missing employee_id or month_year']);
+            }
+            if (!in_array($status, ['Paid', 'Pending'], true)) {
+                return $this->response->setStatusCode(400)->setJSON(['error' => 'Invalid status']);
+            }
+
+            $model    = new PayrollModel();
+            $existing = $model->where('employee_id', $employeeId)->where('month_year', $monthYear)->first();
+
+            if ($existing) {
+                $model->update($existing['id'], ['status' => $status]);
+                $id = $existing['id'];
+            } else {
+                $model->insert([
+                    'employee_id' => $employeeId,
+                    'month_year'  => $monthYear,
+                    'status'      => $status,
+                    'currency'    => 'PHP',
+                    'dst'         => 0,
+                ]);
+                $id = $model->getInsertID();
+            }
+
+            return $this->response->setJSON(['success' => true, 'id' => $id, 'status' => $status]);
+        } catch (\Throwable $e) {
+            log_message('error', 'markPayrollStatus: ' . $e->getMessage());
+            return $this->response->setStatusCode(500)->setJSON(['error' => $e->getMessage()]);
+        }
     }
 
     public function createPayroll()
@@ -159,42 +196,59 @@ class PayrollController extends BaseController
                 $month = date('Y-m');
             }
 
-            $payrollModel = new PayrollModel();
-            $payroll = $payrollModel
-                ->where('employee_id', $id)
-                ->where('month_year', $month)
-                ->first();
+            $db = \Config\Database::connect();
 
-            if (!$payroll || $payroll['daily_rate'] <= 0) {
-                return $this->response->setStatusCode(404)->setJSON([
-                    'error' => "No payroll record or daily rate not set for $month. Please create a payroll entry first in Payroll Status tab."
-                ]);
+            // Employee management is the canonical source for salary and benefits
+            $posRow = $db->table('employee_positions')
+                ->select('position, monthly_salary, de_minimis_benefit, allowances')
+                ->where('employee_id', $id)
+                ->get()->getRowArray();
+
+            $position      = $posRow['position']          ?? 'Employee';
+            $monthlySalary = (float)($posRow['monthly_salary']     ?? 0);
+            $deMinimis     = (float)($posRow['de_minimis_benefit'] ?? 0);
+            $allowances    = (float)($posRow['allowances']         ?? 0);
+
+            $workingDays = $this->getWorkingDaysInMonth($month);
+
+            if ($monthlySalary > 0) {
+                // Employee management is always the canonical source
+                $dailyRate = $monthlySalary / $workingDays;
+            } else {
+                // Fallback: check if payroll status has a daily_rate override
+                $payrollModel = new PayrollModel();
+                $payroll = $payrollModel
+                    ->where('employee_id', $id)
+                    ->where('month_year', $month)
+                    ->first();
+
+                if ($payroll && (float)$payroll['daily_rate'] > 0) {
+                    $dailyRate     = (float)$payroll['daily_rate'];
+                    $monthlySalary = $dailyRate * $workingDays;
+                } else {
+                    return $this->response->setStatusCode(404)->setJSON([
+                        'error' => "No salary set for this employee. Please set a Basic Salary in Employee Management.",
+                    ]);
+                }
             }
 
-            $dailyRate = (float)$payroll['daily_rate'];
-            $workingDays = $this->getWorkingDaysInMonth($month);
-            $monthlySalary = $dailyRate * $workingDays;
             $hourlyRate = $monthlySalary / 160;
 
-            // Get position from employee_positions table
-            $position = 'Employee';
-            $db = \Config\Database::connect();
-            $posRow = $db->table('employee_positions')->select('position')->where('employee_id', $id)->get()->getRowArray();
-            if ($posRow) $position = $posRow['position'];
-
-            $first = trim($employee['first_name'] ?? '');
-            $last  = trim($employee['last_name'] ?? '');
-            $mid   = trim($employee['middle_name'] ?? '');
-            $mi    = $mid !== '' ? strtoupper(substr($mid, 0, 1)) . '.' : '';
+            $first    = trim($employee['first_name']  ?? '');
+            $last     = trim($employee['last_name']   ?? '');
+            $mid      = trim($employee['middle_name'] ?? '');
+            $mi       = $mid !== '' ? strtoupper(substr($mid, 0, 1)) . '.' : '';
             $fullName = trim($first . ' ' . ($mi !== '' ? $mi . ' ' : '') . $last);
 
             return $this->response->setJSON([
-                'id'              => $employee['id'],
-                'name'            => $fullName,
-                'position'        => $position,
-                'monthly_salary'  => round($monthlySalary, 2),
-                'daily_rate'      => round($dailyRate, 2),
-                'hourly_rate'     => round($hourlyRate, 2),
+                'id'                 => $employee['id'],
+                'name'               => $fullName,
+                'position'           => $position,
+                'monthly_salary'     => round($monthlySalary, 2),
+                'daily_rate'         => round($dailyRate, 2),
+                'hourly_rate'        => round($hourlyRate, 2),
+                'de_minimis_default' => round($deMinimis, 2),
+                'allowances_default' => round($allowances, 2),
             ]);
         } catch (\Exception $e) {
             log_message('error', 'getEmployeeDetails: ' . $e->getMessage());
@@ -220,48 +274,58 @@ class PayrollController extends BaseController
     // ================= NEW: ATTENDANCE SUMMARY FOR RAW SHEET =================
     public function getAttendanceSummary(int $employeeId, string $startDate, string $endDate)
     {
-        $employeeModel = new EmployeeModel();
-        $employee = $employeeModel->find($employeeId);
-        if (!$employee) {
-            return $this->response->setStatusCode(404)->setJSON(['error' => 'Employee not found']);
-        }
-
-        $userId = $employee['user_id'];
-        $attendanceModel = new AttendanceModel();
-        $attendances = $attendanceModel
-            ->where('user_id', $userId)
-            ->where('DATE(time_in) >=', $startDate)
-            ->where('DATE(time_in) <=', $endDate)
-            ->findAll();
-
-        $summary = $this->aggregateAttendance($attendances, $startDate, $endDate);
-
-        // Overlay approved leave requests to adjust absent/paid leave days
-        $requestModel = new \App\Models\Client\RequestModel();
-        $requests = $requestModel
-            ->where('requested_by', $userId)
-            ->where('status', 'approved')
-            ->where('request_type', 'leave')
-            ->where('start_date >=', $startDate)
-            ->where('end_date <=', $endDate)
-            ->findAll();
-
-        $paidLeaveDays   = 0;
-        $unpaidLeaveDays = 0;
-        foreach ($requests as $req) {
-            if ($req['is_paid_leave']) {
-                $paidLeaveDays   += (float) $req['duration'];
-            } else {
-                $unpaidLeaveDays += (float) $req['duration'];
+        try {
+            $employeeModel = new EmployeeModel();
+            $employee = $employeeModel->find($employeeId);
+            if (!$employee) {
+                return $this->response->setStatusCode(404)->setJSON(['error' => 'Employee not found (ID: ' . $employeeId . ')']);
             }
+
+            $userId = $employee['user_id'];
+            if (!$userId) {
+                return $this->response->setStatusCode(422)->setJSON(['error' => 'Employee has no linked user account']);
+            }
+
+            $attendanceModel = new AttendanceModel();
+            $attendances = $attendanceModel
+                ->where('user_id', $userId)
+                ->where('DATE(time_in) >=', $startDate)
+                ->where('DATE(time_in) <=', $endDate)
+                ->findAll();
+
+            $summary = $this->aggregateAttendance($attendances, $startDate, $endDate);
+
+            // Overlay approved leave requests to adjust absent/paid leave days
+            $requestModel = new \App\Models\Client\RequestModel();
+            $requests = $requestModel
+                ->where('requested_by', $userId)
+                ->where('status', 'approved')
+                ->where('request_type', 'leave')
+                ->where('start_date >=', $startDate)
+                ->where('end_date <=', $endDate)
+                ->findAll();
+
+            $paidLeaveDays   = 0;
+            $unpaidLeaveDays = 0;
+            foreach ($requests as $req) {
+                if ($req['is_paid_leave'] ?? 1) {
+                    $paidLeaveDays   += (float) ($req['duration'] ?? 0);
+                } else {
+                    $unpaidLeaveDays += (float) ($req['duration'] ?? 0);
+                }
+            }
+
+            $summary['paid_leave_days']   = $paidLeaveDays;
+            $summary['unpaid_leave_days'] = $unpaidLeaveDays;
+            $summary['absent_days']       = max(0, $summary['absent_days'] - $paidLeaveDays);
+
+            return $this->response->setJSON($summary);
+        } catch (\Throwable $e) {
+            log_message('error', 'getAttendanceSummary error: ' . $e->getMessage() . ' | ' . $e->getFile() . ':' . $e->getLine());
+            return $this->response->setStatusCode(500)->setJSON([
+                'error' => 'Server error: ' . $e->getMessage(),
+            ]);
         }
-
-        // Paid leaves reduce the absent count; unpaid leaves are already captured as absent
-        $summary['paid_leave_days']   = $paidLeaveDays;
-        $summary['unpaid_leave_days'] = $unpaidLeaveDays;
-        $summary['absent_days']       = max(0, $summary['absent_days'] - $paidLeaveDays);
-
-        return $this->response->setJSON($summary);
     }
 
     private function aggregateAttendance(array $attendances, string $startDate, string $endDate): array
@@ -1253,8 +1317,33 @@ class PayrollController extends BaseController
     {
         $fmt = fn($n) => number_format((float)($n ?? 0), 2);
 
-        $fmtDate = fn($d) => $d
-            ? date('d-M-Y', strtotime($d))
+        $fmtDate = fn($d) => $d ? date('d-M-Y', strtotime($d)) : '';
+
+        // Recompute display values matching generatePayslipHTML() in the JS view
+        $netBasicPay   = (float)($data['net_basic_pay']  ?? 0);
+        $regOt         = (float)($data['reg_ot']         ?? 0);
+        $satOt         = (float)($data['sat_ot']         ?? 0);
+        $sunOt         = (float)($data['sun_ot']         ?? 0);
+        $holOt         = (float)($data['hol_ot']         ?? 0);
+        $totalOvertime = $regOt + $satOt + $sunOt + $holOt;
+        $taxableOther  = (float)($data['other_earnings_taxable'] ?? 0);
+        $nonTaxable    = (float)($data['de_minimis']     ?? 0);
+        $grossPay      = $netBasicPay + $totalOvertime + $taxableOther + $nonTaxable;
+
+        $govDeductions = (float)($data['sss_ee']          ?? 0)
+                       + (float)($data['phic_ee']         ?? 0)
+                       + (float)($data['hdmf_ee']         ?? 0)
+                       + (float)($data['withholding_tax'] ?? 0);
+
+        $totalDeductionsDisplay = $govDeductions
+                       + (float)($data['sss_loan']        ?? 0)
+                       + (float)($data['calamity_loan']   ?? 0)
+                       + (float)($data['salary_advance']  ?? 0)
+                       + (float)($data['other_deductions'] ?? 0);
+
+        $logoDataUri = $this->getLogoDataUri();
+        $logoHtml    = $logoDataUri
+            ? '<div style="text-align:center;margin-bottom:20px;"><img src="' . $logoDataUri . '" style="max-height:80px;"></div>'
             : '';
 
         // =========================================================

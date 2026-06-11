@@ -59,15 +59,10 @@ class PayrollComputationService
         $phic = $this->calculatePhilHealth($monthlySalary);
         $hdmf = $this->calculatePagIbig($monthlySalary);
 
-        // 5. Withholding tax
-        $currentTaxable  = $netBasic + $totalOvertime + $otherTaxable;
-        $previousTaxable = $this->getPreviousCutoffTaxable($employeeId, $periodStart);
-        $previousWtax    = $this->getPreviousWtaxPaid($employeeId, $periodStart);
-
-        $monthlyTaxable = $currentTaxable + $previousTaxable;
-        $monthlyWtax    = $this->calculateWithholdingTax($monthlyTaxable);
-
-        $withholdingTax = max(0, $monthlyWtax - $previousWtax);
+        // 5. Withholding tax — per semi-monthly period using BIR semi-monthly brackets.
+        //    BIR RR 3-2015: mandatory contributions do NOT reduce taxable compensation.
+        $currentTaxable = $netBasic + $totalOvertime + $otherTaxable;
+        $withholdingTax = $this->calculateSemiMonthlyWithholdingTax($currentTaxable);
 
         // 6. Loans & deductions
         $otherDeductions = (float)($raw['other_deductions'] ?? 0);
@@ -91,6 +86,7 @@ class PayrollComputationService
             $withholdingTax +
             $totalLoanDeductions +
             $otherDeductions;
+
 
         $netPay = $totalEarnings - $totalDeductions;
 
@@ -141,17 +137,12 @@ class PayrollComputationService
     ): array
     {
         $loanService = new LoanService();
-
-        // =========================================================
-        // EARNINGS
-        // =========================================================
-
-        $basicPay        = (float)($adjustments['basic_pay'] ?? 0);
-        $nightDiff       = (float)($adjustments['night_diff_pay'] ?? 0);
-        $overtime        = (float)($adjustments['overtime_pay'] ?? 0);
-        $deMinimis       = (float)($adjustments['de_minimis'] ?? 0);
-        $otherTaxable    = (float)($adjustments['other_earnings_taxable'] ?? 0);
-        $otherNonTaxable = (float)($adjustments['other_earnings_non_taxable'] ?? 0);
+        $basicPay        = (float)($adjustments['basic_pay']                   ?? 0);
+        $nightDiff       = (float)($adjustments['night_diff_pay']              ?? 0);
+        $overtime        = (float)($adjustments['overtime_pay']                ?? 0);
+        $deMinimis       = (float)($adjustments['de_minimis']                  ?? 0);
+        $otherTaxable    = (float)($adjustments['other_earnings_taxable']      ?? 0);
+        $otherNonTaxable = (float)($adjustments['other_earnings_non_taxable']  ?? 0);
 
         $totalEarnings =
             $basicPay +
@@ -165,48 +156,28 @@ class PayrollComputationService
         // GOVERNMENT CONTRIBUTIONS
         // =========================================================
 
-        $monthlySalary = $basicPay * 2;
-
-        $sss  = $this->calculateSSS($monthlySalary);
+        // Use monthly salary from employee management as the base for contributions.
+        // The payload may include it if sent by the client; fall back to employee_positions.
+        $monthlySalary = (float)($adjustments['monthly_salary'] ?? 0);
+        if ($monthlySalary <= 0) {
+            $db     = \Config\Database::connect();
+            $posRow = $db->table('employee_positions')
+                ->select('monthly_salary')
+                ->where('employee_id', $employeeId)
+                ->get()->getRowArray();
+            $monthlySalary = (float)($posRow['monthly_salary'] ?? 0);
+        }
+        if ($monthlySalary <= 0) {
+            $monthlySalary = $basicPay * 2; // last-resort approximation
+        }
+        $sss = $this->calculateSSS($monthlySalary);
         $phic = $this->calculatePhilHealth($monthlySalary);
         $hdmf = $this->calculatePagIbig($monthlySalary);
 
-        // =========================================================
-        // WITHHOLDING TAX
-        // =========================================================
-
-        $currentTaxable =
-            $basicPay +
-            $nightDiff +
-            $overtime +
-            $otherTaxable;
-
-        $previousTaxable =
-            $this->getPreviousCutoffTaxable(
-                $employeeId,
-                $start
-            );
-
-        $previousWtax =
-            $this->getPreviousWtaxPaid(
-                $employeeId,
-                $start
-            );
-
-        $monthlyTaxable =
-            $currentTaxable +
-            $previousTaxable;
-
-        $monthlyWtax =
-            $this->calculateWithholdingTax(
-                $monthlyTaxable
-            );
-
-        $withholdingTax =
-            max(
-                0,
-                $monthlyWtax - $previousWtax
-            );
+        // Withholding tax — per semi-monthly period using BIR semi-monthly brackets.
+        //    BIR RR 3-2015: mandatory contributions do NOT reduce taxable compensation.
+        $currentTaxable = $basicPay + $nightDiff + $overtime + $otherTaxable;
+        $withholdingTax = $this->calculateSemiMonthlyWithholdingTax($currentTaxable);
 
         // =========================================================
         // LOAN DEDUCTIONS
@@ -439,6 +410,20 @@ class PayrollComputationService
         $excess = $monthlyTaxableIncome - (float)$bracket['min_amount'];
         $tax    = (float)$bracket['fixed_tax'] + ($excess * (float)$bracket['percent_over']);
         return max(0, round($tax, 2));
+    }
+
+    /**
+     * BIR Revised WT Table (Jan 1 2023) — official semi-monthly brackets.
+     * Applied per-period to semi-monthly taxable compensation directly.
+     */
+    protected function calculateSemiMonthlyWithholdingTax(float $semiMonthlyTaxable): float
+    {
+        if ($semiMonthlyTaxable <= 10417)  return 0.0;
+        if ($semiMonthlyTaxable <= 16667)  return round(($semiMonthlyTaxable - 10417)  * 0.15, 2);
+        if ($semiMonthlyTaxable <= 33333)  return round(937.50  + ($semiMonthlyTaxable - 16667) * 0.20, 2);
+        if ($semiMonthlyTaxable <= 83333)  return round(4270.70 + ($semiMonthlyTaxable - 33333) * 0.25, 2);
+        if ($semiMonthlyTaxable <= 333333) return round(16770.70 + ($semiMonthlyTaxable - 83333) * 0.30, 2);
+        return round(91770.70 + ($semiMonthlyTaxable - 333333) * 0.35, 2);
     }
 
     // ========== Helpers for previous cut‑off data ==========

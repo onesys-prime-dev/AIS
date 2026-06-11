@@ -520,15 +520,27 @@ $companyLogoUrl = $companyBranding && !empty($companyBranding['logo_path'])
                     <div><label>NED</label><input type="number" id="nedAmount" value="0"></div>
                 </div>
                 <div class="grid-3 mt-3">
-                    <div><label>Holiday Pay</label><input type="number" id="holidayPay" value="0"></div>
+                    <div>
+                        <label>Reg Holiday Hours</label>
+                        <input type="number" id="regHolHours" value="0" oninput="calcHolPay()">
+                        <label class="mt-1">Reg Holiday Pay (2.0&times;)</label>
+                        <input type="number" id="regHolPay" value="0" oninput="updateHolidayTotal()">
+                    </div>
+                    <div>
+                        <label>Spec Holiday Hours</label>
+                        <input type="number" id="specHolHours" value="0" oninput="calcHolPay()">
+                        <label class="mt-1">Spec Holiday Pay (1.3&times;)</label>
+                        <input type="number" id="specHolPay" value="0" oninput="updateHolidayTotal()">
+                    </div>
                     <div><label>Gross Compensation</label><input type="number" id="grossComp" value="0"></div>
                 </div>
+                <input type="hidden" id="holidayPay" value="0">
             </div>
 
             <!-- LOANS + ADVANCES -->
            <!--  <div class="grid-2 section">
                 <div>
-                    <h3 class="font-semibold">SSS Loan</h3>
+                    <h3 class="font-semibold">Loans and Advances</h3>
                     <div><label>Salary Loan</label><input type="number" id="sssSalaryLoan" value="0"></div>
                     <div class="mt-2"><label>Calamity</label><input type="number" id="sssCalamityLoan" value="0"></div>
                 </div>
@@ -596,19 +608,19 @@ $companyLogoUrl = $companyBranding && !empty($companyBranding['logo_path'])
                 </div>
             </div>
             <div class="section">
-                <h3 class="font-semibold">Saturday Overtime</h3>
+                <h3 class="font-semibold">Rest-Day / Special Holiday Overtime <small style="font-weight:normal;color:#666;">(130%&times;130% = 169%)</small></h3>
                 <div class="grid-3">
                     <div><label>Hours</label><input type="number" id="satOtHours" value="0"></div>
                     <div><label>PHP Equivalent</label><input type="number" id="satOtPhp" value="0"></div>
                 </div>
             </div>
             <div class="section">
-                <h3 class="font-semibold">Sunday / Holiday Overtime</h3>
+                <h3 class="font-semibold">Regular Holiday Overtime <small style="font-weight:normal;color:#666;">(200%&times;130% = 260%)</small></h3>
                 <div class="grid-3">
-                    <div><label>Sun OT Hours</label><input type="number" id="sunOtHours" value="0"></div>
-                    <div><label>Sun OT PHP</label><input type="number" id="sunOtPhp" value="0"></div>
                     <div><label>Hol OT PHP</label><input type="number" id="holOtPhp" value="0"></div>
                 </div>
+                <input type="hidden" id="sunOtHours" value="0">
+                <input type="hidden" id="sunOtPhp" value="0">
             </div>
 
             <div class="button-container">
@@ -687,7 +699,7 @@ $companyLogoUrl = $companyBranding && !empty($companyBranding['logo_path'])
                     <div><label>Withholding Tax Payable</label><input type="number" id="wtPayable" value="0"></div>
                 </div>
 
-                <!-- <h3 class="font-semibold mt-4">SSS Loan</h3>
+                <h3 class="font-semibold mt-4">Loans and Advances</h3>
                 <p class="subtitle">Please complete the employee data</p>
                 <div class="grid-2">
                     <div><label>Salary</label><input type="number" id="regSssLoanSalary" value="0"></div>
@@ -1102,14 +1114,17 @@ async function fillEmployeeData(employeeId) {
         return false;
     }
 
-    // 1. Get basic employee details
+    // 1. Get basic employee details (source: employee management, not payroll status)
     const month = periodStart.substring(0, 7);
     const empUrl = `<?= site_url('client_portal/payroll/employee_details') ?>/${employeeId}?month=${month}`;
     let empData;
     try {
         const empResp = await fetch(empUrl);
-        if (!empResp.ok) throw new Error('Failed to fetch employee data');
         empData = await empResp.json();
+        if (!empResp.ok) {
+            alert('Could not load employee details: ' + (empData.error || `Server error ${empResp.status}`));
+            return false;
+        }
     } catch (err) {
         alert('Could not load employee details: ' + err.message);
         return false;
@@ -1124,13 +1139,26 @@ async function fillEmployeeData(employeeId) {
     const hourlyRateVal = empData.hourly_rate || (monthly / 160);
     document.getElementById('hourlyRate').value = hourlyRateVal.toFixed(2);
 
+    // Populate de minimis and allowances from employee management
+    if (empData.de_minimis_default > 0) {
+        document.getElementById('riceSubsidy').value = empData.de_minimis_default;
+    }
+    if (empData.allowances_default > 0) {
+        document.getElementById('salaryAdjustment').value = empData.allowances_default;
+    }
+
     // 2. Fetch attendance summary
     const sumUrl = `<?= site_url('client_portal/payroll/attendance-summary') ?>/${employeeId}/${periodStart}/${periodEnd}`;
     let summary;
     try {
         const sumResp = await fetch(sumUrl);
-        if (!sumResp.ok) throw new Error('Failed to fetch attendance summary');
-        summary = await sumResp.json();
+        const sumData = await sumResp.json().catch(() => null);
+        if (!sumResp.ok) {
+            const msg = (sumData && sumData.error) ? sumData.error : `Server error ${sumResp.status}`;
+            alert('Could not load attendance summary: ' + msg);
+            return false;
+        }
+        summary = sumData;
     } catch (err) {
         alert('Could not load attendance summary: ' + err.message);
         return false;
@@ -1147,21 +1175,23 @@ async function fillEmployeeData(employeeId) {
     const tardyHours = summary.tardy_minutes / 60;
     const hourlyRate = parseFloat(document.getElementById('hourlyRate').value) || 0;
     const undertimeAmount = tardyHours * hourlyRate;
-    document.getElementById('utPhp').value = undertimeAmount.toFixed(2);
+    document.getElementById('utHours').value = tardyHours.toFixed(2);
+    document.getElementById('utPhp').value   = undertimeAmount.toFixed(2);
     
     const nightDiffRate = 0.10;
     const nightDiffPay = summary.night_diff_hours * hourlyRate * nightDiffRate;
     document.getElementById('workdayNightDiffPhp').value = nightDiffPay.toFixed(2);
     
     const otRegularRate = 1.25;
-    const otRestRate   = 1.30;
-    const otHolidayRate = 2.00;
-    const regOtPay = summary.reg_ot_hours * hourlyRate * otRegularRate;
-    const restOtPay = summary.rest_ot_hours * hourlyRate * otRestRate;
+    const otRestRate    = parseFloat(window._payrollSettings?.ot_rest_rate)    || 1.69;
+    const otHolidayRate = parseFloat(window._payrollSettings?.ot_holiday_rate) || 2.60;
+    const regOtPay  = summary.reg_ot_hours     * hourlyRate * otRegularRate;
+    const restOtPay = summary.rest_ot_hours    * hourlyRate * otRestRate;
     const holOtPay  = summary.holiday_ot_hours * hourlyRate * otHolidayRate;
     document.getElementById('workdayOtPhp').value = regOtPay.toFixed(2);
-    document.getElementById('satOtPhp').value = restOtPay.toFixed(2);
-    document.getElementById('sunOtPhp').value = holOtPay.toFixed(2);
+    document.getElementById('satOtPhp').value     = restOtPay.toFixed(2);
+    document.getElementById('sunOtPhp').value     = '0.00';
+    document.getElementById('holOtPhp').value     = holOtPay.toFixed(2);
     
     const emp = employeesList.find(e => e.id == employeeId);
     if (emp) document.getElementById('empName').value = emp.name;
@@ -1185,11 +1215,9 @@ async function fillEmployeeData(employeeId) {
     }
     
     const contribs = updateContributions(monthly);
-    // Semi-monthly gross taxable ≈ half of monthly salary (OT/adjustments not yet entered).
-    // Net taxable = gross taxable minus gov't contributions (same period).
-    const semiGrossTaxable  = monthly / 2;
-    const semiNetTaxable    = Math.max(0, semiGrossTaxable - contribs.sss - contribs.phic - contribs.hdmf);
-    updateWithholdingTax(semiNetTaxable);
+    // BIR RR 3-2015: mandatory contributions do NOT reduce taxable compensation for WT.
+    // WT is computed on gross semi-monthly income directly.
+    updateWithholdingTax(monthly / 2);
 
     alert('Raw sheet auto‑filled with attendance data.');
     return true;
@@ -1306,12 +1334,46 @@ function calculateTotalLoanDeductions() {
 
 // ── SSS / PHIC / HDMF auto-fill (2025 schedule, employee share only) ──────
 function computeSSS(monthlySalary) {
-    // Monthly Salary Credit (MSC) lookup: salary < ₱4,250 → MSC ₱4,000;
-    // otherwise ±₱500 brackets up to ₱35,000 cap (SSS Circular 2019-013/2023-011).
-    const msc = Math.max(4000, Math.min(35000, Math.ceil((monthlySalary - 249.99) / 500) * 500));
-    const regular = msc * 0.045;                          // 4.5% employee share
-    const wisp    = Math.max(0, msc - 20000) * 0.01;     // 1% WISP on MSC above ₱20,000
-    return { regular, wisp, total: regular + wisp };
+    // 2025 SSS Table: [range_start, ee_regular, ee_wisp] — 5% EE, MPF from 15000+
+    const t = [
+        [0,25,0],[500,50,0],[1000,75,0],[1500,100,0],[2000,125,0],[2500,150,0],
+        [3000,175,0],[3500,200,0],[4000,225,0],[4500,250,0],[5000,275,0],[5500,300,0],
+        [6000,325,0],[6500,350,0],[7000,375,0],[7500,400,0],[8000,425,0],[8500,450,0],
+        [9000,475,0],[9500,500,0],[10000,525,0],[10500,550,0],[11000,575,0],[11500,600,0],
+        [12000,625,0],[12500,650,0],[13000,675,0],[13500,700,0],[14000,725,0],[14500,750,0],
+        [15000,750,25],[15500,750,25],[16000,750,50],[16500,750,75],[17000,750,100],[17500,750,125],
+        [18000,750,150],[18500,750,175],[19000,750,200],[19500,750,225],[20000,750,250],[20500,750,275],
+        [21000,750,300],[21500,750,325],[22000,750,350],[22500,750,375],[23000,750,400],[23500,750,425],
+        [24000,750,450],[24500,750,475],[25000,750,500],[25500,750,525],[26000,750,550],[26500,750,575],
+        [27000,750,600],[27500,750,625],[28000,750,650],[28500,750,675],[29000,750,700],[29500,750,725]
+    ];
+    let row = t[t.length - 1];
+    for (let i = t.length - 1; i >= 0; i--) { if (monthlySalary >= t[i][0]) { row = t[i]; break; } }
+    return { regular: row[1], wisp: row[2], total: row[1] + row[2] };
+}
+
+(function() {
+    fetch('\<?= site_url("client_portal/payroll/getSettings") ?>')
+        .then(function(r) { return r.json(); })
+        .then(function(s) { window._payrollSettings = s; })
+        .catch(function() {});
+})();
+
+function calcHolPay() {
+    const hr = parseFloat(document.getElementById('hourlyRate')?.value || 0);
+    const rh = parseFloat(document.getElementById('regHolHours')?.value || 0);
+    const sh = parseFloat(document.getElementById('specHolHours')?.value || 0);
+    const regRate  = parseFloat(window._payrollSettings?.reg_holiday_rate)  || 2.00;
+    const specRate = parseFloat(window._payrollSettings?.spec_holiday_rate) || 1.30;
+    document.getElementById('regHolPay').value  = (rh * hr * regRate).toFixed(2);
+    document.getElementById('specHolPay').value = (sh * hr * specRate).toFixed(2);
+    updateHolidayTotal();
+}
+
+function updateHolidayTotal() {
+    const reg  = parseFloat(document.getElementById('regHolPay')?.value  || 0);
+    const spec = parseFloat(document.getElementById('specHolPay')?.value || 0);
+    document.getElementById('holidayPay').value = (reg + spec).toFixed(2);
 }
 
 function updateContributions(monthlySalary) {
@@ -1336,18 +1398,18 @@ function updateContributions(monthlySalary) {
 // Monthly NET taxable = (semi-monthly gross taxable - gov't contributions) × 2
 // Excel: Z = S(gross taxable) - W(sss) - X(phic) - Y(hdmf); Monthly = Z + prev Z
 // We approximate Monthly Taxable = 2 × current Z (symmetric semi-monthly periods).
+// BIR Revised WT Table (Jan 1 2023) — official semi-monthly brackets
+// Applied directly to semi-monthly taxable compensation each period.
 function updateWithholdingTax(semiMonthlyNetTaxable) {
-    const monthlyTaxable = semiMonthlyNetTaxable * 2;
-    let monthlyTax = 0;
-    if (monthlyTaxable <= 20833)       monthlyTax = 0;
-    else if (monthlyTaxable <= 33333)  monthlyTax = (monthlyTaxable - 20833) * 0.15;
-    else if (monthlyTaxable <= 66667)  monthlyTax = 2083.33 + (monthlyTaxable - 33333) * 0.20;
-    else if (monthlyTaxable <= 166667) monthlyTax = 7083.33 + (monthlyTaxable - 66667) * 0.25;
-    else if (monthlyTaxable <= 666667) monthlyTax = 30833.33 + (monthlyTaxable - 166667) * 0.30;
-    else                               monthlyTax = 180833.33 + (monthlyTaxable - 666667) * 0.35;
-    // Per semi-monthly period = half of monthly tax
-    document.getElementById('wtPayable').value = (monthlyTax / 2).toFixed(2);
-    return monthlyTax / 2;
+    let semiTax = 0;
+    if (semiMonthlyNetTaxable <= 10417)       semiTax = 0;
+    else if (semiMonthlyNetTaxable <= 16667)  semiTax =      0 + (semiMonthlyNetTaxable -  10417) * 0.15;
+    else if (semiMonthlyNetTaxable <= 33333)  semiTax =  937.50 + (semiMonthlyNetTaxable -  16667) * 0.20;
+    else if (semiMonthlyNetTaxable <= 83333)  semiTax = 4270.70 + (semiMonthlyNetTaxable -  33333) * 0.25;
+    else if (semiMonthlyNetTaxable <= 333333) semiTax = 16770.70 + (semiMonthlyNetTaxable -  83333) * 0.30;
+    else                                      semiTax = 91770.70 + (semiMonthlyNetTaxable - 333333) * 0.35;
+    document.getElementById('wtPayable').value = semiTax.toFixed(2);
+    return semiTax;
 }
 
 // ================= SYNC RAW SHEET TO REGISTER =================
@@ -1386,6 +1448,8 @@ function syncToRegister() {
     // (matches Excel: R = E + SUM(F:Q), S = E + SUM(M:Q))
     const grossTaxable = semiMonthly + overtime + nd + holPay + salAdj - absAmt;
     const grossComp    = grossTaxable + totalDeMin;
+    // Recalculate WT on actual gross taxable (includes OT, ND, holiday pay)
+    updateWithholdingTax(Math.max(0, grossTaxable));
     document.getElementById('grossCompReg').value     = grossComp.toFixed(2);
     document.getElementById('grossTaxableComp').value = grossTaxable.toFixed(2);
     if (document.getElementById('grossNonTaxableComp'))
@@ -1981,8 +2045,67 @@ function generatePayslipHTML(d) {
     `;
 }
 
+// Read values from the editable payslip-tab fields (edit_*) so that manual
+// overrides on the Payslip tab are honoured when the payslip is generated.
+function getEditedPayslipValues() {
+    const sp = (id) => safeParseFloat(document.getElementById(id)?.value);
+    const sv = (id) => document.getElementById(id)?.value || '';
+
+    const basicPay      = sp('edit_basicPay');
+    const ratePerHour   = sp('edit_ratePerHour');
+    const hoursWorked   = sp('edit_hoursWorked');
+    const nightPremium  = sp('edit_nightPremium');
+    const absentAmt     = sp('edit_absentAmt');
+    const undertimeAmt  = sp('edit_undertimeAmt');
+    const regOt         = sp('edit_regOt');
+    const satOt         = sp('edit_satOt');
+    const sunOt         = sp('edit_sunOt');
+    const holOt         = sp('edit_holOt');
+    const taxableOther  = sp('edit_taxAdj');
+    const nonTaxable    = sp('edit_nonTaxable');
+    const sssDed        = sp('edit_sss');
+    const phicDed       = sp('edit_phic');
+    const hdmfDed       = sp('edit_hdmf');
+    const withholdingTax= sp('edit_wtax');
+    const sssLoan       = sp('edit_sssLoan');
+    const calamityLoan  = sp('edit_calamityLoan');
+    const salaryAdvance = sp('edit_advSalary');
+
+    const totalDeductionsFromPay = Math.min(absentAmt + undertimeAmt, basicPay);
+    const netBasicPay   = Math.max(0, basicPay - totalDeductionsFromPay + nightPremium);
+    const totalOvertime = regOt + satOt + sunOt + holOt;
+    const grossPay      = netBasicPay + totalOvertime + taxableOther + nonTaxable;
+    const totalDeductions = sssDed + phicDed + hdmfDed + withholdingTax + sssLoan + calamityLoan + salaryAdvance;
+    const netPay        = grossPay - totalDeductions;
+
+    const empName  = sv('payslipEmpName')  || sv('empName')     || 'Not Selected';
+    const position = sv('payslipPosition') || sv('empPosition') || 'N/A';
+    const pStart   = sv('payslipPeriodStart') || sv('periodStart') || '';
+    const pEnd     = sv('payslipPeriodEnd')   || sv('periodEnd')   || '';
+
+    const formatDate = (s) => {
+        if (!s) return '';
+        const d = new Date(s);
+        return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    };
+
+    return {
+        empName, position, periodStart: pStart, periodEnd: pEnd,
+        basicPay, ratePerHour, hoursWorked, nightPremium, absentAmt, undertimeAmt,
+        netBasicPay, regOt, satOt, sunOt, holOt, taxableOther, nonTaxable,
+        grossPay, sssDed, phicDed, hdmfDed, withholdingTax,
+        sssLoan, calamityLoan, salaryAdvance, totalDeductions, netPay,
+        formatStart: formatDate(pStart), formatEnd: formatDate(pEnd)
+    };
+}
+
 function generateStaticPayslip() {
-    const d = computePayslipData();
+    // Use the payslip tab's editable fields if populated (user may have adjusted values);
+    // fall back to raw-sheet fields when the payslip tab hasn't been visited yet.
+    const editEl = document.getElementById('edit_basicPay');
+    const d = (editEl && editEl.value !== '' && editEl.value !== '0.00')
+        ? getEditedPayslipValues()
+        : computePayslipData();
     if (!d.empName || d.empName === 'Not Selected') {
         alert('Please select an employee and fill in the Raw Sheet first.');
         return;
@@ -2004,6 +2127,7 @@ function generateStaticPayslip() {
         employee_id: employeeIdToSubmit,
         period_start: startDate,
         period_end: endDate,
+        monthly_salary: safeParseFloat(document.getElementById('monthlySalary')?.value),
         basic_pay: d.basicPay,
         night_diff_pay: d.nightPremium,
         overtime_pay: d.regOt + d.satOt + d.sunOt + d.holOt,
