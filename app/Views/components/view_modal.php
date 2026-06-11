@@ -1,6 +1,5 @@
 <div id="<?= $id ?>" 
-    class="fixed inset-0 bg-black/40 flex items-center justify-center z-[9999] modal-overlay"
-    style="display: none;">
+    class="modal-overlay">
 
         <div class="bg-white rounded-xl shadow-xl w-full <?= esc($maxWidthClass ?? 'max-w-[950px]') ?> p-6 relative modal-card">
 
