@@ -8,10 +8,12 @@ use App\Controllers\BaseController;
 class AttendanceController extends BaseController
 {
     protected $attendanceModel;
+    protected $db;
 
     public function __construct()
     {
         $this->attendanceModel = new AttendanceModel();
+        $this->db              = db_connect();
     }
 
     public function timeIn()
@@ -23,7 +25,6 @@ class AttendanceController extends BaseController
 
         $userId = $user->id;
 
-        // check if already timed in
         $current = $this->attendanceModel
             ->where('user_id', $userId)
             ->where('time_out', null)
@@ -62,14 +63,17 @@ class AttendanceController extends BaseController
             return redirect()->back()->with('error', 'No active time in found!');
         }
 
-        $start   = strtotime($attendance['time_in']);
-        $end     = time();
-        $timeOut = date('Y-m-d H:i:s', $end);
+        $start         = strtotime($attendance['time_in']);
+        $end           = time();
+        $clockOutDate  = date('Y-m-d', $end);
 
-        $totalHours    = ($end - $start) / 3600;
+        // --- Resolve end_time cap from employee_positions ---
+        $cappedEnd = $this->resolveEndTimeCap($userId, $clockOutDate, $end);
+
+        $timeOut       = date('Y-m-d H:i:s', $cappedEnd);
+        $totalHours    = ($cappedEnd - $start) / 3600;
         $breakDuration = (float) ($attendance['break_duration'] ?? 0);
 
-        // Compute night differential hours (between 22:00 and 06:00)
         $nightDiffHours = $this->computeNightDiffHours(
             $attendance['time_in'],
             $timeOut,
@@ -117,7 +121,6 @@ class AttendanceController extends BaseController
         }
 
         if (empty($attendance['break_start']) && empty($attendance['break_end'])) {
-            // Start break
             if ($attendance['break_duration'] >= 1) {
                 return redirect()->back()->with('error', "You've used up your 1 hour break!");
             }
@@ -135,7 +138,6 @@ class AttendanceController extends BaseController
 
             return redirect()->back()->with('success', 'Break started!');
         } else {
-            // End break
             $breakStart = strtotime($attendance['break_start']);
             $breakEnd   = time();
             $breakHours = ($breakEnd - $breakStart) / 3600;
@@ -159,12 +161,56 @@ class AttendanceController extends BaseController
         }
     }
 
+    // -------------------------------------------------------------------------
+    // Private helpers
+    // -------------------------------------------------------------------------
+
+    /**
+     * Returns the effective clock-out timestamp, capped to the employee's
+     * scheduled end_time unless an approved overtime request covers that date.
+     */
+    private function resolveEndTimeCap(int $userId, string $clockOutDate, int $actualEnd): int
+    {
+        $employee = $this->db->table('employees')
+            ->where('user_id', $userId)
+            ->get()->getRowArray();
+
+        if (! $employee) {
+            return $actualEnd;
+        }
+
+        $position = $this->db->table('employee_positions')
+            ->where('employee_id', $employee['id'])
+            ->get()->getRowArray();
+
+        if (! $position || empty($position['end_time'])) {
+            return $actualEnd;
+        }
+
+        $capTimestamp = strtotime($clockOutDate . ' ' . $position['end_time']);
+
+        // No cap needed if they're clocking out before or at the scheduled end
+        if ($actualEnd <= $capTimestamp) {
+            return $actualEnd;
+        }
+
+        // Check for an approved overtime request covering this date
+        $hasOvertime = $this->db->table('requests')
+            ->where('requested_by', $userId)
+            ->where('request_type', 'overtime')
+            ->where('status', 'approved')
+            ->where('start_date <=', $clockOutDate)
+            ->where('end_date >=', $clockOutDate)
+            ->countAllResults() > 0;
+
+        return $hasOvertime ? $actualEnd : $capTimestamp;
+    }
+
     private function computeNightDiffHours($timeIn, $timeOut, $breakDuration)
     {
         $start = new \DateTime($timeIn);
         $end   = new \DateTime($timeOut);
 
-        // Derive the date from time_in
         $date = $start->format('Y-m-d');
 
         $ndStart = new \DateTime($date . ' 22:00:00');
@@ -174,12 +220,12 @@ class AttendanceController extends BaseController
         $overlapStart = max($start, $ndStart);
         $overlapEnd   = min($end, $ndEnd);
         $nightMinutes = 0;
+
         if ($overlapStart < $overlapEnd) {
             $diff         = $overlapStart->diff($overlapEnd);
             $nightMinutes = $diff->h * 60 + $diff->i;
         }
 
-        // Simple deduction: assume break does not overlap night diff; refine if needed
         return $nightMinutes / 60;
     }
 }

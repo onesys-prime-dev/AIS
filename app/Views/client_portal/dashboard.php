@@ -1943,10 +1943,12 @@ document.addEventListener('DOMContentLoaded', function () {
         let progress;
 
         if(onBreak){
-            progress = breakRemaining / BREAK_MINUTES;
+            let safeBreak = Math.max(breakRemaining, 0);
+            progress = safeBreak / BREAK_MINUTES;
             ring.setAttribute("stroke","#f97316");
         }else{
-            progress = shiftRemaining / SHIFT_MINUTES;
+            let safeShift = Math.max(shiftRemaining, 0);
+            progress = safeShift / SHIFT_MINUTES;
             ring.setAttribute("stroke","#B7E824");
         }
 
@@ -1967,10 +1969,12 @@ document.addEventListener('DOMContentLoaded', function () {
         dot.setAttribute("cy",y);
 
         if(onBreak){
-            shiftTimeEl.innerText = "Break "+Math.ceil(breakRemaining)+"m";
+            let safeBreak = Math.max(breakRemaining, 0);
+            shiftTimeEl.innerText = "Break "+Math.ceil(safeBreak)+"m";
         }else{
-            let hours = Math.floor(shiftRemaining/60);
-            let minutes = Math.floor(shiftRemaining%60);
+            let safeShift = Math.max(shiftRemaining, 0);
+            let hours = Math.floor(safeShift/60);
+            let minutes = Math.floor(safeShift%60);
             shiftTimeEl.innerText = hours+":"+minutes.toString().padStart(2,'0');
         }
 
@@ -1981,22 +1985,21 @@ document.addEventListener('DOMContentLoaded', function () {
         if(!isClockedIn) return;
 
         if(onBreak){
-
-        if(breakRemaining>0){
-            breakRemaining--;
-            updateDisplay();
-            if(breakRemaining<=0){
-                onBreak=false;
+            if(breakRemaining > 0){
+                breakRemaining--;
+                updateDisplay();
+                if(breakRemaining <= 0){
+                    onBreak = false;
+                    updateDisplay();
+                }
+            }
+        }else{
+            if(shiftRemaining > 0){
+                shiftRemaining--;
                 updateDisplay();
             }
         }
 
-        }else{
-            if(shiftRemaining>0){
-            shiftRemaining--;
-            updateDisplay();
-            }
-        }
     },60000);
 
     const now = new Date();
