@@ -313,9 +313,9 @@ class LoanController extends BaseController
                 [
                     'start_date' =>
                         $this->request->getPost('start_date'),
-                    'loan_status' =>
-                        $this->request
-                            ->getPost('loan_status'),
+
+                    'remarks' =>
+                        $this->request->getPost('remarks'),
                 ]
             );
 
@@ -335,33 +335,6 @@ class LoanController extends BaseController
         }
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | CLOSE LOAN
-    |--------------------------------------------------------------------------
-    */
-
-    public function closeLoan($loanId)
-    {
-        $loan = $this->loanModel->find($loanId);
-        if (!$loan) {
-            return redirect()->back()
-                ->with(
-                    'error',
-                    'Loan not found.'
-                );
-        }
-
-        $this->loanService->closeLoan(
-            (int) $loanId
-        );
-        return redirect()->back()
-            ->with(
-                'success',
-                'Loan closed successfully.'
-            );
-    }
-
     public function completeLoan($loanId)
     {
         $loan = $this->loanModel->find($loanId);
@@ -375,7 +348,7 @@ class LoanController extends BaseController
                 );
         }
 
-        $this->loanService->closeLoan(
+        $this->loanService->completeLoan(
             (int) $loanId
         );
 
@@ -383,6 +356,30 @@ class LoanController extends BaseController
             ->with(
                 'success',
                 'Loan marked as completed.'
+            );
+    }
+
+    public function cancelLoan($loanId)
+    {
+        $loan = $this->loanModel->find($loanId);
+
+        if (!$loan) {
+
+            return redirect()->back()
+                ->with(
+                    'error',
+                    'Loan not found.'
+                );
+        }
+
+        $this->loanService->cancelLoan(
+            (int) $loanId
+        );
+
+        return redirect()->back()
+            ->with(
+                'success',
+                'Loan cancelled successfully.'
             );
     }
 
@@ -398,8 +395,9 @@ class LoanController extends BaseController
     public function saveLoanSettings()
     {
         $loanTypes = $this->request->getPost('loan_type');
+        $loanCategories = $this->request->getPost('loan_category');
 
-        if (!$loanTypes) {
+        if (!$loanTypes || !$loanCategories) {
             return redirect()->back()
                 ->with(
                     'error',
@@ -408,32 +406,69 @@ class LoanController extends BaseController
         }
 
         foreach ($loanTypes as $index => $loanType) {
+            $loanCategory = trim($loanCategories[$index] ?? '');
+            $loanType = trim($loanType);
+
+            if (
+                empty($loanCategory) ||
+                empty($loanType)
+            ) {
+                continue;
+            }
+
             $existing =
                 $this->loanSettingModel
-                    ->where('loan_type', $loanType)
+                    ->where(
+                        'loan_category',
+                        $loanCategory
+                    )
+                    ->where(
+                        'loan_type',
+                        $loanType
+                    )
                     ->first();
+
             $data = [
-                'loan_type' => $loanType,
-                'interest_rate' => $this->request->getPost('interest_rate')[$index],
-                'max_salary_multiplier' => $this->request->getPost('max_salary_multiplier')[$index],
-                'max_installments' => $this->request->getPost('max_installments')[$index],
-                'deduction_frequency' => $this->request->getPost('deduction_frequency')[$index],
-                'allow_multiple_loans' => isset(($this->request->getPost('allow_multiple_loans') ?? [] )[$index]) ? 1 : 0,
-                'grace_period_days' => $this->request->getPost('grace_period_days')[$index],
-                'penalty_rate' =>$this->request->getPost('penalty_rate')[$index],
+
+                'loan_category' =>
+                    $loanCategory,
+                'loan_type' =>
+                    $loanType,
+                'interest_rate' =>
+                    $this->request
+                        ->getPost('interest_rate')[$index] ?? 0,
+                'max_salary_multiplier' =>
+                    $this->request
+                        ->getPost('max_salary_multiplier')[$index] ?? 0,
+                'max_installments' =>
+                    $this->request
+                        ->getPost('max_installments')[$index] ?? 0,
+                'deduction_frequency' =>
+                    $this->request
+                        ->getPost('deduction_frequency')[$index] ?? 'monthly',
+                'allow_multiple_loans' =>
+                    isset(
+                        (
+                            $this->request
+                                ->getPost('allow_multiple_loans') ?? []
+                        )[$index]
+                    ) ? 1 : 0,
+                'grace_period_days' =>
+                    $this->request
+                        ->getPost('grace_period_days')[$index] ?? 0,
+                'penalty_rate' =>
+                    $this->request
+                        ->getPost('penalty_rate')[$index] ?? 0,
                 'is_active' => 1,
             ];
 
             if ($existing) {
-
                 $this->loanSettingModel
                     ->update(
                         $existing['id'],
                         $data
                     );
-
             } else {
-
                 $this->loanSettingModel
                     ->insert($data);
             }
@@ -444,5 +479,68 @@ class LoanController extends BaseController
                 'success',
                 'Loan settings updated successfully.'
             );
+    }
+
+    public function getEmployeeLoanInfo($employeeId)
+    {
+        $db = \Config\Database::connect();
+
+        $employee = $db->table('employee_positions')
+            ->select('monthly_salary, working_days')
+            ->where('employee_id', $employeeId)
+            ->get()
+            ->getRowArray();
+
+        if (!$employee) {
+
+            return $this->response->setJSON([
+                'monthly_salary' => 0,
+                'daily_rate' => 0,
+            ]);
+        }
+
+        $monthlySalary =
+            (float) ($employee['monthly_salary'] ?? 0);
+
+        /*
+        |----------------------------------------------------------------------
+        | WORKING DAYS
+        |----------------------------------------------------------------------
+        */
+
+        $workingDays = json_decode(
+            $employee['working_days'] ?? '[]',
+            true
+        );
+
+        $workingDaysCount =
+            is_array($workingDays)
+            ? count($workingDays)
+            : 5;
+
+        /*
+        |----------------------------------------------------------------------
+        | DAILY RATE
+        |----------------------------------------------------------------------
+        */
+
+        $estimatedMonthlyWorkDays =
+            round($workingDaysCount * 4.33);
+
+        $dailyRate =
+            $estimatedMonthlyWorkDays > 0
+            ? round(
+                $monthlySalary / $estimatedMonthlyWorkDays,
+                2
+            )
+            : 0;
+
+        return $this->response->setJSON([
+
+            'monthly_salary' => $monthlySalary,
+
+            'daily_rate' => $dailyRate,
+
+        ]);
     }
 }

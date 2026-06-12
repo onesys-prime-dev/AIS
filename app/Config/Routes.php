@@ -34,12 +34,13 @@ $routes->group('client_portal', ['filter' => 'auth'], function($routes){
     $routes->get('loans/loanEmployees', 'Client\LoanController::getLoanEmployees');
     $routes->get('loans/getLoans', 'Client\LoanController::getLoans');
     $routes->get('loans/viewSchedule/(:num)','Client\LoanController::viewSchedule/$1');
-    $routes->get('loans/close/(:num)','Client\LoanController::closeLoan/$1');
+    $routes->get('loans/cancel/(:num)','Client\LoanController::cancelLoan/$1');
     $routes->get('loans/complete/(:num)','Client\LoanController::completeLoan/$1');
     $routes->post('loans/update/(:num)','Client\LoanController::updateLoan/$1');
     $routes->get('loans/settings','Client\LoanController::getLoanSettings');
     $routes->post('loans/settings/save','Client\LoanController::saveLoanSettings');
-    $routes->post('loans/payments/(:num)','Client\LoanController::getLoanPayments/$1');
+    $routes->get('loans/payments/(:num)','Client\LoanController::getLoanPayments/$1');
+    $routes->get('loans/getEmployeeLoanInfo/(:num)','Client\LoanController::getEmployeeLoanInfo/$1');
 
     $routes->post('timesheets/update/(:num)', 'Client\TimesheetController::update/$1');
     $routes->get('timesheets/delete/(:num)', 'Client\TimesheetController::delete/$1');
@@ -106,6 +107,8 @@ $routes->group('client_portal', ['namespace' => 'App\Controllers\Client'], funct
     $routes->get('payroll/exportRegister', 'PayrollController::exportRegister');
     $routes->get('payroll/exportTimesheet', 'PayrollController::exportTimesheet');
     $routes->post('payroll/importTimesheet', 'PayrollController::importTimesheet');
+
+    $routes->get('payroll/loanBreakdown/(:num)/(:any)/(:any)','PayrollController::getLoanBreakdown/$1/$2/$3');
 });
 
 $routes->group('client_portal/payroll', ['namespace' => 'App\Controllers\Client'], function($routes) {

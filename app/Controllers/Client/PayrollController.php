@@ -10,6 +10,8 @@ use App\Models\Client\PayrollTransactionModel;
 use App\Services\Client\PayrollComputationService;
 use App\Services\Client\AnnouncementService;
 use App\Models\Client\AttendanceModel;
+use App\Services\Client\LoanService;;
+
 use Dompdf\Dompdf;
 use Dompdf\Options;
 
@@ -335,47 +337,109 @@ class PayrollController extends BaseController
     public function computeAndSave()
     {
         try {
+
             $employeeId = $this->request->getGet('employee_id');
+
             $start = $this->request->getGet('start_date');
+
             $end   = $this->request->getGet('end_date');
+
             $adjustments = $this->request->getJSON(true) ?: [];
 
             if (!$employeeId || !$start || !$end) {
+
                 throw new \Exception('Missing required parameters');
+
             }
 
             $service = new PayrollComputationService();
-            $computed = $service->computePayroll($employeeId, $start, $end, $adjustments);
+
+            $computed = $service->computePayroll(
+                $employeeId,
+                $start,
+                $end,
+                $adjustments
+            );
+
+            /*
+            |--------------------------------------------------------------------------
+            | DEBUG COMPUTED
+            |--------------------------------------------------------------------------
+            */
+
+            log_message(
+                'error',
+                'COMPUTED DATA: ' . print_r($computed, true)
+            );
 
             $txModel = new PayrollTransactionModel();
+
             $cleanTxData = [
+
                 'employee_id' => (int) $employeeId,
+
                 'period_start' => $start,
+
                 'period_end' => $end,
+
                 'basic_pay' => (float) ($computed['basic_pay'] ?? 0),
+
                 'overtime_pay' => (float) ($computed['overtime_pay'] ?? 0),
+
                 'night_diff_pay' => (float) ($computed['night_diff_pay'] ?? 0),
+
                 'holiday_pay' => (float) ($computed['holiday_pay'] ?? 0),
+
                 'de_minimis' => (float) ($computed['de_minimis'] ?? 0),
-                'other_earnings_taxable' => (float) ($computed['other_earnings_taxable'] ?? 0),
-                'other_earnings_non_taxable' => (float) ($computed['other_earnings_non_taxable'] ?? 0),
-                'total_earnings' => (float) ($computed['total_earnings'] ?? 0),
+
+                'other_earnings_taxable' =>
+                    (float) ($computed['other_earnings_taxable'] ?? 0),
+
+                'other_earnings_non_taxable' =>
+                    (float) ($computed['other_earnings_non_taxable'] ?? 0),
+
+                'total_earnings' =>
+                    (float) ($computed['total_earnings'] ?? 0),
+
                 'sss_ee' => (float) ($computed['sss_ee'] ?? 0),
+
                 'phic_ee' => (float) ($computed['phic_ee'] ?? 0),
+
                 'hdmf_ee' => (float) ($computed['hdmf_ee'] ?? 0),
-                'withholding_tax' => (float) ($computed['withholding_tax'] ?? 0),
-                'sss_loan' => (float) ($computed['sss_loan'] ?? 0),
-                'calamity_loan' => (float) ($computed['calamity_loan'] ?? 0),
-                'loan_deduction' => (float) ($computed['loan_deduction'] ?? 0),
-                'salary_advance' => (float) ($computed['salary_advance'] ?? 0),
-                'other_deductions' => (float) ($computed['other_deductions'] ?? 0),
-                'total_deductions' => (float) ($computed['total_deductions'] ?? 0),
-                'net_pay' => (float) ($computed['net_pay'] ?? 0),
+
+                'withholding_tax' =>
+                    (float) ($computed['withholding_tax'] ?? 0),
+
+                'loan_deductions' =>
+                    json_encode($computed['loan_deductions'] ?? []),
+
+                'other_deductions' =>
+                    (float) ($computed['other_deductions'] ?? 0),
+
+                'total_deductions' =>
+                    (float) ($computed['total_deductions'] ?? 0),
+
+                'net_pay' =>
+                    (float) ($computed['net_pay'] ?? 0),
+
                 'status' => 'computed',
+
                 'computed_at' => date('Y-m-d H:i:s')
             ];
 
+            /*
+            |--------------------------------------------------------------------------
+            | DEBUG CLEAN TX
+            |--------------------------------------------------------------------------
+            */
+
+            log_message(
+                'error',
+                'CLEAN TX DATA: ' . print_r($cleanTxData, true)
+            );
+
             $txModel->insert($cleanTxData);
+
             $txId = $txModel->getInsertID();
 
             $loanService = new \App\Services\Client\LoanService();
@@ -388,13 +452,27 @@ class PayrollController extends BaseController
             );
 
             return $this->response->setJSON([
+
                 'success' => true,
+
                 'transaction_id' => $txId,
+
                 'computed' => $computed
+
             ]);
+
         } catch (\Exception $e) {
-            log_message('error', 'computeAndSave: ' . $e->getMessage());
-            return $this->response->setJSON(['error' => $e->getMessage()])->setStatusCode(500);
+
+            log_message(
+                'error',
+                'computeAndSave: ' . $e->getMessage()
+            );
+
+            return $this->response
+                ->setJSON([
+                    'error' => $e->getMessage()
+                ])
+                ->setStatusCode(500);
         }
     }
 
@@ -425,7 +503,7 @@ class PayrollController extends BaseController
             'Salary Adjustment', 'De Minimis',
             'Gross Pay',
             'SSS', 'PhilHealth', 'Pag-IBIG', 'Withholding Tax',
-            'SSS Loan', 'Calamity Loan', 'Salary Advance',
+            'Loan Deductions',
             'Total Deductions', 'Net Pay',
         ]);
 
@@ -437,10 +515,21 @@ class PayrollController extends BaseController
             $phic    = (float)($d['phic_ee']          ?? 0);
             $hdmf    = (float)($d['hdmf_ee']          ?? 0);
             $wtax    = (float)($d['withholding_tax']  ?? 0);
-            $sssL    = (float)($d['sss_loan']         ?? 0);
-            $calL    = (float)($d['calamity_loan']    ?? 0);
-            $adv     = (float)($d['salary_advance']   ?? 0);
-            $totalDed = $sss + $phic + $hdmf + $wtax + $sssL + $calL + $adv;
+            $loanDeductions = $d['loan_deductions'] ?? [];
+                if (is_string($loanDeductions)) {
+                    $loanDeductions = json_decode($loanDeductions, true) ?? [];
+                }
+            $loanSummary = [];
+
+            foreach ($loanDeductions as $loan) {
+                $loanSummary[] =
+                    ($loan['loan_name'] ?? 'Loan')
+                    . ': '
+                    . number_format($loan['amount'] ?? 0, 2);
+            }
+
+            $loanText = implode(' | ', $loanSummary);
+            $totalDed = (float)($d['total_deductions'] ?? 0);
             $netPay  = (float)($row['net_pay'] ?? 0);
 
             fputcsv($output, [
@@ -463,9 +552,7 @@ class PayrollController extends BaseController
                 number_format($phic, 2, '.', ''),
                 number_format($hdmf, 2, '.', ''),
                 number_format($wtax, 2, '.', ''),
-                number_format($sssL, 2, '.', ''),
-                number_format($calL, 2, '.', ''),
-                number_format($adv,  2, '.', ''),
+                $loanText,
                 number_format($totalDed, 2, '.', ''),
                 number_format($netPay,   2, '.', ''),
             ]);
@@ -1165,166 +1252,441 @@ class PayrollController extends BaseController
     private function buildPayslipHtmlForPdf($data, $employee)
     {
         $fmt = fn($n) => number_format((float)($n ?? 0), 2);
-        $fmtDate = fn($d) => $d ? date('d-M-Y', strtotime($d)) : '';
 
-        $grossPay = ($data['basic_pay'] ?? 0)
-                + ($data['night_diff_pay'] ?? 0)
-                + ($data['overtime_pay'] ?? 0)
-                + ($data['other_earnings_taxable'] ?? 0)
-                + ($data['de_minimis'] ?? 0);
-
-        $totalDeductions = ($data['sss_ee'] ?? 0)
-                        + ($data['phic_ee'] ?? 0)
-                        + ($data['hdmf_ee'] ?? 0)
-                        + ($data['withholding_tax'] ?? 0)
-                        + ($data['sss_loan'] ?? 0)
-                        + ($data['calamity_loan'] ?? 0)
-                        + ($data['salary_advance'] ?? 0)
-                        + ($data['other_deductions'] ?? 0);
-
-        // ── Recompute display values matching generatePayslipHTML() in the view ──
-        $netBasicPay   = (float)($data['net_basic_pay']  ?? 0);
-        $regOt         = (float)($data['reg_ot']         ?? 0);
-        $satOt         = (float)($data['sat_ot']         ?? 0);
-        $sunOt         = (float)($data['sun_ot']         ?? 0);
-        $holOt         = (float)($data['hol_ot']         ?? 0);
-        $totalOvertime = $regOt + $satOt + $sunOt + $holOt;
-        $taxableOther  = (float)($data['other_earnings_taxable'] ?? 0);
-        $nonTaxable    = (float)($data['de_minimis']     ?? 0);
-        $grossPay      = $netBasicPay + $totalOvertime + $taxableOther + $nonTaxable;
-
-        // Browser totalDeductions = government contributions only (loans excluded from the label row)
-        $govDeductions = (float)($data['sss_ee']         ?? 0)
-                       + (float)($data['phic_ee']        ?? 0)
-                       + (float)($data['hdmf_ee']        ?? 0)
-                       + (float)($data['withholding_tax'] ?? 0);
-
-        $logoDataUri = $this->getLogoDataUri();
-        $logoHtml    = $logoDataUri
-            ? '<div style="text-align:center;margin-bottom:20px;"><img src="' . $logoDataUri . '" style="max-height:80px;"></div>'
+        $fmtDate = fn($d) => $d
+            ? date('d-M-Y', strtotime($d))
             : '';
 
-        $period = $fmtDate($data['period_start'] ?? '') . ' &ndash; ' . $fmtDate($data['period_end'] ?? '');
+        // =========================================================
+        // PAY COMPUTATIONS
+        // =========================================================
 
-        // Inner-table cell style (no border, small padding — matches browser)
+        $netBasicPay = (float)($data['net_basic_pay'] ?? 0);
+
+        $regOt = (float)($data['reg_ot'] ?? 0);
+        $satOt = (float)($data['sat_ot'] ?? 0);
+        $sunOt = (float)($data['sun_ot'] ?? 0);
+        $holOt = (float)($data['hol_ot'] ?? 0);
+
+        $totalOvertime =
+            $regOt +
+            $satOt +
+            $sunOt +
+            $holOt;
+
+        $taxableOther = (float)($data['other_earnings_taxable'] ?? 0);
+
+        $nonTaxable = (float)($data['de_minimis'] ?? 0);
+
+        $grossPay =
+            $netBasicPay +
+            $totalOvertime +
+            $taxableOther +
+            $nonTaxable;
+
+        // =========================================================
+        // GOVERNMENT DEDUCTIONS
+        // =========================================================
+
+        $govDeductions =
+            (float)($data['sss_ee'] ?? 0)
+            + (float)($data['phic_ee'] ?? 0)
+            + (float)($data['hdmf_ee'] ?? 0)
+            + (float)($data['withholding_tax'] ?? 0);
+
+        $loanDeductions = $data['loan_deductions'] ?? [];
+
+        if (is_string($loanDeductions)) {
+            $loanDeductions = json_decode($loanDeductions, true) ?? [];
+        }
+
+        $totalLoanDeductions = 0;
+
+        foreach ($loanDeductions as $loan) {
+            $totalLoanDeductions += (float)($loan['amount'] ?? 0);
+        }
+
+        // =========================================================
+        // TOTAL DEDUCTIONS
+        // =========================================================
+
+        $totalDeductions =
+            $govDeductions
+            + $totalLoanDeductions
+            + (float)($data['other_deductions'] ?? 0);
+
+        // =========================================================
+        // LOGO
+        // =========================================================
+
+        $logoDataUri = $this->getLogoDataUri();
+
+        $logoHtml = $logoDataUri
+            ? '<div style="text-align:center;margin-bottom:20px;">
+                    <img src="' . $logoDataUri . '" style="max-height:80px;">
+            </div>'
+            : '';
+
+        $period =
+            $fmtDate($data['period_start'] ?? '')
+            . ' &ndash; '
+            . $fmtDate($data['period_end'] ?? '');
+
+        // =========================================================
+        // INNER TABLE STYLES
+        // =========================================================
+
         $ic = 'style="border:none;padding:2px 4px;"';
+
         $ir = 'style="border:none;padding:2px 4px;text-align:right;"';
 
+        $loanRowsHtml = '';
+
+        foreach (($data['loan_deductions'] ?? []) as $loan) {
+
+            $loanName = htmlspecialchars(
+                $loan['loan_name'] ?? 'Loan'
+            );
+
+            $loanAmount = $fmt(
+                $loan['amount'] ?? 0
+            );
+
+            $loanRowsHtml .= "
+                <tr>
+                    <td {$ic}>{$loanName}</td>
+                    <td {$ir}>{$loanAmount}</td>
+                </tr>
+            ";
+        }
+
         return '<!DOCTYPE html>
-<html>
-<head>
-<meta charset="UTF-8">
-<style>
-    body  { font-family: Arial, sans-serif; font-size: 13px; margin: 0; }
-    .wrap { background:#fff; border:1px solid #000; padding:20px; width:100%; box-sizing:border-box; }
-    h2    { text-align:center; margin:5px 0 10px; }
-    table { width:100%; border-collapse:collapse; font-size:13px; margin-top:10px; }
-    td, th { border:1px solid #000; padding:5px; vertical-align:top; }
-    th { background:#eee; text-align:center; }
-</style>
-</head>
-<body>
-<div class="wrap">
-' . $logoHtml . '
-<h2>PAY SLIP</h2>
+        <html>
+        <head>
 
-<!-- Employee / period info -->
-<table>
-    <tr>
-        <td><strong>Employee:</strong></td>
-        <td>' . htmlspecialchars($data['employee_name'] ?? '') . '</td>
-        <td></td>
-        <td><strong>Payroll period:</strong></td>
-        <td colspan="2">' . $period . '</td>
-    </tr>
-    <tr>
-        <td><strong>Position:</strong></td>
-        <td colspan="5">' . htmlspecialchars($data['position'] ?? 'N/A') . '</td>
-    </tr>
-</table>
+        <meta charset="UTF-8">
 
-<!-- Earnings -->
-<table>
-    <tr>
-        <th>REGULAR EARNINGS</th>
-        <th>TAXABLE OTHER EARNINGS</th>
-        <th>NON-TAXABLE OTHER EARNINGS</th>
-    </tr>
-    <tr>
-        <td>
-            <table style="width:100%;border-collapse:collapse;">
-                <tr><td ' . $ic . '>Basic pay:</td>                <td ' . $ir . '>' . $fmt($data['basic_pay']      ?? 0) . '</td></tr>
-                <tr><td ' . $ic . '>Rate per hour:</td>            <td ' . $ir . '>' . $fmt($data['rate_per_hour']  ?? 0) . '</td></tr>
-                <tr><td ' . $ic . '>No. of hours worked:</td>      <td ' . $ir . '>' . $fmt($data['hours_worked']   ?? 0) . '</td></tr>
-                <tr><td ' . $ic . '>Night premium:</td>            <td ' . $ir . '>' . $fmt($data['night_diff_pay'] ?? 0) . '</td></tr>
-                <tr><td ' . $ic . '>Less: Absences</td>            <td ' . $ir . '>' . $fmt($data['absent_amt']     ?? 0) . '</td></tr>
-                <tr><td ' . $ic . '>Late/Undertime</td>            <td ' . $ir . '>' . $fmt($data['undertime_amt']  ?? 0) . '</td></tr>
-                <tr><td ' . $ic . '><strong>Net basic pay</strong></td><td ' . $ir . '><strong>' . $fmt($netBasicPay) . '</strong></td></tr>
-                <tr><td ' . $ic . '>Reg. OT</td>                   <td ' . $ir . '>' . $fmt($regOt)  . '</td></tr>
-                <tr><td ' . $ic . '>Sat OT</td>                    <td ' . $ir . '>' . $fmt($satOt)  . '</td></tr>
-                <tr><td ' . $ic . '>Sun OT</td>                    <td ' . $ir . '>' . $fmt($sunOt)  . '</td></tr>
-                <tr><td ' . $ic . '>Holiday OT</td>                <td ' . $ir . '>' . $fmt($holOt)  . '</td></tr>
-            </table>
-        </td>
-        <td>
-            <table style="width:100%;border-collapse:collapse;">
-                <tr><td ' . $ic . '>Salary adjustment:</td><td ' . $ir . '>' . $fmt($taxableOther) . '</td></tr>
-            </table>
-        </td>
-        <td>
-            <table style="width:100%;border-collapse:collapse;">
-                <tr><td ' . $ic . '>De Minimis Benefit:</td><td ' . $ir . '>' . $fmt($nonTaxable) . '</td></tr>
-            </table>
-        </td>
-    </tr>
-    <tr>
-        <td colspan="2" style="border:1px solid #000;padding:5px;text-align:right;"><strong>GROSS PAY</strong></td>
-        <td style="border:1px solid #000;padding:5px;text-align:right;"><strong>' . $fmt($grossPay) . '</strong></td>
-    </tr>
-</table>
+        <style>
 
-<!-- Deductions -->
-<table>
-    <tr>
-        <th>REGULAR DEDUCTIONS</th>
-        <th>LOANS/ADVANCES</th>
-    </tr>
-    <tr>
-        <td>
-            <table style="width:100%;border-collapse:collapse;">
-                <tr><td ' . $ic . '>SSS</td>              <td ' . $ir . '>' . $fmt($data['sss_ee']         ?? 0) . '</td></tr>
-                <tr><td ' . $ic . '>PhilHealth</td>       <td ' . $ir . '>' . $fmt($data['phic_ee']        ?? 0) . '</td></tr>
-                <tr><td ' . $ic . '>Pag-IBIG</td>         <td ' . $ir . '>' . $fmt($data['hdmf_ee']        ?? 0) . '</td></tr>
-                <tr><td ' . $ic . '>Withholding tax</td>  <td ' . $ir . '>' . $fmt($data['withholding_tax']?? 0) . '</td></tr>
-            </table>
-        </td>
-        <td>
-            <table style="width:100%;border-collapse:collapse;">
-                <tr><td ' . $ic . '>Salary Loan</td>      <td ' . $ir . '>' . $fmt($data['sss_loan']       ?? 0) . '</td></tr>
-                <tr><td ' . $ic . '>Calamity Loan</td>    <td ' . $ir . '>' . $fmt($data['calamity_loan']  ?? 0) . '</td></tr>
-                <tr><td ' . $ic . '>Salary Advance</td>   <td ' . $ir . '>' . $fmt($data['salary_advance'] ?? 0) . '</td></tr>
-            </table>
-        </td>
-    </tr>
-    <tr>
-        <td style="border:1px solid #000;padding:5px;text-align:right;"><strong>TOTAL DEDUCTIONS</strong></td>
-        <td style="border:1px solid #000;padding:5px;text-align:right;"><strong>' . $fmt($govDeductions) . '</strong></td>
-    </tr>
-</table>
+            body {
+                font-family: Arial, sans-serif;
+                font-size: 13px;
+                margin: 0;
+            }
 
-<!-- Signature / Net pay -->
-<table>
-    <tr>
-        <td style="width:25%;border:1px solid #000;padding:5px;">Employee signature:</td>
-        <td style="width:25%;border:1px solid #000;padding:5px;height:40px;"></td>
-        <td style="width:25%;border:1px solid #000;padding:5px;text-align:right;"><strong>NET PAY:</strong></td>
-        <td style="width:25%;border:1px solid #000;padding:5px;text-align:right;background:#f8d7da;"><strong>' . $fmt($data['net_pay'] ?? 0) . '</strong></td>
-    </tr>
-</table>
+            .wrap {
+                background:#fff;
+                border:1px solid #000;
+                padding:20px;
+                width:100%;
+                box-sizing:border-box;
+            }
 
-</div>
-</body>
-</html>';
+            h2 {
+                text-align:center;
+                margin:5px 0 10px;
+            }
+
+            table {
+                width:100%;
+                border-collapse:collapse;
+                font-size:13px;
+                margin-top:10px;
+            }
+
+            td, th {
+                border:1px solid #000;
+                padding:5px;
+                vertical-align:top;
+            }
+
+            th {
+                background:#eee;
+                text-align:center;
+            }
+
+        </style>
+
+        </head>
+
+            <body>
+
+            <div class="wrap">
+
+                ' . $logoHtml . '
+
+                <h2>PAY SLIP</h2>
+
+                <!-- EMPLOYEE INFO -->
+                <table>
+
+                    <tr>
+
+                        <td><strong>Employee:</strong></td>
+
+                        <td>' . htmlspecialchars($data['employee_name'] ?? '') . '</td>
+
+                        <td></td>
+
+                        <td><strong>Payroll Period:</strong></td>
+
+                        <td colspan="2">' . $period . '</td>
+
+                    </tr>
+
+                    <tr>
+
+                        <td><strong>Position:</strong></td>
+
+                        <td colspan="5">'
+                            . htmlspecialchars($data['position'] ?? 'N/A') .
+                        '</td>
+
+                    </tr>
+
+                </table>
+
+                <!-- EARNINGS -->
+                <table>
+
+                    <tr>
+
+                        <th>REGULAR EARNINGS</th>
+
+                        <th>TAXABLE OTHER EARNINGS</th>
+
+                        <th>NON-TAXABLE OTHER EARNINGS</th>
+
+                    </tr>
+
+                    <tr>
+
+                        <!-- REGULAR EARNINGS -->
+                        <td>
+
+                            <table style="width:100%;border-collapse:collapse;">
+
+                                <tr>
+                                    <td ' . $ic . '>Basic Pay</td>
+                                    <td ' . $ir . '>' . $fmt($data['basic_pay'] ?? 0) . '</td>
+                                </tr>
+
+                                <tr>
+                                    <td ' . $ic . '>Rate per Hour</td>
+                                    <td ' . $ir . '>' . $fmt($data['rate_per_hour'] ?? 0) . '</td>
+                                </tr>
+
+                                <tr>
+                                    <td ' . $ic . '>Hours Worked</td>
+                                    <td ' . $ir . '>' . $fmt($data['hours_worked'] ?? 0) . '</td>
+                                </tr>
+
+                                <tr>
+                                    <td ' . $ic . '>Night Premium</td>
+                                    <td ' . $ir . '>' . $fmt($data['night_diff_pay'] ?? 0) . '</td>
+                                </tr>
+
+                                <tr>
+                                    <td ' . $ic . '>Less: Absences</td>
+                                    <td ' . $ir . '>' . $fmt($data['absent_amt'] ?? 0) . '</td>
+                                </tr>
+
+                                <tr>
+                                    <td ' . $ic . '>Late / Undertime</td>
+                                    <td ' . $ir . '>' . $fmt($data['undertime_amt'] ?? 0) . '</td>
+                                </tr>
+
+                                <tr>
+                                    <td ' . $ic . '><strong>Net Basic Pay</strong></td>
+                                    <td ' . $ir . '><strong>' . $fmt($netBasicPay) . '</strong></td>
+                                </tr>
+
+                                <tr>
+                                    <td ' . $ic . '>Regular OT</td>
+                                    <td ' . $ir . '>' . $fmt($regOt) . '</td>
+                                </tr>
+
+                                <tr>
+                                    <td ' . $ic . '>Saturday OT</td>
+                                    <td ' . $ir . '>' . $fmt($satOt) . '</td>
+                                </tr>
+
+                                <tr>
+                                    <td ' . $ic . '>Sunday OT</td>
+                                    <td ' . $ir . '>' . $fmt($sunOt) . '</td>
+                                </tr>
+
+                                <tr>
+                                    <td ' . $ic . '>Holiday OT</td>
+                                    <td ' . $ir . '>' . $fmt($holOt) . '</td>
+                                </tr>
+
+                            </table>
+
+                        </td>
+
+                        <!-- TAXABLE -->
+                        <td>
+
+                            <table style="width:100%;border-collapse:collapse;">
+
+                                <tr>
+                                    <td ' . $ic . '>Salary Adjustment</td>
+                                    <td ' . $ir . '>' . $fmt($taxableOther) . '</td>
+                                </tr>
+
+                            </table>
+
+                        </td>
+
+                        <!-- NON TAXABLE -->
+                        <td>
+
+                            <table style="width:100%;border-collapse:collapse;">
+
+                                <tr>
+                                    <td ' . $ic . '>De Minimis Benefit</td>
+                                    <td ' . $ir . '>' . $fmt($nonTaxable) . '</td>
+                                </tr>
+
+                            </table>
+
+                        </td>
+
+                    </tr>
+
+                    <tr>
+
+                        <td colspan="2"
+                            style="border:1px solid #000;padding:5px;text-align:right;">
+
+                            <strong>GROSS PAY</strong>
+
+                        </td>
+
+                        <td
+                            style="border:1px solid #000;padding:5px;text-align:right;">
+
+                            <strong>' . $fmt($grossPay) . '</strong>
+
+                        </td>
+
+                    </tr>
+
+                </table>
+
+                <!-- DEDUCTIONS -->
+                <table>
+
+                    <tr>
+
+                        <th>REGULAR DEDUCTIONS</th>
+
+                        <th>LOANS / ADVANCES</th>
+
+                    </tr>
+
+                    <tr>
+
+                        <!-- GOVERNMENT -->
+                        <td>
+
+                            <table style="width:100%;border-collapse:collapse;">
+
+                                <tr>
+                                    <td ' . $ic . '>SSS</td>
+                                    <td ' . $ir . '>' . $fmt($data['sss_ee'] ?? 0) . '</td>
+                                </tr>
+
+                                <tr>
+                                    <td ' . $ic . '>PhilHealth</td>
+                                    <td ' . $ir . '>' . $fmt($data['phic_ee'] ?? 0) . '</td>
+                                </tr>
+
+                                <tr>
+                                    <td ' . $ic . '>Pag-IBIG</td>
+                                    <td ' . $ir . '>' . $fmt($data['hdmf_ee'] ?? 0) . '</td>
+                                </tr>
+
+                                <tr>
+                                    <td ' . $ic . '>Withholding Tax</td>
+                                    <td ' . $ir . '>' . $fmt($data['withholding_tax'] ?? 0) . '</td>
+                                </tr>
+
+                            </table>
+
+                        </td>
+
+                        <!-- LOANS -->
+                        <td>
+
+                            <table style="width:100%;border-collapse:collapse;">
+                                ' . $loanRowsHtml . '
+                            </table>
+
+                        </td>
+
+                    </tr>
+
+                    <tr>
+
+                        <td
+                            style="border:1px solid #000;padding:5px;text-align:right;">
+
+                            <strong>TOTAL DEDUCTIONS</strong>
+
+                        </td>
+
+                        <td
+                            style="border:1px solid #000;padding:5px;text-align:right;">
+
+                            <strong>' . $fmt($totalDeductions) . '</strong>
+
+                        </td>
+
+                    </tr>
+
+                </table>
+
+                <!-- NET PAY -->
+                <table>
+
+                    <tr>
+
+                        <td
+                            style="width:25%;border:1px solid #000;padding:5px;">
+
+                            Employee Signature:
+
+                        </td>
+
+                        <td
+                            style="width:25%;border:1px solid #000;padding:5px;height:40px;">
+                        </td>
+
+                        <td
+                            style="width:25%;border:1px solid #000;padding:5px;text-align:right;">
+
+                            <strong>NET PAY:</strong>
+
+                        </td>
+
+                        <td
+                            style="width:25%;border:1px solid #000;padding:5px;text-align:right;background:#f8d7da;">
+
+                            <strong>' . $fmt($data['net_pay'] ?? 0) . '</strong>
+
+                        </td>
+
+                    </tr>
+
+                </table>
+
+            </div>
+
+            </body>
+
+        </html>';
     }
 
     private function getUserEmail($userId)
@@ -1986,6 +2348,131 @@ class PayrollController extends BaseController
         } catch (\Throwable $e) {
             // Announcement failure must never break the actual save operation
             log_message('error', 'postContributionAnnouncement failed: ' . $e->getMessage());
+        }
+    }
+
+    // ================= LOAN BREAKDOWN =================
+    public function getLoanBreakdown(
+        int $employeeId,
+        string $periodStart,
+        string $periodEnd
+    ) {
+
+        try {
+
+            $db = \Config\Database::connect();
+
+            /*
+            |--------------------------------------------------------------------------
+            | DETERMINE CURRENT PAYROLL CUTOFF
+            |--------------------------------------------------------------------------
+            |
+            | Example:
+            | 2026-06-01 → 2026-06-15
+            | fetch ONLY June 15 deduction
+            |
+            | 2026-06-16 → 2026-06-30
+            | fetch ONLY June 30 deduction
+            |
+            */
+
+            $cutoffDate = $periodEnd;
+
+            /*
+            |--------------------------------------------------------------------------
+            | FETCH PENDING LOAN DEDUCTIONS
+            |--------------------------------------------------------------------------
+            */
+
+            $schedules = $db->table('employee_loan_schedule els')
+
+                ->select("
+                    els.id,
+                    els.loan_id,
+                    els.amount_due,
+                    els.due_date,
+                    els.remaining_balance,
+                    el.loan_type,
+                    el.employee_id
+                ")
+
+                ->join(
+                    'employee_loans el',
+                    'el.id = els.loan_id'
+                )
+
+                ->where('el.employee_id', $employeeId)
+
+                ->where('el.loan_status', 'active')
+
+                ->where('els.schedule_status', 'pending')
+
+                /*
+                |--------------------------------------------------------------------------
+                | IMPORTANT FIX
+                |--------------------------------------------------------------------------
+                |
+                | Instead of:
+                | due_date >= periodStart
+                | due_date <= periodEnd
+                |
+                | We fetch ONLY the cutoff date.
+                |
+                */
+
+                ->where('els.due_date', $cutoffDate)
+
+                ->orderBy('els.due_date', 'ASC')
+
+                ->get()
+
+                ->getResultArray();
+
+            /*
+            |--------------------------------------------------------------------------
+            | FORMAT RESPONSE
+            |--------------------------------------------------------------------------
+            */
+
+            $breakdown = [];
+
+            foreach ($schedules as $row) {
+
+                $breakdown[] = [
+
+                    'schedule_id' => (int) $row['id'],
+
+                    'loan_id'     => (int) $row['loan_id'],
+
+                    'loan_name'   => $row['loan_type'],
+
+                    'amount'      => (float) $row['amount_due'],
+
+                    'due_date'    => $row['due_date'],
+
+                    'remaining_balance' =>
+                        (float) $row['remaining_balance'],
+                ];
+            }
+
+            return $this->response->setJSON($breakdown);
+
+        } catch (\Throwable $e) {
+
+            log_message(
+                'error',
+                'getLoanBreakdown Error: ' . $e->getMessage()
+            );
+
+            return $this->response
+                ->setStatusCode(500)
+                ->setJSON([
+
+                    'success' => false,
+
+                    'message' => $e->getMessage()
+
+                ]);
         }
     }
 }

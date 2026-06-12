@@ -3,7 +3,7 @@
 .ls-form {
     display: flex;
     flex-direction: column;
-    gap: 1.5rem;
+    gap: 1rem;
 }
 
 /* LOAN TYPE CARD */
@@ -90,6 +90,15 @@
 .ls-save-btn:hover {
     background: #8D72F6;
 }
+
+/* CATEGORY TITLE */
+.ls-category-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: #111827;
+    padding-bottom: 6px;
+    border-bottom: 2px solid #e5e7eb;
+}
 </style>
 
 <form
@@ -101,72 +110,205 @@
     <?= csrf_field() ?>
 
     <?php
-    $loanTypes = [
-        'Salary Loan',
-        'Emergency Loan',
-        'Cash Advance'
+
+    /*
+    |--------------------------------------------------------------------------
+    | LOAN CATEGORIES
+    |--------------------------------------------------------------------------
+    */
+
+    $loanCategories = [
+
+        'MP2 Savings Program' => [
+            'HDMF (Pag-Ibig) Loan',
+            'Multi-Purpose Loan',
+            'Calamity Loan'
+        ],
+        'SSS' => [
+            'Salary Loan',
+            'Calamity Loan'
+        ],
+        'ADVANCE' => [
+            'Salary Advance',
+            'Emergency Advance',
+            'Cash Advance'
+        ]
     ];
+
+    /*
+    |--------------------------------------------------------------------------
+    | SETTINGS MAP
+    |--------------------------------------------------------------------------
+    */
+
+    $settingsMap = [];
+
+    foreach (($settings ?? []) as $settingRow) {
+
+        $key =
+            $settingRow['loan_category']
+            . '|'
+            . $settingRow['loan_type'];
+
+        $settingsMap[$key] =
+            $settingRow;
+    }
+
     ?>
 
-    <?php foreach ($loanTypes as $index => $loanType): ?>
+    <?php foreach ($loanCategories as $category => $loanTypes): ?>
 
-        <div class="ls-card">
+        <div class="ls-category-title">
+            <?= esc($category) ?>
+        </div>
 
-            <h3 class="ls-card-title"><?= esc($loanType) ?></h3>
-            <p class="ls-card-subtitle">Configure loan rules and payroll behavior.</p>
+        <?php foreach ($loanTypes as $index => $loanType): ?>
 
-            <input type="hidden" name="loan_type[]" value="<?= esc($loanType) ?>">
+            <?php
 
-            <div class="ls-grid">
+            $settingKey =
+                $category . '|' . $loanType;
 
-                <div class="ls-field">
-                    <label>Interest Rate (%)</label>
-                    <input type="number" step="0.01" name="interest_rate[]" required>
+            $setting =
+                $settingsMap[$settingKey] ?? [];
+
+            ?>
+
+            <div class="ls-card">
+
+                <h3 class="ls-card-title">
+                    <?= esc($loanType) ?>
+                </h3>
+
+                <p class="ls-card-subtitle">
+                    Configure loan rules and payroll behavior.
+                </p>
+
+                <input
+                    type="hidden"
+                    name="loan_category[]"
+                    value="<?= esc($category) ?>"
+                >
+
+                <input
+                    type="hidden"
+                    name="loan_type[]"
+                    value="<?= esc($loanType) ?>"
+                >
+
+                <div class="ls-grid">
+
+                    <div class="ls-field">
+                        <label>Interest Rate (%)</label>
+
+                        <input
+                            type="number"
+                            step="0.01"
+                            name="interest_rate[]"
+                            value="<?= esc($setting['interest_rate'] ?? 0) ?>"
+                            required>
+                    </div>
+
+                    <div class="ls-field">
+                        <label>Max Salary Multiplier</label>
+
+                        <input
+                            type="number"
+                            step="0.1"
+                            name="max_salary_multiplier[]"
+                            value="<?= esc($setting['max_salary_multiplier'] ?? 0) ?>"
+                            required>
+                    </div>
+
+                    <div class="ls-field">
+                        <label>Max Installments</label>
+
+                        <input
+                            type="number"
+                            name="max_installments[]"
+                            value="<?= esc($setting['max_installments'] ?? 0) ?>"
+                            required>
+                    </div>
+
+                    <div class="ls-field">
+                        <label>Deduction Frequency</label>
+
+                        <select name="deduction_frequency[]">
+
+                            <option
+                                value="Semi-Monthly"
+                                <?= ($setting['deduction_frequency'] ?? '') === 'Semi-Monthly'
+                                    ? 'selected'
+                                    : '' ?>>
+
+                                Semi-Monthly
+
+                            </option>
+
+                            <option
+                                value="Monthly"
+                                <?= ($setting['deduction_frequency'] ?? '') === 'Monthly'
+                                    ? 'selected'
+                                    : '' ?>>
+
+                                Monthly
+
+                            </option>
+
+                        </select>
+                    </div>
+
+                    <div class="ls-field">
+                        <label>Grace Period (Days)</label>
+
+                        <input
+                            type="number"
+                            name="grace_period_days[]"
+                            value="<?= esc($setting['grace_period_days'] ?? 0) ?>">
+                    </div>
+
+                    <div class="ls-field">
+                        <label>Penalty Rate (%)</label>
+
+                        <input
+                            type="number"
+                            step="0.01"
+                            name="penalty_rate[]"
+                            value="<?= esc($setting['penalty_rate'] ?? 0) ?>">
+                    </div>
+
                 </div>
 
-                <div class="ls-field">
-                    <label>Max Salary Multiplier</label>
-                    <input type="number" step="0.1" name="max_salary_multiplier[]" required>
-                </div>
+                <label class="ls-checkbox-row">
 
-                <div class="ls-field">
-                    <label>Max Installments</label>
-                    <input type="number" name="max_installments[]" required>
-                </div>
+                    <input
+                        type="checkbox"
+                        name="allow_multiple_loans[<?= $index ?>]"
+                        value="1"
+                        <?= !empty($setting['allow_multiple_loans'])
+                            ? 'checked'
+                            : '' ?>>
 
-                <div class="ls-field">
-                    <label>Deduction Frequency</label>
-                    <select name="deduction_frequency[]">
-                        <option value="Semi-Monthly">Semi-Monthly</option>
-                        <option value="Monthly">Monthly</option>
-                    </select>
-                </div>
+                    Allow Multiple Active Loans
 
-                <div class="ls-field">
-                    <label>Grace Period (Days)</label>
-                    <input type="number" name="grace_period_days[]" value="0">
-                </div>
-
-                <div class="ls-field">
-                    <label>Penalty Rate (%)</label>
-                    <input type="number" step="0.01" name="penalty_rate[]" value="0">
-                </div>
+                </label>
 
             </div>
 
-            <label class="ls-checkbox-row">
-                <input type="checkbox" name="allow_multiple_loans[<?= $index ?>]" value="1">
-                Allow Multiple Active Loans
-            </label>
-
-        </div>
+        <?php endforeach; ?>
 
     <?php endforeach; ?>
 
     <div class="ls-save-row">
-        <button type="submit" class="ls-save-btn">
+
+        <button
+            type="submit"
+            class="ls-save-btn">
+
             Save Loan Settings
+
         </button>
+
     </div>
 
 </form>

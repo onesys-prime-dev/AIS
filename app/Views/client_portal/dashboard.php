@@ -415,7 +415,7 @@ body{
     align-items:flex-start;
     gap:12px;
     padding:16px 18px 12px 18px;
-    height: 110px;
+    min-height: 110px;
     background:#ffffff;
     border-radius:14px;
     cursor:pointer;
@@ -574,6 +574,11 @@ body{
     color:#6b7280;
     margin-top:6px;
     line-height:1.5;
+    display:-webkit-box;
+    -webkit-line-clamp:1;
+    -webkit-box-orient:vertical;
+    overflow:hidden;
+    text-overflow:ellipsis;
 }
 
 /* MODAL */
@@ -1224,7 +1229,7 @@ document.addEventListener('DOMContentLoaded', function () {
                             <div class="notif-title"><?= esc($notification['title']) ?></div>
                             <div class="notif-time"><?= esc((string) $timeAgo((string) ($notification['published_at'] ?? ''))) ?></div>
                         </div>
-                        <div class="notif-desc"><?= esc($notification['details']) ?></div>
+                        <div class="notif-desc"><?= esc(mb_strimwidth($notification['details'], 0, 80, '...')) ?></div>
                         <div class="notif-tags">
                             <span class="notif-pill priority-<?= strtolower($notification['priority']) ?>"><?= esc(ucfirst($notification['priority'])) ?></span>
                             <span class="notif-pill muted"><?= esc(ucfirst($notification['category'])) ?></span>

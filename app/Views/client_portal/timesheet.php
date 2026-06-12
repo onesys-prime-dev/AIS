@@ -77,45 +77,161 @@
         </div>
 
         <!-- TABLE -->
-        <div class="overflow-x-auto flex-1">
-            <table class="min-w-[1050px] w-full text-sm border-collapse">
-                <thead>
-                    <tr class="bg-[#DCDCDC] text-[#737373] border border-[#9E9E9E]">
-                        <th class="px-4 py-3 text-left font-bold whitespace-nowrap">Date</th>
-                        <th class="px-4 py-3 text-left font-bold whitespace-nowrap">Time In</th>
-                        <th class="px-4 py-3 text-left font-bold whitespace-nowrap">Time Out</th>
-                        <th class="px-4 py-3 text-right font-bold whitespace-nowrap">Regular Hrs</th>
-                        <th class="px-4 py-3 text-right font-bold whitespace-nowrap">OT Hrs</th>
-                        <th class="px-4 py-3 text-right font-bold whitespace-nowrap">RDOT Hrs</th>
-                        <th class="px-4 py-3 text-right font-bold whitespace-nowrap">Tardy (min)</th>
-                        <th class="px-4 py-3 text-right font-bold whitespace-nowrap">Night Diff</th>
-                        <th class="px-4 py-3 text-left font-bold whitespace-nowrap">Remarks</th>
-                        <th class="px-4 py-3 text-left font-bold whitespace-nowrap">
-                            Client
-                            <span class="ml-1 text-[10px] font-normal text-purple-500 align-middle">✎</span>
-                        </th>
-                        <th class="px-4 py-3 text-left font-bold">
-                            Task Performed
-                            <span class="ml-1 text-[10px] font-normal text-purple-500 align-middle">✎</span>
-                        </th>
-                        <th class="px-4 py-3 text-center font-bold whitespace-nowrap">Action</th>
-                    </tr>
-                </thead>
-                <tbody id="tableBody">
-                </tbody>
-                <tfoot>
-                    <tr class="bg-[#DCDCDC] text-[#737373] border-t border-[#9E9E9E] font-bold text-sm">
-                        <td class="px-4 py-3 text-right font-bold text-gray-600" colspan="3">TOTALS</td>
-                        <td class="px-4 py-3 text-right" id="totalRegular">0.00</td>
-                        <td class="px-4 py-3 text-right" id="totalOt">0.00</td>
-                        <td class="px-4 py-3 text-right" id="totalRdot">0.00</td>
-                        <td class="px-4 py-3 text-right" id="totalTardy">0</td>
-                        <td class="px-4 py-3 text-right" id="totalNightDiff">0.00</td>
-                        <td class="px-4 py-3" colspan="4"></td>
-                    </tr>
-                </tfoot>
-            </table>
-        </div>
+<div class="flex-1 flex flex-col overflow-hidden">
+
+    <!-- HEADER -->
+    <table class="min-w-[1280px] w-full text-md border-collapse table-fixed">
+        <colgroup>
+            <col class="w-[120px]">
+            <col class="w-[100px]">
+            <col class="w-[100px]">
+            <col class="w-[110px]">
+            <col class="w-[90px]">
+            <col class="w-[100px]">
+            <col class="w-[110px]">
+            <col class="w-[110px]">
+            <col class="w-[150px]">
+            <col class="w-[130px]">
+            <col class="w-[170px]">
+            <col class="w-[90px]">
+        </colgroup>
+
+        <thead>
+            <tr class="bg-[#DCDCDC] text-[#737373] border-y border-[#C5C5C5] h-[52px]">
+
+                <th class="px-4 text-left font-bold">Date</th>
+                <th class="px-4 text-left font-bold">Time In</th>
+                <th class="px-4 text-left font-bold">Time Out</th>
+
+                <th class="px-4 text-right font-bold">Regular Hrs</th>
+                <th class="px-4 text-right font-bold">OT Hrs</th>
+                <th class="px-4 text-right font-bold">RDOT Hrs</th>
+                <th class="px-4 text-right font-bold">Tardy (min)</th>
+                <th class="px-4 text-right font-bold">Night Diff</th>
+
+                <th class="px-4 text-left font-bold">Remarks</th>
+
+                <th class="px-4 text-left font-bold">
+                    Client
+                    <span class="ml-1 text-[10px] text-purple-500">✎</span>
+                </th>
+
+                <th class="px-4 text-left font-bold">
+                    Task Performed
+                    <span class="ml-1 text-[10px] text-purple-500">✎</span>
+                </th>
+
+                <th class="px-4 text-center font-bold">Action</th>
+
+            </tr>
+        </thead>
+    </table>
+
+    <!-- BODY -->
+    <div class="overflow-y-auto hide-scroll-bar flex-1">
+
+        <table class="min-w-[1280px] w-full text-sm border-collapse table-fixed">
+
+            <colgroup>
+                <col class="w-[120px]">
+                <col class="w-[100px]">
+                <col class="w-[100px]">
+                <col class="w-[110px]">
+                <col class="w-[90px]">
+                <col class="w-[100px]">
+                <col class="w-[110px]">
+                <col class="w-[110px]">
+                <col class="w-[150px]">
+                <col class="w-[130px]">
+                <col class="w-[170px]">
+                <col class="w-[90px]">
+            </colgroup>
+
+            <tbody id="tableBody">
+                <!-- DATA ROWS -->
+            </tbody>
+
+        </table>
+
+    </div>
+
+    <!-- FOOTER -->
+    <table class="min-w-[1280px] w-full text-sm border-collapse table-fixed">
+
+        <colgroup>
+            <col class="w-[120px]">
+            <col class="w-[100px]">
+            <col class="w-[100px]">
+            <col class="w-[110px]">
+            <col class="w-[90px]">
+            <col class="w-[100px]">
+            <col class="w-[110px]">
+            <col class="w-[110px]">
+            <col class="w-[150px]">
+            <col class="w-[130px]">
+            <col class="w-[170px]">
+            <col class="w-[90px]">
+        </colgroup>
+
+        <tfoot>
+
+            <tr class="bg-[#DCDCDC] text-[#666] border-t border-[#C5C5C5] h-[52px] font-semibold">
+
+                <!-- DATE -->
+                <td></td>
+
+                <!-- TIME IN -->
+                <td></td>
+
+                <!-- TIME OUT -->
+                <td class="text-center border-r border-[#C5C5C5] tracking-wide">
+                    TOTALS
+                </td>
+
+                <!-- REGULAR -->
+                <td class="px-4 text-right">
+                    <span id="totalRegular">0.00</span>
+                </td>
+
+                <!-- OT -->
+                <td class="px-4 text-right">
+                    <span id="totalOt">0.00</span>
+                </td>
+
+                <!-- RDOT -->
+                <td class="px-4 text-right">
+                    <span id="totalRdot">0.00</span>
+                </td>
+
+                <!-- TARDY -->
+                <td class="px-4 text-right">
+                    <span id="totalTardy">0</span>
+                </td>
+
+                <!-- NIGHT DIFF -->
+                <td class="px-4 text-right">
+                    <span id="totalNightDiff">0.00</span>
+                </td>
+
+                <!-- REMARKS -->
+                <td></td>
+
+                <!-- CLIENT -->
+                <td></td>
+
+                <!-- TASK -->
+                <td></td>
+
+                <!-- ACTION -->
+                <td></td>
+
+            </tr>
+
+        </tfoot>
+
+    </table>
+
+</div>
     </div>
 </div>
 
@@ -125,52 +241,115 @@
     <!-- Daily Time Log Modal -->
     <?php
         $content = view('client_portal/modals/view_daily_time_log', ['dailyTimeLog' => $dailyTimeLog ?? []]);
-        echo view('components/view_modal', ['id' => 'viewDailyTimeLog', 'title' => 'Daily Time Log', 'content' => $content, 'maxWidthClass' => 'max-w-4xl']);
+        echo view('components/view_modal', [
+            'id'    => 'viewDailyTimeLog',
+            'title' => 'Daily Time Log',
+            'content' => $content
+        ]);
     ?>
 
     <!-- Timesheet History Modal -->
     <?php
         $content = view('client_portal/modals/view_timesheet_history', ['timesheetHistory' => $timesheetHistory ?? []]);
-        echo view('components/view_modal', ['id' => 'viewTimesheetHistoryModal', 'title' => 'Timesheets History', 'content' => $content]);
+        echo view('components/view_modal', [
+            'id'    => 'viewTimesheetHistoryModal',
+            'title' => 'Timesheets History',
+            'content' => $content
+        ]);
     ?>
 
     <!-- Payslip Modal -->
     <?php
         $content = view('client_portal/modals/view_payslip');
-        echo view('components/view_modal', ['id' => 'viewPayslipModal', 'title' => 'Payslip', 'content' => $content]);
+        echo view('components/view_modal', [
+            'id'      => 'viewPayslipModal',
+            'content' => $content
+        ]);
     ?>
 
     <!-- Task Log Modal -->
-    <div id="taskLogModal" class="fixed inset-0 z-50 items-center justify-center bg-black/40 backdrop-blur-sm" style="display:none;">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
+    <div id="taskLogModal"
+        class="fixed inset-0 z-[9999] hidden items-center justify-center">
+
+        <!-- DARK BLURRED BACKDROP -->
+        <div class="absolute inset-0" style="
+        background: rgba(0, 0, 0, 0.78);
+        backdrop-filter: blur(7px);
+        -webkit-backdrop-filter: blur(7px);
+     "></div>
+
+        <!-- MODAL -->
+        <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden animate-[fadeIn_.2s_ease-out]">
+
+            <!-- HEADER -->
             <div class="flex justify-between items-center px-6 py-4 border-b border-gray-100">
                 <div>
-                    <h3 class="text-lg font-bold text-gray-800">Edit Task Log</h3>
-                    <p id="task_att_date" class="text-xs text-gray-400 mt-0.5"></p>
+                    <h3 class="text-lg font-bold text-gray-800">
+                        Edit Task Log
+                    </h3>
+
+                    <p id="task_att_date"
+                    class="text-xs text-gray-400 mt-0.5">
+                    </p>
                 </div>
-                <button onclick="closeTaskLogModal()" class="text-gray-400 hover:text-gray-600 transition text-xl leading-none">&times;</button>
+
+                <button onclick="closeTaskLogModal()"
+                        class="text-gray-400 hover:text-gray-600 transition text-2xl leading-none">
+                    &times;
+                </button>
             </div>
+
+            <!-- BODY -->
             <div class="px-6 py-5 space-y-4">
+
+                <!-- CLIENT -->
                 <div>
-                    <label class="block text-xs font-semibold text-gray-500 mb-1">Client</label>
-                    <input type="text" id="task_att_client"
+                    <label class="block text-xs font-semibold text-gray-500 mb-1">
+                        Client
+                    </label>
+
+                    <input
+                        type="text"
+                        id="task_att_client"
                         placeholder="e.g. Acme Corp"
-                        class="w-full bg-gray-50 rounded-lg px-3 py-2.5 text-sm text-gray-700 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-400">
+                        class="w-full bg-gray-50 rounded-lg px-3 py-2.5 text-sm text-gray-700 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-purple-400 transition">
                 </div>
+
+                <!-- TASK -->
                 <div>
-                    <label class="block text-xs font-semibold text-gray-500 mb-1">Task Performed</label>
-                    <textarea id="task_att_text" rows="4"
+                    <label class="block text-xs font-semibold text-gray-500 mb-1">
+                        Task Performed
+                    </label>
+
+                    <textarea
+                        id="task_att_text"
+                        rows="4"
                         placeholder="Describe the tasks you performed…"
-                        class="w-full bg-gray-50 rounded-lg px-3 py-2.5 text-sm text-gray-700 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-400 resize-none"></textarea>
+                        class="w-full bg-gray-50 rounded-lg px-3 py-2.5 text-sm text-gray-700 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-purple-400 resize-none transition"></textarea>
                 </div>
+
                 <input type="hidden" id="task_att_id">
             </div>
+
+            <!-- FOOTER -->
             <div class="flex justify-end gap-3 px-6 py-4 bg-gray-50 border-t border-gray-100">
-                <button type="button" onclick="closeTaskLogModal()"
-                    class="px-4 py-2 text-sm rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-100 transition">Cancel</button>
-                <button type="button" onclick="saveTaskLog()"
-                    class="px-5 py-2 text-sm rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-semibold transition">Save</button>
+
+                <button
+                    type="button"
+                    onclick="closeTaskLogModal()"
+                    class="px-4 py-2 text-sm rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-100 transition">
+                    Cancel
+                </button>
+
+                <button
+                    type="button"
+                    onclick="saveTaskLog()"
+                    class="px-5 py-2 text-sm rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-semibold shadow-md hover:shadow-lg transition">
+                    Save
+                </button>
+
             </div>
+
         </div>
     </div>
 <?= $this->endSection() ?>
@@ -254,9 +433,9 @@ function renderTable() {
                 <td class="px-4 py-3 text-right whitespace-nowrap">${badge(day.rdot_hours, day.rdot_hours.toFixed(2), 'rdot')}</td>
                 <td class="px-4 py-3 text-right whitespace-nowrap">${badge(Math.round(day.tardy_minutes), Math.round(day.tardy_minutes), 'tardy')}</td>
                 <td class="px-4 py-3 text-right whitespace-nowrap">${badge(day.night_diff, day.night_diff.toFixed(2), 'nd')}</td>
-                <td class="px-4 py-3 max-w-[160px] truncate text-sm text-gray-500" title="${escapeHtml(day.remarks)}">${escapeHtml(day.remarks) || '<span class="text-gray-300">—</span>'}</td>
-                <td class="px-4 py-3 max-w-[160px] truncate text-sm" title="${escapeHtml(day.client)}">${clientCell}</td>
-                <td class="px-4 py-3 max-w-[200px] truncate text-sm" title="${escapeHtml(day.task_performed)}">${taskCell}</td>
+                <td class="px-4 py-3 text-sm text-gray-500" title="${escapeHtml(day.remarks)}">${escapeHtml(day.remarks) || '<span class="text-gray-300">—</span>'}</td>
+                <td class="px-4 py-3 text-sm" title="${escapeHtml(day.client)}">${clientCell}</td>
+                <td class="px-4 py-3 text-sm" title="${escapeHtml(day.task_performed)}">${taskCell}</td>
                 <td class="px-4 py-3 text-center whitespace-nowrap">
                     <div class="cursor-pointer w-7 h-7 hover:scale-110 transition inline-block"
                          onclick="openTaskLogModal(${day.attendance_id}, '${day.date}', '${safeTask}', '${safeClient}')">
@@ -276,16 +455,35 @@ function renderTable() {
 }
 
 function openTaskLogModal(attendanceId, date, currentTask, currentClient) {
-    document.getElementById('task_att_id').value       = attendanceId;
+
+    document.getElementById('task_att_id').value = attendanceId;
+
     document.getElementById('task_att_date').textContent = date;
-    document.getElementById('task_att_text').value     = currentTask   || '';
-    document.getElementById('task_att_client').value   = currentClient || '';
+
+    document.getElementById('task_att_text').value =
+        currentTask || '';
+
+    document.getElementById('task_att_client').value =
+        currentClient || '';
+
     const modal = document.getElementById('taskLogModal');
-    modal.style.display = 'flex';
+
+    modal.classList.remove('hidden');
+
+    modal.classList.add('flex');
+
+    document.body.classList.add('overflow-hidden');
 }
 
 function closeTaskLogModal() {
-    document.getElementById('taskLogModal').style.display = 'none';
+
+    const modal = document.getElementById('taskLogModal');
+
+    modal.classList.remove('flex');
+
+    modal.classList.add('hidden');
+
+    document.body.classList.remove('overflow-hidden');
 }
 
 function saveTaskLog() {

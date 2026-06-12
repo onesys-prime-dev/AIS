@@ -62,14 +62,14 @@
 </div>
 
 <style>
-    #viewPayslipModal .modal-card {
+    #viewPayslipModal .default-modal-box {
         max-width: 1080px;
         padding: 22px;
         border-radius: 16px;
     }
 
-    #viewPayslipModal > .modal-card > .modal-close,
-    #viewPayslipModal > .modal-card > h2 {
+    #viewPayslipModal .default-modal-box > .default-modal-close,
+    #viewPayslipModal .default-modal-box > .default-modal-title {
         display: none;
     }
 
@@ -403,7 +403,12 @@ function renderPayslipHtml(d) {
     const grossPay = n(d.net_basic_pay) + n(d.reg_ot) + n(d.sat_ot) + n(d.sun_ot) + n(d.hol_ot)
                    + n(d.other_earnings_taxable) + n(d.de_minimis);
     const govDed   = n(d.sss_ee) + n(d.phic_ee) + n(d.hdmf_ee) + n(d.withholding_tax);
-    const loanDed  = n(d.sss_loan) + n(d.calamity_loan) + n(d.salary_advance);
+    const loanDed =
+        n(d.sss_loan) +
+        n(d.calamity_loan) +
+        n(d.salary_loan) +
+        n(d.emergency_loan) +
+        n(d.cash_advance);
     const totalDed = govDed + loanDed;
 
     return `
@@ -476,9 +481,45 @@ function renderPayslipHtml(d) {
                 </td>
                 <td style="border:1px solid #000;padding:5px;vertical-align:top;">
                     <table style="width:100%;font-size:12px;border-collapse:collapse;">
-                        <tr><td style="border:none;padding:2px 4px;">Salary Loan</td>    <td style="border:none;padding:2px 4px;text-align:right;">${fmt(d.sss_loan)}</td></tr>
-                        <tr><td style="border:none;padding:2px 4px;">Calamity Loan</td>  <td style="border:none;padding:2px 4px;text-align:right;">${fmt(d.calamity_loan)}</td></tr>
-                        <tr><td style="border:none;padding:2px 4px;">Salary Advance</td> <td style="border:none;padding:2px 4px;text-align:right;">${fmt(d.salary_advance)}</td></tr>
+                        ${n(d.sss_loan) > 0 ? `
+                        <tr>
+                            <td style="border:none;padding:2px 4px;">SSS Loan</td>
+                            <td style="border:none;padding:2px 4px;text-align:right;">
+                                ${fmt(d.sss_loan)}
+                            </td>
+                        </tr>` : ''}
+
+                        ${n(d.calamity_loan) > 0 ? `
+                        <tr>
+                            <td style="border:none;padding:2px 4px;">Calamity Loan</td>
+                            <td style="border:none;padding:2px 4px;text-align:right;">
+                                ${fmt(d.calamity_loan)}
+                            </td>
+                        </tr>` : ''}
+
+                        ${n(d.salary_loan) > 0 ? `
+                        <tr>
+                            <td style="border:none;padding:2px 4px;">Salary Loan</td>
+                            <td style="border:none;padding:2px 4px;text-align:right;">
+                                ${fmt(d.salary_loan)}
+                            </td>
+                        </tr>` : ''}
+
+                        ${n(d.emergency_loan) > 0 ? `
+                        <tr>
+                            <td style="border:none;padding:2px 4px;">Emergency Loan</td>
+                            <td style="border:none;padding:2px 4px;text-align:right;">
+                                ${fmt(d.emergency_loan)}
+                            </td>
+                        </tr>` : ''}
+
+                        ${n(d.cash_advance) > 0 ? `
+                        <tr>
+                            <td style="border:none;padding:2px 4px;">Cash Advance</td>
+                            <td style="border:none;padding:2px 4px;text-align:right;">
+                                ${fmt(d.cash_advance)}
+                            </td>
+                        </tr>` : ''}
                     </table>
                 </td>
             </tr>

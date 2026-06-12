@@ -264,6 +264,8 @@ class LoanService
             'start_date'             => $data['start_date'],
             'estimated_end_date'     => $data['estimated_end_date'],
             'loan_status'            => $data['loan_status'] ?? 'active',
+            'approved_by'            => auth()->id(),
+            'approved_at'            => date('Y-m-d H:i:s'),
             'created_by'             => auth()->id(),
         ], true);
 
@@ -364,14 +366,8 @@ class LoanService
     |--------------------------------------------------------------------------
     */
 
-    public function getEmployeeLoanDeduction( int $employeeId, string $periodStart, string $periodEnd): float
+    /* public function getEmployeeLoanDeduction( int $employeeId, string $periodStart, string $periodEnd): float
     {
-        /*
-        |--------------------------------------------------------------------------
-        | Find Due Pending Installment
-        |--------------------------------------------------------------------------
-        */
-
         $schedule = $this->scheduleModel
             ->select('employee_loan_schedule.*')
             ->join(
@@ -401,28 +397,17 @@ class LoanService
         }
 
         return (float) $schedule['amount_due'];
-    }
+    } */
 
     /*
     |--------------------------------------------------------------------------
     | MARK INSTALLMENT AS PAID
     |--------------------------------------------------------------------------
     */
-
-    public function markInstallmentPaid(
-        int $employeeId,
-        string $periodStart,
-        string $periodEnd,
-        ?int $payrollId = null
-    ): void
+    public function markInstallmentPaid(int $employeeId, string $periodStart, string $periodEnd, ?int $payrollId = null): void
     {
-        /*
-        |--------------------------------------------------------------------------
-        | Find Due Installment
-        |--------------------------------------------------------------------------
-        */
 
-        $schedule = $this->scheduleModel
+        $schedules = $this->scheduleModel
 
             ->select('employee_loan_schedule.*')
 
@@ -452,92 +437,99 @@ class LoanService
                 'ASC'
             )
 
-            ->first();
+            ->findAll();
 
-        if (!$schedule) {
+        if (empty($schedules)) {
             return;
         }
 
-        /*
-        |--------------------------------------------------------------------------
-        | Mark Schedule Paid
-        |--------------------------------------------------------------------------
-        */
+        foreach ($schedules as $schedule) {
 
-        $this->scheduleModel->update(
-            $schedule['id'],
-            [
+            /*
+            |--------------------------------------------------------------------------
+            | Mark Schedule Paid
+            |--------------------------------------------------------------------------
+            */
 
-                'schedule_status' => 'paid',
+            $this->scheduleModel->update(
+                $schedule['id'],
+                [
 
-                'paid_at' => date('Y-m-d H:i:s'),
+                    'schedule_status' => 'paid',
+
+                    'paid_at' => date('Y-m-d H:i:s'),
+
+                    'payroll_id' => $payrollId,
+                ]
+            );
+
+            /*
+            |--------------------------------------------------------------------------
+            | Save Payment Record
+            |--------------------------------------------------------------------------
+            */
+
+            $loan = $this->loanModel->find(
+                $schedule['loan_id']
+            );
+
+            if (!$loan) {
+                continue;
+            }
+
+            $this->paymentModel->insert([
+
+                'loan_id' => $schedule['loan_id'],
+
+                'schedule_id' => $schedule['id'],
+
+                'employee_id' => $employeeId,
 
                 'payroll_id' => $payrollId,
-            ]
-        );
 
-        /*
-        |--------------------------------------------------------------------------
-        | Save Payment Record
-        |--------------------------------------------------------------------------
-        */
+                'payment_amount' =>
+                    $schedule['amount_due'],
 
-        $loan = $this->loanModel->find(
-            $schedule['loan_id']
-        );
+                'payment_method' =>
+                    'Payroll Deduction',
+            ]);
 
-        $this->paymentModel->insert([
+            /*
+            |--------------------------------------------------------------------------
+            | Update Remaining Balance
+            |--------------------------------------------------------------------------
+            */
 
-            'loan_id' => $schedule['loan_id'],
+            $newBalance = max(
+                (
+                    (float) $loan['remaining_balance']
+                    - (float) $schedule['amount_due']
+                ),
+                0
+            );
 
-            'schedule_id' => $schedule['id'],
+            /*
+            |--------------------------------------------------------------------------
+            | Close Loan If Fully Paid
+            |--------------------------------------------------------------------------
+            */
 
-            'employee_id' => $employeeId,
+            $status =
+                $newBalance <= 0
+                ? 'completed'
+                : 'active';
 
-            'payroll_id' => $payrollId,
+            $this->loanModel->update(
+                $loan['id'],
+                [
 
-            'payment_amount' =>
-                $schedule['amount_due'],
+                    'remaining_balance' =>
+                        round($newBalance, 2),
 
-            'payment_method' =>
-                'Payroll Deduction',
-        ]);
-
-        /*
-        |--------------------------------------------------------------------------
-        | Update Remaining Balance
-        |--------------------------------------------------------------------------
-        */
-
-        $newBalance = max(
-            (
-                (float) $loan['remaining_balance']
-                - (float) $schedule['amount_due']
-            ),
-            0
-        );
-
-        /*
-        |--------------------------------------------------------------------------
-        | Close Loan If Fully Paid
-        |--------------------------------------------------------------------------
-        */
-
-        $status =
-            $newBalance <= 0
-            ? 'completed'
-            : 'active';
-
-        $this->loanModel->update(
-            $loan['id'],
-            [
-
-                'remaining_balance' =>
-                    round($newBalance, 2),
-
-                'loan_status' => $status,
-            ]
-        );
+                    'loan_status' => $status,
+                ]
+            );
+        }
     }
 
     public function getLoanPayments(int $loanId): array
@@ -557,9 +549,9 @@ class LoanService
         }
 
         /*
-        |----------------------------------------------------------
-        | Prevent editing completed/cancelled loans
-        |----------------------------------------------------------
+        |--------------------------------------------------------------------------
+        | Prevent editing locked loans
+        |--------------------------------------------------------------------------
         */
 
         if (
@@ -574,48 +566,22 @@ class LoanService
         }
 
         /*
-        |----------------------------------------------------------
+        |--------------------------------------------------------------------------
         | Update Loan
-        |----------------------------------------------------------
+        |--------------------------------------------------------------------------
         */
 
         return $this->loanModel->update(
             $loanId,
             [
-
                 'start_date' =>
                     $data['start_date'],
 
-                'loan_status' =>
-                    $data['loan_status'],
-            ]
-        );
-    }
+                'remarks' =>
+                    $data['remarks'] ?? null,
 
-    /*
-    |--------------------------------------------------------------------------
-    | CLOSE LOAN MANUALLY
-    |--------------------------------------------------------------------------
-    */
-
-    public function closeLoan(
-        int $loanId
-    ): bool
-    {
-        $this->scheduleModel
-        ->where('loan_id', $loanId)
-        ->where('schedule_status', 'pending')
-        ->set([
-            'schedule_status' => 'completed'
-        ])
-        ->update();
-        return $this->loanModel->update(
-            $loanId,
-            [
-
-                'loan_status' => 'completed',
-
-                'remaining_balance' => 0,
+                'updated_by' =>
+                    auth()->id(),
             ]
         );
     }
@@ -630,11 +596,90 @@ class LoanService
             ])
             ->update();
 
+       return $this->loanModel->update(
+            $loanId,
+            [
+                'loan_status' => 'cancelled',
+
+                'cancelled_at' => date('Y-m-d H:i:s'),
+
+                'cancelled_by' => auth()->id(),
+            ]
+        );
+    }
+
+    public function completeLoan(int $loanId): bool
+    {
+        $this->scheduleModel
+            ->where('loan_id', $loanId)
+            ->where('schedule_status', 'pending')
+            ->set([
+                'schedule_status' => 'completed'
+            ])
+            ->update();
+
         return $this->loanModel->update(
             $loanId,
             [
-                'loan_status' => 'cancelled'
+                'loan_status' => 'completed',
+
+                'remaining_balance' => 0,
+
+                'completed_at' => date('Y-m-d H:i:s'),
+
+                'completed_by' => auth()->id(),
             ]
         );
+    }
+
+    public function getEmployeeLoanBreakdown(int $employeeId, string $periodStart, string $periodEnd): array 
+    {
+        $schedules = $this->scheduleModel
+            ->select('
+                employee_loan_schedule.amount_due,
+                employee_loans.loan_type
+            ')
+            ->join(
+                'employee_loans',
+                'employee_loans.id = employee_loan_schedule.loan_id'
+            )
+            ->where('employee_loans.employee_id', $employeeId)
+            ->where('employee_loans.loan_status', 'active')
+            ->where('employee_loan_schedule.schedule_status', 'pending')
+            ->where('employee_loan_schedule.due_date >=', $periodStart)
+            ->where('employee_loan_schedule.due_date <=', $periodEnd)
+            ->findAll();
+
+        $breakdown = [];
+
+        foreach ($schedules as $row) {
+            $loanName = trim($row['loan_type'] ?? 'Loan');
+            $amount   = (float)($row['amount_due'] ?? 0);
+            if ($amount <= 0) {
+                continue;
+            }
+            
+            $existingIndex = null;
+
+            foreach ($breakdown as $index => $loan) {
+                if (
+                    strtolower($loan['loan_name']) === strtolower($loanName)
+                ) {
+                    $existingIndex = $index;
+                    break;
+                }
+            }
+
+            if ($existingIndex !== null) {
+                $breakdown[$existingIndex]['amount'] += $amount;
+            } else {
+                $breakdown[] = [
+                    'loan_name' => $loanName,
+                    'amount' => $amount,
+                ];
+            }
+        }
+
+        return $breakdown;
     }
 }

@@ -4,6 +4,7 @@ namespace App\Controllers\Client;
 
 use App\Controllers\BaseController;
 use App\Models\Client\EmployeeModel;
+use App\Models\Client\LoanSettingModel;
 use App\Models\Client\LeaveBalanceModel;
 use App\Models\Client\LoanModel;
 use App\Services\Client\EmployeeService;
@@ -27,6 +28,12 @@ class EmployeeController extends BaseController
         $employeeModel = new EmployeeModel();
         $currentUser = auth()->user();
 
+        /*
+        |--------------------------------------------------------------------------
+        | EMPLOYEES
+        |--------------------------------------------------------------------------
+        */
+
         $employees = $employeeModel
         ->select("
             employees.id,
@@ -36,8 +43,6 @@ class EmployeeController extends BaseController
             employees.last_name,
             employees.birthdate,
             employees.employee_number,
-            employees.gender,
-            employees.civil_status,
 
             employee_positions.department,
             employee_positions.position,
@@ -46,86 +51,119 @@ class EmployeeController extends BaseController
             employee_positions.working_days,
             employee_positions.start_time,
             employee_positions.end_time,
-            employee_positions.monthly_salary,
-            employee_positions.de_minimis_benefit,
-            employee_positions.allowances,
 
-            employee_government_ids.sss,
-            employee_government_ids.tin,
-            employee_government_ids.pagibig,
-            employee_government_ids.philhealth,
+                employee_government_ids.sss,
+                employee_government_ids.tin,
+                employee_government_ids.pagibig,
+                employee_government_ids.philhealth,
 
-            ai.secret as email,
-            users.active as status,
-            users.online_status,
+                ai.secret as email,
+                users.active as status,
+                users.online_status,
 
-            COALESCE(
-                MAX(
-                    CASE
-                        WHEN agu.group = 'client_payroll_staff' THEN 'client_payroll_staff'
-                        WHEN agu.group = 'employee' THEN 'employee'
-                        ELSE NULL
-                    END
-                ),
-                'employee'
-            ) as account_role,
+                COALESCE(
+                    MAX(
+                        CASE
+                            WHEN agu.group = 'client_payroll_staff'
+                                THEN 'client_payroll_staff'
 
-            MAX(ea.photo_path) as photo_path,
-            MAX(ea.mobile_number) as mobile_number,
-            MAX(ea.address) as address,
-            MAX(ea.bank) as bank,
-            MAX(ea.bank_address) as bank_address,
-            MAX(ea.account_number) as account_number,
-            MAX(ea.swift_code) as swift_code
+                            WHEN agu.group = 'employee'
+                                THEN 'employee'
+
+                            ELSE NULL
+                        END
+                    ),
+                    'employee'
+                ) as account_role,
+
+            MAX(ea.photo_path) as photo_path
         ", false)
 
-        ->join('employee_government_ids', 'employees.id = employee_government_ids.employee_id', 'left')
-        ->join('employee_positions', 'employees.id = employee_positions.employee_id', 'left')
-        ->join('users', 'employees.user_id = users.id', 'left')
-        ->join('auth_identities as ai', "users.id = ai.user_id AND ai.type = 'email_password'",'left')
-        ->join('employee_accounts as ea', 'employees.id = ea.employee_id', 'left')
-        ->join('auth_groups_users as agu', 'employees.user_id = agu.user_id', 'left')
+            ->join(
+                'employee_government_ids',
+                'employees.id = employee_government_ids.employee_id',
+                'left'
+            )
 
-        ->groupBy('employees.id')
-        ->findAll();
+            ->join(
+                'employee_positions',
+                'employees.id = employee_positions.employee_id',
+                'left'
+            )
+
+            ->join(
+                'users',
+                'employees.user_id = users.id',
+                'left'
+            )
+
+            ->join(
+                'auth_identities as ai',
+                "users.id = ai.user_id AND ai.type = 'email_password'",
+                'left'
+            )
+
+            ->join(
+                'employee_accounts as ea',
+                'employees.id = ea.employee_id',
+                'left'
+            )
+
+            ->join(
+                'auth_groups_users as agu',
+                'employees.user_id = agu.user_id',
+                'left'
+            )
+
+            ->groupBy('employees.id')
+
+            ->findAll();
+
+        /*
+        |--------------------------------------------------------------------------
+        | PHOTO URL
+        |--------------------------------------------------------------------------
+        */
 
         foreach ($employees as &$employee) {
-            if (! empty($employee['photo_path'])) {
-                $employee['photo_path'] = base_url((string) $employee['photo_path']);
+
+            if (!empty($employee['photo_path'])) {
+
+                $employee['photo_path'] =
+                    base_url((string) $employee['photo_path']);
             }
         }
+
         unset($employee);
 
-        // Merge leave balance for the current year into each employee row
+        /*
+        |--------------------------------------------------------------------------
+        | LEAVE BALANCE
+        |--------------------------------------------------------------------------
+        */
+
         $leaveBalanceModel = new LeaveBalanceModel();
-        $currentYear       = (int) date('Y');
+
+        $currentYear = (int) date('Y');
 
         foreach ($employees as &$employee) {
-            $eid = (int) $employee['id'];
-
-            $vacBal = $leaveBalanceModel->getBalance($eid, 'vacation',  $currentYear);
-            $sikBal = $leaveBalanceModel->getBalance($eid, 'sick',      $currentYear);
-            $emgBal = $leaveBalanceModel->getBalance($eid, 'emergency', $currentYear);
-
-            $totalEntitlement = (float)($vacBal['total_entitlement'] ?? 0)
-                              + (float)($sikBal['total_entitlement'] ?? 0)
-                              + (float)($emgBal['total_entitlement'] ?? 0);
-
-            $totalRemaining   = (float)($vacBal['remaining'] ?? 0)
-                              + (float)($sikBal['remaining'] ?? 0)
-                              + (float)($emgBal['remaining'] ?? 0);
-
-            $employee['leave_total']     = $totalEntitlement > 0 ? $totalEntitlement : null;
-            $employee['leave_remaining'] = $totalEntitlement > 0 ? $totalRemaining   : null;
-            $employee['vacation_leave']  = (float)($vacBal['total_entitlement'] ?? 0);
-            $employee['sick_leave']      = (float)($sikBal['total_entitlement'] ?? 0);
-            $employee['emergency_leave'] = (float)($emgBal['total_entitlement'] ?? 0);
+            $balance = $leaveBalanceModel->syncFromApprovedRequests((int) $employee['id'], $currentYear, 'leave');
+            $employee['leave_total']     = $balance['total_entitlement'] ?? null;
+            $employee['leave_remaining'] = $balance['remaining']         ?? null;
         }
+
         unset($employee);
+
+        /*
+        |--------------------------------------------------------------------------
+        | LOANS
+        |--------------------------------------------------------------------------
+        */
 
         $loanModel = new LoanModel();
 
         $loans = $loanModel
+
             ->select("
                 employee_loans.*,
 
@@ -133,21 +171,26 @@ class EmployeeController extends BaseController
                 employees.middle_name,
                 employees.last_name
             ")
+
             ->join(
                 'employees',
                 'employees.id = employee_loans.employee_id',
                 'left'
             )
+
             ->orderBy(
                 'employee_loans.created_at',
                 'DESC'
             )
+
             ->findAll();
 
         $formattedLoans = array_map(function ($loan) {
 
             $first = trim($loan['first_name'] ?? '');
+
             $middle = trim($loan['middle_name'] ?? '');
+
             $last = trim($loan['last_name'] ?? '');
 
             $mi = $middle !== ''
@@ -161,26 +204,74 @@ class EmployeeController extends BaseController
             );
 
             return [
+
                 'id' => $loan['id'],
+
                 'employee_name' => $employeeName,
+
                 'loan_type' => $loan['loan_type'],
-                'principal_amount' => $loan['principal_amount'],
-                'remaining_balance' => $loan['remaining_balance'],
-                'deduction_per_payroll' => $loan['deduction_per_payroll'],
-                'installment_count' => $loan['installment_count'],
-                'start_date' => $loan['start_date'],
-                'estimated_end_date' => $loan['estimated_end_date'],
-                'loan_status' => $loan['loan_status'],
+
+                'principal_amount' =>
+                    $loan['principal_amount'],
+
+                'remaining_balance' =>
+                    $loan['remaining_balance'],
+
+                'deduction_per_payroll' =>
+                    $loan['deduction_per_payroll'],
+
+                'installment_count' =>
+                    $loan['installment_count'],
+
+                'start_date' =>
+                    $loan['start_date'],
+
+                'estimated_end_date' =>
+                    $loan['estimated_end_date'],
+
+                'loan_status' =>
+                    $loan['loan_status'],
             ];
 
         }, $loans);
 
-        $data['loans'] = $formattedLoans;
+        /*
+        |--------------------------------------------------------------------------
+        | LOAN SETTINGS
+        |--------------------------------------------------------------------------
+        */
+
+        $loanSettingModel = new LoanSettingModel();
+
+        $loanSettings = $loanSettingModel
+            ->orderBy('loan_type', 'ASC')
+            ->findAll();
+
+        /*
+        |--------------------------------------------------------------------------
+        | VIEW DATA
+        |--------------------------------------------------------------------------
+        */
+
         $data['employees'] = $employees;
 
-        $data['currentUserId'] = (int) ($currentUser->id ?? 0);
+        $data['loans'] = $formattedLoans;
 
-        return view('client_portal/employee_main', $data);
+        $data['settings'] = $loanSettings;
+
+        $data['currentUserId'] =
+            (int) ($currentUser->id ?? 0);
+
+        /*
+        |--------------------------------------------------------------------------
+        | VIEW
+        |--------------------------------------------------------------------------
+        */
+
+        return view(
+            'client_portal/employee_main',
+            $data
+        );
     }
 
     public function createEmployee()

@@ -49,6 +49,24 @@ class LoanModel extends Model
         'created_by',
 
         'approved_by',
+
+        'approved_at',
+
+        /*
+        |--------------------------------------------------------------------------
+        | NEW AUDIT FIELDS
+        |--------------------------------------------------------------------------
+        */
+
+        'updated_by',
+
+        'completed_at',
+
+        'completed_by',
+
+        'cancelled_at',
+
+        'cancelled_by',
     ];
 
     protected $useTimestamps = true;

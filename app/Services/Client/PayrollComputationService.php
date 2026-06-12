@@ -26,75 +26,106 @@ class PayrollComputationService
         $loanService = new LoanService();
 
         // 1. Basic pay components
-        $basicPay = (float)($raw['basic_pay'] ?? 0);
-        $absentAmount = (float)($raw['absent_amount'] ?? 0);
+        $basicPay        = (float)($raw['basic_pay'] ?? 0);
+        $absentAmount    = (float)($raw['absent_amount'] ?? 0);
         $undertimeAmount = (float)($raw['undertime_amount'] ?? 0);
-        $nightDiff = (float)($raw['night_diff_pay'] ?? 0);
+        $nightDiff       = (float)($raw['night_diff_pay'] ?? 0);
+
         $netBasic = $basicPay - $absentAmount - $undertimeAmount + $nightDiff;
 
         // 2. Overtime
-        $regOt = (float)($raw['reg_ot_pay'] ?? 0);
-        $restOt = (float)($raw['rest_ot_pay'] ?? 0);
-        $holidayOt = (float)($raw['holiday_ot_pay'] ?? 0);
+        $regOt      = (float)($raw['reg_ot_pay'] ?? 0);
+        $restOt     = (float)($raw['rest_ot_pay'] ?? 0);
+        $holidayOt  = (float)($raw['holiday_ot_pay'] ?? 0);
+
         $totalOvertime = $regOt + $restOt + $holidayOt;
 
         // 3. Other earnings
-        $deMinimis = (float)($raw['de_minimis'] ?? 0);
-        $otherTaxable = (float)($raw['other_taxable'] ?? 0);
+        $deMinimis       = (float)($raw['de_minimis'] ?? 0);
+        $otherTaxable    = (float)($raw['other_taxable'] ?? 0);
         $otherNonTaxable = (float)($raw['other_non_taxable'] ?? 0);
 
-        $totalEarnings = $netBasic + $totalOvertime + $deMinimis + $otherTaxable + $otherNonTaxable;
+        $totalEarnings =
+            $netBasic +
+            $totalOvertime +
+            $deMinimis +
+            $otherTaxable +
+            $otherNonTaxable;
 
-        // 4. Government contributions (based on monthly salary)
+        // 4. Government contributions
         $monthlySalary = (float)($raw['monthly_salary'] ?? ($basicPay * 2));
-        $sss = $this->calculateSSS($monthlySalary);
+
+        $sss  = $this->calculateSSS($monthlySalary);
         $phic = $this->calculatePhilHealth($monthlySalary);
         $hdmf = $this->calculatePagIbig($monthlySalary);
 
-        // 5. Withholding tax (semi‑monthly adjustment)
-        $currentTaxable = $netBasic + $totalOvertime + $otherTaxable;
+        // 5. Withholding tax
+        $currentTaxable  = $netBasic + $totalOvertime + $otherTaxable;
         $previousTaxable = $this->getPreviousCutoffTaxable($employeeId, $periodStart);
-        $previousWtax = $this->getPreviousWtaxPaid($employeeId, $periodStart);
+        $previousWtax    = $this->getPreviousWtaxPaid($employeeId, $periodStart);
+
         $monthlyTaxable = $currentTaxable + $previousTaxable;
-        $monthlyWtax = $this->calculateWithholdingTax($monthlyTaxable);
+        $monthlyWtax    = $this->calculateWithholdingTax($monthlyTaxable);
+
         $withholdingTax = max(0, $monthlyWtax - $previousWtax);
 
-        // 6. Loans & other deductions
-        $loanDeduction = $loanService->getEmployeeLoanDeduction($employeeId, $periodStart, $periodEnd);
-        $sssLoan = (float)($raw['sss_loan'] ?? 0);
-        $calamityLoan = (float)($raw['calamity_loan'] ?? 0);
-        $salaryAdvance = (float)($raw['salary_advance'] ?? 0);
+        // 6. Loans & deductions
         $otherDeductions = (float)($raw['other_deductions'] ?? 0);
 
-        $totalDeductions = $sss + $phic + $hdmf + $withholdingTax + $sssLoan + $calamityLoan + $salaryAdvance +  $loanDeduction + $loanDeduction + $otherDeductions;
+        $loanDeductions = $loanService->getEmployeeLoanBreakdown(
+            $employeeId,
+            $periodStart,
+            $periodEnd
+        );
+
+        $totalLoanDeductions = 0;
+
+        foreach ($loanDeductions as $loan) {
+            $totalLoanDeductions += (float)($loan['amount'] ?? 0);
+        }
+        // Final deductions
+        $totalDeductions =
+            $sss +
+            $phic +
+            $hdmf +
+            $withholdingTax +
+            $totalLoanDeductions +
+            $otherDeductions;
+
         $netPay = $totalEarnings - $totalDeductions;
 
         return [
             'employee_id' => $employeeId,
             'period_start' => $periodStart,
             'period_end' => $periodEnd,
+
             'basic_pay' => round($basicPay, 2),
             'absent_amount' => round($absentAmount, 2),
             'undertime_amount' => round($undertimeAmount, 2),
             'night_diff_pay' => round($nightDiff, 2),
+
             'reg_ot_pay' => round($regOt, 2),
             'rest_ot_pay' => round($restOt, 2),
             'holiday_ot_pay' => round($holidayOt, 2),
             'overtime_pay' => round($totalOvertime, 2),
+
             'de_minimis' => round($deMinimis, 2),
             'other_earnings_taxable' => round($otherTaxable, 2),
             'other_earnings_non_taxable' => round($otherNonTaxable, 2),
+
             'total_earnings' => round($totalEarnings, 2),
+
             'sss_ee' => round($sss, 2),
             'phic_ee' => round($phic, 2),
             'hdmf_ee' => round($hdmf, 2),
             'withholding_tax' => round($withholdingTax, 2),
-            'sss_loan' => round($sssLoan, 2),
-            'calamity_loan' => round($calamityLoan, 2),
-            'salary_advance' => round($salaryAdvance, 2),
-            'loan_deduction' => round($loanDeduction, 2),
+
+            'loan_deductions' => $loanDeductions,
+            'total_loan_deductions' => round($totalLoanDeductions, 2),
+
             'other_deductions' => round($otherDeductions, 2),
             'total_deductions' => round($totalDeductions, 2),
+
             'net_pay' => round($netPay, 2),
         ];
     }
@@ -102,64 +133,244 @@ class PayrollComputationService
     /**
      * Compute payroll using attendance summary + rates
      */
-    public function computePayroll(int $employeeId, string $start, string $end, array $adjustments): array
+    public function computePayroll(
+        int $employeeId,
+        string $start,
+        string $end,
+        array $adjustments
+    ): array
     {
         $loanService = new LoanService();
-        // For simplicity, we assume adjustments contain all needed fields
-        // This method is called from computeAndSave with adjustments = full payload.
-        $basicPay = (float)($adjustments['basic_pay'] ?? 0);
-        $nightDiff = (float)($adjustments['night_diff_pay'] ?? 0);
-        $overtime = (float)($adjustments['overtime_pay'] ?? 0);
-        $deMinimis = (float)($adjustments['de_minimis'] ?? 0);
-        $otherTaxable = (float)($adjustments['other_earnings_taxable'] ?? 0);
+
+        // =========================================================
+        // EARNINGS
+        // =========================================================
+
+        $basicPay        = (float)($adjustments['basic_pay'] ?? 0);
+        $nightDiff       = (float)($adjustments['night_diff_pay'] ?? 0);
+        $overtime        = (float)($adjustments['overtime_pay'] ?? 0);
+        $deMinimis       = (float)($adjustments['de_minimis'] ?? 0);
+        $otherTaxable    = (float)($adjustments['other_earnings_taxable'] ?? 0);
         $otherNonTaxable = (float)($adjustments['other_earnings_non_taxable'] ?? 0);
 
-        $totalEarnings = $basicPay + $nightDiff + $overtime + $deMinimis + $otherTaxable + $otherNonTaxable;
+        $totalEarnings =
+            $basicPay +
+            $nightDiff +
+            $overtime +
+            $deMinimis +
+            $otherTaxable +
+            $otherNonTaxable;
+
+        // =========================================================
+        // GOVERNMENT CONTRIBUTIONS
+        // =========================================================
 
         $monthlySalary = $basicPay * 2;
-        $sss = $this->calculateSSS($monthlySalary);
+
+        $sss  = $this->calculateSSS($monthlySalary);
         $phic = $this->calculatePhilHealth($monthlySalary);
         $hdmf = $this->calculatePagIbig($monthlySalary);
 
-        // Withholding tax: adjust for semi‑monthly
-        $currentTaxable = $basicPay + $nightDiff + $overtime + $otherTaxable;
-        $previousTaxable = $this->getPreviousCutoffTaxable($employeeId, $start);
-        $previousWtax = $this->getPreviousWtaxPaid($employeeId, $start);
-        $monthlyTaxable = $currentTaxable + $previousTaxable;
-        $monthlyWtax = $this->calculateWithholdingTax($monthlyTaxable);
-        $withholdingTax = max(0, $monthlyWtax - $previousWtax);
+        // =========================================================
+        // WITHHOLDING TAX
+        // =========================================================
 
-        $loanDeduction = $loanService->getEmployeeLoanDeduction($employeeId, $start, $end);
-        $sssLoan = (float)($adjustments['sss_loan'] ?? 0);
-        $calamityLoan = (float)($adjustments['calamity_loan'] ?? 0);
-        $salaryAdvance = (float)($adjustments['salary_advance'] ?? 0);
-        $otherDeductions = (float)($adjustments['other_deductions'] ?? 0);
+        $currentTaxable =
+            $basicPay +
+            $nightDiff +
+            $overtime +
+            $otherTaxable;
 
-        $totalDeductions = $sss + $phic + $hdmf + $withholdingTax + $sssLoan + $calamityLoan + $salaryAdvance + $loanDeduction + $otherDeductions;
-        $netPay = $totalEarnings - $totalDeductions;
+        $previousTaxable =
+            $this->getPreviousCutoffTaxable(
+                $employeeId,
+                $start
+            );
+
+        $previousWtax =
+            $this->getPreviousWtaxPaid(
+                $employeeId,
+                $start
+            );
+
+        $monthlyTaxable =
+            $currentTaxable +
+            $previousTaxable;
+
+        $monthlyWtax =
+            $this->calculateWithholdingTax(
+                $monthlyTaxable
+            );
+
+        $withholdingTax =
+            max(
+                0,
+                $monthlyWtax - $previousWtax
+            );
+
+        // =========================================================
+        // LOAN DEDUCTIONS
+        // =========================================================
+
+        $otherDeductions =
+            (float)($adjustments['other_deductions'] ?? 0);
+
+        $rawLoanDeductions =
+            $loanService->getEmployeeLoanBreakdown(
+                $employeeId,
+                $start,
+                $end
+            );
+
+        /*
+        |------------------------------------------------------------
+        | SANITIZE LOAN ARRAY
+        |------------------------------------------------------------
+        |
+        | Prevent malformed numeric arrays / objects
+        | from breaking CI4 insert bindings.
+        |
+        */
+
+        $loanDeductions = [];
+
+        foreach ($rawLoanDeductions as $loan) {
+
+            $loanDeductions[] = [
+
+                'loan_id' =>
+                    (int)($loan['loan_id'] ?? 0),
+
+                'schedule_id' =>
+                    (int)($loan['schedule_id'] ?? 0),
+
+                'loan_name' =>
+                    (string)($loan['loan_name'] ?? 'Loan'),
+
+                'amount' =>
+                    round(
+                        (float)($loan['amount'] ?? 0),
+                        2
+                    ),
+
+                'due_date' =>
+                    (string)($loan['due_date'] ?? ''),
+
+                'remaining_balance' =>
+                    round(
+                        (float)($loan['remaining_balance'] ?? 0),
+                        2
+                    ),
+            ];
+        }
+
+        $totalLoanDeductions =
+            array_sum(
+                array_map(
+                    fn($loan) =>
+                        (float)($loan['amount'] ?? 0),
+                    $loanDeductions
+                )
+            );
+
+        // =========================================================
+        // TOTAL DEDUCTIONS
+        // =========================================================
+
+        $totalDeductions =
+            $sss +
+            $phic +
+            $hdmf +
+            $withholdingTax +
+            $totalLoanDeductions +
+            $otherDeductions;
+
+        // =========================================================
+        // NET PAY
+        // =========================================================
+
+        $netPay =
+            $totalEarnings -
+            $totalDeductions;
+
+        // =========================================================
+        // RETURN PAYROLL DATA
+        // =========================================================
 
         return [
-            'employee_id' => $employeeId,
-            'period_start' => $start,
-            'period_end' => $end,
-            'basic_pay' => round($basicPay, 2),
-            'night_diff_pay' => round($nightDiff, 2),
-            'overtime_pay' => round($overtime, 2),
-            'de_minimis' => round($deMinimis, 2),
-            'other_earnings_taxable' => round($otherTaxable, 2),
-            'other_earnings_non_taxable' => round($otherNonTaxable, 2),
-            'total_earnings' => round($totalEarnings, 2),
-            'sss_ee' => round($sss, 2),
-            'phic_ee' => round($phic, 2),
-            'hdmf_ee' => round($hdmf, 2),
-            'withholding_tax' => round($withholdingTax, 2),
-            'sss_loan' => round($sssLoan, 2),
-            'calamity_loan' => round($calamityLoan, 2),
-            'salary_advance' => round($salaryAdvance, 2),
-            'loan_deduction' => round($loanDeduction, 2),
-            'other_deductions' => round($otherDeductions, 2),
-            'total_deductions' => round($totalDeductions, 2),
-            'net_pay' => round($netPay, 2),
+
+            'employee_id' =>
+                $employeeId,
+
+            'period_start' =>
+                $start,
+
+            'period_end' =>
+                $end,
+
+            // -----------------------------------------------------
+            // Earnings
+            // -----------------------------------------------------
+
+            'basic_pay' =>
+                round($basicPay, 2),
+
+            'night_diff_pay' =>
+                round($nightDiff, 2),
+
+            'overtime_pay' =>
+                round($overtime, 2),
+
+            'de_minimis' =>
+                round($deMinimis, 2),
+
+            'other_earnings_taxable' =>
+                round($otherTaxable, 2),
+
+            'other_earnings_non_taxable' =>
+                round($otherNonTaxable, 2),
+
+            'total_earnings' =>
+                round($totalEarnings, 2),
+
+            // -----------------------------------------------------
+            // Deductions
+            // -----------------------------------------------------
+
+            'sss_ee' =>
+                round($sss, 2),
+
+            'phic_ee' =>
+                round($phic, 2),
+
+            'hdmf_ee' =>
+                round($hdmf, 2),
+
+            'withholding_tax' =>
+                round($withholdingTax, 2),
+
+            // -----------------------------------------------------
+            // Loans
+            // -----------------------------------------------------
+
+            'loan_deductions' =>
+                $loanDeductions,
+
+            'total_loan_deductions' =>
+                round($totalLoanDeductions, 2),
+
+            // -----------------------------------------------------
+            // Other
+            // -----------------------------------------------------
+
+            'other_deductions' =>
+                round($otherDeductions, 2),
+
+            'total_deductions' =>
+                round($totalDeductions, 2),
+
+            'net_pay' =>
+                round($netPay, 2),
         ];
     }
 

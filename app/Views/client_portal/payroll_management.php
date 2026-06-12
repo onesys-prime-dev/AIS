@@ -526,7 +526,7 @@ $companyLogoUrl = $companyBranding && !empty($companyBranding['logo_path'])
             </div>
 
             <!-- LOANS + ADVANCES -->
-            <div class="grid-2 section">
+           <!--  <div class="grid-2 section">
                 <div>
                     <h3 class="font-semibold">SSS Loan</h3>
                     <div><label>Salary Loan</label><input type="number" id="sssSalaryLoan" value="0"></div>
@@ -537,6 +537,30 @@ $companyLogoUrl = $companyBranding && !empty($companyBranding['logo_path'])
                     <div><label>Salary Advance</label><input type="number" id="advSalary" value="0"></div>
                     <div class="mt-2"><label>Calamity Advance</label><input type="number" id="advCalamity" value="0"></div>
                 </div>
+            </div> -->
+
+            <!-- DYNAMIC EMPLOYEE LOANS -->
+            <div class="section">
+
+                <h3 class="font-semibold">
+                    Loans and Advances
+                </h3>
+
+                <p class="subtitle">
+                    Active deductions for this payroll period
+                </p>
+
+                <div
+                    id="employeeLoansContainer"
+                    class="grid-2 mt-3"
+                >
+
+                    <div class="text-sm text-gray-400">
+                        No active loans found.
+                    </div>
+
+                </div>
+
             </div>
 
             <!-- UNDERTIME / ABSENT -->
@@ -663,12 +687,12 @@ $companyLogoUrl = $companyBranding && !empty($companyBranding['logo_path'])
                     <div><label>Withholding Tax Payable</label><input type="number" id="wtPayable" value="0"></div>
                 </div>
 
-                <h3 class="font-semibold mt-4">SSS Loan</h3>
+                <!-- <h3 class="font-semibold mt-4">SSS Loan</h3>
                 <p class="subtitle">Please complete the employee data</p>
                 <div class="grid-2">
                     <div><label>Salary</label><input type="number" id="regSssLoanSalary" value="0"></div>
                     <div><label>Calamity</label><input type="number" id="regSssLoanCalamity" value="0"></div>
-                </div>
+                </div> -->
 
                 <hr class="my-3 border-gray-300">
 
@@ -846,6 +870,7 @@ async function loadEmployees() {
         if (!response.ok) throw new Error('Failed to load employees');
         const data = await response.json();
         employeesList = data;
+        console.log(employeesList);
         initSearchSuggestions();
         setupBulkSearch();
     } catch (error) {
@@ -871,7 +896,10 @@ function setupBulkSearch() {
         const q = term.trim().toLowerCase();
         if (!q) { dropdown.style.display = 'none'; return; }
 
-        const matches = employeesList.filter(e => e.name.toLowerCase().includes(q)).slice(0, 10);
+        const matches = employeesList.filter(e => {
+            const name = (e.name || '').toLowerCase();
+            return name.includes(q);
+        }).slice(0, 10);
         if (!matches.length) { dropdown.style.display = 'none'; return; }
 
         dropdown.innerHTML = matches.map((emp, i) => {
@@ -991,7 +1019,12 @@ function initSearchSuggestions() {
             suggestionsDiv.style.display = 'none';
             return;
         }
-        const matches = employeesList.filter(emp => emp.name.toLowerCase().includes(query));
+
+        const matches = employeesList.filter(emp => {
+            const name = (emp.name || '').toLowerCase();
+            return name.includes(query);
+        });
+
         if (matches.length === 0) {
             suggestionsDiv.style.display = 'none';
             return;
@@ -1061,6 +1094,7 @@ async function processNextBulkEmployee() {
 }
 
 async function fillEmployeeData(employeeId) {
+    console.log('FILL EMPLOYEE DATA ID:', employeeId);
     const periodStart = document.getElementById('periodStart').value;
     const periodEnd = document.getElementById('periodEnd').value;
     if (!periodStart || !periodEnd) {
@@ -1132,6 +1166,23 @@ async function fillEmployeeData(employeeId) {
     const emp = employeesList.find(e => e.id == employeeId);
     if (emp) document.getElementById('empName').value = emp.name;
     document.getElementById('selectedEmployeeId').value = employeeId;
+
+    // ================= LOAN FETCH =================
+    try {
+        const loanUrl =
+            `<?= site_url('client_portal/payroll/loanBreakdown') ?>/${employeeId}/${periodStart}/${periodEnd}`;
+        console.log('LOAN FETCH URL:', loanUrl);
+        const loanResp = await fetch(loanUrl);
+        if (!loanResp.ok) {
+            throw new Error('Failed to fetch loans');
+        }
+        const loanData = await loanResp.json();
+        renderEmployeeLoans(loanData);
+
+    } catch (err) {
+        console.error('Loan fetch failed:', err);
+        renderEmployeeLoans({});
+    }
     
     const contribs = updateContributions(monthly);
     // Semi-monthly gross taxable ≈ half of monthly salary (OT/adjustments not yet entered).
@@ -1142,6 +1193,115 @@ async function fillEmployeeData(employeeId) {
 
     alert('Raw sheet auto‑filled with attendance data.');
     return true;
+}
+
+function renderEmployeeLoans(loans) {
+
+    const container =
+        document.getElementById(
+            'employeeLoansContainer'
+        );
+
+    if (!container) {
+        console.error('employeeLoansContainer not found');
+        return;
+    }
+
+    container.innerHTML = '';
+
+    /*
+    |--------------------------------------------------------------------------
+    | EMPTY STATE
+    |--------------------------------------------------------------------------
+    */
+
+    if (!Array.isArray(loans) || loans.length === 0) {
+
+        container.innerHTML = `
+
+            <div class="text-sm text-gray-400">
+
+                No active loans for this payroll period.
+
+            </div>
+
+        `;
+
+        return;
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | MATCH RAW SHEET DESIGN
+    |--------------------------------------------------------------------------
+    */
+
+    let html = `
+
+        <div class="grid grid-2">
+
+    `;
+
+    loans.forEach((loan, index) => {
+
+        const amount =
+            parseFloat(loan.amount || 0);
+
+        html += `
+
+            <div>
+
+                <label>
+
+                    ${loan.loan_name || 'Loan'}
+
+                    <span class="text-xs text-gray-400 ml-1">
+                        (${loan.due_date || '-'})
+                    </span>
+
+                </label>
+
+                <input
+                    type="number"
+                    id="loan_${index}"
+                    data-loan-name="${loan.loan_name || 'Loan'}"
+                    value="${amount.toFixed(2)}"
+                    readonly
+                >
+
+            </div>
+
+        `;
+    });
+
+    html += `
+
+        </div>
+
+    `;
+
+    container.innerHTML = html;
+
+    console.log('Rendered Loans:', loans);
+}
+
+function calculateTotalLoanDeductions() {
+
+    let total = 0;
+
+    document
+        .querySelectorAll(
+            '#employeeLoansContainer input'
+        )
+        .forEach(input => {
+
+            total +=
+                parseFloat(input.value || 0);
+
+        });
+
+    return total;
+
 }
 
 // ── SSS / PHIC / HDMF auto-fill (2025 schedule, employee share only) ──────
@@ -1235,12 +1395,10 @@ function syncToRegister() {
     const phic    = parseFloat(document.getElementById('phicEE').value  || 0);
     const hdmf    = parseFloat(document.getElementById('hdmfEE').value  || 0);
     const wtax    = parseFloat(document.getElementById('wtPayable').value || 0);
-    const sssLoan = parseFloat(document.getElementById('sssSalaryLoan').value || 0);
-    const calLoan = parseFloat(document.getElementById('sssCalamityLoan').value || 0);
-    const advance = parseFloat(document.getElementById('advSalary').value || 0);
+    const totalLoans = calculateTotalLoanDeductions();
 
     // Net Pay = Gross Comp − gov't contributions − withholding tax − loans/advances
-    const netPay  = grossComp - sss - phic - hdmf - wtax - sssLoan - calLoan - advance;
+    const netPay  = grossComp - sss - phic - hdmf - wtax - totalLoans;
     document.getElementById('netPayRegister').value = netPay.toFixed(2);
 
     nextTab('register');
@@ -1263,70 +1421,223 @@ function safeParseFloat(value, defaultValue = 0) {
 
 // ================= PAYSLIP FUNCTIONS (CORRECTED) =================
 function getComputedPayslipValues() {
-    let monthly = safeParseFloat(document.getElementById('monthlySalary')?.value);
-    let semiMonthly = safeParseFloat(document.getElementById('semiMonthlySalary')?.value);
-    let basicPay = semiMonthly > 0 ? semiMonthly : (monthly / 2);
-    if(basicPay <= 0 && monthly > 0) basicPay = monthly/2;
-    let ratePerHour = monthly > 0 ? monthly / 160 : 126.44;
-    let hoursWorked = basicPay / ratePerHour;
-    
-    let nightPremium = safeParseFloat(document.getElementById('workdayNightDiffPhp')?.value);
-    let absentAmt = safeParseFloat(document.getElementById('absentPhp')?.value);
-    let undertimeAmt = safeParseFloat(document.getElementById('utPhp')?.value);
-    let regOt = safeParseFloat(document.getElementById('workdayOtPhp')?.value);
-    let satOt = safeParseFloat(document.getElementById('satOtPhp')?.value);
-    let sunOt = safeParseFloat(document.getElementById('sunOtPhp')?.value);
-    let holOt = safeParseFloat(document.getElementById('holOtPhp')?.value);
-    
-    let taxableOther = safeParseFloat(document.getElementById('salaryAdjustment')?.value) +
-                       safeParseFloat(document.getElementById('overrideAmount')?.value) +
-                       safeParseFloat(document.getElementById('nedAmount')?.value) +
-                       safeParseFloat(document.getElementById('holidayPay')?.value);
-    
-    let nonTaxable = safeParseFloat(document.getElementById('yearEndGifts')?.value) +
-                     safeParseFloat(document.getElementById('riceSubsidy')?.value) +
-                     safeParseFloat(document.getElementById('uniformAllowance')?.value) +
-                     safeParseFloat(document.getElementById('laundryAllowance')?.value) +
-                     safeParseFloat(document.getElementById('medicalAllowance')?.value) +
-                     safeParseFloat(document.getElementById('medicalAllowanceAdd')?.value);
-    
-    let totalDeductionsFromPay = absentAmt + undertimeAmt;
-    if (totalDeductionsFromPay > basicPay) totalDeductionsFromPay = basicPay;
-    let netBasicPay = basicPay - totalDeductionsFromPay + nightPremium;
-    if (netBasicPay < 0) netBasicPay = 0;
-    
-    let totalOvertime = regOt + satOt + sunOt + holOt;
-    let grossPay = netBasicPay + totalOvertime + taxableOther + nonTaxable;
-    
-    let sssDed         = safeParseFloat(document.getElementById('sssEE')?.value);
-    let phicDed        = safeParseFloat(document.getElementById('phicEE')?.value);
-    let hdmfDed        = safeParseFloat(document.getElementById('hdmfEE')?.value);
-    let withholdingTax = safeParseFloat(document.getElementById('wtPayable')?.value);
-    let sssLoan        = safeParseFloat(document.getElementById('sssSalaryLoan')?.value);
-    let calamityLoan   = safeParseFloat(document.getElementById('sssCalamityLoan')?.value);
-    let salaryAdvance  = safeParseFloat(document.getElementById('advSalary')?.value);
-    let totalDeductions = sssDed + phicDed + hdmfDed + withholdingTax + sssLoan + calamityLoan + salaryAdvance;
-    let netPay = grossPay - totalDeductions;
 
-    let empName = document.getElementById('empName')?.value || '';
-    if (!empName || empName.trim() === '') empName = 'Not Selected';
-    let position = document.getElementById('empPosition')?.value || 'N/A';
-    let pStart = document.getElementById('periodStart')?.value || '';
-    let pEnd = document.getElementById('periodEnd')?.value || '';
+    let monthly =
+        safeParseFloat(
+            document.getElementById('monthlySalary')?.value
+        );
+
+    let semiMonthly =
+        safeParseFloat(
+            document.getElementById('semiMonthlySalary')?.value
+        );
+
+    let basicPay =
+        semiMonthly > 0
+            ? semiMonthly
+            : (monthly / 2);
+
+    if (basicPay <= 0 && monthly > 0) {
+        basicPay = monthly / 2;
+    }
+
+    let ratePerHour =
+        monthly > 0
+            ? monthly / 160
+            : 126.44;
+
+    let hoursWorked =
+        basicPay / ratePerHour;
+
+    let nightPremium =
+        safeParseFloat(
+            document.getElementById('workdayNightDiffPhp')?.value
+        );
+
+    let absentAmt =
+        safeParseFloat(
+            document.getElementById('absentPhp')?.value
+        );
+
+    let undertimeAmt =
+        safeParseFloat(
+            document.getElementById('utPhp')?.value
+        );
+
+    let regOt =
+        safeParseFloat(
+            document.getElementById('workdayOtPhp')?.value
+        );
+
+    let satOt =
+        safeParseFloat(
+            document.getElementById('satOtPhp')?.value
+        );
+
+    let sunOt =
+        safeParseFloat(
+            document.getElementById('sunOtPhp')?.value
+        );
+
+    let holOt =
+        safeParseFloat(
+            document.getElementById('holOtPhp')?.value
+        );
+
+    let taxableOther =
+        safeParseFloat(document.getElementById('salaryAdjustment')?.value) +
+        safeParseFloat(document.getElementById('overrideAmount')?.value) +
+        safeParseFloat(document.getElementById('nedAmount')?.value) +
+        safeParseFloat(document.getElementById('holidayPay')?.value);
+
+    let nonTaxable =
+        safeParseFloat(document.getElementById('yearEndGifts')?.value) +
+        safeParseFloat(document.getElementById('riceSubsidy')?.value) +
+        safeParseFloat(document.getElementById('uniformAllowance')?.value) +
+        safeParseFloat(document.getElementById('laundryAllowance')?.value) +
+        safeParseFloat(document.getElementById('medicalAllowance')?.value) +
+        safeParseFloat(document.getElementById('medicalAllowanceAdd')?.value);
+
+    let totalOvertime =
+        regOt + satOt + sunOt + holOt;
+
+    // GROSS PAY = ALL EARNINGS
+    let grossPay =
+        basicPay +
+        totalOvertime +
+        nightPremium +
+        taxableOther +
+        nonTaxable;
+
+    // ATTENDANCE DEDUCTIONS
+    let attendanceDeductions =
+        absentAmt + undertimeAmt;
+
+    let netBasicPay =
+        basicPay -
+        attendanceDeductions +
+        nightPremium;
+
+    if (netBasicPay < 0) {
+        netBasicPay = 0;
+    }
+
+    let sssDed =
+        safeParseFloat(
+            document.getElementById('sssEE')?.value
+        );
+
+    let phicDed =
+        safeParseFloat(
+            document.getElementById('phicEE')?.value
+        );
+
+    let hdmfDed =
+        safeParseFloat(
+            document.getElementById('hdmfEE')?.value
+        );
+
+    let withholdingTax =
+        safeParseFloat(
+            document.getElementById('wtPayable')?.value
+        );
+
+    let dynamicLoanTotal = 0;
+
+    document
+        .querySelectorAll('#employeeLoansContainer input')
+        .forEach(input => {
+
+            dynamicLoanTotal +=
+                safeParseFloat(input.value);
+
+        });
+
+    let totalDeductions =
+        attendanceDeductions +
+        sssDed +
+        phicDed +
+        hdmfDed +
+        withholdingTax +
+        dynamicLoanTotal;
+
+    let netPay =
+        grossPay - totalDeductions;
+
+    let empName =
+        document.getElementById('empName')?.value || '';
+
+    if (!empName || empName.trim() === '') {
+        empName = 'Not Selected';
+    }
+
+    let position =
+        document.getElementById('empPosition')?.value || 'N/A';
+
+    let pStart =
+        document.getElementById('periodStart')?.value || '';
+
+    let pEnd =
+        document.getElementById('periodEnd')?.value || '';
 
     const formatDate = (dateStr) => {
-        if (!dateStr) return '';
+
+        if (!dateStr) {
+            return '';
+        }
+
         let d = new Date(dateStr);
-        return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+
+        return d.toLocaleDateString(
+            'en-GB',
+            {
+                day: '2-digit',
+                month: 'short',
+                year: 'numeric'
+            }
+        );
     };
 
     return {
-        empName, position, periodStart: pStart, periodEnd: pEnd,
-        basicPay, ratePerHour, hoursWorked, nightPremium, absentAmt, undertimeAmt,
-        netBasicPay, regOt, satOt, sunOt, holOt, taxableOther, nonTaxable,
-        grossPay, sssDed, phicDed, hdmfDed, withholdingTax,
-        sssLoan, calamityLoan, salaryAdvance, totalDeductions, netPay,
-        formatStart: formatDate(pStart), formatEnd: formatDate(pEnd)
+
+        empName,
+        position,
+        periodStart: pStart,
+        periodEnd: pEnd,
+
+        basicPay,
+        ratePerHour,
+        hoursWorked,
+
+        nightPremium,
+
+        absentAmt,
+        undertimeAmt,
+
+        netBasicPay,
+
+        regOt,
+        satOt,
+        sunOt,
+        holOt,
+
+        taxableOther,
+        nonTaxable,
+
+        grossPay,
+
+        sssDed,
+        phicDed,
+        hdmfDed,
+        withholdingTax,
+
+        attendanceDeductions,
+        totalDeductions,
+
+        netPay,
+
+        formatStart: formatDate(pStart),
+        formatEnd: formatDate(pEnd)
     };
 }
 
@@ -1385,22 +1696,72 @@ function buildPayslipTable() {
     });
     document.getElementById('deductionsBody').innerHTML = dedHtml;
 
-    const loanRows = [
-        { desc: 'Salary Loan', id: 'edit_sssLoan', val: safeParseFloat(document.getElementById('sssSalaryLoan')?.value) },
-        { desc: 'Calamity Loan', id: 'edit_calamityLoan', val: safeParseFloat(document.getElementById('sssCalamityLoan')?.value) },
-        { desc: 'Salary Advance', id: 'edit_advSalary', val: safeParseFloat(document.getElementById('advSalary')?.value) }
-    ];
     let loanHtml = '';
-    loanRows.forEach(row => {
-        loanHtml += `<tr><td class="text-left"><input type="text" value="${row.desc}" style="width:100%; background:#e5e5e5; border:none;"></td>
-                    <td class="text-right"><input type="number" id="${row.id}" value="${row.val.toFixed(2)}" step="any" style="width:100px;"></td></tr>`;
-    });
-    document.getElementById('loansBody').innerHTML = loanHtml;
 
-    const allEditIds = ['edit_basicPay','edit_ratePerHour','edit_hoursWorked','edit_nightPremium','edit_absentAmt','edit_undertimeAmt',
-        'edit_regOt','edit_satOt','edit_sunOt','edit_holOt',
-        'edit_taxAdj','edit_nonTaxable',
-        'edit_sss','edit_phic','edit_hdmf','edit_wtax','edit_sssLoan','edit_calamityLoan','edit_advSalary'];
+    document
+        .querySelectorAll(
+            '#employeeLoansContainer input'
+        )
+        .forEach(input => {
+
+            const amount =
+                safeParseFloat(input.value);
+
+            if (amount <= 0) {
+                return;
+            }
+
+            const label =
+                input.dataset.loanName || 'Loan';
+
+            const editId =
+                `edit_${input.id}`;
+
+            loanHtml += `
+
+                <tr>
+                    <td class="text-left">
+                        ${label}
+                    </td>
+
+                    <td class="text-right">
+                        <input
+                            type="number"
+                            id="${editId}"
+                            value="${amount.toFixed(2)}"
+                            step="any"
+                            style="width:100px;"
+                        >
+                    </td>
+                </tr>
+            `;
+        });
+        document.getElementById('loansBody').innerHTML = loanHtml;
+
+    const allEditIds = [
+
+        'edit_basicPay',
+        'edit_ratePerHour',
+        'edit_hoursWorked',
+        'edit_nightPremium',
+        'edit_absentAmt',
+        'edit_undertimeAmt',
+        'edit_regOt',
+        'edit_satOt',
+        'edit_sunOt',
+        'edit_holOt',
+
+        'edit_taxAdj',
+        'edit_nonTaxable',
+
+        'edit_sss',
+        'edit_phic',
+        'edit_hdmf',
+        'edit_wtax'
+
+    ];
+
+    document.querySelectorAll('#loansBody input[type="number"]').forEach(input => {allEditIds.push(input.id);});
     allEditIds.forEach(id => {
         let el = document.getElementById(id);
         if(el) el.addEventListener('input', recalcTotals);
@@ -1428,9 +1789,30 @@ function recalcTotals() {
     let gross = netBasicPay + totalOt + taxableSum + nonTaxableSum;
 
     let dedSum = 0;
-    ['edit_sss','edit_phic','edit_hdmf','edit_wtax','edit_sssLoan','edit_calamityLoan','edit_advSalary'].forEach(id => {
-        dedSum += safeParseFloat(document.getElementById(id)?.value);
+    [
+        'edit_sss',
+        'edit_phic',
+        'edit_hdmf',
+        'edit_wtax'
+    ].forEach(id => {
+
+        dedSum +=
+            safeParseFloat(
+                document.getElementById(id)?.value
+            );
+
     });
+
+    document
+        .querySelectorAll(
+            '#loansBody input[type="number"]'
+        )
+        .forEach(input => {
+
+            dedSum +=
+                safeParseFloat(input.value);
+
+        });
     let netPay = gross - dedSum;
 
     document.getElementById('totalGross').value      = gross.toFixed(2);
@@ -1456,79 +1838,66 @@ function autoFillPayslip() {
     setNum('edit_phic', d.phicDed);
     setNum('edit_hdmf', d.hdmfDed);
     setNum('edit_wtax', d.withholdingTax);
-    setNum('edit_sssLoan', safeParseFloat(document.getElementById('sssSalaryLoan')?.value));
-    setNum('edit_calamityLoan', safeParseFloat(document.getElementById('sssCalamityLoan')?.value));
-    setNum('edit_advSalary', safeParseFloat(document.getElementById('advSalary')?.value));
     recalcTotals();
 }
 function setNum(id, val) { let el = document.getElementById(id); if(el) el.value = val.toFixed(2); }
 
 // ================= GENERATE PAYSLIP (WITH LOGO) =================
 function computePayslipData() {
-    let monthly = safeParseFloat(document.getElementById('monthlySalary')?.value, 0);
-    let semiMonthly = safeParseFloat(document.getElementById('semiMonthlySalary')?.value, 0);
-    let basicPay = semiMonthly > 0 ? semiMonthly : (monthly / 2);
-    if(basicPay <= 0 && monthly > 0) basicPay = monthly/2;
-    let ratePerHour = monthly > 0 ? monthly / 160 : 126.44;
-    let hoursWorked = basicPay / ratePerHour;
-    
-    let nightPremium = safeParseFloat(document.getElementById('workdayNightDiffPhp')?.value);
-    let absentAmt = safeParseFloat(document.getElementById('absentPhp')?.value);
-    let undertimeAmt = safeParseFloat(document.getElementById('utPhp')?.value);
-    let regOt = safeParseFloat(document.getElementById('workdayOtPhp')?.value);
-    let satOt = safeParseFloat(document.getElementById('satOtPhp')?.value);
-    let sunOt = safeParseFloat(document.getElementById('sunOtPhp')?.value);
-    let holOt = safeParseFloat(document.getElementById('holOtPhp')?.value);
-    
-    let taxableOther = safeParseFloat(document.getElementById('salaryAdjustment')?.value) +
-                       safeParseFloat(document.getElementById('overrideAmount')?.value) +
-                       safeParseFloat(document.getElementById('nedAmount')?.value) +
-                       safeParseFloat(document.getElementById('holidayPay')?.value);
-    
-    let nonTaxable = safeParseFloat(document.getElementById('yearEndGifts')?.value) +
-                     safeParseFloat(document.getElementById('riceSubsidy')?.value) +
-                     safeParseFloat(document.getElementById('uniformAllowance')?.value) +
-                     safeParseFloat(document.getElementById('laundryAllowance')?.value) +
-                     safeParseFloat(document.getElementById('medicalAllowance')?.value) +
-                     safeParseFloat(document.getElementById('medicalAllowanceAdd')?.value);
-    
-    let totalDeductionsFromPay = absentAmt + undertimeAmt;
-    if (totalDeductionsFromPay > basicPay) totalDeductionsFromPay = basicPay;
-    let netBasicPay = basicPay - totalDeductionsFromPay + nightPremium;
-    if (netBasicPay < 0) netBasicPay = 0;
-    
-    let totalOvertime = regOt + satOt + sunOt + holOt;
-    let grossPay = netBasicPay + totalOvertime + taxableOther + nonTaxable;
-    
-    let sssDed         = safeParseFloat(document.getElementById('sssEE')?.value);
-    let phicDed        = safeParseFloat(document.getElementById('phicEE')?.value);
-    let hdmfDed        = safeParseFloat(document.getElementById('hdmfEE')?.value);
-    let withholdingTax = safeParseFloat(document.getElementById('wtPayable')?.value);
-    let sssLoan        = safeParseFloat(document.getElementById('sssSalaryLoan')?.value);
-    let calamityLoan   = safeParseFloat(document.getElementById('sssCalamityLoan')?.value);
-    let salaryAdvance  = safeParseFloat(document.getElementById('advSalary')?.value);
-    let totalDeductions = sssDed + phicDed + hdmfDed + withholdingTax + sssLoan + calamityLoan + salaryAdvance;
-    let netPay = grossPay - totalDeductions;
 
-    let empName = document.getElementById('empName')?.value || '';
-    if (!empName || empName.trim() === '') empName = 'Not Selected';
-    let position = document.getElementById('empPosition')?.value || 'N/A';
-    let pStart = document.getElementById('periodStart')?.value || '';
-    let pEnd = document.getElementById('periodEnd')?.value || '';
-
-    const formatDate = (dateStr) => {
-        if (!dateStr) return '';
-        let d = new Date(dateStr);
-        return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-    };
+    let d =
+        getComputedPayslipValues();
 
     return {
-        empName, position, periodStart: pStart, periodEnd: pEnd,
-        basicPay, ratePerHour, hoursWorked, nightPremium, absentAmt, undertimeAmt,
-        netBasicPay, regOt, satOt, sunOt, holOt, taxableOther, nonTaxable,
-        grossPay, sssDed, phicDed, hdmfDed, withholdingTax,
-        sssLoan, calamityLoan, salaryAdvance, totalDeductions, netPay,
-        formatStart: formatDate(pStart), formatEnd: formatDate(pEnd)
+
+        empName: d.empName,
+        position: d.position,
+
+        periodStart: d.periodStart,
+        periodEnd: d.periodEnd,
+
+        basicPay: d.basicPay,
+        ratePerHour: d.ratePerHour,
+        hoursWorked: d.hoursWorked,
+
+        nightPremium: d.nightPremium,
+
+        absentAmt: d.absentAmt,
+        undertimeAmt: d.undertimeAmt,
+
+        netBasicPay: d.netBasicPay,
+
+        regOt: d.regOt,
+        satOt: d.satOt,
+        sunOt: d.sunOt,
+        holOt: d.holOt,
+
+        taxableOther: d.taxableOther,
+        nonTaxable: d.nonTaxable,
+
+        grossPay: d.grossPay,
+
+        sssDed: d.sssDed,
+        phicDed: d.phicDed,
+        hdmfDed: d.hdmfDed,
+
+        withholdingTax: d.withholdingTax,
+        attendanceDeductions: d.attendanceDeductions,
+
+        loanDeductions:
+            d.totalDeductions -
+            d.attendanceDeductions -
+            d.sssDed -
+            d.phicDed -
+            d.hdmfDed -
+            d.withholdingTax,
+
+        totalDeductions: d.totalDeductions,
+
+        netPay: d.netPay,
+
+        formatStart: d.formatStart,
+        formatEnd: d.formatEnd
     };
 }
 
@@ -1593,9 +1962,7 @@ function generatePayslipHTML(d) {
                     </td>
                     <td style="border:1px solid #000; padding:5px; vertical-align:top;">
                         <table style="width:100%;">
-                            <tr><td class="text-left">Salary Loan</td><td class="text-right">${d.sssLoan.toFixed(2)}</td></tr>
-                            <tr><td class="text-left">Calamity Loan</td><td class="text-right">${d.calamityLoan.toFixed(2)}</td></tr>
-                            <tr><td class="text-left">Salary Advance</td><td class="text-right">${d.salaryAdvance.toFixed(2)}</td></tr>
+                            ${generateDynamicLoanRows()}
                         </table>
                     </td>
                 </tr>
@@ -1648,9 +2015,7 @@ function generateStaticPayslip() {
         phic_ee: d.phicDed,
         hdmf_ee: d.hdmfDed,
         withholding_tax: d.withholdingTax,
-        sss_loan: safeParseFloat(document.getElementById('sssSalaryLoan')?.value),
-        calamity_loan: safeParseFloat(document.getElementById('sssCalamityLoan')?.value),
-        salary_advance: safeParseFloat(document.getElementById('advSalary')?.value),
+        loan_deductions: getDynamicLoanPayload(),
         other_deductions: 0
     };
 
@@ -1708,9 +2073,7 @@ function generateStaticPayslip() {
             phic_ee:         d.phicDed,
             hdmf_ee:         d.hdmfDed,
             withholding_tax: d.withholdingTax,
-            sss_loan:        safeParseFloat(document.getElementById('sssSalaryLoan')?.value),
-            calamity_loan:   safeParseFloat(document.getElementById('sssCalamityLoan')?.value),
-            salary_advance:  safeParseFloat(document.getElementById('advSalary')?.value),
+            loan_deductions: getDynamicLoanPayload(),
             other_deductions: 0,
             net_pay: d.netPay,
         };
@@ -1724,9 +2087,74 @@ function generateStaticPayslip() {
     }
 }
 
+function getDynamicLoanPayload() {
+
+    const loans = [];
+
+    document
+        .querySelectorAll(
+            '#employeeLoansContainer input'
+        )
+        .forEach(input => {
+
+            const amount =
+                safeParseFloat(input.value);
+
+            if (amount <= 0) {
+                return;
+            }
+
+            loans.push({
+
+                loan_type: input.id,
+
+                amount: amount
+
+            });
+
+        });
+
+    return loans;
+
+}
+
 function escapeHtml(str) {
     if (!str) return '';
     return str.replace(/[&<>]/g, m => m === '&' ? '&amp;' : (m === '<' ? '&lt;' : '&gt;'));
+}
+
+function generateDynamicLoanRows() {
+
+    let rows = '';
+
+    document
+        .querySelectorAll(
+            '#employeeLoansContainer input'
+        )
+        .forEach(input => {
+
+            const amount =
+                safeParseFloat(input.value);
+
+            if (amount <= 0) {
+                return;
+            }
+
+            const label =
+                input.dataset.loanName || 'Loan';
+
+            rows += `
+                <tr>
+                    <td class="text-left">
+                        ${label}
+                    </td>
+                    <td class="text-right">
+                        ${amount.toFixed(2)}
+                    </td>
+                </tr>
+            `;
+        });
+    return rows;
 }
 
 // ================= SEND PDF =================
@@ -1775,9 +2203,7 @@ async function sendPdfToEmployee() {
         phic_ee: window.currentPayslipData.phicDed,
         hdmf_ee: window.currentPayslipData.hdmfDed,
         withholding_tax: window.currentPayslipData.withholdingTax,
-        sss_loan: safeParseFloat(document.getElementById('sssSalaryLoan')?.value),
-        calamity_loan: safeParseFloat(document.getElementById('sssCalamityLoan')?.value),
-        salary_advance: safeParseFloat(document.getElementById('advSalary')?.value),
+        loan_deductions: getDynamicLoanPayload(),
         other_deductions: 0,
         net_pay: window.currentPayslipData.netPay,
     };
@@ -1829,10 +2255,7 @@ function exportRawSheet() {
         ned_amount:           g('nedAmount'),
         holiday_pay:          g('holidayPay'),
         gross_comp:           g('grossComp'),
-        sss_salary_loan:      g('sssSalaryLoan'),
-        sss_calamity_loan:    g('sssCalamityLoan'),
-        salary_advance:       g('advSalary'),
-        calamity_advance:     g('advCalamity'),
+        loan_deductions:      JSON.stringify(getDynamicLoanPayload()),
         ut_hours:             g('utHours'),
         ut_php:               g('utPhp'),
         absent_days:          g('absentDays'),
@@ -1911,8 +2334,6 @@ function exportRegister() {
         wt_excess:                 g('wtExcess'),
         wt_paid_last:              g('wtPaidLast'),
         wt_payable:                g('wtPayable'),
-        sss_loan_salary:           g('regSssLoanSalary'),
-        sss_loan_calamity:         g('regSssLoanCalamity'),
         advance_to_employees:      g('advWorkingLeave'),
         non_taxable_comp:          g('advNonTaxable'),
         net_pay:                   g('netPayRegister'),
