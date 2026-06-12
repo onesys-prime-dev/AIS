@@ -13,6 +13,7 @@
     padding: 20px;
 }
 
+/* LOAN TITLE */
 .ls-card-title {
     font-size: 14px;
     font-weight: 600;
@@ -58,7 +59,7 @@
     border-color: #A891FC;
 }
 
-/* CHECKBOX ROW */
+/* CHECKBOX */
 .ls-checkbox-row {
     margin-top: 16px;
     display: flex;
@@ -68,7 +69,7 @@
     color: #374151;
 }
 
-/* SAVE ROW */
+/* SAVE */
 .ls-save-row {
     display: flex;
     justify-content: flex-end;
@@ -91,7 +92,7 @@
     background: #8D72F6;
 }
 
-/* CATEGORY TITLE */
+/* CATEGORY */
 .ls-category-title {
     font-size: 18px;
     font-weight: 700;
@@ -124,10 +125,12 @@
             'Multi-Purpose Loan',
             'Calamity Loan'
         ],
+
         'SSS' => [
             'Salary Loan',
             'Calamity Loan'
         ],
+
         'ADVANCE' => [
             'Salary Advance',
             'Emergency Advance',
@@ -146,15 +149,16 @@
     foreach (($settings ?? []) as $settingRow) {
 
         $key =
-            $settingRow['loan_category']
+            trim($settingRow['loan_category'])
             . '|'
-            . $settingRow['loan_type'];
+            . trim($settingRow['loan_type']);
 
-        $settingsMap[$key] =
-            $settingRow;
+        $settingsMap[$key] = $settingRow;
     }
 
     ?>
+
+    <?php $globalIndex = 0; ?>
 
     <?php foreach ($loanCategories as $category => $loanTypes): ?>
 
@@ -162,12 +166,14 @@
             <?= esc($category) ?>
         </div>
 
-        <?php foreach ($loanTypes as $index => $loanType): ?>
+        <?php foreach ($loanTypes as $loanType): ?>
 
             <?php
 
             $settingKey =
-                $category . '|' . $loanType;
+                trim($category)
+                . '|'
+                . trim($loanType);
 
             $setting =
                 $settingsMap[$settingKey] ?? [];
@@ -184,22 +190,26 @@
                     Configure loan rules and payroll behavior.
                 </p>
 
+                <!-- CATEGORY -->
                 <input
                     type="hidden"
                     name="loan_category[]"
-                    value="<?= esc($category) ?>"
-                >
+                    value="<?= esc($category) ?>">
 
+                <!-- TYPE -->
                 <input
                     type="hidden"
                     name="loan_type[]"
-                    value="<?= esc($loanType) ?>"
-                >
+                    value="<?= esc($loanType) ?>">
 
                 <div class="ls-grid">
 
+                    <!-- INTEREST RATE -->
                     <div class="ls-field">
-                        <label>Interest Rate (%)</label>
+
+                        <label>
+                            Interest Rate (%)
+                        </label>
 
                         <input
                             type="number"
@@ -207,10 +217,15 @@
                             name="interest_rate[]"
                             value="<?= esc($setting['interest_rate'] ?? 0) ?>"
                             required>
+
                     </div>
 
+                    <!-- MAX SALARY MULTIPLIER -->
                     <div class="ls-field">
-                        <label>Max Salary Multiplier</label>
+
+                        <label>
+                            Max Salary Multiplier
+                        </label>
 
                         <input
                             type="number"
@@ -218,20 +233,30 @@
                             name="max_salary_multiplier[]"
                             value="<?= esc($setting['max_salary_multiplier'] ?? 0) ?>"
                             required>
+
                     </div>
 
+                    <!-- MAX INSTALLMENTS -->
                     <div class="ls-field">
-                        <label>Max Installments</label>
+
+                        <label>
+                            Max Installments
+                        </label>
 
                         <input
                             type="number"
                             name="max_installments[]"
                             value="<?= esc($setting['max_installments'] ?? 0) ?>"
                             required>
+
                     </div>
 
+                    <!-- DEDUCTION FREQUENCY -->
                     <div class="ls-field">
-                        <label>Deduction Frequency</label>
+
+                        <label>
+                            Deduction Frequency
+                        </label>
 
                         <select name="deduction_frequency[]">
 
@@ -256,44 +281,55 @@
                             </option>
 
                         </select>
+
                     </div>
 
+                    <!-- GRACE PERIOD -->
                     <div class="ls-field">
-                        <label>Grace Period (Days)</label>
+
+                        <label>
+                            Grace Period (Days)
+                        </label>
 
                         <input
                             type="number"
                             name="grace_period_days[]"
                             value="<?= esc($setting['grace_period_days'] ?? 0) ?>">
+
                     </div>
 
+                    <!-- PENALTY RATE -->
                     <div class="ls-field">
-                        <label>Penalty Rate (%)</label>
+
+                        <label>
+                            Penalty Rate (%)
+                        </label>
 
                         <input
                             type="number"
                             step="0.01"
                             name="penalty_rate[]"
                             value="<?= esc($setting['penalty_rate'] ?? 0) ?>">
+
                     </div>
 
                 </div>
 
+                <!-- ALLOW MULTIPLE -->
                 <label class="ls-checkbox-row">
-
                     <input
                         type="checkbox"
-                        name="allow_multiple_loans[<?= $index ?>]"
+                        name="allow_multiple_loans[<?= $globalIndex ?>]"
                         value="1"
-                        <?= !empty($setting['allow_multiple_loans'])
+                        <?= !empty($setting['allow_multiple_active_loans'])
                             ? 'checked'
                             : '' ?>>
-
                     Allow Multiple Active Loans
-
                 </label>
 
             </div>
+
+            <?php $globalIndex++; ?>
 
         <?php endforeach; ?>
 

@@ -70,7 +70,7 @@
     <?php
     $content = view('client_portal/modals/add_loan_form');
 
-    echo view('components/modal', [
+    echo view('components/add_loan_modal', [
         'id' => 'addLoanModal',
         'title' => 'Add Employee Loan',
         'content' => $content

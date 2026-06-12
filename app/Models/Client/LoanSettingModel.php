@@ -14,23 +14,18 @@ class LoanSettingModel extends Model
 
     protected $allowedFields = [
 
+        'loan_category',
         'loan_type',
-
         'interest_rate',
-
         'max_salary_multiplier',
-
+        'salary_multiplier',
         'max_installments',
-
         'deduction_frequency',
-
-        'allow_multiple_loans',
-
         'grace_period_days',
-
         'penalty_rate',
+        'allow_multiple_active_loans',
+        'is_active'
 
-        'is_active',
     ];
 
     protected $useTimestamps = true;

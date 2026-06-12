@@ -1,5 +1,5 @@
 <!-- STEP 1 + STEP 2 WRAPPER -->
-<div id="loanStepWrapper">
+<div id="loanStepWrapper" class="h-full flex flex-col">
 
     <!-- ===================================================== -->
     <!-- STEP 1 : LOAN FORM -->
@@ -11,7 +11,7 @@
             id="addNewloanForm"
             action="<?= site_url('client_portal/loans/addLoan') ?>"
             method="post"
-            class="flex flex-col h-full">
+            class="flex flex-col h-full min-h-full">
 
             <?= csrf_field() ?>
 
@@ -51,12 +51,12 @@
                 <select
                     id="loanCategory"
                     name="loan_category"
-                    class="w-full border rounded-lg px-3 py-2 bg-white text-gray-700 text-sm focus:outline-none focus:ring-2 focus:ring-[#A891FC]"
+                    class="w-full border rounded-lg px-3 py-2 bg-gray-100 text-gray-700 text-sm"
                     required>
                     <option value="">Select Category</option>
                     <option value="MP2 Savings Program">MP2 Savings Program</option>
                     <option value="SSS">SSS Loans</option>
-                    <option value="Advances to Employees">Advances to Employees</option>
+                    <option value="ADVANCE">Advances</option>
                 </select>
             </div>
 
@@ -68,7 +68,7 @@
                 <select
                     id="loanType"
                     name="loan_type"
-                    class="w-full border rounded-lg px-3 py-2 bg-white text-gray-700 text-sm focus:outline-none focus:ring-2 focus:ring-[#A891FC]"
+                    class="w-full border rounded-lg px-3 py-2 bg-gray-100 text-gray-700 text-sm"
                     required>
                     <option value="">Select Loan Type</option>
                 </select>
@@ -1034,7 +1034,7 @@
             'Calamity Loan'
         ],
 
-        'Advances to Employees': [
+        'ADVANCE': [
             'Salary Advance',
             'Emergency Advance',
             'Cash Advance'

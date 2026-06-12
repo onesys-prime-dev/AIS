@@ -145,7 +145,7 @@ class LoanService
         |--------------------------------------------------------------------------
         */
 
-        if (!(bool) $loanSetting['allow_multiple_loans']) {
+        if (!(bool) $loanSetting['allow_multiple_active_loans']) {
 
             $existingLoan = $this->loanModel 
                 ->where(
@@ -253,6 +253,7 @@ class LoanService
         $loanId = $this->loanModel->insert([
             'employee_id'            => $data['loan_employee_id'],
             'loan_type'              => $data['loan_type'],
+            'loan_category'          => $data['loan_category'],
             'principal_amount'       => $data['principal_amount'],
             'interest_rate'          => $data['interest_rate'],
             'total_interest'         => $data['total_interest'],
@@ -268,6 +269,10 @@ class LoanService
             'approved_at'            => date('Y-m-d H:i:s'),
             'created_by'             => auth()->id(),
         ], true);
+
+        if (!$loanId) {
+            dd($this->loanModel->errors());
+        }
 
         /*
         |--------------------------------------------------------------------------

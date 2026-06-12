@@ -20,6 +20,8 @@ class LoanModel extends Model
 
         'employee_id',
 
+        'loan_category',
+
         'loan_type',
 
         'principal_amount',
@@ -51,12 +53,6 @@ class LoanModel extends Model
         'approved_by',
 
         'approved_at',
-
-        /*
-        |--------------------------------------------------------------------------
-        | NEW AUDIT FIELDS
-        |--------------------------------------------------------------------------
-        */
 
         'updated_by',
 

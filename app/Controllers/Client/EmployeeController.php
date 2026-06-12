@@ -209,16 +209,32 @@ class EmployeeController extends BaseController
 
                 'employee_name' => $employeeName,
 
-                'loan_type' => $loan['loan_type'],
+                'loan_category' =>
+                    $loan['loan_category'],
+
+                'loan_type' =>
+                    $loan['loan_type'],
 
                 'principal_amount' =>
                     $loan['principal_amount'],
+
+                'interest_rate' =>
+                    $loan['interest_rate'],
+
+                'total_interest' =>
+                    $loan['total_interest'],
+
+                'total_payable' =>
+                    $loan['total_payable'],
 
                 'remaining_balance' =>
                     $loan['remaining_balance'],
 
                 'deduction_per_payroll' =>
                     $loan['deduction_per_payroll'],
+
+                'deduction_frequency' =>
+                    $loan['deduction_frequency'],
 
                 'installment_count' =>
                     $loan['installment_count'],

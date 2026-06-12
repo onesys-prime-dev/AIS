@@ -154,7 +154,7 @@ class LoanController extends BaseController
         $rules = [
             'loan_employee_id' => 'required|integer',
             'loan_type' => 'required',
-            'principal_amount' => 'required|decimal',
+            'principal_amount' => 'required|numeric',
             'installment_count' => 'required|integer',
             'start_date' => 'required',
         ];
@@ -179,21 +179,51 @@ class LoanController extends BaseController
         */
         try {
             $loanId = $this->loanService->createLoan([
-                'loan_employee_id' =>
-                    $this->request->getPost('loan_employee_id'),
-                'loan_type' =>
-                    $this->request->getPost('loan_type'),
-                'principal_amount' =>
-                    $this->request->getPost('principal_amount'),
-                'installment_count' =>
-                    $this->request->getPost('installment_count'),
-                'start_date' =>
-                    $this->request->getPost('start_date'),
-                'loan_status' =>
-                    $this->request->getPost('loan_status'),
-            ]);
 
-                return redirect()->back()->with('success','Employee loan created successfully.');
+            'loan_employee_id' =>
+                $this->request->getPost('loan_employee_id'),
+
+            'loan_category' =>
+                $this->request->getPost('loan_category'),
+
+            'loan_type' =>
+                $this->request->getPost('loan_type'),
+
+            'principal_amount' =>
+                $this->request->getPost('principal_amount'),
+
+            'interest_rate' =>
+                $this->request->getPost('interest_rate'),
+
+            'total_interest' =>
+                $this->request->getPost('total_interest'),
+
+            'total_payable' =>
+                $this->request->getPost('total_payable'),
+
+            'deduction_per_payroll' =>
+                $this->request->getPost('deduction_per_payroll'),
+
+            'remaining_balance' =>
+                $this->request->getPost('remaining_balance'),
+
+            'deduction_frequency' =>
+                $this->request->getPost('deduction_frequency'),
+
+            'installment_count' =>
+                $this->request->getPost('installment_count'),
+
+            'start_date' =>
+                $this->request->getPost('start_date'),
+
+            'estimated_end_date' =>
+                $this->request->getPost('estimated_end_date'),
+
+            'loan_status' =>
+                $this->request->getPost('loan_status'),
+        ]);
+
+            return redirect()->back()->with('success','Employee loan created successfully.');
 
             } catch (\Exception $e) {
                 return redirect()->back()->withInput()->with('error',$e->getMessage());
@@ -243,14 +273,25 @@ class LoanController extends BaseController
             return [
                 'id' => $loan['id'],
                 'employee_name' => $employeeName,
+
+                'loan_category' => $loan['loan_category'],
                 'loan_type' => $loan['loan_type'],
+
                 'principal_amount' => $loan['principal_amount'],
-                'remaining_balance' => $loan['remaining_balance'],
-                'deduction_per_payroll' => $loan['deduction_per_payroll'],
-                'installment_count' => $loan['installment_count'],
+                'interest_rate' => $loan['interest_rate'],
+                'total_interest' => $loan['total_interest'],
                 'total_payable' => $loan['total_payable'],
+
+                'deduction_per_payroll' => $loan['deduction_per_payroll'],
+                'deduction_frequency' => $loan['deduction_frequency'],
+
+                'installment_count' => $loan['installment_count'],
+
+                'remaining_balance' => $loan['remaining_balance'],
+
                 'start_date' => $loan['start_date'],
                 'estimated_end_date' => $loan['estimated_end_date'],
+
                 'loan_status' => $loan['loan_status'],
             ];
         }, $loans);
@@ -446,7 +487,7 @@ class LoanController extends BaseController
                 'deduction_frequency' =>
                     $this->request
                         ->getPost('deduction_frequency')[$index] ?? 'monthly',
-                'allow_multiple_loans' =>
+                'allow_multiple_active_loans' =>
                     isset(
                         (
                             $this->request
