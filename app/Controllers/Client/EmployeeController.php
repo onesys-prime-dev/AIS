@@ -43,6 +43,8 @@ class EmployeeController extends BaseController
             employees.last_name,
             employees.birthdate,
             employees.employee_number,
+            employees.gender,
+            employees.civil_status,
 
             employee_positions.department,
             employee_positions.position,
@@ -51,6 +53,9 @@ class EmployeeController extends BaseController
             employee_positions.working_days,
             employee_positions.start_time,
             employee_positions.end_time,
+            employee_positions.monthly_salary,
+            employee_positions.de_minimis_benefit,
+            employee_positions.allowances,
 
                 employee_government_ids.sss,
                 employee_government_ids.tin,
@@ -76,7 +81,13 @@ class EmployeeController extends BaseController
                     'employee'
                 ) as account_role,
 
-            MAX(ea.photo_path) as photo_path
+            MAX(ea.photo_path) as photo_path,
+            MAX(ea.mobile_number) as mobile_number,
+            MAX(ea.address) as address,
+            MAX(ea.bank) as bank,
+            MAX(ea.bank_address) as bank_address,
+            MAX(ea.account_number) as account_number,
+            MAX(ea.swift_code) as swift_code
         ", false)
 
             ->join(
