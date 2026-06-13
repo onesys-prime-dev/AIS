@@ -59,8 +59,9 @@ class PayrollComputationService
         $phic = $this->calculatePhilHealth($monthlySalary);
         $hdmf = $this->calculatePagIbig($monthlySalary);
 
-        // 5. Withholding tax — per semi-monthly period using BIR semi-monthly brackets.
-        //    BIR RR 3-2015: mandatory contributions do NOT reduce taxable compensation.
+        // 5. Withholding tax — 1st-half method (Excel payroll register):
+        //    Apply semi-monthly brackets directly to gross taxable (no contribution deduction).
+        //    For 2nd half cumulative computation, the JS UI handles prior-period adjustment.
         $currentTaxable = $netBasic + $totalOvertime + $otherTaxable;
         $withholdingTax = $this->calculateSemiMonthlyWithholdingTax($currentTaxable);
 
@@ -174,8 +175,8 @@ class PayrollComputationService
         $phic = $this->calculatePhilHealth($monthlySalary);
         $hdmf = $this->calculatePagIbig($monthlySalary);
 
-        // Withholding tax — per semi-monthly period using BIR semi-monthly brackets.
-        //    BIR RR 3-2015: mandatory contributions do NOT reduce taxable compensation.
+        // Withholding tax — 1st-half method (Excel payroll register):
+        //    Apply semi-monthly brackets directly to gross taxable (no contribution deduction).
         $currentTaxable = $basicPay + $nightDiff + $overtime + $otherTaxable;
         $withholdingTax = $this->calculateSemiMonthlyWithholdingTax($currentTaxable);
 

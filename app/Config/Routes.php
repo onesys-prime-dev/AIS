@@ -130,6 +130,9 @@ $routes->group('client_portal/payroll', ['namespace' => 'App\Controllers\Client'
     $routes->get('exportTimesheet', 'PayrollController::exportTimesheet');
     $routes->post('importTimesheet', 'PayrollController::importTimesheet');
 
+    $routes->get('getPriorHalfWT/(:num)/(:any)/(:any)', 'PayrollController::getPriorHalfWT/$1/$2/$3');
+    $routes->get('getPriorHalfWT/(:num)/(:any)', 'PayrollController::getPriorHalfWT/$1/$2');
+
     // ========== SSS Bracket Management ==========
     $routes->get('sss/years',            'PayrollController::sssYears');
     $routes->get('sss/brackets',         'PayrollController::sssBrackets');

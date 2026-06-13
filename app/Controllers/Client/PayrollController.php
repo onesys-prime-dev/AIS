@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 namespace App\Controllers\Client;
 
@@ -213,7 +213,7 @@ class PayrollController extends BaseController
 
             if ($monthlySalary > 0) {
                 // Employee management is always the canonical source
-                $dailyRate = $monthlySalary / $workingDays;
+                $dailyRate = $monthlySalary / 21.75;
             } else {
                 // Fallback: check if payroll status has a daily_rate override
                 $payrollModel = new PayrollModel();
@@ -224,7 +224,7 @@ class PayrollController extends BaseController
 
                 if ($payroll && (float)$payroll['daily_rate'] > 0) {
                     $dailyRate     = (float)$payroll['daily_rate'];
-                    $monthlySalary = $dailyRate * $workingDays;
+                    $monthlySalary = $dailyRate * 21.75;
                 } else {
                     return $this->response->setStatusCode(404)->setJSON([
                         'error' => "No salary set for this employee. Please set a Basic Salary in Employee Management.",
@@ -232,7 +232,7 @@ class PayrollController extends BaseController
                 }
             }
 
-            $hourlyRate = $monthlySalary / 160;
+            $hourlyRate = $monthlySalary / 174;
 
             $first    = trim($employee['first_name']  ?? '');
             $last     = trim($employee['last_name']   ?? '');
@@ -328,44 +328,67 @@ class PayrollController extends BaseController
         }
     }
 
+    /**
+     * PHP mirror of the JS buildPeriodDate() used in payroll_management.php.
+     * Resolves a (salary-year, salary-month, day, monthOffset) tuple to YYYY-MM-DD.
+     * day=0 means "last day of the target month".
+     */
+    private function buildPeriodDate(int $y, int $m, int $day, int $offset): string
+    {
+        $rawM    = $m + $offset;
+        $tY      = $y + (int)floor(($rawM - 1) / 12);
+        $tM      = (int)((($rawM - 1) % 12 + 12) % 12 + 1);
+        $lastDay = (int)date('t', mktime(0, 0, 0, $tM, 1, $tY));
+        $d       = ($day === 0) ? $lastDay : min($day, $lastDay);
+        return sprintf('%04d-%02d-%02d', $tY, $tM, $d);
+    }
+
     private function aggregateAttendance(array $attendances, string $startDate, string $endDate): array
     {
         $totalWorkingDays = $this->getWorkingDaysCount($startDate, $endDate);
-        $workedDays = 0;
-        $regularHours = 0;
-        $nightDiffHours = 0;
-        $tardyMinutes = 0;
-        $regOtHours = 0;
-        $restOtHours = 0;
-        $holidayOtHours = 0;
 
+        // Group records by date — employees can have multiple clock-ins per day
+        $byDate = [];
         foreach ($attendances as $att) {
             if (empty($att['time_in']) || empty($att['time_out'])) continue;
+            $attDate = date('Y-m-d', strtotime($att['time_in']));
+            $byDate[$attDate][] = $att;
+        }
 
-            // Derive date and time-only from the datetime column
-            $attDate  = date('Y-m-d', strtotime($att['time_in']));
-            $timeOnly = date('H:i:s', strtotime($att['time_in']));
+        $workedDays     = count($byDate); // unique dates with at least one complete record
+        $regularHours   = 0.0;
+        $nightDiffHours = 0.0;
+        $tardyMinutes   = 0;
+        $regOtHours     = 0.0;
+        $restOtHours    = 0.0;
+        $holidayOtHours = 0.0;
 
-            $workedDays++;
-            $totalHours = (float)($att['total_hours'] ?? 0);
-            // Regular hours = min(8, total hours)
-            $regularHours += min($totalHours, 8);
-            $nightDiffHours += (float)($att['night_diff_hours'] ?? 0);
+        $scheduledStart = '08:00:00';
 
-            // Tardy minutes (scheduled start 08:00)
-            $scheduledStart = '08:00:00';
-            if ($timeOnly > $scheduledStart) {
-                $tardyMinutes += round((strtotime($timeOnly) - strtotime($scheduledStart)) / 60);
+        foreach ($byDate as $attDate => $recs) {
+            // Tardy: only the earliest clock-in of the day counts
+            usort($recs, fn($a, $b) => strcmp($a['time_in'], $b['time_in']));
+            $firstIn = date('H:i:s', strtotime($recs[0]['time_in']));
+            if ($firstIn > $scheduledStart) {
+                $tardyMinutes += (int)round((strtotime($firstIn) - strtotime($scheduledStart)) / 60);
             }
 
-            // Overtime: any hours beyond 8 per day
-            $ot = max(0, $totalHours - 8);
-            $isRestDay = (date('N', strtotime($attDate)) == 7); // Sunday
-            $isHoliday = false; // implement holiday check if needed
+            // Sum hours across all records for the day
+            $dayHours     = 0.0;
+            $dayNightDiff = 0.0;
+            foreach ($recs as $rec) {
+                $dayHours     += (float)($rec['total_hours']      ?? 0);
+                $dayNightDiff += (float)($rec['night_diff_hours'] ?? 0);
+            }
 
-            if ($isHoliday) {
-                $holidayOtHours += $ot;
-            } elseif ($isRestDay) {
+            $regularHours   += min($dayHours, 8);
+            $nightDiffHours += $dayNightDiff;
+
+            // OT = hours beyond 8 for the whole day
+            $ot        = max(0, $dayHours - 8);
+            $isRestDay = (date('N', strtotime($attDate)) == 7); // Sunday
+
+            if ($isRestDay) {
                 $restOtHours += $ot;
             } else {
                 $regOtHours += $ot;
@@ -377,7 +400,7 @@ class PayrollController extends BaseController
             'absent_days'      => max(0, $totalWorkingDays - $workedDays),
             'regular_hours'    => round($regularHours, 2),
             'night_diff_hours' => round($nightDiffHours, 2),
-            'tardy_minutes'    => (int)$tardyMinutes,
+            'tardy_minutes'    => $tardyMinutes,
             'reg_ot_hours'     => round($regOtHours, 2),
             'rest_ot_hours'    => round($restOtHours, 2),
             'holiday_ot_hours' => round($holidayOtHours, 2),
@@ -911,9 +934,14 @@ class PayrollController extends BaseController
         $keys = [
             'monthly_hours',
             'night_diff_start', 'night_diff_end', 'night_diff_rate',
+            'reg_holiday_rate', 'spec_holiday_rate',
             'ot_regular_rate',  'ot_rest_rate',   'ot_holiday_rate',
             'phic_rate',        'phic_cap',
             'hdmf_rate',        'hdmf_max',
+            'default_period_type', 'first_half_cutoff',
+            // Cross-month period definition
+            'half1_start_day', 'half1_start_offset', 'half1_end_day', 'half1_end_offset',
+            'half2_start_day', 'half2_start_offset', 'half2_end_day', 'half2_end_offset',
         ];
         $settings = [];
         foreach ($keys as $key) {
@@ -1194,6 +1222,129 @@ class PayrollController extends BaseController
         return $this->response->setJSON($payslips);
     }
 
+    /**
+     * Return the 1st-half net taxable and WT for a given employee, used by 2nd-half WT.
+     *
+     * GET client_portal/payroll/getPriorHalfWT/{empId}/{priorStart}/{priorEnd}
+     *   priorStart / priorEnd are the explicit 1st-half period dates supplied by JS.
+     *   Two-argument legacy form still works (derives dates from same-month cutoff).
+     */
+    public function getPriorHalfWT(int $employeeId, string $priorStart, string $priorEnd = ''): \CodeIgniter\HTTP\ResponseInterface
+    {
+        if ($priorEnd === '') {
+            // Legacy two-argument call: $priorStart is the current 2nd-half period start.
+            // Derive prior-period dates from the configured cutoff setting.
+            $psModel = new \App\Models\Client\PayrollSettingsModel();
+            $cutoff  = (int)($psModel->getSetting('first_half_cutoff') ?? 0);
+            if ($cutoff <= 0) {
+                return $this->response->setJSON(['found' => false, 'net_taxable' => 0, 'wt' => 0]);
+            }
+            $dt  = new \DateTime($priorStart);
+            $day = (int)$dt->format('d');
+            if ($day <= $cutoff) {
+                // Caller is generating a 1st-half payslip — no prior half exists
+                return $this->response->setJSON(['found' => false, 'net_taxable' => 0, 'wt' => 0]);
+            }
+            $year       = $dt->format('Y');
+            $month      = $dt->format('m');
+            $priorStart = "{$year}-{$month}-01";
+            $priorEnd   = "{$year}-{$month}-" . str_pad($cutoff, 2, '0', STR_PAD_LEFT);
+        }
+
+        $payslipModel = new \App\Models\Client\EmployeePayslipModel();
+        $record = $payslipModel
+            ->where('employee_id', $employeeId)
+            ->where('period_start', $priorStart)
+            ->where('period_end',   $priorEnd)
+            ->first();
+
+        // Primary lookup failed — build alternative candidate date ranges from the
+        // configured period settings and try each one.  This handles records that were
+        // saved under a different (or earlier) period configuration without assuming any
+        // specific cutoff day or start day.
+        if (!$record) {
+            $psModel  = new \App\Models\Client\PayrollSettingsModel();
+            $dtEnd    = new \DateTime($priorEnd);
+            $salaryYm = $dtEnd->format('Y-m');   // salary month derived from prior end date
+            $salaryY  = (int)$dtEnd->format('Y');
+            $salaryM  = (int)$dtEnd->format('m');
+
+            $candidates = [];
+
+            // Option A: simple cutoff — {salaryMonth}-01 to {salaryMonth}-{cutoff}
+            $cutoff = (int)($psModel->getSetting('first_half_cutoff') ?? 0);
+            if ($cutoff > 0) {
+                $candidates[] = [
+                    $salaryYm . '-01',
+                    $salaryYm . '-' . str_pad($cutoff, 2, '0', STR_PAD_LEFT),
+                ];
+            }
+
+            // Option B: cross-month settings — compute 1st-half dates from half1_* keys
+            $h1SD = (int)($psModel->getSetting('half1_start_day') ?? 0);
+            $h1ED = (int)($psModel->getSetting('half1_end_day')   ?? 0);
+            if ($h1SD > 0 && $h1ED > 0) {
+                $h1SO = (int)($psModel->getSetting('half1_start_offset') ?? 0);
+                $h1EO = (int)($psModel->getSetting('half1_end_offset')   ?? 0);
+                $candidates[] = [
+                    $this->buildPeriodDate($salaryY, $salaryM, $h1SD, $h1SO),
+                    $this->buildPeriodDate($salaryY, $salaryM, $h1ED, $h1EO),
+                ];
+            }
+
+            foreach ($candidates as [$altS, $altE]) {
+                if ($altS === $priorStart && $altE === $priorEnd) continue; // already tried
+                $try = $payslipModel
+                    ->where('employee_id', $employeeId)
+                    ->where('period_start', $altS)
+                    ->where('period_end',   $altE)
+                    ->first();
+                if ($try) {
+                    $record     = $try;
+                    $priorStart = $altS;
+                    $priorEnd   = $altE;
+                    break;
+                }
+            }
+        }
+
+        if (!$record) {
+            return $this->response->setJSON(['found' => false, 'net_taxable' => 0, 'wt' => 0,
+                'period_start' => $priorStart, 'period_end' => $priorEnd]);
+        }
+
+        $d = json_decode((string)($record['generated_data'] ?? ''), true) ?? [];
+
+        // Net taxable for 1st half = net basic pay + all OT + other taxable earnings
+        // (No SSS/PHIC/HDMF deduction — matches Excel 1st-half register column 26)
+        $netBasicPay = (float)($d['net_basic_pay'] ?? (
+            (float)($d['basic_pay']      ?? 0)
+          + (float)($d['night_diff_pay'] ?? 0)
+          - (float)($d['absent_amt']     ?? 0)
+          - (float)($d['undertime_amt']  ?? 0)
+        ));
+
+        $hasIndividual = isset($d['reg_ot']) || isset($d['sat_ot']) || isset($d['sun_ot']);
+        $totalOt = $hasIndividual
+            ? (float)($d['reg_ot'] ?? 0) + (float)($d['reg_ot_gt10'] ?? 0) + (float)($d['reg_ot_night'] ?? 0)
+              + (float)($d['sat_ot'] ?? 0) + (float)($d['sat_ot_gt10'] ?? 0) + (float)($d['sat_night_prem'] ?? 0)
+              + (float)($d['sun_ot'] ?? 0) + (float)($d['sun_ot_gt10'] ?? 0) + (float)($d['sun_night_prem'] ?? 0)
+              + (float)($d['hol_ot'] ?? 0) + (float)($d['hol_ot_gt10'] ?? 0) + (float)($d['hol_night_prem'] ?? 0)
+            : (float)($d['overtime_pay'] ?? 0);
+
+        $otherTaxable = (float)($d['other_earnings_taxable'] ?? ($d['other_taxable'] ?? 0));
+        $netTaxable   = $netBasicPay + $totalOt + $otherTaxable;
+        $wt           = (float)($d['withholding_tax'] ?? 0);
+
+        return $this->response->setJSON([
+            'found'        => true,
+            'net_taxable'  => round($netTaxable, 2),
+            'wt'           => round($wt, 2),
+            'period_start' => $priorStart,
+            'period_end'   => $priorEnd,
+        ]);
+    }
+
     public function getMyPayslips()
     {
         $user = auth()->user();
@@ -1319,16 +1470,27 @@ class PayrollController extends BaseController
 
         $fmtDate = fn($d) => $d ? date('d-M-Y', strtotime($d)) : '';
 
-        // Recompute display values matching generatePayslipHTML() in the JS view
-        $netBasicPay   = (float)($data['net_basic_pay']  ?? 0);
-        $regOt         = (float)($data['reg_ot']         ?? 0);
-        $satOt         = (float)($data['sat_ot']         ?? 0);
-        $sunOt         = (float)($data['sun_ot']         ?? 0);
-        $holOt         = (float)($data['hol_ot']         ?? 0);
-        $totalOvertime = $regOt + $satOt + $sunOt + $holOt;
-        $taxableOther  = (float)($data['other_earnings_taxable'] ?? 0);
-        $nonTaxable    = (float)($data['de_minimis']     ?? 0);
-        $grossPay      = $netBasicPay + $totalOvertime + $taxableOther + $nonTaxable;
+        $netBasicPay      = (float)($data['net_basic_pay']     ?? 0);
+        $regOt            = (float)($data['reg_ot']            ?? 0);
+        $regOtGt10        = (float)($data['reg_ot_gt10']       ?? 0);
+        $regOtNight       = (float)($data['reg_ot_night']      ?? 0);
+        $satOt            = (float)($data['sat_ot']            ?? 0);
+        $satOtGt10        = (float)($data['sat_ot_gt10']       ?? 0);
+        $satNightPrem     = (float)($data['sat_night_prem']    ?? 0);
+        $sunOt            = (float)($data['sun_ot']            ?? 0);
+        $sunOtGt10        = (float)($data['sun_ot_gt10']       ?? 0);
+        $sunNightPrem     = (float)($data['sun_night_prem']    ?? 0);
+        $holOt            = (float)($data['hol_ot']            ?? 0);
+        $holOtGt10        = (float)($data['hol_ot_gt10']       ?? 0);
+        $holNightPrem     = (float)($data['hol_night_prem']    ?? 0);
+        $vlCashConversion = (float)($data['vl_cash_conversion'] ?? 0);
+        $totalOvertime    = $regOt + $regOtGt10 + $regOtNight
+                          + $satOt + $satOtGt10 + $satNightPrem
+                          + $sunOt + $sunOtGt10 + $sunNightPrem
+                          + $holOt + $holOtGt10 + $holNightPrem;
+        $taxableOther     = (float)($data['other_earnings_taxable'] ?? 0);
+        $nonTaxable       = (float)($data['de_minimis']        ?? 0);
+        $grossPay         = $netBasicPay + $totalOvertime + $taxableOther + $nonTaxable + $vlCashConversion;
 
         $govDeductions = (float)($data['sss_ee']          ?? 0)
                        + (float)($data['phic_ee']         ?? 0)
@@ -1426,8 +1588,49 @@ class PayrollController extends BaseController
         // =========================================================
 
         $ic = 'style="border:none;padding:2px 4px;"';
-
         $ir = 'style="border:none;padding:2px 4px;text-align:right;"';
+
+        $fmtAmt = fn($v) => ($v > 0) ? number_format((float)$v, 2) : '-';
+        $ratePerHour      = (float)($data['rate_per_hour'] ?? 0);
+        $hoursWorked      = (int)round((float)($data['hours_worked'] ?? 0));
+        $nightDiffPay     = (float)($data['night_diff_pay'] ?? 0);
+        $absentAmt        = (float)($data['absent_amt']  ?? 0);
+        $undertimeAmt     = (float)($data['undertime_amt'] ?? 0);
+        $regOtGt10        = (float)($data['reg_ot_gt10']  ?? 0);
+        $regOtNight       = (float)($data['reg_ot_night'] ?? 0);
+        $satOtGt10        = (float)($data['sat_ot_gt10']  ?? 0);
+        $satNightPrem     = (float)($data['sat_ot_night'] ?? 0);
+        $sunOtGt10        = (float)($data['sun_ot_gt10']  ?? 0);
+        $sunNightPrem     = (float)($data['sun_ot_night'] ?? 0);
+        $holOtGt10        = (float)($data['hol_ot_gt10']  ?? 0);
+        $holNightPrem     = (float)($data['hol_ot_night'] ?? 0);
+        $vlCashConversion = (float)($data['vl_cash_conversion'] ?? 0);
+
+        $otRows = [
+            ['Reg. OT&le;10 hrs', $regOt],
+            ['Reg. OT&gt;10 hrs', $regOtGt10],
+            ['Night premium',      $regOtNight],
+            ['Sat OT&le;10 hrs',  $satOt],
+            ['Sat OT&gt;10 hrs',  $satOtGt10],
+            ['Sat Night premium',  $satNightPrem],
+            ['Sun OT&le;10 hrs',  $sunOt],
+            ['Sun OT&gt;10 hrs',  $sunOtGt10],
+            ['Sun Night premium',  $sunNightPrem],
+            ['Hol OT&le;10 hrs',  $holOt],
+            ['Hol OT&gt;10 hrs',  $holOtGt10],
+            ['Hol Night premium',  $holNightPrem],
+        ];
+        $otRowsHtml = '';
+        foreach ($otRows as [$label, $val]) {
+            $hrs = ($ratePerHour > 0 && $val > 0) ? (int)round($val / $ratePerHour) : 0;
+            $otRowsHtml .= '<tr><td style="border:1px solid #000;padding:3px 5px;">' . $label . '</td>'
+                . '<td style="border:1px solid #000;padding:3px 5px;text-align:center;">' . ($val > 0 ? $hrs : '0') . '</td>'
+                . '<td style="border:1px solid #000;padding:3px 5px;text-align:right;">' . $fmtAmt($val) . '</td></tr>';
+        }
+        $nightHrs = ($ratePerHour > 0 && $nightDiffPay > 0) ? (int)round($nightDiffPay / ($ratePerHour * 0.10)) : 0;
+        $absDays  = ($ratePerHour > 0 && $absentAmt > 0) ? (int)round($absentAmt / ($ratePerHour * 8)) : 0;
+        $utHrs    = ($ratePerHour > 0 && $undertimeAmt > 0) ? (int)round($undertimeAmt / $ratePerHour) : 0;
+        $rowspan  = 14; // basic section rows + OT header
 
         $loanRowsHtml = '';
 
@@ -1450,332 +1653,108 @@ class PayrollController extends BaseController
         }
 
         return '<!DOCTYPE html>
-        <html>
-        <head>
-
-        <meta charset="UTF-8">
-
-        <style>
-
-            body {
-                font-family: Arial, sans-serif;
-                font-size: 13px;
-                margin: 0;
-            }
-
-            .wrap {
-                background:#fff;
-                border:1px solid #000;
-                padding:20px;
-                width:100%;
-                box-sizing:border-box;
-            }
-
-            h2 {
-                text-align:center;
-                margin:5px 0 10px;
-            }
-
-            table {
-                width:100%;
-                border-collapse:collapse;
-                font-size:13px;
-                margin-top:10px;
-            }
-
-            td, th {
-                border:1px solid #000;
-                padding:5px;
-                vertical-align:top;
-            }
-
-            th {
-                background:#eee;
-                text-align:center;
-            }
-
-        </style>
-
-        </head>
-
-            <body>
-
-            <div class="wrap">
-
-                ' . $logoHtml . '
-
-                <h2>PAY SLIP</h2>
-
-                <!-- EMPLOYEE INFO -->
-                <table>
-
-                    <tr>
-
-                        <td><strong>Employee:</strong></td>
-
-                        <td>' . htmlspecialchars($data['employee_name'] ?? '') . '</td>
-
-                        <td></td>
-
-                        <td><strong>Payroll Period:</strong></td>
-
-                        <td colspan="2">' . $period . '</td>
-
-                    </tr>
-
-                    <tr>
-
-                        <td><strong>Position:</strong></td>
-
-                        <td colspan="5">'
-                            . htmlspecialchars($data['position'] ?? 'N/A') .
-                        '</td>
-
-                    </tr>
-
-                </table>
-
-                <!-- EARNINGS -->
-                <table>
-
-                    <tr>
-
-                        <th>REGULAR EARNINGS</th>
-
-                        <th>TAXABLE OTHER EARNINGS</th>
-
-                        <th>NON-TAXABLE OTHER EARNINGS</th>
-
-                    </tr>
-
-                    <tr>
-
-                        <!-- REGULAR EARNINGS -->
-                        <td>
-
-                            <table style="width:100%;border-collapse:collapse;">
-
-                                <tr>
-                                    <td ' . $ic . '>Basic Pay</td>
-                                    <td ' . $ir . '>' . $fmt($data['basic_pay'] ?? 0) . '</td>
-                                </tr>
-
-                                <tr>
-                                    <td ' . $ic . '>Rate per Hour</td>
-                                    <td ' . $ir . '>' . $fmt($data['rate_per_hour'] ?? 0) . '</td>
-                                </tr>
-
-                                <tr>
-                                    <td ' . $ic . '>Hours Worked</td>
-                                    <td ' . $ir . '>' . $fmt($data['hours_worked'] ?? 0) . '</td>
-                                </tr>
-
-                                <tr>
-                                    <td ' . $ic . '>Night Premium</td>
-                                    <td ' . $ir . '>' . $fmt($data['night_diff_pay'] ?? 0) . '</td>
-                                </tr>
-
-                                <tr>
-                                    <td ' . $ic . '>Less: Absences</td>
-                                    <td ' . $ir . '>' . $fmt($data['absent_amt'] ?? 0) . '</td>
-                                </tr>
-
-                                <tr>
-                                    <td ' . $ic . '>Late / Undertime</td>
-                                    <td ' . $ir . '>' . $fmt($data['undertime_amt'] ?? 0) . '</td>
-                                </tr>
-
-                                <tr>
-                                    <td ' . $ic . '><strong>Net Basic Pay</strong></td>
-                                    <td ' . $ir . '><strong>' . $fmt($netBasicPay) . '</strong></td>
-                                </tr>
-
-                                <tr>
-                                    <td ' . $ic . '>Regular OT</td>
-                                    <td ' . $ir . '>' . $fmt($regOt) . '</td>
-                                </tr>
-
-                                <tr>
-                                    <td ' . $ic . '>Saturday OT</td>
-                                    <td ' . $ir . '>' . $fmt($satOt) . '</td>
-                                </tr>
-
-                                <tr>
-                                    <td ' . $ic . '>Sunday OT</td>
-                                    <td ' . $ir . '>' . $fmt($sunOt) . '</td>
-                                </tr>
-
-                                <tr>
-                                    <td ' . $ic . '>Holiday OT</td>
-                                    <td ' . $ir . '>' . $fmt($holOt) . '</td>
-                                </tr>
-
-                            </table>
-
-                        </td>
-
-                        <!-- TAXABLE -->
-                        <td>
-
-                            <table style="width:100%;border-collapse:collapse;">
-
-                                <tr>
-                                    <td ' . $ic . '>Salary Adjustment</td>
-                                    <td ' . $ir . '>' . $fmt($taxableOther) . '</td>
-                                </tr>
-
-                            </table>
-
-                        </td>
-
-                        <!-- NON TAXABLE -->
-                        <td>
-
-                            <table style="width:100%;border-collapse:collapse;">
-
-                                <tr>
-                                    <td ' . $ic . '>De Minimis Benefit</td>
-                                    <td ' . $ir . '>' . $fmt($nonTaxable) . '</td>
-                                </tr>
-
-                            </table>
-
-                        </td>
-
-                    </tr>
-
-                    <tr>
-
-                        <td colspan="2"
-                            style="border:1px solid #000;padding:5px;text-align:right;">
-
-                            <strong>GROSS PAY</strong>
-
-                        </td>
-
-                        <td
-                            style="border:1px solid #000;padding:5px;text-align:right;">
-
-                            <strong>' . $fmt($grossPay) . '</strong>
-
-                        </td>
-
-                    </tr>
-
-                </table>
-
-                <!-- DEDUCTIONS -->
-                <table>
-
-                    <tr>
-
-                        <th>REGULAR DEDUCTIONS</th>
-
-                        <th>LOANS / ADVANCES</th>
-
-                    </tr>
-
-                    <tr>
-
-                        <!-- GOVERNMENT -->
-                        <td>
-
-                            <table style="width:100%;border-collapse:collapse;">
-
-                                <tr>
-                                    <td ' . $ic . '>SSS</td>
-                                    <td ' . $ir . '>' . $fmt($data['sss_ee'] ?? 0) . '</td>
-                                </tr>
-
-                                <tr>
-                                    <td ' . $ic . '>PhilHealth</td>
-                                    <td ' . $ir . '>' . $fmt($data['phic_ee'] ?? 0) . '</td>
-                                </tr>
-
-                                <tr>
-                                    <td ' . $ic . '>Pag-IBIG</td>
-                                    <td ' . $ir . '>' . $fmt($data['hdmf_ee'] ?? 0) . '</td>
-                                </tr>
-
-                                <tr>
-                                    <td ' . $ic . '>Withholding Tax</td>
-                                    <td ' . $ir . '>' . $fmt($data['withholding_tax'] ?? 0) . '</td>
-                                </tr>
-
-                            </table>
-
-                        </td>
-
-                        <!-- LOANS -->
-                        <td>
-
-                            <table style="width:100%;border-collapse:collapse;">
-                                ' . $loanRowsHtml . '
-                            </table>
-
-                        </td>
-
-                    </tr>
-
-                    <tr>
-
-                        <td
-                            style="border:1px solid #000;padding:5px;text-align:right;">
-
-                            <strong>TOTAL DEDUCTIONS</strong>
-
-                        </td>
-
-                        <td
-                            style="border:1px solid #000;padding:5px;text-align:right;">
-
-                            <strong>' . $fmt($totalDeductions) . '</strong>
-
-                        </td>
-
-                    </tr>
-
-                </table>
-
-                <!-- NET PAY -->
-                <table>
-
-                    <tr>
-
-                        <td
-                            style="width:25%;border:1px solid #000;padding:5px;">
-
-                            Employee Signature:
-
-                        </td>
-
-                        <td
-                            style="width:25%;border:1px solid #000;padding:5px;height:40px;">
-                        </td>
-
-                        <td
-                            style="width:25%;border:1px solid #000;padding:5px;text-align:right;">
-
-                            <strong>NET PAY:</strong>
-
-                        </td>
-
-                        <td
-                            style="width:25%;border:1px solid #000;padding:5px;text-align:right;background:#f8d7da;">
-
-                            <strong>' . $fmt($data['net_pay'] ?? 0) . '</strong>
-
-                        </td>
-
-                    </tr>
-
-                </table>
-
-            </div>
-
-            </body>
-
-        </html>';
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+    body  { font-family: Arial, sans-serif; font-size: 12px; margin: 0; }
+    .wrap { background:#fff; border:1px solid #000; padding:16px; width:100%; box-sizing:border-box; }
+    h2    { text-align:center; margin:4px 0 8px; }
+    table { width:100%; border-collapse:collapse; font-size:12px; }
+    td, th { border:1px solid #000; padding:3px 5px; vertical-align:top; }
+    th { background:#eee; text-align:center; font-weight:bold; }
+</style>
+</head>
+<body>
+<div class="wrap">
+' . $logoHtml . '
+<h2>PAY SLIP</h2>
+<table>
+    <tr>
+        <td><strong>Employee:</strong></td>
+        <td colspan="3">' . htmlspecialchars($data['employee_name'] ?? '') . '</td>
+        <td><strong>Payroll period:</strong></td>
+        <td colspan="2">' . $period . '</td>
+    </tr>
+    <tr>
+        <td><strong>Position:</strong></td>
+        <td colspan="6">' . htmlspecialchars($data['position'] ?? 'N/A') . '</td>
+    </tr>
+</table>
+<table style="margin-top:6px;">
+    <tr>
+        <th colspan="3">REGULAR EARNINGS</th>
+        <th>TAXABLE OTHER EARNINGS</th>
+        <th>NON-TAXABLE OTHER EARNINGS</th>
+    </tr>
+    <tr>
+        <th style="background:#f5f5f5;"></th>
+        <th style="background:#f5f5f5;text-align:center;">Days/Hours</th>
+        <th style="background:#f5f5f5;text-align:right;">Amount</th>
+        <th style="background:#f5f5f5;"></th>
+        <th style="background:#f5f5f5;"></th>
+    </tr>
+    <tr>
+        <td>Basic pay:</td><td></td><td style="text-align:right;">' . $fmt($data['basic_pay'] ?? 0) . '</td>
+        <td rowspan="' . $rowspan . '" style="vertical-align:top;padding:5px;">'
+            . ($taxableOther > 0 ? '<strong>Salary adjustment</strong><br>' . $fmt($taxableOther) : '') . '</td>
+        <td rowspan="' . $rowspan . '" style="vertical-align:top;padding:5px;">
+            <strong>De Minimis Benefit</strong>&nbsp;&nbsp;' . $fmt($nonTaxable)
+            . ($vlCashConversion > 0 ? '<br><strong>VL Cash Conversion</strong>&nbsp;&nbsp;' . $fmt($vlCashConversion) : '') . '
+        </td>
+    </tr>
+    <tr><td>Rate per hour</td><td style="text-align:center;">' . $fmt($ratePerHour) . '</td><td></td></tr>
+    <tr><td>No. of hours Worked:</td><td style="text-align:center;">' . $hoursWorked . '</td><td></td></tr>
+    <tr><td>Night premium</td><td style="text-align:center;">' . $nightHrs . '</td><td style="text-align:right;">' . $fmtAmt($nightDiffPay) . '</td></tr>
+    <tr><td>Less: Absences</td><td style="text-align:center;">' . $absDays . '</td><td style="text-align:right;">' . $fmtAmt($absentAmt) . '</td></tr>
+    <tr><td>&nbsp;&nbsp;Late/Undertime</td><td style="text-align:center;">' . $utHrs . '</td><td style="text-align:right;">' . $fmtAmt($undertimeAmt) . '</td></tr>
+    <tr><td><strong>Net basic pay</strong></td><td></td><td style="text-align:right;"><strong>' . $fmt($netBasicPay) . '</strong></td></tr>
+    ' . $otRowsHtml . '
+</table>
+<table>
+    <tr>
+        <td colspan="3" style="text-align:right;"><strong>GROSS PAY</strong></td>
+        <td style="text-align:right;"><strong>' . $fmt($grossPay) . '</strong></td>
+    </tr>
+</table>
+<table style="margin-top:6px;">
+    <tr>
+        <th colspan="2">REGULAR DEDUCTIONS</th>
+        <th colspan="2">LOANS/ADVANCES</th>
+    </tr>
+    <tr>
+        <td>SSS</td><td style="text-align:right;">' . $fmt($data['sss_ee'] ?? 0) . '</td>
+        <td>Salary Loan</td><td style="text-align:right;">' . $fmtAmt($data['sss_loan'] ?? 0) . '</td>
+    </tr>
+    <tr>
+        <td>Philhealth</td><td style="text-align:right;">' . $fmt($data['phic_ee'] ?? 0) . '</td>
+        <td>Calamity Loan</td><td style="text-align:right;">' . $fmtAmt($data['calamity_loan'] ?? 0) . '</td>
+    </tr>
+    <tr>
+        <td>HDMF</td><td style="text-align:right;">' . $fmt($data['hdmf_ee'] ?? 0) . '</td>
+        <td>Salary Advance</td><td style="text-align:right;">' . $fmtAmt($data['salary_advance'] ?? 0) . '</td>
+    </tr>
+    <tr>
+        <td>Withholding tax</td><td style="text-align:right;">' . $fmt($data['withholding_tax'] ?? 0) . '</td>
+        <td colspan="2"></td>
+    </tr>
+    <tr><th colspan="2">OTHER DEDUCTIONS</th><th colspan="2"></th></tr>
+    <tr>
+        <td colspan="2"></td>
+        <td colspan="2" style="text-align:right;"><strong>TOTAL DEDUCTIONS</strong>&nbsp;&nbsp;' . $fmt($totalDeductionsDisplay) . '</td>
+    </tr>
+</table>
+<table style="margin-top:6px;">
+    <tr>
+        <td style="width:30%;">Employee signature:</td>
+        <td style="width:30%;height:35px;"></td>
+        <td style="width:20%;text-align:right;"><strong>NET PAY:</strong></td>
+        <td style="width:20%;text-align:right;background:#f8d7da;"><strong>' . $fmt($data['net_pay'] ?? 0) . '</strong></td>
+    </tr>
+</table>
+</div>
+</body>
+</html>';
     }
 
     private function getUserEmail($userId)
