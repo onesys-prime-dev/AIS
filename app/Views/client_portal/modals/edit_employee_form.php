@@ -284,10 +284,159 @@
                     class="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
             </div>
 
-            <div>
-                <label class="block text-sm mb-1">De Minimis Benefit</label>
-                <input type="number" id="edit_de_minimis_benefit" name="de_minimis_benefit" min="0" step="0.01"
-                    class="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
+            <!-- ===================================================== -->
+            <!-- DE MINIMIS BENEFITS -->
+            <!-- ===================================================== -->
+
+            <div class="mt-6">
+
+                <h2 class="text-lg font-bold text-[#9764F6] mb-4">
+                    De Minimis Benefits
+                </h2>
+
+                <div class="bg-violet-50 rounded-3xl p-6 space-y-4">
+
+                    <div class="flex items-center justify-between">
+
+                        <h3 class="text-sm font-semibold text-violet-800 uppercase tracking-wide">
+                            Benefit Breakdown
+                        </h3>
+
+                        <button type="button"
+                            id="edit_de_minimis_reset"
+                            class="text-violet-500 hover:text-violet-700 transition-all duration-300">
+
+                            <svg xmlns="http://www.w3.org/2000/svg"
+                                class="h-5 w-5"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor">
+
+                                <path stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    stroke-width="2"
+                                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+
+                        </button>
+
+                    </div>
+
+                    <!-- TOTAL -->
+                    <div>
+
+                        <label class="block text-sm mb-2">
+                            Amount Given (Total)
+                        </label>
+
+                        <input type="number"
+                            id="edit_de_minimis_benefit"
+                            name="de_minimis_benefit"
+                            min="0"
+                            step="0.01"
+                            class="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
+
+                    </div>
+
+                    <input type="hidden"
+                        id="edit_de_minimis_breakdown"
+                        name="de_minimis_breakdown">
+
+                    <!-- SUB BENEFITS -->
+                    <div class="grid grid-cols-2 gap-4">
+
+                        <div>
+                            <label class="block text-sm mb-1">
+                                Rice Subsidy
+                            </label>
+
+                            <input type="number"
+                                id="edit_rice_subsidy"
+                                data-key="rice_subsidy"
+                                class="edit-de-minimis-input w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
+                        </div>
+
+                        <div>
+                            <label class="block text-sm mb-1">
+                                Uniform Allowance
+                            </label>
+
+                            <input type="number"
+                                id="edit_uniform_allowance"
+                                data-key="uniform_allowance"
+                                class="edit-de-minimis-input w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
+                        </div>
+
+                        <div>
+                            <label class="block text-sm mb-1">
+                                Laundry Allowance
+                            </label>
+
+                            <input type="number"
+                                id="edit_laundry_allowance"
+                                data-key="laundry_allowance"
+                                class="edit-de-minimis-input w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
+                        </div>
+
+                        <div>
+                            <label class="block text-sm mb-1">
+                                Medical Allowance
+                            </label>
+
+                            <input type="number"
+                                id="edit_medical_allowance"
+                                data-key="medical_allowance"
+                                class="edit-de-minimis-input w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
+                        </div>
+
+                    </div>
+
+                    <!-- LIVE TOTALS -->
+                    <div class="flex items-center justify-between text-sm">
+
+                        <span>
+                            Allocated:
+                            <span id="edit_allocated_total">0</span>
+                        </span>
+
+                        <span id="edit_remaining_wrap">
+                            Remaining:
+                            <span id="edit_remaining_total">0</span>
+                        </span>
+
+                    </div>
+
+                    <!-- OTHER NON TAXABLE -->
+                    <div class="border-t pt-4">
+
+                        <div class="flex items-center justify-between mb-4">
+
+                            <div>
+                                <h4 class="text-sm font-semibold text-violet-800 uppercase tracking-wide">
+                                    Other Non-Taxable Compensation
+                                </h4>
+
+                                <p class="text-xs text-gray-500 mt-1">
+                                    Additional custom non-taxable benefits.
+                                </p>
+                            </div>
+
+                            <button type="button"
+                                id="edit_other_comp_add"
+                                class="bg-violet-200 text-violet-800 px-4 py-2 rounded-xl text-sm font-semibold hover:bg-violet-300 transition">
+
+                                + Add Benefit
+
+                            </button>
+
+                        </div>
+
+                        <div id="edit_other_comp_list" class="space-y-3"></div>
+
+                    </div>
+
+                </div>
+
             </div>
 
             <div>
@@ -475,4 +624,207 @@ document.getElementById('editEmployeeForm').addEventListener('submit', function(
     }
 
 });
+
+/* ===================================================== */
+/* EDIT DE MINIMIS SYSTEM */
+/* ===================================================== */
+
+const editBreakdownState = {
+    allocations: {},
+    other: []
+};
+
+function updateEditBreakdownHidden() {
+
+    const hidden = document.getElementById('edit_de_minimis_breakdown');
+
+    hidden.value = JSON.stringify({
+        allocations: editBreakdownState.allocations,
+        other: editBreakdownState.other
+    });
+}
+
+(function () {
+
+    const totalInput = document.getElementById('edit_de_minimis_benefit');
+
+    if (!totalInput) return;
+
+    const allocationInputs = document.querySelectorAll('.edit-de-minimis-input');
+
+    const allocatedEl = document.getElementById('edit_allocated_total');
+
+    const remainingEl = document.getElementById('edit_remaining_total');
+
+    const remainingWrap = document.getElementById('edit_remaining_wrap');
+
+    function recalc() {
+
+        const total = parseFloat(totalInput.value) || 0;
+
+        let allocated = 0;
+
+        const allocations = {};
+
+        allocationInputs.forEach(input => {
+
+            const value = parseFloat(input.value) || 0;
+
+            allocated += value;
+
+            allocations[input.dataset.key] = value;
+        });
+
+        editBreakdownState.allocations = allocations;
+
+        const remaining = total - allocated;
+
+        allocatedEl.textContent = allocated.toLocaleString();
+
+        remainingEl.textContent = remaining.toLocaleString();
+
+        if (remaining < 0) {
+
+            remainingWrap.classList.add('text-red-600');
+
+        } else {
+
+            remainingWrap.classList.remove('text-red-600');
+        }
+
+        updateEditBreakdownHidden();
+    }
+
+    totalInput.addEventListener('input', recalc);
+
+    allocationInputs.forEach(input => {
+        input.addEventListener('input', recalc);
+    });
+
+    document.getElementById('edit_de_minimis_reset')
+        .addEventListener('click', function () {
+
+            totalInput.value = '';
+
+            allocationInputs.forEach(input => input.value = '');
+
+            document.getElementById('edit_other_comp_list').innerHTML = '';
+
+            recalc();
+        });
+
+    window.loadEditBreakdown = function (breakdownJson) {
+
+        try {
+
+            const breakdown = JSON.parse(breakdownJson || '{}');
+
+            const allocations = breakdown.allocations || {};
+
+            const other = breakdown.other || [];
+
+            document.getElementById('edit_rice_subsidy').value =
+                allocations.rice_subsidy || '';
+
+            document.getElementById('edit_uniform_allowance').value =
+                allocations.uniform_allowance || '';
+
+            document.getElementById('edit_laundry_allowance').value =
+                allocations.laundry_allowance || '';
+
+            document.getElementById('edit_medical_allowance').value =
+                allocations.medical_allowance || '';
+
+            const list = document.getElementById('edit_other_comp_list');
+
+            list.innerHTML = '';
+
+            other.forEach(item => {
+
+                addEditOtherCompRow(
+                    item.purpose || '',
+                    item.amount || ''
+                );
+            });
+
+            recalc();
+
+        } catch (e) {
+
+            console.error(e);
+        }
+    };
+
+    function addEditOtherCompRow(purpose = '', amount = '') {
+
+        const list = document.getElementById('edit_other_comp_list');
+
+        const row = document.createElement('div');
+
+        row.className = 'flex gap-2';
+
+        row.innerHTML = `
+            <input type="text"
+                class="edit-other-purpose w-full border rounded-lg p-2"
+                placeholder="Purpose"
+                value="${purpose}">
+
+            <input type="number"
+                class="edit-other-amount w-32 border rounded-lg p-2"
+                placeholder="Amount"
+                value="${amount}">
+
+            <button type="button"
+                class="remove-other-comp text-red-500 px-3">
+                ✕
+            </button>
+        `;
+
+        row.querySelector('.remove-other-comp')
+            .addEventListener('click', function () {
+
+                row.remove();
+
+                syncOther();
+            });
+
+        row.querySelector('.edit-other-purpose')
+            .addEventListener('input', syncOther);
+
+        row.querySelector('.edit-other-amount')
+            .addEventListener('input', syncOther);
+
+        list.appendChild(row);
+
+        syncOther();
+    }
+
+    function syncOther() {
+
+        const rows = document.querySelectorAll('#edit_other_comp_list > div');
+
+        const data = [];
+
+        rows.forEach(row => {
+
+            data.push({
+                purpose: row.querySelector('.edit-other-purpose').value,
+                amount: parseFloat(
+                    row.querySelector('.edit-other-amount').value
+                ) || 0
+            });
+        });
+
+        editBreakdownState.other = data;
+
+        updateEditBreakdownHidden();
+    }
+
+    document.getElementById('edit_other_comp_add')
+        .addEventListener('click', function () {
+
+            addEditOtherCompRow();
+        });
+
+})();
 </script>

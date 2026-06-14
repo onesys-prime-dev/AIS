@@ -13,7 +13,7 @@
             <?php endforeach; ?>
         </div>
         <!-- BODY -->
-            <div class="crud-body scroll-bar text-gray-700 flex-1 min-h-0 overflow-y-auto hide-scrollbar"
+            <div class="crud-body hide-scroll-bar text-gray-700 flex-1 min-h-0 overflow-y-auto"
                  style="max-height: 56vh; -webkit-overflow-scrolling: touch;"></div>
     </div>
 

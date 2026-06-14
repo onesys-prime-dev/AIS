@@ -57,6 +57,11 @@ class EmployeeController extends BaseController
             employee_positions.de_minimis_benefit,
             employee_positions.allowances,
 
+            employee_positions.monthly_salary,
+            employee_positions.de_minimis_benefit,
+            employee_positions.de_minimis_breakdown,
+            employee_positions.allowances,
+
                 employee_government_ids.sss,
                 employee_government_ids.tin,
                 employee_government_ids.pagibig,
@@ -370,7 +375,7 @@ class EmployeeController extends BaseController
                 employee_positions.department, employee_positions.position,
                 employee_positions.employment_type, employee_positions.working_day_type,
                 employee_positions.working_days, employee_positions.start_time, employee_positions.end_time,
-                employee_positions.monthly_salary, employee_positions.de_minimis_benefit, employee_positions.allowances,
+                employee_positions.monthly_salary, employee_positions.de_minimis_benefit, employee_positions.de_minimis_breakdown, employee_positions.allowances,
                 employee_government_ids.sss, employee_government_ids.tin,
                 employee_government_ids.pagibig, employee_government_ids.philhealth,
                 ai.secret as email,
@@ -497,6 +502,7 @@ class EmployeeController extends BaseController
                 employee_positions.end_time,
                 employee_positions.monthly_salary,
                 employee_positions.de_minimis_benefit,
+                employee_positions.de_minimis_breakdown,
                 employee_positions.allowances,
 
                 employee_government_ids.sss,
@@ -575,7 +581,10 @@ class EmployeeController extends BaseController
             'Working Day Type', 'Working Days', 'Start Time', 'End Time',
             'SSS', 'TIN', 'Pagibig', 'PhilHealth',
             'Bank', 'Bank Address', 'Account Number', 'Swift Code',
-            'Basic Salary', 'De Minimis Benefit', 'Allowances',
+            'Basic Salary', 'De Minimis Benefit',
+            'Rice Subsidy', 'Uniform/Clothing Allowance', 'Laundry Allowance', 'Medical Allowance',
+            'Other Non-Taxable Compensation', 'Other Non-Taxable Compensation Breakdown',
+            'Allowances',
             'Vacation Leave', 'Sick Leave', 'Emergency Leave',
             'Status',
         ]);
@@ -612,6 +621,56 @@ class EmployeeController extends BaseController
                 $workingDays = [];
             }
 
+            /*
+            |--------------------------------------------------------------------------
+            | De Minimis Breakdown Format
+            |--------------------------------------------------------------------------
+            */
+
+            $deMinimisBreakdown = [];
+            $allocations = [];
+            $otherCompBreakdown = [];
+
+            try {
+
+                $deMinimisBreakdown = json_decode(
+                    $employee['de_minimis_breakdown'] ?? '{}',
+                    true
+                );
+
+                if (! is_array($deMinimisBreakdown)) {
+                    $deMinimisBreakdown = [];
+                }
+
+                $allocations = $deMinimisBreakdown['allocations'] ?? [];
+
+                if (! is_array($allocations)) {
+                    $allocations = [];
+                }
+
+                $otherCompBreakdown = $deMinimisBreakdown['other'] ?? [];
+
+                if (! is_array($otherCompBreakdown)) {
+                    $otherCompBreakdown = [];
+                }
+
+            } catch (\Throwable $e) {
+
+                $deMinimisBreakdown = [];
+                $allocations = [];
+                $otherCompBreakdown = [];
+            }
+
+            $otherCompTotal = array_sum(array_map(
+                static fn ($item) => (float) ($item['amount'] ?? 0),
+                $otherCompBreakdown
+            ));
+
+            $otherCompSummary = implode('; ', array_map(
+                static fn ($item) => trim((string) ($item['purpose'] ?? '')) . ': ' . ($item['amount'] ?? 0),
+                $otherCompBreakdown
+            ));
+
             fputcsv($output, [
                 $employee['employee_number'],
                 $employee['first_name'],
@@ -640,6 +699,12 @@ class EmployeeController extends BaseController
                 $employee['swift_code'],
                 $employee['monthly_salary'],
                 $employee['de_minimis_benefit'],
+                $allocations['rice_subsidy'] ?? '',
+                $allocations['uniform_allowance'] ?? '',
+                $allocations['laundry_allowance'] ?? '',
+                $allocations['medical_allowance'] ?? '',
+                $otherCompTotal,
+                $otherCompSummary,
                 $employee['allowances'],
                 $leaveBalanceModel->getTypeEntitlement((int) $employee['id'], 'vacation',  $currentYear),
                 $leaveBalanceModel->getTypeEntitlement((int) $employee['id'], 'sick',      $currentYear),

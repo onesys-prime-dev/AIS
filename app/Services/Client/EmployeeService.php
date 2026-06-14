@@ -164,6 +164,7 @@ class EmployeeService
                 'working_days' => json_encode($workingDays),
                 'monthly_salary' => isset($data['monthly_salary']) && $data['monthly_salary'] !== '' ? (float) $data['monthly_salary'] : null,
                 'de_minimis_benefit' => isset($data['de_minimis_benefit']) && $data['de_minimis_benefit'] !== '' ? (float) $data['de_minimis_benefit'] : 0,
+                'de_minimis_breakdown' => isset($data['de_minimis_breakdown']) && $data['de_minimis_breakdown'] !== '' ? $data['de_minimis_breakdown'] : null,
                 'allowances' => isset($data['allowances']) && $data['allowances'] !== '' ? (float) $data['allowances'] : 0,
             ]);
 
@@ -529,6 +530,7 @@ class EmployeeService
                 'employment_type'    => $data['employment_type'] ?? null,
                 'monthly_salary'     => isset($data['monthly_salary'])     && $data['monthly_salary']     !== '' ? (float) $data['monthly_salary']     : null,
                 'de_minimis_benefit' => isset($data['de_minimis_benefit']) && $data['de_minimis_benefit'] !== '' ? (float) $data['de_minimis_benefit'] : 0,
+                'de_minimis_breakdown' => isset($data['de_minimis_breakdown']) && $data['de_minimis_breakdown'] !== '' ? $data['de_minimis_breakdown'] : null,
                 'allowances'         => isset($data['allowances'])         && $data['allowances']         !== '' ? (float) $data['allowances']         : 0,
             ] + $scheduleData;
 

@@ -114,7 +114,7 @@ function resetSteps()
 
 function updateProgress(step)
 {
-    const steps = [1,2,3,4];
+    const steps = [1,2,3,4,5];
 
     steps.forEach(i => {
 

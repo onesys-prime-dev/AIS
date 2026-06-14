@@ -20,9 +20,9 @@
     background: #fff;
 
     width: 100%;
-    max-width: 600px;
+    max-width: 700px;
 
-    height: 550px;
+    height: 650px;
 
     border-radius: 18px;
 

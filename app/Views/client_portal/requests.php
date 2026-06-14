@@ -698,7 +698,7 @@
         <!-- ── TAB: Requests ── -->
         <div class="tab-panel active" id="panelRequests">
             <div class="request-cards-container">
-                <div class="request-grid-container scroll-bar">
+                <div class="request-grid-container hide-scroll-bar">
                     <div class="request-grid">
                         <?php foreach ($requests as $request): ?>
                         <div class="request-card" id="request-<?= (int) $request['id'] ?>" data-status="<?= $request['status'] ?>">

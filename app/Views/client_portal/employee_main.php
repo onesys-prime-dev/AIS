@@ -129,13 +129,12 @@ function htmlEsc(val)
         .replace(/>/g, '&gt;');
 }
 
-/*
-|--------------------------------------------------------------------------
-| EMPLOYEE ROW
-|--------------------------------------------------------------------------
-*/
-
-function employeeRowTemplate(p) {
+    /*
+    |--------------------------------------------------------------------------
+    | EMPLOYEE ROW
+    |--------------------------------------------------------------------------
+    */
+    function employeeRowTemplate(p) {
         // Generate display name: "LastName, FirstName"
         const displayName = `${htmlEsc(p.last_name)}, ${htmlEsc(p.first_name)}${p.middle_name ? ' ' + htmlEsc(p.middle_name) : ''}`;
         
@@ -253,6 +252,7 @@ function employeeRowTemplate(p) {
                         data-email="${htmlEsc(p.email)}"
                         data-monthly_salary="${htmlEsc(p.monthly_salary)}"
                         data-de_minimis_benefit="${htmlEsc(p.de_minimis_benefit)}"
+                        data-de_minimis_breakdown='${htmlEsc(p.de_minimis_breakdown || "{}")}'
                         data-allowances="${htmlEsc(p.allowances)}"
 
                         data-vacation_leave="${htmlEsc(p.vacation_leave)}"
@@ -274,15 +274,24 @@ function employeeRowTemplate(p) {
 
             </div>
             `;
-        }
+    }
 
-function viewEmployeeDetails(employeeId) {
+    function viewEmployeeDetails(employeeId) {
 
         const employee = EMPLOYEES.find(emp => emp.id == employeeId);
 
         if (!employee) return;
 
         let workingDays = [];
+
+        let deMinimisBreakdown = {
+            allocations: {},
+            other: []
+        };
+
+        try {
+            deMinimisBreakdown = JSON.parse(employee.de_minimis_breakdown || '{}');
+        } catch (e) {}
 
         try {
             workingDays = JSON.parse(employee.working_days || '[]');
@@ -458,7 +467,74 @@ function viewEmployeeDetails(employeeId) {
                             </div>
 
                             <div class="flex-1 pl-6 space-y-3">
-                                ${viewField('De Minimis Benefit', employee.de_minimis_benefit ? '₱' + Number(employee.de_minimis_benefit).toLocaleString() : '—')}
+                                <div class="space-y-3">
+
+                                    ${viewField(
+                                        'De Minimis Benefit',
+                                        employee.de_minimis_benefit
+                                            ? '₱' + Number(employee.de_minimis_benefit).toLocaleString()
+                                            : '—'
+                                    )}
+
+                                    ${viewField(
+                                        'Rice Subsidy',
+                                        deMinimisBreakdown.allocations?.rice_subsidy
+                                            ? '₱' + Number(deMinimisBreakdown.allocations.rice_subsidy).toLocaleString()
+                                            : '—'
+                                    )}
+
+                                    ${viewField(
+                                        'Uniform Allowance',
+                                        deMinimisBreakdown.allocations?.uniform_allowance
+                                            ? '₱' + Number(deMinimisBreakdown.allocations.uniform_allowance).toLocaleString()
+                                            : '—'
+                                    )}
+
+                                    ${viewField(
+                                        'Laundry Allowance',
+                                        deMinimisBreakdown.allocations?.laundry_allowance
+                                            ? '₱' + Number(deMinimisBreakdown.allocations.laundry_allowance).toLocaleString()
+                                            : '—'
+                                    )}
+
+                                    ${viewField(
+                                        'Medical Allowance',
+                                        deMinimisBreakdown.allocations?.medical_allowance
+                                            ? '₱' + Number(deMinimisBreakdown.allocations.medical_allowance).toLocaleString()
+                                            : '—'
+                                    )}
+
+                                </div>
+
+                                ${
+                                    deMinimisBreakdown.other?.length
+                                        ? `
+                                        <div class="mt-5">
+
+                                            <p class="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-3">
+                                                Other Non-Taxable Compensation
+                                            </p>
+
+                                            <div class="space-y-3">
+
+                                                ${deMinimisBreakdown.other.map(item => `
+                                                    <div class="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3">
+                                                        <span class="text-sm text-gray-700">
+                                                            ${item.purpose || 'Unnamed Benefit'}
+                                                        </span>
+
+                                                        <span class="text-sm font-semibold text-gray-800">
+                                                            ₱${Number(item.amount || 0).toLocaleString()}
+                                                        </span>
+                                                    </div>
+                                                `).join('')}
+
+                                            </div>
+
+                                        </div>
+                                        `
+                                        : ''
+                                }
                                 ${viewField('Allowances', employee.allowances ? '₱' + Number(employee.allowances).toLocaleString() : '—')}
                                 ${viewField('Vacation Leave', (employee.vacation_leave || 0) + ' days')}
                                 ${viewField('Sick Leave', (employee.sick_leave || 0) + ' days')}
@@ -819,6 +895,8 @@ window.addEventListener('click', function(e)
         setVal('edit_email',             button.dataset.email);
         setVal('edit_monthly_salary',    button.dataset.monthly_salary);
         setVal('edit_de_minimis_benefit',button.dataset.de_minimis_benefit);
+        loadEditBreakdown( button.dataset.de_minimis_breakdown || '{}' ); 
+
         setVal('edit_allowances',        button.dataset.allowances);
         setVal('edit_vacation_leave',    button.dataset.vacation_leave);
         setVal('edit_sick_leave',        button.dataset.sick_leave);

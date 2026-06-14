@@ -47,7 +47,7 @@
     </div>
 
     <!-- Main Card -->
-    <div class="bg-white rounded-2xl shadow-lg border border-gray-400 flex flex-col overflow-hidden">
+    <div class="bg-white h-full rounded-2xl shadow-lg border border-gray-400 flex flex-col overflow-hidden">
 
         <!-- Filter bar -->
         <div class="px-5 py-4 border-b border-gray-200 flex justify-between items-center gap-4 flex-wrap">
@@ -77,161 +77,161 @@
         </div>
 
         <!-- TABLE -->
-<div class="flex-1 flex flex-col overflow-hidden">
+        <div class="flex-1 flex flex-col overflow-hidden">
 
-    <!-- HEADER -->
-    <table class="min-w-[1280px] w-full text-md border-collapse table-fixed">
-        <colgroup>
-            <col class="w-[120px]">
-            <col class="w-[100px]">
-            <col class="w-[100px]">
-            <col class="w-[110px]">
-            <col class="w-[90px]">
-            <col class="w-[100px]">
-            <col class="w-[110px]">
-            <col class="w-[110px]">
-            <col class="w-[150px]">
-            <col class="w-[130px]">
-            <col class="w-[170px]">
-            <col class="w-[90px]">
-        </colgroup>
+            <!-- HEADER -->
+            <table class="min-w-[1280px] w-full text-md border-collapse table-fixed">
+                <colgroup>
+                    <col class="w-[120px]">
+                    <col class="w-[100px]">
+                    <col class="w-[100px]">
+                    <col class="w-[110px]">
+                    <col class="w-[90px]">
+                    <col class="w-[100px]">
+                    <col class="w-[110px]">
+                    <col class="w-[110px]">
+                    <col class="w-[150px]">
+                    <col class="w-[130px]">
+                    <col class="w-[170px]">
+                    <col class="w-[90px]">
+                </colgroup>
 
-        <thead>
-            <tr class="bg-[#DCDCDC] text-[#737373] border-y border-[#C5C5C5] h-[52px]">
+                <thead>
+                    <tr class="bg-[#DCDCDC] text-[#737373] border-y border-[#C5C5C5] h-[52px]">
 
-                <th class="px-4 text-left font-bold">Date</th>
-                <th class="px-4 text-left font-bold">Time In</th>
-                <th class="px-4 text-left font-bold">Time Out</th>
+                        <th class="px-4 text-left font-bold">Date</th>
+                        <th class="px-4 text-left font-bold">Time In</th>
+                        <th class="px-4 text-left font-bold">Time Out</th>
 
-                <th class="px-4 text-right font-bold">Regular Hrs</th>
-                <th class="px-4 text-right font-bold">OT Hrs</th>
-                <th class="px-4 text-right font-bold">RDOT Hrs</th>
-                <th class="px-4 text-right font-bold">Tardy (min)</th>
-                <th class="px-4 text-right font-bold">Night Diff</th>
+                        <th class="px-4 text-right font-bold">Regular Hrs</th>
+                        <th class="px-4 text-right font-bold">OT Hrs</th>
+                        <th class="px-4 text-right font-bold">RDOT Hrs</th>
+                        <th class="px-4 text-right font-bold">Tardy (min)</th>
+                        <th class="px-4 text-right font-bold">Night Diff</th>
 
-                <th class="px-4 text-left font-bold">Remarks</th>
+                        <th class="px-4 text-left font-bold">Remarks</th>
 
-                <th class="px-4 text-left font-bold">
-                    Client
-                    <span class="ml-1 text-[10px] text-purple-500">✎</span>
-                </th>
+                        <th class="px-4 text-left font-bold">
+                            Client
+                            <span class="ml-1 text-[10px] text-purple-500">✎</span>
+                        </th>
 
-                <th class="px-4 text-left font-bold">
-                    Task Performed
-                    <span class="ml-1 text-[10px] text-purple-500">✎</span>
-                </th>
+                        <th class="px-4 text-left font-bold">
+                            Task Performed
+                            <span class="ml-1 text-[10px] text-purple-500">✎</span>
+                        </th>
 
-                <th class="px-4 text-center font-bold">Action</th>
+                        <th class="px-4 text-center font-bold">Action</th>
 
-            </tr>
-        </thead>
-    </table>
+                    </tr>
+                </thead>
+            </table>
 
-    <!-- BODY -->
-    <div class="overflow-y-auto hide-scroll-bar flex-1">
+            <!-- BODY -->
+            <div class="overflow-y-auto hide-scroll-bar flex-1">
 
-        <table class="min-w-[1280px] w-full text-sm border-collapse table-fixed">
+                <table class="min-w-[1280px] w-full text-sm border-collapse table-fixed">
 
-            <colgroup>
-                <col class="w-[120px]">
-                <col class="w-[100px]">
-                <col class="w-[100px]">
-                <col class="w-[110px]">
-                <col class="w-[90px]">
-                <col class="w-[100px]">
-                <col class="w-[110px]">
-                <col class="w-[110px]">
-                <col class="w-[150px]">
-                <col class="w-[130px]">
-                <col class="w-[170px]">
-                <col class="w-[90px]">
-            </colgroup>
+                    <colgroup>
+                        <col class="w-[120px]">
+                        <col class="w-[100px]">
+                        <col class="w-[100px]">
+                        <col class="w-[110px]">
+                        <col class="w-[90px]">
+                        <col class="w-[100px]">
+                        <col class="w-[110px]">
+                        <col class="w-[110px]">
+                        <col class="w-[150px]">
+                        <col class="w-[130px]">
+                        <col class="w-[170px]">
+                        <col class="w-[90px]">
+                    </colgroup>
 
-            <tbody id="tableBody">
-                <!-- DATA ROWS -->
-            </tbody>
+                    <tbody id="tableBody">
+                        <!-- DATA ROWS -->
+                    </tbody>
 
-        </table>
+                </table>
 
-    </div>
+            </div>
 
-    <!-- FOOTER -->
-    <table class="min-w-[1280px] w-full text-sm border-collapse table-fixed">
+            <!-- FOOTER -->
+            <table class="min-w-[1280px] w-full text-sm border-collapse table-fixed">
 
-        <colgroup>
-            <col class="w-[120px]">
-            <col class="w-[100px]">
-            <col class="w-[100px]">
-            <col class="w-[110px]">
-            <col class="w-[90px]">
-            <col class="w-[100px]">
-            <col class="w-[110px]">
-            <col class="w-[110px]">
-            <col class="w-[150px]">
-            <col class="w-[130px]">
-            <col class="w-[170px]">
-            <col class="w-[90px]">
-        </colgroup>
+                <colgroup>
+                    <col class="w-[120px]">
+                    <col class="w-[100px]">
+                    <col class="w-[100px]">
+                    <col class="w-[110px]">
+                    <col class="w-[90px]">
+                    <col class="w-[100px]">
+                    <col class="w-[110px]">
+                    <col class="w-[110px]">
+                    <col class="w-[150px]">
+                    <col class="w-[130px]">
+                    <col class="w-[170px]">
+                    <col class="w-[90px]">
+                </colgroup>
 
-        <tfoot>
+                <tfoot>
 
-            <tr class="bg-[#DCDCDC] text-[#666] border-t border-[#C5C5C5] h-[52px] font-semibold">
+                    <tr class="bg-[#DCDCDC] text-[#666] border-t border-[#C5C5C5] h-[52px] font-semibold">
 
-                <!-- DATE -->
-                <td></td>
+                        <!-- DATE -->
+                        <td></td>
 
-                <!-- TIME IN -->
-                <td></td>
+                        <!-- TIME IN -->
+                        <td></td>
 
-                <!-- TIME OUT -->
-                <td class="text-center border-r border-[#C5C5C5] tracking-wide">
-                    TOTALS
-                </td>
+                        <!-- TIME OUT -->
+                        <td class="text-center border-r border-[#C5C5C5] tracking-wide">
+                            TOTALS
+                        </td>
 
-                <!-- REGULAR -->
-                <td class="px-4 text-right">
-                    <span id="totalRegular">0.00</span>
-                </td>
+                        <!-- REGULAR -->
+                        <td class="px-4 text-right">
+                            <span id="totalRegular">0.00</span>
+                        </td>
 
-                <!-- OT -->
-                <td class="px-4 text-right">
-                    <span id="totalOt">0.00</span>
-                </td>
+                        <!-- OT -->
+                        <td class="px-4 text-right">
+                            <span id="totalOt">0.00</span>
+                        </td>
 
-                <!-- RDOT -->
-                <td class="px-4 text-right">
-                    <span id="totalRdot">0.00</span>
-                </td>
+                        <!-- RDOT -->
+                        <td class="px-4 text-right">
+                            <span id="totalRdot">0.00</span>
+                        </td>
 
-                <!-- TARDY -->
-                <td class="px-4 text-right">
-                    <span id="totalTardy">0</span>
-                </td>
+                        <!-- TARDY -->
+                        <td class="px-4 text-right">
+                            <span id="totalTardy">0</span>
+                        </td>
 
-                <!-- NIGHT DIFF -->
-                <td class="px-4 text-right">
-                    <span id="totalNightDiff">0.00</span>
-                </td>
+                        <!-- NIGHT DIFF -->
+                        <td class="px-4 text-right">
+                            <span id="totalNightDiff">0.00</span>
+                        </td>
 
-                <!-- REMARKS -->
-                <td></td>
+                        <!-- REMARKS -->
+                        <td></td>
 
-                <!-- CLIENT -->
-                <td></td>
+                        <!-- CLIENT -->
+                        <td></td>
 
-                <!-- TASK -->
-                <td></td>
+                        <!-- TASK -->
+                        <td></td>
 
-                <!-- ACTION -->
-                <td></td>
+                        <!-- ACTION -->
+                        <td></td>
 
-            </tr>
+                    </tr>
 
-        </tfoot>
+                </tfoot>
 
-    </table>
+            </table>
 
-</div>
+        </div>
     </div>
 </div>
 
