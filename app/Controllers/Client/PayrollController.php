@@ -2229,13 +2229,15 @@ class PayrollController extends BaseController
 
             if (!isset($byEmployee[$empId])) {
                 $byEmployee[$empId] = [
-                    'employee_name'       => $row['employee_name'],
-                    'total_pure_basic'    => 0,  // basic_pay − absent − undertime (13th month base)
-                    'total_net_basic'     => 0,  // net_basic_pay (includes night diff, for tax)
-                    'total_overtime'      => 0,
-                    'total_other_taxable' => 0,
-                    'total_wtax'          => 0,
-                    'periods_count'       => 0,
+                    'employee_name'          => $row['employee_name'],
+                    'total_gross_basic'      => 0,  // sum of semi-monthly basic_pay (gross)
+                    'total_absent_undertime' => 0,  // sum of absent_amt + undertime_amt
+                    'total_pure_basic'       => 0,  // gross − deductions (13th month base)
+                    'total_net_basic'        => 0,  // net_basic_pay (includes night diff, for tax)
+                    'total_overtime'         => 0,
+                    'total_other_taxable'    => 0,
+                    'total_wtax'             => 0,
+                    'periods_count'          => 0,
                 ];
             }
 
@@ -2243,13 +2245,16 @@ class PayrollController extends BaseController
             $basicPay     = (float)($gd['basic_pay']     ?? 0);
             $absentAmt    = (float)($gd['absent_amt']    ?? 0);
             $undertimeAmt = (float)($gd['undertime_amt'] ?? 0);
-            $pureBasic    = max(0, $basicPay - $absentAmt - $undertimeAmt);
+            $deductions   = $absentAmt + $undertimeAmt;
+            $pureBasic    = max(0, $basicPay - $deductions);
 
             // net_basic_pay from JSON already includes night diff
             $netBasic = (float)($gd['net_basic_pay'] ?? $pureBasic);
 
-            $byEmployee[$empId]['total_pure_basic']    += $pureBasic;
-            $byEmployee[$empId]['total_net_basic']      += $netBasic;
+            $byEmployee[$empId]['total_gross_basic']      += $basicPay;
+            $byEmployee[$empId]['total_absent_undertime'] += $deductions;
+            $byEmployee[$empId]['total_pure_basic']       += $pureBasic;
+            $byEmployee[$empId]['total_net_basic']         += $netBasic;
             $byEmployee[$empId]['total_overtime']       += (float)($gd['overtime_pay']            ?? 0);
             $byEmployee[$empId]['total_other_taxable']  += (float)($gd['other_earnings_taxable']  ?? 0);
             $byEmployee[$empId]['total_wtax']           += (float)($gd['withholding_tax']         ?? 0);
@@ -2289,6 +2294,8 @@ class PayrollController extends BaseController
             $data13 = [
                 'employee_id'             => $empId,
                 'year'                    => $year,
+                'total_gross_basic'       => round($agg['total_gross_basic'], 2),
+                'total_absent_undertime'  => round($agg['total_absent_undertime'], 2),
                 'total_basic_earned'      => round($totalPureBasic, 2),
                 'periods_count'           => $agg['periods_count'],
                 'thirteenth_month_amount' => $thirteenth,
@@ -2320,6 +2327,8 @@ class PayrollController extends BaseController
             $thirteenthData[] = [
                 'employee_id'             => $empId,
                 'employee_name'           => $agg['employee_name'],
+                'total_gross_basic'       => round($agg['total_gross_basic'], 2),
+                'total_absent_undertime'  => round($agg['total_absent_undertime'], 2),
                 'total_basic_earned'      => round($totalPureBasic, 2),
                 'periods_count'           => $agg['periods_count'],
                 'thirteenth_month_amount' => $thirteenth,

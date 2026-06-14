@@ -55,8 +55,15 @@ $_defaultYearMonth = "{$_year}-{$_month}";
     /* Scroll area */
     .payroll-scroll-area{
         overflow-y:auto;
-        height:600px;
+        min-height:300px;
     }
+
+    /* Hide individual panels when bulk mode is active */
+    body.bulk-active #individual-mode,
+    body.bulk-active #individual-register-mode,
+    body.bulk-active #individual-payslip-mode,
+    body.bulk-active #individual-employee-section,
+    body.bulk-active #individualActionBtns { display:none !important; }
 
     .payroll-scroll-hide{
         scrollbar-width:none;
@@ -557,7 +564,85 @@ $_defaultYearMonth = "{$_year}-{$_month}";
 </head>
 <body class="p-6">
 
-<div class="bg-white rounded-2xl shadow-lg p-8 h-full overflow-hidden border border-gray-300 flex flex-col">
+<div class="bg-white rounded-2xl shadow-lg p-8 h-full overflow-y-auto border border-gray-300 flex flex-col">
+
+    <!-- GLOBAL MODE SWITCH -->
+    <div class="mode-switch" style="margin-bottom:10px;">
+        <button type="button" class="mode-btn active" onclick="switchMode('individual', event)">Individual</button>
+        <button type="button" class="mode-btn" onclick="switchMode('bulk', event)">Bulk Send</button>
+    </div>
+
+    <!-- BULK PANEL — shown above all tabs when in Bulk mode -->
+    <div id="bulk-panel" style="display:none;margin-bottom:14px;">
+        <div style="display:grid;grid-template-columns:280px 1fr;gap:16px;align-items:start;">
+            <!-- Left: employee checklist -->
+            <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:12px;">
+                <div style="font-size:13px;font-weight:700;color:#374151;margin-bottom:8px;">Select Employees</div>
+                <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">
+                    <button type="button" onclick="bulkSelectAll()" style="font-size:12px;padding:4px 10px;border:1px solid #d1d5db;border-radius:6px;background:#fff;cursor:pointer;">All</button>
+                    <button type="button" onclick="bulkDeselectAll()" style="font-size:12px;padding:4px 10px;border:1px solid #d1d5db;border-radius:6px;background:#fff;cursor:pointer;">Clear</button>
+                    <input type="text" id="bulkListSearch" placeholder="Filter…"
+                        oninput="filterBulkList(this.value)"
+                        style="flex:1;padding:5px 8px;border:1px solid #d1d5db;border-radius:6px;font-size:12px;">
+                </div>
+                <div id="bulkEmployeeList" style="max-height:180px;overflow-y:auto;border:1px solid #e5e7eb;border-radius:8px;background:#fff;">
+                    <div style="padding:14px;text-align:center;color:#9ca3af;font-size:13px;">Loading…</div>
+                </div>
+                <div style="margin-top:6px;font-size:12px;color:#6b7280;" id="bulkSelectionCount">0 employees selected</div>
+            </div>
+
+            <!-- Right: period + actions + review -->
+            <div>
+                <div style="display:grid;grid-template-columns:150px 1fr;gap:12px;margin-bottom:12px;">
+                    <div>
+                        <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px;">Month</label>
+                        <input type="month" id="bulkPeriodMonth" value="<?= $_defaultYearMonth ?>"
+                            style="height:36px;padding:5px 8px;border:1px solid #cfcfcf;border-radius:8px;font-size:13px;background:#e9e9e9;width:100%;"
+                            onchange="syncBulkPeriod()">
+                    </div>
+                    <div>
+                        <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px;">Period</label>
+                        <div class="period-btn-group">
+                            <button type="button" class="period-btn bulk-period-btn <?= $_defaultPeriod === 'first_half'  ? 'active' : '' ?>" data-period="first_half"  onclick="selectBulkPeriodBtn(this)">1st Half</button>
+                            <button type="button" class="period-btn bulk-period-btn <?= $_defaultPeriod === 'second_half' ? 'active' : '' ?>" data-period="second_half" onclick="selectBulkPeriodBtn(this)">2nd Half</button>
+                            <button type="button" class="period-btn bulk-period-btn" data-period="monthly" onclick="selectBulkPeriodBtn(this)">Monthly</button>
+                        </div>
+                        <div id="bulkPeriodDisplay" style="margin-top:4px;font-size:12px;color:#6b7280;"></div>
+                    </div>
+                </div>
+
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;">
+                    <button type="button" id="bulkGenerateBtn" onclick="startBulkGenerate()"
+                        style="background:#7b5cff;color:#fff;border:none;border-radius:8px;padding:9px 20px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px;">
+                        <span id="bulkBtnText">Generate Payslips</span>
+                        <span id="bulkBtnSpinner" style="display:none;">⏳</span>
+                    </button>
+                    <button type="button" id="bulkSendAllBtn" onclick="sendBulkAll()" style="display:none;
+                        background:#16a34a;color:#fff;border:none;border-radius:8px;padding:9px 20px;font-size:13px;font-weight:600;cursor:pointer;">
+                        ✉ Send All
+                    </button>
+                    <button type="button" id="bulkExportBtn" onclick="exportBulkCSV()" style="display:none;
+                        background:#374151;color:#fff;border:none;border-radius:8px;padding:9px 20px;font-size:13px;font-weight:600;cursor:pointer;">
+                        ↓ Export CSV
+                    </button>
+                    <span id="bulkStatusMsg" style="font-size:13px;color:#6b7280;"></span>
+                </div>
+
+                <!-- Review table -->
+                <div id="bulkReviewPanel" style="display:none;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;">
+                    <div style="display:grid;grid-template-columns:2fr 1.1fr 1.1fr 1.2fr 90px;background:#DCDCDC;color:#737373;font-size:13px;font-weight:700;border-bottom:1px solid #9E9E9E;">
+                        <div style="padding:8px 12px;">Employee</div>
+                        <div style="padding:8px 12px;">Gross Pay</div>
+                        <div style="padding:8px 12px;">Deductions</div>
+                        <div style="padding:8px 12px;">Net Pay</div>
+                        <div style="padding:8px 12px;text-align:center;">View</div>
+                    </div>
+                    <div id="bulkReviewRows"></div>
+                    <div id="bulkReviewSummary" style="padding:8px 12px;font-size:13px;font-weight:600;color:#374151;border-top:1px solid #e5e7eb;background:#f9fafb;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- TABS -->
     <div class="flex gap-10 border-b border-gray-300 mb-6">
@@ -577,46 +662,47 @@ $_defaultYearMonth = "{$_year}-{$_month}";
                        cursor:pointer;color:#60a5fa;line-height:1;">&times;</button>
     </div>
 
-    <div class="flex flex-col flex-1 overflow-hidden">
+    <div class="flex flex-col flex-1">
 
         <!-- ================= RAW SHEET ================= -->
         <div class="tab-content active payroll-scroll-area payroll-scroll-hide" id="raw">
-            <!-- Mode Switch -->
-            <div class="mode-switch">
-                <button type="button" class="mode-btn active" onclick="switchMode('individual', event)">Individual</button>
-                <button type="button" class="mode-btn" onclick="switchMode('bulk', event)">Bulk Send</button>
-            </div>
 
-            <!-- Employee Selection Area -->
-            <div class="section">
+            <!-- Employee Selection (individual mode only) -->
+            <div class="section" id="individual-employee-section">
                 <h3 class="font-semibold">Employee Selection</h3>
-                <div id="employee-search-area">
-                    <div id="individual-employee-select" class="employee-search-container">
-                        <label>Employee Name</label>
-                        <input type="text" id="empSearchInput" placeholder="Type to search..." autocomplete="off">
-                        <div id="employeeSuggestions" class="employee-suggestions payroll-scroll-hide"></div>
-                        <input type="hidden" id="selectedEmployeeId" value="">
-                    </div>
-                    <div id="bulk-employee-select" style="display:none;">
-                        <label>Add Employees</label>
-                        <div class="bulk-search-wrapper">
-                            <input type="text" id="bulkSearchInput" class="bulk-search-input"
-                                placeholder="Type a name to search…" autocomplete="off">
-                            <div id="bulkDropdown" class="bulk-dropdown"></div>
-                        </div>
-                        <div id="bulkChips" class="bulk-chips"></div>
-                        <div class="mt-1 text-xs text-gray-400" id="bulkSelectionCount">0 employees selected</div>
-                    </div>
+                <div class="employee-search-container">
+                    <label>Employee Name</label>
+                    <input type="text" id="empSearchInput" placeholder="Type to search..." autocomplete="off">
+                    <div id="employeeSuggestions" class="employee-suggestions payroll-scroll-hide"></div>
+                    <input type="hidden" id="selectedEmployeeId" value="">
                 </div>
                 <div class="mt-3">
-                    <label>Selected Employee(s)</label>
-                    <input type="text" id="empName" placeholder="e.g. 51 T" readonly class="bg-gray-200">
+                    <label>Selected Employee</label>
+                    <input type="text" id="empName" placeholder="—" readonly class="bg-gray-200">
                 </div>
             </div>
 
-            <div class="flex justify-end mb-4 gap-2">
+            <div class="flex justify-end mb-4 gap-2" id="individualActionBtns">
                 <button type="button" class="auto-fill-btn" onclick="autoFillRawSheet()">Auto-fill from Employee</button>
-                <button type="button" class="next-btn" id="exportRawSheetBtn" style="background:#28a745;">Export Raw Sheet (CSV)</button>
+                <button type="button" class="next-btn" id="exportRawSheetBtn" style="background:#28a745;">Export Raw Sheet</button>
+            </div>
+
+            <!-- Bulk mode notice (shown inside raw tab when bulk is active) -->
+            <div id="bulk-raw-notice" style="display:none;background:#f0f4ff;border:1px solid #c7d2fe;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:#3730a3;">
+                &#8593; Bulk mode active — select employees and period above, then click <strong>Generate Payslips</strong> to populate the table below.
+            </div>
+
+            <!-- Bulk raw sheet table — shown after generate in bulk mode -->
+            <div id="bulk-raw-view" style="display:none;overflow-x:auto;margin-bottom:12px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
+                    <h3 class="font-semibold text-lg">Raw Sheet — All Employees</h3>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                        <label for="bulkRawImportFile" style="cursor:pointer;background:#374151;color:#fff;border:none;border-radius:8px;padding:7px 16px;font-size:13px;font-weight:600;display:inline-flex;align-items:center;">&#8679; Import CSV</label>
+                        <input type="file" id="bulkRawImportFile" accept=".csv" style="display:none;" onchange="importBulkCSV('raw',this)">
+                        <button type="button" onclick="exportBulkCSV('raw')" style="background:#28a745;color:#fff;border:none;border-radius:8px;padding:7px 16px;font-size:13px;font-weight:600;cursor:pointer;">&#8681; Export CSV</button>
+                    </div>
+                </div>
+                <div id="bulk-raw-tbody" style="overflow-x:auto;"></div>
             </div>
 
             <div id="individual-mode">
@@ -663,14 +749,6 @@ $_defaultYearMonth = "{$_year}-{$_month}";
                         <div><label>Hourly</label><input type="number" id="hourlyRate"></div>
                     </div>
                 </div>
-            </div>
-
-            <div id="bulk-mode" style="display:none;">
-                <div class="section">
-                    <h3 class="font-semibold">Bulk Processing Options</h3>
-                    <p class="subtitle">The selected employees above will be processed together. Click "Auto-fill" to populate each employee's data (you will be prompted for each).</p>
-                </div>
-            </div>
 
             <!-- DE MINIMIS BENEFIT -->
             <div class="section rs-card">
@@ -869,10 +947,27 @@ $_defaultYearMonth = "{$_year}-{$_month}";
                 <button type="button" class="next-btn" id="importTimesheetBtn" style="background:#17a2b8;">Import Timesheet</button>
                 <button type="button" class="next-btn" onclick="syncToRegister()">Next → Register</button>
             </div>
+            </div><!-- /#individual-mode -->
         </div>
 
         <!-- ================= PAYROLL REGISTER ================= -->
         <div class="tab-content payroll-scroll-area payroll-scroll-hide" id="register">
+
+            <!-- Bulk register table — shown after generate in bulk mode -->
+            <div id="bulk-register-view" style="display:none;overflow-x:auto;margin-bottom:12px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
+                    <h3 class="font-semibold text-lg">Payroll Register — All Employees</h3>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                        <label for="bulkRegImportFile" style="cursor:pointer;background:#374151;color:#fff;border:none;border-radius:8px;padding:7px 16px;font-size:13px;font-weight:600;display:inline-flex;align-items:center;">&#8679; Import CSV</label>
+                        <input type="file" id="bulkRegImportFile" accept=".csv" style="display:none;" onchange="importBulkCSV('register',this)">
+                        <button type="button" onclick="exportBulkCSV('register')" style="background:#28a745;color:#fff;border:none;border-radius:8px;padding:7px 16px;font-size:13px;font-weight:600;cursor:pointer;">&#8681; Export CSV</button>
+                    </div>
+                </div>
+                <!-- Table injected by _buildRegisterTable() -->
+                <div id="bulk-register-tbody" style="overflow-x:auto;"></div>
+            </div>
+
+            <div id="individual-register-mode">
             <div style="max-width:100%;">
                 <div class="flex justify-between items-center mb-3">
                     <h3 class="font-semibold text-lg">Payroll Register</h3>
@@ -970,10 +1065,27 @@ $_defaultYearMonth = "{$_year}-{$_month}";
                     <button type="button" class="next-btn" onclick="syncToPayslip()">Next &rarr; Payslip</button>
                 </div>
             </div>
+            </div><!-- /#individual-register-mode -->
         </div>
 
         <!-- ================= PAYSLIP TAB ================= -->
         <div class="tab-content payroll-scroll-area payroll-scroll-hide" id="payslip">
+
+            <!-- Bulk payslip list — shown after generate in bulk mode -->
+            <div id="bulk-payslip-view" style="display:none;margin-bottom:12px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
+                    <h3 class="font-semibold text-lg">Payslips — All Employees</h3>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                        <button type="button" onclick="sendBulkAll()" style="background:#16a34a;color:#fff;border:none;border-radius:8px;padding:7px 16px;font-size:13px;font-weight:600;cursor:pointer;">&#9993; Send All</button>
+                        <button type="button" onclick="exportBulkCSV('register')" style="background:#28a745;color:#fff;border:none;border-radius:8px;padding:7px 16px;font-size:13px;font-weight:600;cursor:pointer;">&#8681; Export CSV</button>
+                    </div>
+                </div>
+                <div id="bulk-payslip-list" style="display:grid;gap:8px;">
+                    <div style="text-align:center;padding:20px;color:#9ca3af;font-size:13px;">Generate payslips to see list</div>
+                </div>
+            </div>
+
+            <div id="individual-payslip-mode">
             <div class="rs-card" style="margin-bottom:12px;">
                 <h3 class="font-semibold">Payslip Details</h3>
                 <div class="grid-2" style="margin-bottom:10px;">
@@ -1092,6 +1204,7 @@ $_defaultYearMonth = "{$_year}-{$_month}";
             </div>
 
             <div class="signature">Employee signature: ___________________________</div>
+            </div><!-- /#individual-payslip-mode -->
         </div>
     </div>
 </div>
@@ -1127,8 +1240,6 @@ $_defaultYearMonth = "{$_year}-{$_month}";
 // ================= GLOBAL VARIABLES =================
 let employeesList = [];
 let selectedEmployeeIds = new Set();
-let currentEmployeeIndex = 0;
-let bulkEmployeesArray = [];
 
 // Logo URL injected from PHP
 var companyLogoUrl = <?= json_encode($companyLogoUrl) ?>;
@@ -1148,22 +1259,28 @@ document.querySelectorAll('.sub-tab').forEach(btn=>{
 
 // ================= MODE SWITCH =================
 function switchMode(mode, e){
-    document.getElementById('individual-mode').style.display = mode === 'individual' ? 'block' : 'none';
-    document.getElementById('bulk-mode').style.display = mode === 'bulk' ? 'block' : 'none';
-    document.getElementById('individual-employee-select').style.display = mode === 'individual' ? 'block' : 'none';
-    document.getElementById('bulk-employee-select').style.display = mode === 'bulk' ? 'block' : 'none';
-    document.querySelectorAll('.mode-btn').forEach(b=>b.classList.remove('active'));
+    const isBulk = mode === 'bulk';
+    // CSS class hides all individual panels without needing per-element JS
+    document.body.classList.toggle('bulk-active', isBulk);
+    document.getElementById('bulk-panel').style.display = isBulk ? 'block' : 'none';
+    const notice = document.getElementById('bulk-raw-notice');
+    if (notice) notice.style.display = isBulk ? 'block' : 'none';
+    // Show bulk tab views only if we already have generated data
+    const hasData = bulkGeneratedPayloads.length > 0;
+    ['bulk-raw-view','bulk-register-view','bulk-payslip-view'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = (isBulk && hasData) ? 'block' : 'none';
+    });
+    document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
     e.target.classList.add('active');
-    
-    if (mode === 'individual') {
+
+    if (isBulk) {
+        syncBulkPeriod();
+    } else {
         selectedEmployeeIds.clear();
-        _renderBulkChips();
         updateSelectedEmployeeDisplay();
         document.getElementById('selectedEmployeeId').value = '';
         document.getElementById('empSearchInput').value = '';
-    } else {
-        document.getElementById('bulkSearchInput').value = '';
-        document.getElementById('bulkDropdown').style.display = 'none';
     }
 }
 
@@ -1176,7 +1293,7 @@ async function loadEmployees() {
         const data = await response.json();
         employeesList = data;
         initSearchSuggestions();
-        setupBulkSearch();
+        renderBulkEmployeeList();
     } catch (error) {
         console.error('Failed to load employees:', error);
         employeesList = [
@@ -1184,128 +1301,627 @@ async function loadEmployees() {
             { id: '2', name: 'Test Employee 2', label: 'Test Employee 2' }
         ];
         initSearchSuggestions();
-        alert('Using dummy employee data. Check console for server error.');
+        renderBulkEmployeeList();
+        console.warn('Using dummy employee data — check server error above.');
     }
 }
 
-// ── Bulk chip-select ──────────────────────────────────────────────────────
-function setupBulkSearch() {
-    const input    = document.getElementById('bulkSearchInput');
-    const dropdown = document.getElementById('bulkDropdown');
-    if (!input || !dropdown) return;
+// ── Bulk employee checklist ───────────────────────────────────────────────
 
-    let focusedIndex = -1;
-
-    function renderDropdown(term) {
-        const q = term.trim().toLowerCase();
-        if (!q) { dropdown.style.display = 'none'; return; }
-
-        const matches = employeesList.filter(e => e.name.toLowerCase().includes(q)).slice(0, 10);
-        if (!matches.length) { dropdown.style.display = 'none'; return; }
-
-        dropdown.innerHTML = matches.map((emp, i) => {
-            const already = selectedEmployeeIds.has(emp.id) || selectedEmployeeIds.has(String(emp.id));
-            return `<div class="bulk-dropdown-item${already ? ' already-selected' : ''}"
-                         data-id="${emp.id}" data-name="${emp.name}" data-index="${i}">
-                        ${already ? '✓ ' : ''}${emp.name}
-                    </div>`;
-        }).join('');
-        dropdown.style.display = 'block';
-        focusedIndex = -1;
-    }
-
-    function getFocusedItems() {
-        return Array.from(dropdown.querySelectorAll('.bulk-dropdown-item:not(.already-selected)'));
-    }
-
-    input.addEventListener('input', () => renderDropdown(input.value));
-
-    input.addEventListener('keydown', e => {
-        const items = getFocusedItems();
-        if (e.key === 'ArrowDown') {
-            e.preventDefault();
-            focusedIndex = Math.min(focusedIndex + 1, items.length - 1);
-        } else if (e.key === 'ArrowUp') {
-            e.preventDefault();
-            focusedIndex = Math.max(focusedIndex - 1, 0);
-        } else if (e.key === 'Enter' && focusedIndex >= 0) {
-            e.preventDefault();
-            items[focusedIndex]?.click();
-            return;
-        } else if (e.key === 'Escape') {
-            dropdown.style.display = 'none';
-            return;
-        }
-        items.forEach((el, i) => el.classList.toggle('focused', i === focusedIndex));
-    });
-
-    dropdown.addEventListener('mousedown', e => {
-        const item = e.target.closest('.bulk-dropdown-item');
-        if (!item || item.classList.contains('already-selected')) return;
-        e.preventDefault();
-        addBulkEmployee(item.dataset.id, item.dataset.name);
-        input.value = '';
-        dropdown.style.display = 'none';
-        input.focus();
-    });
-
-    document.addEventListener('click', e => {
-        if (!input.contains(e.target) && !dropdown.contains(e.target)) {
-            dropdown.style.display = 'none';
-        }
-    });
-}
-
-function addBulkEmployee(id, name) {
-    const sid = String(id);
-    if (selectedEmployeeIds.has(sid) || selectedEmployeeIds.has(parseInt(sid))) return;
-    selectedEmployeeIds.add(sid);
-    _renderBulkChips();
-    updateSelectedEmployeeDisplay();
-}
-
-function removeBulkEmployee(id) {
-    selectedEmployeeIds.delete(id);
-    selectedEmployeeIds.delete(String(id));
-    selectedEmployeeIds.delete(parseInt(id));
-    _renderBulkChips();
-    updateSelectedEmployeeDisplay();
-}
-
-function _renderBulkChips() {
-    const container = document.getElementById('bulkChips');
+function renderBulkEmployeeList(filter) {
+    const container = document.getElementById('bulkEmployeeList');
     if (!container) return;
-    const chips = [];
-    selectedEmployeeIds.forEach(id => {
-        const emp = employeesList.find(e => String(e.id) === String(id));
-        if (!emp) return;
-        chips.push(`<span class="bulk-chip">
-            ${emp.name}
-            <button type="button" class="bulk-chip-remove" onclick="removeBulkEmployee('${id}')" title="Remove">&#x2715;</button>
-        </span>`);
-    });
-    container.innerHTML = chips.join('');
+    const q = (filter || '').trim().toLowerCase();
+    const list = q ? employeesList.filter(e => e.name.toLowerCase().includes(q)) : employeesList;
+    if (!list.length) {
+        container.innerHTML = '<div style="padding:14px;text-align:center;color:#9ca3af;font-size:13px;">No employees found.</div>';
+        return;
+    }
+    container.innerHTML = list.map(emp => {
+        const checked = selectedEmployeeIds.has(String(emp.id));
+        return `<label style="display:flex;align-items:center;gap:10px;padding:8px 12px;cursor:pointer;border-bottom:1px solid #f3f4f6;font-size:13px;">
+            <input type="checkbox" value="${emp.id}" ${checked ? 'checked' : ''}
+                   style="accent-color:#7b5cff;width:15px;height:15px;cursor:pointer;flex-shrink:0;"
+                   onchange="toggleBulkEmployee('${emp.id}', this.checked)">
+            <span>${emp.name}</span>
+        </label>`;
+    }).join('');
+}
+
+function filterBulkList(val) { renderBulkEmployeeList(val); }
+
+function bulkSelectAll() {
+    employeesList.forEach(e => selectedEmployeeIds.add(String(e.id)));
+    renderBulkEmployeeList(document.getElementById('bulkListSearch')?.value);
+    updateSelectedEmployeeDisplay();
+}
+
+function bulkDeselectAll() {
+    selectedEmployeeIds.clear();
+    renderBulkEmployeeList(document.getElementById('bulkListSearch')?.value);
+    updateSelectedEmployeeDisplay();
 }
 
 function toggleBulkEmployee(id, checked) {
-    if (checked) addBulkEmployee(id, '');
-    else removeBulkEmployee(id);
+    if (checked) selectedEmployeeIds.add(String(id));
+    else { selectedEmployeeIds.delete(id); selectedEmployeeIds.delete(String(id)); }
+    updateSelectedEmployeeDisplay();
 }
 
 function updateSelectedEmployeeDisplay() {
-    const count     = selectedEmployeeIds.size;
-    const countEl   = document.getElementById('bulkSelectionCount');
-    const btn       = document.getElementById('bulkGenerateSendBtn');
-    const nameField = document.getElementById('empName');
+    const count   = selectedEmployeeIds.size;
+    const countEl = document.getElementById('bulkSelectionCount');
+    const btnText = document.getElementById('bulkBtnText');
     if (countEl) countEl.textContent = count + ' employee' + (count === 1 ? '' : 's') + ' selected';
-    if (btn)     btn.textContent = `Generate & Send All Selected (${count})`;
-    if (count === 0) { nameField.value = ''; return; }
-    const names = [];
-    selectedEmployeeIds.forEach(id => {
+    if (btnText) btnText.textContent = count > 0
+        ? 'Generate Payslips (' + count + ' employees)'
+        : 'Generate Payslips';
+}
+
+// ── Bulk period sync ──────────────────────────────────────────────────────
+
+function syncBulkPeriod() {
+    const monthEl = document.getElementById('bulkPeriodMonth');
+    if (!monthEl || !monthEl.value) return;
+    const parts = monthEl.value.split('-');
+    const y = parseInt(parts[0]), m = parseInt(parts[1]);
+    const s = window._payrollSettings || {};
+    const pad = n => String(n).padStart(2, '0');
+    let ranges;
+    if (s.half1_start_day) {
+        ranges = {
+            first_half:  { start: buildPeriodDate(y,m,s.half1_start_day,s.half1_start_offset||0), end: buildPeriodDate(y,m,s.half1_end_day,s.half1_end_offset||0) },
+            second_half: { start: buildPeriodDate(y,m,s.half2_start_day,s.half2_start_offset||0), end: buildPeriodDate(y,m,s.half2_end_day,s.half2_end_offset||0) },
+            monthly:     { start: buildPeriodDate(y,m,1,0), end: buildPeriodDate(y,m,0,0) },
+        };
+    } else {
+        const cutoff = parseInt(s.first_half_cutoff)||15;
+        const lastDay = new Date(y,m,0).getDate();
+        const ym = y+'-'+pad(m);
+        ranges = {
+            first_half:  { start:ym+'-01', end:ym+'-'+pad(cutoff) },
+            second_half: { start:ym+'-'+pad(cutoff+1), end:ym+'-'+pad(lastDay) },
+            monthly:     { start:ym+'-01', end:ym+'-'+pad(lastDay) },
+        };
+    }
+    const activeBtn = document.querySelector('.bulk-period-btn.active');
+    const chosen = ranges[activeBtn ? activeBtn.dataset.period : 'first_half'] || ranges.first_half;
+    document.getElementById('periodStart').value = chosen.start;
+    document.getElementById('periodEnd').value   = chosen.end;
+    const disp = document.getElementById('bulkPeriodDisplay');
+    if (disp) disp.textContent = chosen.start + ' → ' + chosen.end;
+}
+
+function selectBulkPeriodBtn(btn) {
+    document.querySelectorAll('.bulk-period-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    syncBulkPeriod();
+}
+
+// ── Bulk generate & review ────────────────────────────────────────────────
+
+let bulkGeneratedPayloads = []; // stores {empId, empName, payload, d} after generate
+
+async function startBulkGenerate() {
+    const ids = Array.from(selectedEmployeeIds);
+    if (!ids.length) { alert('Select at least one employee first.'); return; }
+
+    syncBulkPeriod();
+    const periodStart = document.getElementById('periodStart').value;
+    const periodEnd   = document.getElementById('periodEnd').value;
+    if (!periodStart || !periodEnd) { alert('Please set a valid pay period.'); return; }
+
+    // Lock UI
+    const genBtn  = document.getElementById('bulkGenerateBtn');
+    const btnText = document.getElementById('bulkBtnText');
+    const spinner = document.getElementById('bulkBtnSpinner');
+    const sendBtn = document.getElementById('bulkSendAllBtn');
+    const msgEl   = document.getElementById('bulkStatusMsg');
+    genBtn.disabled = true; spinner.style.display = 'inline';
+    sendBtn.style.display = 'none';
+    msgEl.textContent = '';
+    bulkGeneratedPayloads = [];
+
+    // Show review table with loading placeholders
+    const reviewPanel = document.getElementById('bulkReviewPanel');
+    const reviewRows  = document.getElementById('bulkReviewRows');
+    const reviewSumm  = document.getElementById('bulkReviewSummary');
+    reviewPanel.style.display = 'block';
+    reviewRows.innerHTML = ids.map((id, i) => {
         const emp = employeesList.find(e => String(e.id) === String(id));
-        if (emp) names.push(emp.name);
+        return `<div id="brow-${id}" style="display:grid;grid-template-columns:2fr 1.1fr 1.1fr 1.2fr 90px;align-items:center;border-bottom:1px solid #f3f4f6;font-size:13px;">
+            <div style="padding:10px 14px;">${emp ? emp.name : id}</div>
+            <div id="bcell-basic-${id}" style="padding:10px 14px;color:#9ca3af;">—</div>
+            <div id="bcell-ded-${id}"   style="padding:10px 14px;color:#9ca3af;">—</div>
+            <div id="bcell-net-${id}"   style="padding:10px 14px;color:#9ca3af;">—</div>
+            <div style="padding:10px 14px;text-align:center;"><span id="bcell-status-${id}" style="font-size:11px;color:#9ca3af;">⏳</span></div>
+        </div>`;
+    }).join('');
+    reviewSumm.textContent = '';
+
+    const fmt = n => '₱' + Number(n||0).toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2});
+    let ok = 0, fail = 0;
+
+    for (const empId of ids) {
+        const statusEl = document.getElementById('bcell-status-'+empId);
+        try {
+            // Set employee identity for computePayslipData
+            const emp = employeesList.find(e => String(e.id) === String(empId));
+            document.getElementById('empName').value = emp ? emp.name : '';
+            document.getElementById('selectedEmployeeId').value = empId;
+
+            const filled = await fillEmployeeData(empId, true);
+            if (!filled) throw new Error('Data load failed');
+
+            const d = computePayslipData();
+            if (!d || !d.empName) throw new Error('Computation failed');
+
+            // Build payload once — reused for save and send
+            const payload = _buildBulkPayload(empId, d);
+            bulkGeneratedPayloads.push({ empId, empName: emp ? emp.name : String(empId), payload, d });
+
+            // Update review row
+            const deductions = (d.absentAmt||0) + (d.undertimeAmt||0) + (d.sssDed||0) + (d.phicDed||0) + (d.hdmfDed||0) + (d.withholdingTax||0);
+            document.getElementById('bcell-basic-'+empId).textContent = fmt(d.grossPay);
+            document.getElementById('bcell-ded-'+empId).textContent   = deductions > 0 ? fmt(deductions) : '—';
+            document.getElementById('bcell-net-'+empId).innerHTML     = '<strong>' + fmt(d.netPay) + '</strong>';
+            statusEl.innerHTML = `<button onclick="viewBulkPayslip(${bulkGeneratedPayloads.length-1})"
+                style="background:#7b5cff;color:#fff;border:none;border-radius:6px;padding:4px 10px;font-size:11px;cursor:pointer;font-weight:600;">View</button>`;
+            ok++;
+        } catch(err) {
+            statusEl.innerHTML = '<span style="color:#dc2626;font-size:11px;">Error</span>';
+            console.error('Bulk generate error for '+empId+':', err);
+            fail++;
+        }
+    }
+
+    genBtn.disabled = false; spinner.style.display = 'none';
+    if (btnText) btnText.textContent = 'Regenerate (' + ids.length + ' employees)';
+    reviewSumm.textContent = ok + ' generated' + (fail ? ', ' + fail + ' failed' : '') + ' — review above, then click Send All.';
+    if (ok > 0) {
+        sendBtn.style.display = 'inline-flex';
+        const exportBtn = document.getElementById('bulkExportBtn');
+        if (exportBtn) exportBtn.style.display = 'inline-flex';
+        // Populate the tab tables (Raw Sheet, Register, Payslip tabs)
+        renderBulkTabViews();
+    }
+    msgEl.style.color = fail ? '#dc2626' : '#16a34a';
+    msgEl.textContent = fail ? fail + ' failed — check console' : '';
+}
+
+function _buildBulkPayload(empId, d) {
+    const gv = id => parseFloat(document.getElementById(id)?.value || 0);
+    return {
+        employee_id: empId,
+        period_start: d.periodStart, period_end: d.periodEnd,
+        employee_name: d.empName, position: d.position,
+        basic_pay: d.basicPay, rate_per_hour: d.ratePerHour,
+        hours_worked: d.hoursWorked, night_diff_pay: d.nightPremium,
+        absent_amt: d.absentAmt, undertime_amt: d.undertimeAmt,
+        net_basic_pay: d.netBasicPay,
+        reg_ot: d.regOt||0, reg_ot_gt10: d.regOtGt10||0, reg_ot_night: d.regOtNightPrem||0,
+        sat_ot: d.satOt||0, sat_ot_gt10: d.satOtGt10||0, sat_night_prem: d.satNightPrem||0,
+        sun_ot: d.sunOt||0, sun_ot_gt10: d.sunOtGt10||0, sun_night_prem: d.sunNightPrem||0,
+        hol_ot: d.holOt||0, hol_ot_gt10: d.holOtGt10||0, hol_night_prem: d.holNightPrem||0,
+        overtime_pay: (d.regOt||0)+(d.regOtGt10||0)+(d.regOtNightPrem||0)
+                    +(d.satOt||0)+(d.satOtGt10||0)+(d.satNightPrem||0)
+                    +(d.sunOt||0)+(d.sunOtGt10||0)+(d.sunNightPrem||0)
+                    +(d.holOt||0)+(d.holOtGt10||0)+(d.holNightPrem||0),
+        salary_adjustment: gv('salaryAdjustment'), override_amount: gv('overrideAmount'),
+        ned_amount: gv('nedAmount'), holiday_pay: gv('holidayPay'),
+        other_earnings_taxable: d.taxableOther,
+        year_end_gifts: gv('yearEndGifts'), rice_subsidy: gv('riceSubsidy'),
+        uniform_allowance: gv('uniformAllowance'), laundry_allowance: gv('laundryAllowance'),
+        medical_allowance: gv('medicalAllowance') + gv('medicalAllowanceAdd'),
+        de_minimis: d.nonTaxable, vl_cash_conversion: d.vlCashConversion||0,
+        other_earnings_non_taxable: d.vlCashConversion||0,
+        gross_pay: d.grossPay, sss_ee: d.sssDed, phic_ee: d.phicDed, hdmf_ee: d.hdmfDed,
+        withholding_tax: d.withholdingTax,
+        sss_loan: gv('sssSalaryLoan'), calamity_loan: gv('sssCalamityLoan'),
+        salary_advance: gv('advSalary'), other_deductions: 0,
+        net_pay: d.netPay,
+    };
+}
+
+async function viewBulkPayslip(idx) {
+    const item = bulkGeneratedPayloads[idx];
+    if (!item) return;
+    const btn = document.querySelector(`[onclick="viewBulkPayslip(${idx})"]`);
+    if (btn) { btn.disabled = true; btn.textContent = '…'; }
+    // Re-fill the form for this employee so computePayslipData reads correct values
+    await fillEmployeeData(item.empId, true);
+    document.getElementById('empName').value = item.empName;
+    document.getElementById('selectedEmployeeId').value = item.empId;
+    // Also sync to payslip tab so user can see it there
+    syncToRegister();
+    syncToPayslip();
+    generateStaticPayslip();
+    if (btn) { btn.disabled = false; btn.textContent = 'View'; }
+}
+
+async function sendBulkAll() {
+    if (!bulkGeneratedPayloads.length) { alert('Generate payslips first.'); return; }
+    const sendBtn = document.getElementById('bulkSendAllBtn');
+    const msgEl   = document.getElementById('bulkStatusMsg');
+    const reviewSumm = document.getElementById('bulkReviewSummary');
+    sendBtn.disabled = true;
+    sendBtn.textContent = 'Sending…';
+
+    let sent = 0, failed = 0;
+    for (const { empId, empName, payload } of bulkGeneratedPayloads) {
+        const statusEl = document.getElementById('bcell-status-'+empId);
+        try {
+            // Save record
+            await fetch('<?= site_url('client_portal/payroll/savePayslipRecord') ?>', {
+                method:'POST', headers:{'Content-Type':'application/json'},
+                body: JSON.stringify(payload)
+            }).then(r => r.json());
+
+            // Send PDF
+            const resp = await fetch('<?= site_url('client_portal/payroll/sendPdf') ?>', {
+                method:'POST', headers:{'Content-Type':'application/json'},
+                body: JSON.stringify(payload)
+            });
+            const res = await resp.json();
+            if (!resp.ok || !res.success) throw new Error(res.error||'Send failed');
+
+            if (statusEl) statusEl.innerHTML = '<span style="color:#16a34a;font-size:11px;font-weight:700;">✓ Sent</span>';
+            sent++;
+        } catch(err) {
+            if (statusEl) statusEl.innerHTML = '<span style="color:#dc2626;font-size:11px;">✗ Error</span>';
+            console.error('Send error for '+empName+':', err);
+            failed++;
+        }
+    }
+
+    sendBtn.disabled = false;
+    sendBtn.textContent = sent > 0 ? '✉ Send All Payslips' : '✉ Retry';
+    reviewSumm.textContent = sent + ' sent' + (failed ? ', ' + failed + ' failed' : '') + '.';
+    reviewSumm.style.color = failed ? '#dc2626' : '#16a34a';
+    msgEl.textContent = '';
+    if (sent > 0 && !failed) sendBtn.style.display = 'none';
+}
+
+// ================= BULK CSV EXPORT =================
+// ─── Shared row computation — single source of truth for table + CSV ──────────
+function _bRowCalc(p, d) {
+    const totalOT = (d.regOt||0)+(d.regOtGt10||0)+(d.regOtNightPrem||0)+(d.satOt||0)+(d.satOtGt10||0)+(d.satNightPrem||0)+(d.sunOt||0)+(d.sunOtGt10||0)+(d.sunNightPrem||0)+(d.holOt||0)+(d.holOtGt10||0)+(d.holNightPrem||0);
+    const absTotal    = (d.absentAmt||0)+(d.undertimeAmt||0);
+    const yearEnd     = p.year_end_gifts||0,   rice    = p.rice_subsidy||0;
+    const uniform     = p.uniform_allowance||0, laundry = p.laundry_allowance||0;
+    const meal        = p.meal_allowance||0,   medical = p.medical_allowance||0;
+    const deMin       = yearEnd+rice+uniform+laundry+meal+medical;
+    const otherNonTax = d.vlCashConversion||0;
+    const nonTax      = deMin+otherNonTax;
+    const salAdj      = p.salary_adjustment||0, holiday = p.holiday_pay||0, nsd = d.nightPremium||0;
+    // Mirror computePayslipData(): cap absences at basicPay, NSD goes into netBasicPay
+    const absCapped   = Math.min(absTotal, d.basicPay);
+    const netBasicPay = Math.max(0, d.basicPay - absCapped + nsd);
+    const grossTaxable= netBasicPay + totalOT + salAdj + holiday;
+    const grossComp   = grossTaxable+nonTax;
+    const sssTotal    = d.sssDed||0, phic = d.phicDed||0, hdmf = d.hdmfDed||0, wt = d.withholdingTax||0;
+    const sssLoan     = p.sss_loan||0, calLoan = p.calamity_loan||0, advances = p.salary_advance||0;
+    const regNetTax   = grossTaxable-sssTotal-phic-hdmf;
+    const netPay      = grossComp-sssTotal-phic-hdmf-wt-sssLoan-calLoan-advances;
+    return { monthly:d.basicPay*2, semi:d.basicPay, yearEnd, rice, uniform, laundry, meal, medical, deMin,
+        otherNonTax, salAdj, totalOT, nsd, absTotal, holiday,
+        grossComp, grossTaxable, nonTax,
+        sssRss:0, sssWisp:0, sssTotal, phic, hdmf,
+        regNetTax, netTaxPrev:0, monthlyTax:0,
+        wtBracket:0, wtBasic:0, wtPct:0, wtBasicAmt:0, wtExcess:0,
+        wtPaid:0, wt, sssLoan, calLoan, advances, taxAdj:0, netPay };
+}
+
+function exportBulkCSV(type = 'raw') {
+    if (!bulkGeneratedPayloads.length) { alert('Nothing to export — generate payslips first.'); return; }
+    const esc = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
+    const fmt = v => Number(v||0).toFixed(2);
+    const headers = [
+        'employee_id','employee_name','period_start','period_end',
+        'monthly_basic_salary','semi_monthly_basic_salary',
+        'year_end_gifts','rice_subsidy','uniform_allowance','laundry_allowance','meal_allowance','medical_allowance',
+        'other_non_taxable_compensation','salary_adjustment','overtime','nsd','absences_tardiness','holiday_pay',
+        'gross_compensation','gross_taxable_compensation','non_taxable_compensation',
+        'sss_rss','sss_wisp','sss_total','phic','hdmf',
+        'regular_net_taxable','net_taxable_prev_cutoff','monthly_taxable_compensation',
+        'wt_bracket','wt_basic','wt_pct','wt_basic_amt','wt_excess',
+        'wt_paid_last_cutoff','withholding_tax_payable',
+        'sss_loan_salary','sss_loan_calamity','advances_to_employees','tax_adjustment_refund',
+        'net_pay'
+    ];
+    const rows = bulkGeneratedPayloads.map(({empId, empName, payload: p, d}) => {
+        const c = _bRowCalc(p, d);
+        return [
+            empId, empName, d.periodStart||'', d.periodEnd||'',
+            fmt(c.monthly), fmt(c.semi),
+            fmt(c.yearEnd), fmt(c.rice), fmt(c.uniform), fmt(c.laundry), fmt(c.meal), fmt(c.medical),
+            fmt(c.otherNonTax), fmt(c.salAdj), fmt(c.totalOT), fmt(c.nsd), fmt(c.absTotal), fmt(c.holiday),
+            fmt(c.grossComp), fmt(c.grossTaxable), fmt(c.nonTax),
+            fmt(c.sssRss), fmt(c.sssWisp), fmt(c.sssTotal), fmt(c.phic), fmt(c.hdmf),
+            fmt(c.regNetTax), fmt(c.netTaxPrev), fmt(c.monthlyTax),
+            fmt(c.wtBracket), fmt(c.wtBasic), fmt(c.wtPct), fmt(c.wtBasicAmt), fmt(c.wtExcess),
+            fmt(c.wtPaid), fmt(c.wt),
+            fmt(c.sssLoan), fmt(c.calLoan), fmt(c.advances), fmt(c.taxAdj),
+            fmt(c.netPay)
+        ];
     });
-    nameField.value = names.join(', ');
+    const csv = [headers.join(','), ...rows.map(r => r.map(esc).join(','))].join('\n');
+    const blob = new Blob(['﻿'+csv], { type:'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `payroll_register_${new Date().toISOString().slice(0,10)}.csv`; a.click();
+    URL.revokeObjectURL(url);
+}
+
+// ================= BULK TAB VIEWS =================
+const _bfmt = n => Number(n||0).toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2});
+
+function _buildRegisterTable(containerId) {
+    const wrap = document.getElementById(containerId);
+    if (!wrap) return;
+    const data = bulkGeneratedPayloads;
+    const B1='#1e5fa8', B2='#2e75b6', B3='#3a7fc1', GR='#145a32';
+    const th = (t,rs,cs,bg) => `<th rowspan="${rs||1}" colspan="${cs||1}" style="padding:4px 6px;border:1px solid #1e4a8a;text-align:center;white-space:nowrap;vertical-align:middle;background:${bg||B1};color:#fff;font-size:9.5px;font-weight:700;line-height:1.3;">${t}</th>`;
+
+    const thead = `<thead>
+    <tr>
+        ${th('No.',3,1,B1)} ${th('Name of Employees',3,1,B1)}
+        ${th('Monthly<br>Basic Salary',3,1,B1)} ${th('Semi-Monthly<br>Basic Salary',3,1,B1)}
+        ${th('DE MINIMIS BENEFIT',1,6,B2)}
+        ${th('Other Non-Taxable<br>Compensation',3,1,B1)} ${th('Salary<br>Adjustment',3,1,B1)}
+        ${th('Overtime',3,1,B1)} ${th('NSD',3,1,B1)}
+        ${th('Absences /<br>Tardiness',3,1,B1)} ${th('Holiday Pay',3,1,B1)}
+        ${th('Gross<br>Compensation',3,1,GR)} ${th('Gross Taxable<br>Compensation',3,1,B1)} ${th('Non-Taxable<br>Compensation',3,1,B1)}
+        ${th("EMPLOYEE'S SHARE",2,5,B2)}
+        ${th('Regular Net<br>Taxable Comp.',3,1,B1)} ${th('Net Taxable<br>Prev. Cut-off',3,1,B1)} ${th('Monthly Taxable<br>Compensation',3,1,B1)}
+        ${th('Withholding Tax Computation',1,5,B2)}
+        ${th('WT Paid<br>Last Cut-off',3,1,B1)} ${th('Withholding<br>Tax Payable',3,1,B1)}
+        ${th('SSS Loan',1,2,B2)}
+        ${th('Advances to<br>Employees',3,1,B1)} ${th('Tax Adjustments<br>(Refund)',3,1,B1)} ${th('NET PAY',3,1,GR)}
+    </tr>
+    <tr>
+        ${th('Year End<br>Gifts',2,1,B3)} ${th('Rice<br>Subsidy',2,1,B3)} ${th('Uniform/<br>Clothing',2,1,B3)}
+        ${th('Laundry',2,1,B3)} ${th('Meal<br>Allow.',2,1,B3)} ${th('Medical<br>Allow.',2,1,B3)}
+        ${th('Bracket',2,1,B3)} ${th('Basic',2,1,B3)} ${th('%',2,1,B3)} ${th('Basic',2,1,B3)} ${th('Excess',2,1,B3)}
+        ${th('Salary',2,1,B3)} ${th('Calamity',2,1,B3)}
+    </tr>
+    <tr>
+        ${th('SSS-RSS',1,1,B3)} ${th('SSS-WISP',1,1,B3)} ${th('SSS-TOTAL',1,1,B3)} ${th('PHIC',1,1,B3)} ${th('HDMF',1,1,B3)}
+    </tr></thead>`;
+
+    // Editable input cell (yellow) — user can override these
+    const inp = (empId, f, v, w=72) => `<td style="padding:0;border:1px solid #d1d5db;background:#fffde7;vertical-align:middle;"><input type="number" step="0.01" data-emp="${empId}" data-f="${f}" value="${Number(v||0).toFixed(2)}" oninput="recomputeBulkRow('${empId}',this)" style="width:${w}px;border:none;background:transparent;text-align:right;font-size:10px;padding:2px 5px;outline:none;"></td>`;
+    // Read-only computed span
+    const ro = (empId, f, v, green) => {
+        const st = green ? 'color:#1a7f37;font-weight:700;' : '';
+        return `<td style="padding:0;border:1px solid #d1d5db;${green?'background:#f0fff4;':''}vertical-align:middle;"><span data-emp="${empId}" data-f="${f}" style="display:block;text-align:right;font-size:10px;padding:2px 5px;min-width:68px;${st}">${_bfmt(v)}</span></td>`;
+    };
+    const dash = () => `<td style="padding:2px 5px;border:1px solid #d1d5db;text-align:center;font-size:10px;color:#bbb;">—</td>`;
+
+    const rows = data.map(({empId, empName, payload: p, d}, i) => {
+        const c = _bRowCalc(p, d);
+        const bg = i%2===0 ? '#fff' : '#f8fafc';
+        return `<tr>
+            <td style="padding:3px 6px;border:1px solid #d1d5db;text-align:center;background:${bg};font-size:10px;">${i+1}</td>
+            <td style="padding:3px 8px;border:1px solid #d1d5db;background:${bg};font-size:10px;white-space:nowrap;">${empName}</td>
+            ${ro(empId,'monthly',c.monthly)} ${ro(empId,'semi',c.semi)}
+            ${inp(empId,'year_end',c.yearEnd)} ${inp(empId,'rice',c.rice)} ${inp(empId,'uniform',c.uniform)}
+            ${inp(empId,'laundry',c.laundry)} ${inp(empId,'meal',c.meal)} ${inp(empId,'medical',c.medical)}
+            ${ro(empId,'other_nontax',c.otherNonTax)} ${inp(empId,'sal_adj',c.salAdj,78)}
+            ${inp(empId,'ot',c.totalOT,78)} ${inp(empId,'nsd',c.nsd)}
+            ${inp(empId,'absences',c.absTotal,78)} ${inp(empId,'holiday',c.holiday)}
+            ${ro(empId,'gross_comp',c.grossComp,true)} ${ro(empId,'gross_taxable',c.grossTaxable)} ${ro(empId,'non_taxable',c.nonTax)}
+            ${ro(empId,'sss_rss',c.sssRss)} ${ro(empId,'sss_wisp',c.sssWisp)} ${ro(empId,'sss_total',c.sssTotal)} ${ro(empId,'phic',c.phic)} ${ro(empId,'hdmf',c.hdmf)}
+            ${ro(empId,'reg_net_tax',c.regNetTax)} ${dash()} ${dash()}
+            ${dash()} ${dash()} ${dash()} ${dash()} ${dash()}
+            ${dash()} ${ro(empId,'wt',c.wt)}
+            ${inp(empId,'sss_loan',c.sssLoan)} ${inp(empId,'cal_loan',c.calLoan)}
+            ${inp(empId,'advances',c.advances)} ${dash()}
+            ${ro(empId,'net_pay',c.netPay,true)}
+        </tr>`;
+    });
+
+    // TOTAL footer
+    const T = data.reduce((acc,{payload:p,d})=>{ const c=_bRowCalc(p,d); Object.keys(c).forEach(k=>{acc[k]=(acc[k]||0)+c[k];}); return acc; }, {});
+    const tt = (v,green) => `<td style="padding:3px 5px;border:1px solid #d1d5db;text-align:right;font-size:10px;font-weight:700;${green?'color:#1a7f37;':''}">${_bfmt(v)}</td>`;
+    const td0 = () => `<td style="padding:3px 5px;border:1px solid #d1d5db;text-align:center;font-size:10px;color:#bbb;">—</td>`;
+    const tfoot = `<tfoot><tr style="background:#dbeafe;">
+        <td colspan="2" style="padding:5px 8px;border:1px solid #d1d5db;font-size:10px;font-weight:700;text-align:right;">TOTAL</td>
+        ${tt(T.monthly)} ${tt(T.semi)}
+        ${tt(T.yearEnd)} ${tt(T.rice)} ${tt(T.uniform)} ${tt(T.laundry)} ${tt(T.meal)} ${tt(T.medical)}
+        ${tt(T.otherNonTax)} ${tt(T.salAdj)} ${tt(T.totalOT)} ${tt(T.nsd)} ${tt(T.absTotal)} ${tt(T.holiday)}
+        ${tt(T.grossComp,true)} ${tt(T.grossTaxable)} ${tt(T.nonTax)}
+        ${tt(T.sssRss)} ${tt(T.sssWisp)} ${tt(T.sssTotal)} ${tt(T.phic)} ${tt(T.hdmf)}
+        ${tt(T.regNetTax)} ${td0()} ${td0()}
+        ${td0()} ${td0()} ${td0()} ${td0()} ${td0()}
+        ${td0()} ${tt(T.wt)}
+        ${tt(T.sssLoan)} ${tt(T.calLoan)} ${tt(T.advances)} ${td0()}
+        ${tt(T.netPay,true)}
+    </tr></tfoot>`;
+
+    wrap.innerHTML = `<table style="border-collapse:collapse;white-space:nowrap;">${thead}<tbody>${rows.join('')}</tbody>${tfoot}</table>`;
+}
+
+function renderBulkTabViews() {
+    if (!bulkGeneratedPayloads.length) return;
+
+    // Both tabs use the same full Excel-matched table structure.
+    // Raw Sheet gets editable inputs (yellow); Register gets read-only spans.
+    _buildRegisterTable('bulk-raw-tbody');
+    _buildRegisterTable('bulk-register-tbody');
+
+    // Payslip list
+    const payslipList = document.getElementById('bulk-payslip-list');
+    if (payslipList) {
+        payslipList.innerHTML = bulkGeneratedPayloads.map(({empId, empName, d}, i) => {
+            return `<div style="display:grid;grid-template-columns:2.5fr 1.2fr 1.2fr 1.2fr auto;align-items:center;border:1px solid #e5e7eb;border-radius:8px;padding:10px 14px;background:#fff;gap:10px;" id="bprow-${empId}">
+                <div><div style="font-weight:600;font-size:13px;">${empName}</div><div style="font-size:11px;color:#9ca3af;">${d.formatStart||''} – ${d.formatEnd||''}</div></div>
+                <div style="font-size:12px;color:#374151;">Gross: <strong id="bpgross-${empId}">&#8369;${_bfmt(d.grossPay)}</strong></div>
+                <div style="font-size:12px;color:#374151;">Deductions: <strong>&#8369;${_bfmt(d.totalDeductions)}</strong></div>
+                <div style="font-size:12px;color:#15803d;">Net: <strong id="bpnet-${empId}">&#8369;${_bfmt(d.netPay)}</strong></div>
+                <div style="display:flex;gap:6px;">
+                    <button onclick="viewBulkPayslip(${i})" style="background:#7b5cff;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:12px;cursor:pointer;font-weight:600;">View</button>
+                    <button id="bpsend-${empId}" onclick="sendSingleBulk(${i},this)" style="background:#16a34a;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:12px;cursor:pointer;font-weight:600;">Send</button>
+                </div>
+            </div>`;
+        }).join('');
+    }
+
+    ['bulk-raw-view','bulk-register-view','bulk-payslip-view'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = 'block';
+    });
+}
+
+function recomputeBulkRow(empId, trigger) {
+    const idx = bulkGeneratedPayloads.findIndex(b => String(b.empId) === String(empId));
+    if (idx === -1) return;
+
+    // Step 1: sync the edited input to the matching input in the other table
+    if (trigger) {
+        document.querySelectorAll(`input[data-emp="${empId}"][data-f="${trigger.dataset.f}"]`).forEach(el => {
+            if (el !== trigger) el.value = trigger.value;
+        });
+    }
+
+    const { d, payload: p } = bulkGeneratedPayloads[idx];
+
+    // Step 2: read all editable fields (first matching input — both tables are now in sync)
+    const gf = f => parseFloat(document.querySelector(`input[data-emp="${empId}"][data-f="${f}"]`)?.value) || 0;
+
+    const yearEnd  = gf('year_end'),  rice    = gf('rice'),    uniform = gf('uniform');
+    const laundry  = gf('laundry'),   meal    = gf('meal'),    medical = gf('medical');
+    const salAdj   = gf('sal_adj'),   ot      = gf('ot'),      nsd     = gf('nsd');
+    const absences = gf('absences'),  holiday = gf('holiday');
+    const sssLoan  = gf('sss_loan'),  calLoan = gf('cal_loan'), advances = gf('advances');
+
+    // Step 3: compute — mirrors computePayslipData() logic exactly
+    const deMin        = yearEnd + rice + uniform + laundry + meal + medical;
+    const otherNonTax  = d.vlCashConversion || 0;
+    const nonTax       = deMin + otherNonTax;
+    const absCapped    = Math.min(absences, d.basicPay);           // can't deduct more than basic pay
+    const netBasicPay  = Math.max(0, d.basicPay - absCapped + nsd); // NSD included in net basic pay
+    const grossTaxable = netBasicPay + ot + salAdj + holiday;       // taxable portion
+    const grossComp    = grossTaxable + nonTax;                      // total gross (taxable + non-taxable)
+    const sssTotal     = d.sssDed || 0, phic = d.phicDed || 0, hdmf = d.hdmfDed || 0, wt = d.withholdingTax || 0;
+    const regNetTax    = grossTaxable - sssTotal - phic - hdmf;
+    const totalDed     = sssTotal + phic + hdmf + wt + sssLoan + calLoan + advances;
+    const netPay       = grossComp - totalDed;
+
+    // Step 4: update all computed spans in BOTH tables simultaneously
+    const sf = (f, v) => document.querySelectorAll(`span[data-emp="${empId}"][data-f="${f}"]`).forEach(el => { el.textContent = _bfmt(v); });
+    sf('gross_comp',    grossComp);
+    sf('gross_taxable', grossTaxable);
+    sf('non_taxable',   nonTax);
+    sf('sss_total',     sssTotal);
+    sf('phic',          phic);
+    sf('hdmf',          hdmf);
+    sf('reg_net_tax',   regNetTax);
+    sf('wt',            wt);
+    sf('net_pay',       netPay);
+
+    // Step 5: persist to payload so Send uses updated values
+    Object.assign(p, {
+        year_end_gifts:yearEnd, rice_subsidy:rice, uniform_allowance:uniform,
+        laundry_allowance:laundry, meal_allowance:meal, medical_allowance:medical,
+        salary_adjustment:salAdj, holiday_pay:holiday,
+        sss_loan:sssLoan, calamity_loan:calLoan, salary_advance:advances,
+        de_minimis:deMin, gross_pay:grossComp, net_pay:netPay
+    });
+    d.absentAmt = absences; d.grossPay = grossComp; d.netPay = netPay;
+    d.taxableOther = salAdj + holiday; d.totalDeductions = totalDed; d.nonTaxable = nonTax;
+
+    // Step 6: live-update payslip list card and bulk panel row
+    const grossEl = document.getElementById('bpgross-'+empId);
+    const netEl   = document.getElementById('bpnet-'+empId);
+    if (grossEl) grossEl.textContent = '₱'+_bfmt(grossComp);
+    if (netEl)   netEl.textContent   = '₱'+_bfmt(netPay);
+    const bcNet = document.getElementById('bcell-net-'+empId);
+    if (bcNet) bcNet.innerHTML = '<strong>₱'+_bfmt(netPay)+'</strong>';
+}
+
+async function sendSingleBulk(idx, btn) {
+    const item = bulkGeneratedPayloads[idx];
+    if (!item) return;
+    btn.disabled = true; btn.textContent = '…';
+    try {
+        await fetch('<?= site_url('client_portal/payroll/savePayslipRecord') ?>', {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify(item.payload)
+        });
+        const resp = await fetch('<?= site_url('client_portal/payroll/sendPdf') ?>', {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify(item.payload)
+        });
+        const res = await resp.json();
+        if (!resp.ok || !res.success) throw new Error(res.error||'Send failed');
+        btn.textContent = '✓ Sent'; btn.style.background = '#6b7280';
+        // Also update bulk panel review row status
+        const statusEl = document.getElementById('bcell-status-'+item.empId);
+        if (statusEl) statusEl.innerHTML = '<span style="color:#16a34a;font-size:11px;font-weight:700;">✓ Sent</span>';
+    } catch(err) {
+        btn.disabled = false; btn.textContent = 'Retry';
+        alert('Send failed: ' + err.message);
+    }
+}
+
+function importBulkCSV(type, input) {
+    const file = input.files[0];
+    if (!file) return;
+    if (!bulkGeneratedPayloads.length) {
+        alert('Generate payslips first before importing CSV adjustments.');
+        input.value = '';
+        return;
+    }
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const lines = e.target.result.split(/\r?\n/).filter(l => l.trim());
+        if (lines.length < 2) { alert('CSV has no data rows.'); return; }
+        const hdrs = lines[0].split(',').map(h => h.replace(/^"|"$/g,'').trim());
+        const parseRow = line => {
+            const cols=[]; let cur=''; let inQ=false;
+            for (const ch of line+',') {
+                if (ch==='"') inQ=!inQ;
+                else if (ch===',' && !inQ) { cols.push(cur.trim()); cur=''; }
+                else cur+=ch;
+            }
+            const obj={}; hdrs.forEach((h,i)=>{ obj[h]=(cols[i]||'').replace(/^"|"$/g,'').trim(); }); return obj;
+        };
+        const n = f => parseFloat(f)||0;
+        let matched = 0;
+        lines.slice(1).forEach(line => {
+            const row = parseRow(line);
+            const empId = row['employee_id'];
+            const idx = bulkGeneratedPayloads.findIndex(b => String(b.empId) === String(empId));
+            if (idx === -1) return;
+            const { payload: p, d } = bulkGeneratedPayloads[idx];
+            // Map CSV columns → payload/d fields
+            if (row['year_end_gifts']          !== undefined) p.year_end_gifts      = n(row['year_end_gifts']);
+            if (row['rice_subsidy']            !== undefined) p.rice_subsidy        = n(row['rice_subsidy']);
+            if (row['uniform_allowance']       !== undefined) p.uniform_allowance   = n(row['uniform_allowance']);
+            if (row['laundry_allowance']       !== undefined) p.laundry_allowance   = n(row['laundry_allowance']);
+            if (row['meal_allowance']          !== undefined) p.meal_allowance      = n(row['meal_allowance']);
+            if (row['medical_allowance']       !== undefined) p.medical_allowance   = n(row['medical_allowance']);
+            if (row['salary_adjustment']       !== undefined) p.salary_adjustment   = n(row['salary_adjustment']);
+            if (row['holiday_pay']             !== undefined) p.holiday_pay         = n(row['holiday_pay']);
+            if (row['sss_loan_salary']         !== undefined) p.sss_loan            = n(row['sss_loan_salary']);
+            if (row['sss_loan_calamity']       !== undefined) p.calamity_loan       = n(row['sss_loan_calamity']);
+            if (row['advances_to_employees']   !== undefined) p.salary_advance      = n(row['advances_to_employees']);
+            if (row['absences_tardiness']      !== undefined) d.absentAmt           = n(row['absences_tardiness']);
+            if (row['nsd']                     !== undefined) d.nightPremium        = n(row['nsd']);
+            if (row['overtime'] !== undefined) {
+                d.regOt=n(row['overtime']); d.satOt=0; d.sunOt=0; d.holOt=0;
+                d.regOtGt10=0; d.satOtGt10=0; d.sunOtGt10=0; d.holOtGt10=0;
+                d.regOtNightPrem=0; d.satNightPrem=0; d.sunNightPrem=0; d.holNightPrem=0;
+            }
+            matched++;
+        });
+        input.value = '';
+        if (!matched) { alert('No matching employees found. Ensure employee_id column matches.'); return; }
+        renderBulkTabViews();
+        alert('Imported updates for ' + matched + ' employee(s).');
+    };
+    reader.readAsText(file);
 }
 
 function initSearchSuggestions() {
@@ -1353,47 +1969,21 @@ function initSearchSuggestions() {
     });
 }
 
-// ================= AUTO-FILL RAW SHEET =================
+// ================= AUTO-FILL RAW SHEET (individual mode only) =================
 async function autoFillRawSheet() {
-    const mode = document.querySelector('.mode-btn.active').textContent.includes('Individual') ? 'individual' : 'bulk';
-    
-    if (mode === 'individual') {
-        const employeeId = document.getElementById('selectedEmployeeId').value;
-        if (!employeeId) {
-            alert('Please select an employee first.');
-            return;
-        }
-        await fillEmployeeData(employeeId);
-    } else {
-        if (selectedEmployeeIds.size === 0) {
-            alert('Please select at least one employee.');
-            return;
-        }
-        bulkEmployeesArray = Array.from(selectedEmployeeIds);
-        currentEmployeeIndex = 0;
-        await processNextBulkEmployee();
-    }
-}
-
-async function processNextBulkEmployee() {
-    if (currentEmployeeIndex >= bulkEmployeesArray.length) {
-        alert('All employees have been processed.');
+    const employeeId = document.getElementById('selectedEmployeeId').value;
+    if (!employeeId) {
+        alert('Please select an employee first.');
         return;
     }
-    const empId = bulkEmployeesArray[currentEmployeeIndex];
-    const emp = employeesList.find(e => e.id == empId);
-    if (confirm(`Auto-fill data for ${emp.name}? Click OK to continue, Cancel to skip.`)) {
-        await fillEmployeeData(empId);
-    }
-    currentEmployeeIndex++;
-    setTimeout(() => processNextBulkEmployee(), 500);
+    await fillEmployeeData(employeeId);
 }
 
-async function fillEmployeeData(employeeId) {
+async function fillEmployeeData(employeeId, silent = false) {
     const periodStart = document.getElementById('periodStart').value;
     const periodEnd = document.getElementById('periodEnd').value;
     if (!periodStart || !periodEnd) {
-        alert('Please set a valid Pay Period.');
+        if (!silent) alert('Please set a valid Pay Period.');
         return false;
     }
 
@@ -1405,11 +1995,11 @@ async function fillEmployeeData(employeeId) {
         const empResp = await fetch(empUrl);
         empData = await empResp.json();
         if (!empResp.ok) {
-            alert('Could not load employee details: ' + (empData.error || `Server error ${empResp.status}`));
+            if (!silent) alert('Could not load employee details: ' + (empData.error || `Server error ${empResp.status}`));
             return false;
         }
     } catch (err) {
-        alert('Could not load employee details: ' + err.message);
+        if (!silent) alert('Could not load employee details: ' + err.message);
         return false;
     }
 
@@ -1439,12 +2029,12 @@ async function fillEmployeeData(employeeId) {
         const sumData = await sumResp.json().catch(() => null);
         if (!sumResp.ok) {
             const msg = (sumData && sumData.error) ? sumData.error : `Server error ${sumResp.status}`;
-            alert('Could not load attendance summary: ' + msg);
+            if (!silent) alert('Could not load attendance summary: ' + msg);
             return false;
         }
         summary = sumData;
     } catch (err) {
-        alert('Could not load attendance summary: ' + err.message);
+        if (!silent) alert('Could not load attendance summary: ' + err.message);
         return false;
     }
 
@@ -1505,7 +2095,7 @@ async function fillEmployeeData(employeeId) {
                       + holPay + salAdj - absentAmount - undertimeAmount;
     updateWithholdingTax(Math.max(0, taxableBase));
 
-    alert('Raw sheet auto‑filled with attendance data.');
+    if (!silent) alert('Raw sheet auto‑filled with attendance data.');
     return true;
 }
 
@@ -1536,7 +2126,8 @@ function computeSSS(monthlySalary) {
         .then(function(r) { return r.json(); })
         .then(function(s) {
             window._payrollSettings = s;
-            resolvePeriodDates(); // refresh labels & dates with DB cutoff value
+            resolvePeriodDates();
+            syncBulkPeriod();
         })
         .catch(function() {});
 })();
@@ -2896,6 +3487,12 @@ async function sendPdfToEmployee() {
 
 // ================= EXPORT RAW SHEET (CSV) =================
 function exportRawSheet() {
+    // Bulk mode: export all generated payslips as multi-row CSV
+    if (document.querySelector('.mode-btn.active')?.textContent === 'Bulk Send') {
+        if (!bulkGeneratedPayloads.length) { alert('Generate payslips first, then export.'); return; }
+        exportBulkCSV('raw');
+        return;
+    }
     const employeeId = document.getElementById('selectedEmployeeId').value;
     if (!employeeId) {
         alert('Please select an employee first.');
@@ -2964,6 +3561,11 @@ function exportRawSheet() {
 
 // ================= EXPORT REGISTER (CSV) =================
 function exportRegister() {
+    if (document.querySelector('.mode-btn.active')?.textContent === 'Bulk Send') {
+        if (!bulkGeneratedPayloads.length) { alert('Generate payslips first, then export.'); return; }
+        exportBulkCSV('register');
+        return;
+    }
     const employeeId = document.getElementById('selectedEmployeeId').value;
     if (!employeeId) {
         alert('Please select an employee first, then fill in the register fields before exporting.');

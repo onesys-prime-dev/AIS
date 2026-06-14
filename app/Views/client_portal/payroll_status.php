@@ -33,16 +33,17 @@
     </div>
 
     <!-- Table header -->
-    <div class="bg-white border border-gray-200 rounded-xl shadow-sm flex flex-col min-h-0 overflow-hidden">
-        <div class="grid grid-cols-[2.5fr_1.5fr_1.5fr_1.2fr_1fr] bg-gray-50 border-b text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 py-3">
-            <div>Employee</div>
-            <div>Monthly Salary</div>
-            <div>Payroll Status</div>
-            <div>Payslip</div>
-            <div class="text-center">Action</div>
+    <div class="bg-white border border-gray-400 rounded-2xl shadow-lg flex flex-col min-h-0 overflow-hidden p-5 gap-3">
+        <div class="grid grid-cols-[2.5fr_1.5fr_1.5fr_1.2fr_1fr]
+                    bg-[#DCDCDC] text-[#737373] border border-[#9E9E9E] rounded-lg overflow-hidden text-sm font-bold">
+            <div class="p-4">Employee</div>
+            <div class="p-4">Monthly Salary</div>
+            <div class="p-4">Payroll Status</div>
+            <div class="p-4">Payslip</div>
+            <div class="p-4 text-center">Action</div>
         </div>
 
-        <div id="payrollStatusRows" class="overflow-y-auto flex-1">
+        <div id="payrollStatusRows" class="overflow-y-auto flex-1 text-gray-700">
             <!-- Rows injected by JS -->
         </div>
 
@@ -119,18 +120,18 @@
             : '';
 
         return `
-        <div class="grid grid-cols-[2.5fr_1.5fr_1.5fr_1.2fr_1fr] items-center border-b hover:bg-gray-50 px-4 py-3" data-employee-id="${esc(p.employee_id)}">
-            <div class="flex items-center gap-3">
+        <div class="grid grid-cols-[2.5fr_1.5fr_1.5fr_1.2fr_1fr] items-center border-b hover:bg-gray-50 transition-colors" data-employee-id="${esc(p.employee_id)}">
+            <div class="p-4 flex items-center gap-3">
                 ${avatar}
                 <div>
                     <div class="font-medium text-gray-800">${esc(p.employee_name)}</div>
                     <div class="text-xs text-gray-400">${esc(p.position || 'No position set')}</div>
                 </div>
             </div>
-            <div>${salaryHtml}</div>
-            <div class="status-cell">${statusBadge(currentStatus)}</div>
-            <div>${payslipBadge(p.payslip_sent_at)}</div>
-            <div class="flex justify-center gap-2 action-cell">
+            <div class="p-4">${salaryHtml}</div>
+            <div class="p-4 status-cell">${statusBadge(currentStatus)}</div>
+            <div class="p-4">${payslipBadge(p.payslip_sent_at)}</div>
+            <div class="p-4 flex justify-center gap-2 action-cell">
                 ${markPaidBtn}${markPendingBtn}
             </div>
         </div>`;

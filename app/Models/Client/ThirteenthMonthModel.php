@@ -11,7 +11,8 @@ class ThirteenthMonthModel extends Model
     protected $returnType    = 'array';
     protected $useAutoIncrement = true;
     protected $allowedFields = [
-        'employee_id', 'year', 'total_basic_earned', 'periods_count',
+        'employee_id', 'year', 'total_basic_earned', 'total_gross_basic',
+        'total_absent_undertime', 'periods_count',
         'thirteenth_month_amount', 'tax_exempt_amount', 'taxable_amount',
         'status', 'computed_at',
     ];

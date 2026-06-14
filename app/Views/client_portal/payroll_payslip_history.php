@@ -1,52 +1,83 @@
-<div class="bg-white rounded-2xl shadow-lg p-8 h-full border border-gray-300 flex flex-col">
-    <h3 class="font-semibold text-xl mb-4">Payslip History (All Employees)</h3>
-    <div class="overflow-auto">
-        <table class="min-w-full border-collapse text-sm">
-            <thead class="bg-gray-100 text-left">
-                <tr>
-                    <th class="p-2 font-semibold border-b">Employee</th>
-                    <th class="p-2 font-semibold border-b">Period</th>
-                    <th class="p-2 font-semibold border-b text-right">Net Pay</th>
-                    <th class="p-2 font-semibold border-b">Date Sent</th>
-                    <th class="p-2 font-semibold border-b">Sent By</th>
-                    <th class="p-2 font-semibold border-b text-center">Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php if (!empty($payslips)): ?>
-                    <?php foreach ($payslips as $ps): ?>
-                    <tr class="border-b hover:bg-gray-50">
-                        <td class="p-2"><?= esc((string) ($ps['employee_name'] ?? '---')) ?></td>
-                        <td class="p-2 whitespace-nowrap"><?= !empty($ps['period_start']) ? date('M d, Y', strtotime($ps['period_start'])) : '---' ?> &ndash; <?= !empty($ps['period_end']) ? date('M d, Y', strtotime($ps['period_end'])) : '---' ?></td>
-                        <td class="p-2 text-right"><?= number_format((float) ($ps['net_pay'] ?? 0), 2) ?></td>
-                        <td class="p-2 whitespace-nowrap"><?= !empty($ps['sent_at']) ? date('M d, Y H:i', strtotime($ps['sent_at'])) : '<span class="text-gray-400">&mdash;</span>' ?></td>
-                        <td class="p-2 whitespace-nowrap">
-                            <?php if (!empty($ps['sent_by'])): ?>
-                                <span class="text-xs font-medium text-gray-700"><?= esc($ps['sent_by']) ?></span>
-                            <?php elseif (!empty($ps['sent_at'])): ?>
-                                <span class="text-xs text-gray-400">—</span>
-                            <?php else: ?>
-                                <span class="text-xs text-gray-400">&mdash;</span>
-                            <?php endif; ?>
-                        </td>
-                        <td class="p-2 text-center flex gap-2 justify-center flex-wrap">
-                            <button onclick="openPayslipViewer(<?= (int)($ps['id'] ?? 0) ?>)"
-                                class="px-3 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700">View</button>
-                            <a href="<?= site_url('client_portal/payroll/downloadPayslip/' . ($ps['id'] ?? 0)) ?>"
-                                class="px-3 py-1 bg-gray-600 text-white rounded text-xs hover:bg-gray-700 inline-block">PDF</a>
-                            <button onclick="resendPayslipEmail(<?= (int)($ps['id'] ?? 0) ?>, this)"
-                                class="px-3 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700">
-                                <?= !empty($ps['sent_at']) ? 'Resend' : 'Send Email' ?>
-                            </button>
-                        </td>
-                    </tr>
-                    <?php endforeach; ?>
-                <?php else: ?>
-                    <tr><td colspan="6" class="p-6 text-center text-gray-400">No payslips generated yet. Use "Generate Payslip" to create records.</td></tr>
-                <?php endif; ?>
-            </tbody>
-        </table>
+<div class="bg-white rounded-2xl shadow-lg border border-gray-400 p-5 h-full flex flex-col gap-3">
+
+    <h2 class="text-xl font-bold text-gray-700">Payslip History</h2>
+
+    <!-- Header row -->
+    <div class="grid grid-cols-[2fr_2fr_1.2fr_1.5fr_1.2fr_1.5fr]
+                bg-[#DCDCDC] text-[#737373] border border-[#9E9E9E] rounded-lg overflow-hidden text-sm font-bold">
+        <div class="p-4">Employee</div>
+        <div class="p-4">Period</div>
+        <div class="p-4 text-right">Net Pay</div>
+        <div class="p-4">Date Sent</div>
+        <div class="p-4">Sent By</div>
+        <div class="p-4 text-center">Actions</div>
     </div>
+
+    <!-- Body -->
+    <div class="flex-1 min-h-0 overflow-y-auto text-gray-700 text-sm scroll-bar">
+
+        <?php if (!empty($payslips)): ?>
+            <?php foreach ($payslips as $ps): ?>
+            <div class="grid grid-cols-[2fr_2fr_1.2fr_1.5fr_1.2fr_1.5fr] items-center border-b hover:bg-gray-50 transition-colors">
+
+                <div class="p-4 font-medium truncate">
+                    <?= esc((string) ($ps['employee_name'] ?? '---')) ?>
+                </div>
+
+                <div class="p-4 whitespace-nowrap">
+                    <?= !empty($ps['period_start']) ? date('M d, Y', strtotime($ps['period_start'])) : '---' ?>
+                    &ndash;
+                    <?= !empty($ps['period_end'])   ? date('M d, Y', strtotime($ps['period_end']))   : '---' ?>
+                </div>
+
+                <div class="p-4 text-right font-semibold">
+                    ₱<?= number_format((float) ($ps['net_pay'] ?? 0), 2) ?>
+                </div>
+
+                <div class="p-4 whitespace-nowrap text-sm">
+                    <?php if (!empty($ps['sent_at'])): ?>
+                        <span class="inline-flex items-center gap-1 bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-xs font-semibold">
+                            &#10003; <?= date('M d, Y', strtotime($ps['sent_at'])) ?>
+                        </span>
+                    <?php else: ?>
+                        <span class="text-gray-400 text-xs">Not sent</span>
+                    <?php endif; ?>
+                </div>
+
+                <div class="p-4 text-sm">
+                    <?php if (!empty($ps['sent_by'])): ?>
+                        <span class="font-medium text-gray-700"><?= esc($ps['sent_by']) ?></span>
+                    <?php else: ?>
+                        <span class="text-gray-400">—</span>
+                    <?php endif; ?>
+                </div>
+
+                <div class="p-4 flex justify-center items-center gap-2 flex-wrap">
+                    <button onclick="openPayslipViewer(<?= (int)($ps['id'] ?? 0) ?>)"
+                            class="px-3 py-1.5 bg-[#7b5cff] hover:bg-[#6a4de0] text-white rounded-lg text-xs font-semibold transition">
+                        View
+                    </button>
+                    <a href="<?= site_url('client_portal/payroll/downloadPayslip/' . ($ps['id'] ?? 0)) ?>"
+                       class="px-3 py-1.5 bg-gray-600 hover:bg-gray-700 text-white rounded-lg text-xs font-semibold transition">
+                        PDF
+                    </a>
+                    <button onclick="resendPayslipEmail(<?= (int)($ps['id'] ?? 0) ?>, this)"
+                            class="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs font-semibold transition">
+                        <?= !empty($ps['sent_at']) ? 'Resend' : 'Send' ?>
+                    </button>
+                </div>
+
+            </div>
+            <?php endforeach; ?>
+
+        <?php else: ?>
+            <div class="flex items-center justify-center py-16 text-gray-400 text-sm">
+                No payslips generated yet. Use <strong class="mx-1">Generate Payslip</strong> to create records.
+            </div>
+        <?php endif; ?>
+
+    </div>
+
 </div>
 
 <!-- Payslip Viewer Modal -->
