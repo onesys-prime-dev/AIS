@@ -428,6 +428,11 @@ function renderPayslipHtml(d) {
             </tr>
         </table>
         <table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:10px;">
+            <colgroup>
+                <col style="width:58%">
+                <col style="width:21%">
+                <col style="width:21%">
+            </colgroup>
             <tr>
                 <th style="border:1px solid #000;padding:5px;background:#eee;text-align:center;">REGULAR EARNINGS</th>
                 <th style="border:1px solid #000;padding:5px;background:#eee;text-align:center;">TAXABLE OTHER EARNINGS</th>
@@ -446,7 +451,7 @@ function renderPayslipHtml(d) {
                         <tr><td style="border:none;padding:2px 4px;">Reg. OT</td>                      <td style="border:none;padding:2px 4px;text-align:right;">${fmt(d.reg_ot)}</td></tr>
                         <tr><td style="border:none;padding:2px 4px;">Sat OT</td>                       <td style="border:none;padding:2px 4px;text-align:right;">${fmt(d.sat_ot)}</td></tr>
                         <tr><td style="border:none;padding:2px 4px;">Sun OT</td>                       <td style="border:none;padding:2px 4px;text-align:right;">${fmt(d.sun_ot)}</td></tr>
-                        <tr><td style="border:none;padding:2px 4px;">Holiday OT</td>                   <td style="border:none;padding:2px 4px;text-align:right;">${fmt(d.hol_ot)}</td></tr>
+                        <tr><td style="border:none;padding:2px 4px;">Holiday Pay</td>                  <td style="border:none;padding:2px 4px;text-align:right;">${fmt(d.hol_ot)}</td></tr>
                     </table>
                 </td>
                 <td style="border:1px solid #000;padding:5px;vertical-align:top;">

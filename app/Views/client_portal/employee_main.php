@@ -917,6 +917,7 @@ window.addEventListener('click', function(e)
         setVal('edit_working_day_type',  button.dataset.working_day_type);
         setVal('edit_start_time',        button.dataset.start_time);
         setVal('edit_end_time',          button.dataset.end_time);
+        if (typeof toggleEditScheduleTime === 'function') toggleEditScheduleTime(button.dataset.working_day_type);
 
         // Restore working day checkboxes
         try {

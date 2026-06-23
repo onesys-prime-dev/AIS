@@ -6,6 +6,7 @@ use App\Models\Client\AttendanceModel;
 use App\Models\Client\PayrollCutoffModel;
 use App\Models\Client\PayrollCutoffSummaryModel;
 use App\Models\Client\RequestModel;
+use App\Models\Client\HolidayModel;
 
 class PayrollAggregationService
 {
@@ -33,10 +34,16 @@ class PayrollAggregationService
         $employeeModel = new \App\Models\Client\EmployeeModel();
         // Fetch both employee id and user_id so attendance/requests can be queried correctly
         $employees = $employeeModel->select('id, user_id')->findAll();
+        $posModel  = new \App\Models\Client\EmployeePositionModel();
 
         foreach ($employees as $emp) {
+            $position    = $posModel->where('employee_id', $emp['id'])->first();
+            $workingType = $position['working_day_type'] ?? null;
+            $schedStart  = ($workingType !== 'flexible' && !empty($position['start_time']))
+                           ? $position['start_time'] : null;
+
             $summary = $this->summaryModel->getOrCreate($emp['id'], $cutoffId);
-            $this->aggregateForEmployee($summary['id'], (int) $emp['user_id'], $start, $end, $totalWorkingDays);
+            $this->aggregateForEmployee($summary['id'], (int) $emp['user_id'], $start, $end, $totalWorkingDays, $schedStart);
             $this->applyRequestsToSummary($summary['id'], (int) $emp['user_id'], $start, $end);
         }
     }
@@ -59,7 +66,7 @@ class PayrollAggregationService
         return $workingDays;
     }
 
-    private function aggregateForEmployee(int $summaryId, int $userId, string $start, string $end, int $totalWorkingDays): void
+    private function aggregateForEmployee(int $summaryId, int $userId, string $start, string $end, int $totalWorkingDays, ?string $schedStart = null): void
     {
         $attendances = $this->attendanceModel
             ->where('user_id', $userId)
@@ -114,7 +121,7 @@ class PayrollAggregationService
 
             $totalRegularHours += $regularWorkHours;
             $totalNightDiffHours += $night;
-            $totalTardyMinutes += $this->calculateTardyMinutes($att['time_in']);
+            $totalTardyMinutes += $this->calculateTardyMinutes($att['time_in'], $schedStart);
             $workedDays++;
         }
         // Calculate absent days
@@ -193,24 +200,22 @@ class PayrollAggregationService
         }
     }
 
-    private function calculateTardyMinutes(?string $timeIn): int
+    private function calculateTardyMinutes(?string $timeIn, ?string $schedStart): int
     {
-        if (! $timeIn) return 0;
+        if (! $timeIn || ! $schedStart) return 0;
 
-        // time_in is now a full datetime — extract just the time portion for comparison
-        $timeOnly     = date('H:i:s', strtotime($timeIn));
-        $scheduledStart = '08:00:00';
-        if ($timeOnly <= $scheduledStart) return 0;
+        $timeOnly = date('H:i:s', strtotime($timeIn));
+        if ($timeOnly <= $schedStart) return 0;
 
         $in    = new \DateTime($timeOnly);
-        $start = new \DateTime($scheduledStart);
+        $start = new \DateTime($schedStart);
         $diff  = $start->diff($in);
         return ($diff->h * 60) + $diff->i;
     }
 
     private function isHoliday(string $date): bool
     {
-        // TODO: Implement holiday table check
-        return false;
+        $model = new HolidayModel();
+        return $model->isHoliday($date) !== null;
     }
 }

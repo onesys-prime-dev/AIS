@@ -150,6 +150,11 @@ $routes->group('client_portal/payroll', ['namespace' => 'App\Controllers\Client'
     // ========== 13th Month Pay & Annualization ==========
     $routes->post('computeYearEnd',      'PayrollController::computeYearEnd');
     $routes->get('getYearEndRecords',    'PayrollController::getYearEndRecords');
+
+    // ========== Holiday Calendar ==========
+    $routes->get('holidays/list',        'PayrollController::holidayList');
+    $routes->post('holidays/save',       'PayrollController::holidaySave');
+    $routes->post('holidays/delete',     'PayrollController::holidayDelete');
 });
 
 $routes->group('client_portal', ['namespace' => 'App\Controllers\Client'], function($routes) {

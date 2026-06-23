@@ -423,15 +423,17 @@
 
                     <div>
                         <label class="block text-sm text-gray-600 mb-2">
-                            Working Day Type
+                            Schedule Type
                         </label>
 
-                        <select name="working_day_type" class="form-select">
-                            <option value="full_weekdays">Full Weekdays (Mon-Fri)</option>
-                            <option value="weekday_with_rest">Weekday Schedule with One Rest Day</option>
-                            <option value="weekend_shift">Weekend Shift (Sat-Sun)</option>
-                            <option value="custom">Custom Schedule</option>
+                        <select name="working_day_type" class="form-select" id="add_working_day_type" onchange="toggleAddScheduleTime(this.value)">
+                            <option value="full_weekdays">Fixed – Mon to Fri</option>
+                            <option value="weekday_with_rest">Fixed – Weekdays with 1 Rest Day</option>
+                            <option value="weekend_shift">Fixed – Weekend Shift (Sat–Sun)</option>
+                            <option value="custom">Fixed – Custom Days</option>
+                            <option value="flexible">Flexible – No Fixed Start Time</option>
                         </select>
+                        <p class="text-xs text-gray-400 mt-1">Fixed schedules track tardiness. Flexible only requires completing daily hours.</p>
                     </div>
 
                     <div>
@@ -477,7 +479,7 @@
                         </div>
                     </div>
 
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="add_schedule_time_row">
 
                         <div>
                             <label class="block text-sm text-gray-600 mb-2">
@@ -888,6 +890,11 @@
 </form>
 
 <script>
+function toggleAddScheduleTime(type) {
+    const row = document.getElementById('add_schedule_time_row');
+    if (row) row.style.display = (type === 'flexible') ? 'none' : '';
+}
+
 // Form validation
 document.getElementById('employeeForm').addEventListener('submit', function(e) {
     const email = document.querySelector('input[name="email"]').value.trim();

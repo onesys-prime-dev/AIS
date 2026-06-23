@@ -200,7 +200,7 @@ class PayrollController extends BaseController
 
             // Employee management is the canonical source for salary and benefits
             $posRow = $db->table('employee_positions')
-                ->select('position, monthly_salary, de_minimis_benefit, allowances')
+                ->select('position, monthly_salary, de_minimis_benefit, de_minimis_breakdown, allowances')
                 ->where('employee_id', $id)
                 ->get()->getRowArray();
 
@@ -208,6 +208,15 @@ class PayrollController extends BaseController
             $monthlySalary = (float)($posRow['monthly_salary']     ?? 0);
             $deMinimis     = (float)($posRow['de_minimis_benefit'] ?? 0);
             $allowances    = (float)($posRow['allowances']         ?? 0);
+
+            $breakdown   = [];
+            $allocations = [];
+            try {
+                $breakdown = json_decode($posRow['de_minimis_breakdown'] ?? '{}', true) ?: [];
+                $allocations = $breakdown['allocations'] ?? [];
+            } catch (\Throwable $e) {
+                $allocations = [];
+            }
 
             $workingDays = $this->getWorkingDaysInMonth($month);
 
@@ -241,14 +250,18 @@ class PayrollController extends BaseController
             $fullName = trim($first . ' ' . ($mi !== '' ? $mi . ' ' : '') . $last);
 
             return $this->response->setJSON([
-                'id'                 => $employee['id'],
-                'name'               => $fullName,
-                'position'           => $position,
-                'monthly_salary'     => round($monthlySalary, 2),
-                'daily_rate'         => round($dailyRate, 2),
-                'hourly_rate'        => round($hourlyRate, 2),
-                'de_minimis_default' => round($deMinimis, 2),
-                'allowances_default' => round($allowances, 2),
+                'id'                   => $employee['id'],
+                'name'                 => $fullName,
+                'position'             => $position,
+                'monthly_salary'       => round($monthlySalary, 2),
+                'daily_rate'           => round($dailyRate, 2),
+                'hourly_rate'          => round($hourlyRate, 2),
+                'de_minimis_default'   => round($deMinimis, 2),
+                'allowances_default'   => round($allowances, 2),
+                'rice_subsidy'         => isset($allocations['rice_subsidy'])       ? (float) $allocations['rice_subsidy']       : null,
+                'uniform_allowance'    => isset($allocations['uniform_allowance'])  ? (float) $allocations['uniform_allowance']  : null,
+                'laundry_allowance'    => isset($allocations['laundry_allowance'])  ? (float) $allocations['laundry_allowance']  : null,
+                'medical_allowance'    => isset($allocations['medical_allowance'])  ? (float) $allocations['medical_allowance']  : null,
             ]);
         } catch (\Exception $e) {
             log_message('error', 'getEmployeeDetails: ' . $e->getMessage());
@@ -293,7 +306,13 @@ class PayrollController extends BaseController
                 ->where('DATE(time_in) <=', $endDate)
                 ->findAll();
 
-            $summary = $this->aggregateAttendance($attendances, $startDate, $endDate);
+            $posModel    = new \App\Models\Client\EmployeePositionModel();
+            $position    = $posModel->where('employee_id', $employeeId)->first();
+            $workingType = $position['working_day_type'] ?? null;
+            $schedStart  = ($workingType !== 'flexible' && !empty($position['start_time']))
+                           ? $position['start_time'] : null;
+
+            $summary = $this->aggregateAttendance($attendances, $startDate, $endDate, $schedStart);
 
             // Overlay approved leave requests to adjust absent/paid leave days
             $requestModel = new \App\Models\Client\RequestModel();
@@ -343,7 +362,7 @@ class PayrollController extends BaseController
         return sprintf('%04d-%02d-%02d', $tY, $tM, $d);
     }
 
-    private function aggregateAttendance(array $attendances, string $startDate, string $endDate): array
+    private function aggregateAttendance(array $attendances, string $startDate, string $endDate, ?string $scheduledStart = null): array
     {
         $totalWorkingDays = $this->getWorkingDaysCount($startDate, $endDate);
 
@@ -363,13 +382,11 @@ class PayrollController extends BaseController
         $restOtHours    = 0.0;
         $holidayOtHours = 0.0;
 
-        $scheduledStart = '08:00:00';
-
         foreach ($byDate as $attDate => $recs) {
             // Tardy: only the earliest clock-in of the day counts
             usort($recs, fn($a, $b) => strcmp($a['time_in'], $b['time_in']));
             $firstIn = date('H:i:s', strtotime($recs[0]['time_in']));
-            if ($firstIn > $scheduledStart) {
+            if ($scheduledStart && $firstIn > $scheduledStart) {
                 $tardyMinutes += (int)round((strtotime($firstIn) - strtotime($scheduledStart)) / 60);
             }
 
@@ -934,10 +951,10 @@ class PayrollController extends BaseController
         $keys = [
             'monthly_hours',
             'night_diff_start', 'night_diff_end', 'night_diff_rate',
-            'reg_holiday_rate', 'spec_holiday_rate',
-            'ot_regular_rate',  'ot_rest_rate',   'ot_holiday_rate',
-            'phic_rate',        'phic_cap',
-            'hdmf_rate',        'hdmf_max',
+            'rest_day_rate', 'reg_holiday_rate', 'spec_holiday_rate',
+            'ot_regular_rate', 'ot_rest_rate', 'ot_holiday_rate',
+            'phic_rate', 'phic_cap',
+            'hdmf_rate', 'hdmf_max',
             'default_period_type', 'first_half_cutoff',
             // Cross-month period definition
             'half1_start_day', 'half1_start_offset', 'half1_end_day', 'half1_end_offset',
@@ -1503,38 +1520,6 @@ class PayrollController extends BaseController
                        + (float)($data['salary_advance']  ?? 0)
                        + (float)($data['other_deductions'] ?? 0);
 
-        $logoDataUri = $this->getLogoDataUri();
-        $logoHtml    = $logoDataUri
-            ? '<div style="text-align:center;margin-bottom:20px;"><img src="' . $logoDataUri . '" style="max-height:80px;"></div>'
-            : '';
-
-        // =========================================================
-        // PAY COMPUTATIONS
-        // =========================================================
-
-        $netBasicPay = (float)($data['net_basic_pay'] ?? 0);
-
-        $regOt = (float)($data['reg_ot'] ?? 0);
-        $satOt = (float)($data['sat_ot'] ?? 0);
-        $sunOt = (float)($data['sun_ot'] ?? 0);
-        $holOt = (float)($data['hol_ot'] ?? 0);
-
-        $totalOvertime =
-            $regOt +
-            $satOt +
-            $sunOt +
-            $holOt;
-
-        $taxableOther = (float)($data['other_earnings_taxable'] ?? 0);
-
-        $nonTaxable = (float)($data['de_minimis'] ?? 0);
-
-        $grossPay =
-            $netBasicPay +
-            $totalOvertime +
-            $taxableOther +
-            $nonTaxable;
-
         // =========================================================
         // GOVERNMENT DEDUCTIONS
         // =========================================================
@@ -1599,30 +1584,35 @@ class PayrollController extends BaseController
         $regOtGt10        = (float)($data['reg_ot_gt10']  ?? 0);
         $regOtNight       = (float)($data['reg_ot_night'] ?? 0);
         $satOtGt10        = (float)($data['sat_ot_gt10']  ?? 0);
-        $satNightPrem     = (float)($data['sat_ot_night'] ?? 0);
-        $sunOtGt10        = (float)($data['sun_ot_gt10']  ?? 0);
-        $sunNightPrem     = (float)($data['sun_ot_night'] ?? 0);
-        $holOtGt10        = (float)($data['hol_ot_gt10']  ?? 0);
-        $holNightPrem     = (float)($data['hol_ot_night'] ?? 0);
+        $satNightPrem     = (float)($data['sat_night_prem'] ?? 0);
+        $sunOtGt10        = (float)($data['sun_ot_gt10']   ?? 0);
+        $sunNightPrem     = (float)($data['sun_night_prem'] ?? 0);
+        $holOtGt10        = (float)($data['hol_ot_gt10']   ?? 0);
+        $holNightPrem     = (float)($data['hol_night_prem'] ?? 0);
         $vlCashConversion = (float)($data['vl_cash_conversion'] ?? 0);
 
+        // [label, amount, OT multiplier for back-calculating displayed hours from pay amount]
+        // PH labor law: reg OT=1.25×; rest-day work ≤8 hrs=1.30×, rest OT >8 hrs=1.69×;
+        // regular holiday ≤8 hrs=2.00×, hol OT >8 hrs=2.60×; NSD=0.10×.
         $otRows = [
-            ['Reg. OT&le;10 hrs', $regOt],
-            ['Reg. OT&gt;10 hrs', $regOtGt10],
-            ['Night premium',      $regOtNight],
-            ['Sat OT&le;10 hrs',  $satOt],
-            ['Sat OT&gt;10 hrs',  $satOtGt10],
-            ['Sat Night premium',  $satNightPrem],
-            ['Sun OT&le;10 hrs',  $sunOt],
-            ['Sun OT&gt;10 hrs',  $sunOtGt10],
-            ['Sun Night premium',  $sunNightPrem],
-            ['Hol OT&le;10 hrs',  $holOt],
-            ['Hol OT&gt;10 hrs',  $holOtGt10],
-            ['Hol Night premium',  $holNightPrem],
+            ['Reg. OT&le;10 hrs', $regOt,       1.25],
+            ['Reg. OT&gt;10 hrs', $regOtGt10,   1.25],
+            ['Night premium',      $regOtNight,  0.10],
+            ['Sat OT&le;10 hrs',  $satOt,        1.30],
+            ['Sat OT&gt;10 hrs',  $satOtGt10,   1.69],
+            ['Sat Night premium',  $satNightPrem, 0.10],
+            ['Sun OT&le;10 hrs',  $sunOt,        1.30],
+            ['Sun OT&gt;10 hrs',  $sunOtGt10,   1.69],
+            ['Sun Night premium',  $sunNightPrem, 0.10],
+            ['Hol OT&le;10 hrs',  $holOt,        2.00],
+            ['Hol OT&gt;10 hrs',  $holOtGt10,   2.60],
+            ['Hol Night premium',  $holNightPrem, 0.10],
         ];
         $otRowsHtml = '';
-        foreach ($otRows as [$label, $val]) {
-            $hrs = ($ratePerHour > 0 && $val > 0) ? (int)round($val / $ratePerHour) : 0;
+        foreach ($otRows as [$label, $val, $mult]) {
+            $hrs = ($ratePerHour > 0 && $mult > 0 && $val > 0)
+                ? (int)round($val / ($ratePerHour * $mult))
+                : 0;
             $otRowsHtml .= '<tr><td style="border:1px solid #000;padding:3px 5px;">' . $label . '</td>'
                 . '<td style="border:1px solid #000;padding:3px 5px;text-align:center;">' . ($val > 0 ? $hrs : '0') . '</td>'
                 . '<td style="border:1px solid #000;padding:3px 5px;text-align:right;">' . $fmtAmt($val) . '</td></tr>';
@@ -1682,6 +1672,13 @@ class PayrollController extends BaseController
     </tr>
 </table>
 <table style="margin-top:6px;">
+    <colgroup>
+        <col style="width:36%">
+        <col style="width:9%">
+        <col style="width:13%">
+        <col style="width:21%">
+        <col style="width:21%">
+    </colgroup>
     <tr>
         <th colspan="3">REGULAR EARNINGS</th>
         <th>TAXABLE OTHER EARNINGS</th>
@@ -2551,5 +2548,69 @@ class PayrollController extends BaseController
 
                 ]);
         }
+    }
+
+    // ================= HOLIDAY MANAGEMENT =================
+
+    public function holidayList()
+    {
+        $year  = (int) ($this->request->getGet('year') ?: date('Y'));
+        $model = new \App\Models\Client\HolidayModel();
+        $rows  = $model->forYear($year);
+        return $this->response->setJSON(['success' => true, 'data' => $rows]);
+    }
+
+    public function holidaySave()
+    {
+        $post  = $this->request->getJSON(true) ?: $this->request->getPost();
+        $model = new \App\Models\Client\HolidayModel();
+
+        $id          = !empty($post['id']) ? (int) $post['id'] : null;
+        $holidayDate = trim($post['holiday_date'] ?? '');
+        $name        = trim($post['name']         ?? '');
+        $type        = in_array($post['type'] ?? '', ['regular', 'special']) ? $post['type'] : 'regular';
+        $isRecurring = !empty($post['is_recurring']) ? 1 : 0;
+
+        if (!$holidayDate || !$name) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Date and name are required.']);
+        }
+
+        $payload = [
+            'holiday_date' => $holidayDate,
+            'name'         => $name,
+            'type'         => $type,
+            'is_recurring' => $isRecurring,
+        ];
+
+        if ($id) {
+            $model->update($id, $payload);
+        } else {
+            $existing = $model->where('holiday_date', $holidayDate)->first();
+            if ($existing) {
+                $id = $existing['id'];
+            } else {
+                $id = $model->insert($payload);
+            }
+        }
+
+        return $this->response->setJSON(['success' => true, 'id' => $id]);
+    }
+
+    public function holidayDelete()
+    {
+        $post = $this->request->getJSON(true) ?: $this->request->getPost();
+        $id   = (int) ($post['id'] ?? 0);
+
+        if (!$id) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Invalid ID.']);
+        }
+
+        $model = new \App\Models\Client\HolidayModel();
+        if (!$model->find($id)) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Not found.']);
+        }
+
+        $model->delete($id);
+        return $this->response->setJSON(['success' => true]);
     }
 }

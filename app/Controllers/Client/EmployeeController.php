@@ -163,9 +163,27 @@ class EmployeeController extends BaseController
         $currentYear = (int) date('Y');
 
         foreach ($employees as &$employee) {
-            $balance = $leaveBalanceModel->syncFromApprovedRequests((int) $employee['id'], $currentYear, 'leave');
-            $employee['leave_total']     = $balance['total_entitlement'] ?? null;
-            $employee['leave_remaining'] = $balance['remaining']         ?? null;
+            $eid = (int) $employee['id'];
+
+            $vacRow  = $leaveBalanceModel->getBalance($eid, 'vacation',  $currentYear);
+            $sickRow = $leaveBalanceModel->getBalance($eid, 'sick',      $currentYear);
+            $emeRow  = $leaveBalanceModel->getBalance($eid, 'emergency', $currentYear);
+
+            $employee['vacation_leave']  = $vacRow  ? (float) $vacRow['total_entitlement']  : 0.0;
+            $employee['sick_leave']      = $sickRow ? (float) $sickRow['total_entitlement'] : 0.0;
+            $employee['emergency_leave'] = $emeRow  ? (float) $emeRow['total_entitlement']  : 0.0;
+
+            $employee['leave_total']     = $employee['vacation_leave'] + $employee['sick_leave'] + $employee['emergency_leave'];
+            $employee['leave_remaining'] =
+                ($vacRow  ? (float) $vacRow['remaining']  : 0.0) +
+                ($sickRow ? (float) $sickRow['remaining'] : 0.0) +
+                ($emeRow  ? (float) $emeRow['remaining']  : 0.0);
+
+            // Show null (—) instead of 0 when no leave rows exist yet for this employee
+            if ($vacRow === null && $sickRow === null && $emeRow === null) {
+                $employee['leave_total']     = null;
+                $employee['leave_remaining'] = null;
+            }
         }
 
         unset($employee);

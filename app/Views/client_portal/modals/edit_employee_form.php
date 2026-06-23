@@ -141,19 +141,22 @@
         <div class="grid grid-cols-2 gap-4">
 
             <div>
-                <label class="block text-sm mb-1">Working Day Type</label>
+                <label class="block text-sm mb-1">Schedule Type</label>
 
                 <select
                     id="edit_working_day_type"
                     name="working_day_type"
-                    class="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
+                    class="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    onchange="toggleEditScheduleTime(this.value)">
 
-                    <option value="full_weekdays">Full Weekdays</option>
-                    <option value="weekday_with_rest">Weekday + Rest Day</option>
-                    <option value="weekend_shift">Weekend Shift</option>
-                    <option value="custom">Custom</option>
+                    <option value="full_weekdays">Fixed – Mon to Fri</option>
+                    <option value="weekday_with_rest">Fixed – Weekdays with 1 Rest Day</option>
+                    <option value="weekend_shift">Fixed – Weekend Shift (Sat–Sun)</option>
+                    <option value="custom">Fixed – Custom Days</option>
+                    <option value="flexible">Flexible – No Fixed Start Time</option>
 
                 </select>
+                <p class="text-xs text-gray-400 mt-1">Fixed schedules track tardiness. Flexible only requires completing daily hours.</p>
             </div>
 
             <div>
@@ -167,7 +170,7 @@
                     class="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
             </div>
 
-            <div>
+            <div id="edit_start_time_wrap">
                 <label class="block text-sm mb-1">Start Time</label>
 
                 <input type="time"
@@ -176,7 +179,7 @@
                     class="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
             </div>
 
-            <div>
+            <div id="edit_end_time_wrap">
                 <label class="block text-sm mb-1">End Time</label>
 
                 <input type="time"
@@ -543,6 +546,14 @@
 
 </form>
 <script>
+    function toggleEditScheduleTime(type) {
+        const show = type !== 'flexible';
+        ['edit_start_time_wrap','edit_end_time_wrap'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.style.display = show ? '' : 'none';
+        });
+    }
+
     document.querySelectorAll('.edit-day-toggle').forEach(label => {
 
     label.addEventListener('click', function () {
