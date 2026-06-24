@@ -117,7 +117,6 @@
     <!-- ===================================================== -->
 
     <div>
-
         <div class="mb-3">
             <h2 class="text-xl font-semibold text-gray-800">Personal Information</h2>
             <p class="text-sm text-gray-500 mt-1">Update the employee's personal details and contact information.</p>
@@ -179,12 +178,7 @@
                 </div>
 
             </div>
-
-                <div class="md:col-span-2">
-                    <label class="edit-form-label">Address</label>
-                    <input type="text" id="edit_address" name="address" class="edit-form-input">
-                </div>
-
+        </div>
     </div>
 
     <!-- ===================================================== -->
@@ -192,7 +186,6 @@
     <!-- ===================================================== -->
 
     <div>
-
         <div class="mb-3">
             <h2 class="text-xl font-semibold text-gray-800">Government IDs</h2>
             <p class="text-sm text-gray-500 mt-1">Mandatory government identification details.</p>
@@ -225,7 +218,6 @@
             </div>
 
         </div>
-
     </div>
 
     <!-- ===================================================== -->
@@ -296,20 +288,6 @@
                     <?php endforeach; ?>
 
                 </div>
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-
-                <div>
-                    <label class="edit-form-label">Start Time</label>
-                    <input type="time" id="edit_start_time" name="start_time" class="edit-form-input">
-                </div>
-
-                <div>
-                    <label class="edit-form-label">End Time</label>
-                    <input type="time" id="edit_end_time" name="end_time" class="edit-form-input">
-                </div>
-
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
