@@ -4,26 +4,36 @@ namespace App\Controllers\Client;
 
 use App\Models\Client\AttendanceModel;
 use App\Controllers\BaseController;
+use App\Services\Client\AttendanceComputationService;
 
 class AttendanceController extends BaseController
 {
     protected $attendanceModel;
+    protected $attendanceComputationService;
     protected $db;
 
     public function __construct()
     {
         $this->attendanceModel = new AttendanceModel();
+        $this->attendanceComputationService = new AttendanceComputationService();
         $this->db              = db_connect();
     }
 
     public function timeIn()
     {
         $user = auth()->user();
+
         if (! $user) {
             return redirect()->to('/login');
         }
 
         $userId = $user->id;
+
+        /*
+        |--------------------------------------------------------------------------
+        | Check if employee is currently timed in
+        |--------------------------------------------------------------------------
+        */
 
         $current = $this->attendanceModel
             ->where('user_id', $userId)
@@ -31,27 +41,110 @@ class AttendanceController extends BaseController
             ->first();
 
         if ($current) {
-            return redirect()->back()->with('error', 'Already timed in!');
+            return redirect()
+                ->back()
+                ->with('error', 'Already timed in!');
         }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Prevent duplicate attendance for today
+        |--------------------------------------------------------------------------
+        */
+
+        $todayAttendance = $this->attendanceModel
+            ->where('user_id', $userId)
+            ->where('time_in >=', date('Y-m-d 00:00:00'))
+            ->where('time_in <=', date('Y-m-d 23:59:59'))
+            ->first();
+
+        if ($todayAttendance) {
+            return redirect()
+                ->back()
+                ->with(
+                    'error',
+                    'You have already completed your attendance for today.'
+                );
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Prepare Time In
+        |--------------------------------------------------------------------------
+        */
 
         $timeIn = date('Y-m-d H:i:s');
 
+        $schedule =
+            $this->attendanceComputationService
+                ->getEmployeeSchedule($userId);
+
+        $lateMinutes = 0;
+
+        if (
+            $schedule &&
+            ! empty($schedule['start_time'])
+        ) {
+            $scheduledStart =
+                date('Y-m-d')
+                . ' '
+                . $schedule['start_time'];
+
+            if (
+                strtotime($timeIn)
+                >
+                strtotime($scheduledStart)
+            ) {
+                $lateMinutes = floor(
+                    (
+                        strtotime($timeIn)
+                        -
+                        strtotime($scheduledStart)
+                    ) / 60
+                );
+            }
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Create Attendance Record
+        |--------------------------------------------------------------------------
+        */
+
         $this->attendanceModel->insert([
-            'user_id' => $userId,
-            'time_in' => $timeIn,
+            'user_id'          => $userId,
+            'time_in'          => $timeIn,
+            'late_minutes'     => $lateMinutes,
+            'scheduled_start'  => $schedule['start_time'] ?? null,
+            'scheduled_end'    => $schedule['end_time'] ?? null,
+            'attendance_status'=> 'present',
         ]);
 
-        service('activityLogger')->attendanceClockedIn($this->attendanceModel->getInsertID(), [
-            'time_in' => $timeIn,
-        ]);
+        service('activityLogger')->attendanceClockedIn(
+            $this->attendanceModel->getInsertID(),
+            [
+                'time_in' => $timeIn,
+            ]
+        );
 
-        return redirect()->back()->with('success', 'Time in recorded!');
+        return redirect()
+            ->back()
+            ->with(
+                'success',
+                'Time in recorded!'
+            );
     }
 
     public function timeOut($id)
     {
         $user   = auth()->user();
         $userId = $user->id;
+
+        $reason = trim(
+            $this->request->getPost(
+                'unapproved_ut_reason'
+            ) ?? ''
+        );
 
         $attendance = $this->attendanceModel
             ->where('id', $id)
@@ -63,15 +156,35 @@ class AttendanceController extends BaseController
             return redirect()->back()->with('error', 'No active time in found!');
         }
 
-        $start         = strtotime($attendance['time_in']);
-        $end           = time();
-        $clockOutDate  = date('Y-m-d', $end);
-
         // --- Resolve end_time cap from employee_positions ---
-        $cappedEnd = $this->resolveEndTimeCap($userId, $clockOutDate, $end);
+        $timeOut = date('Y-m-d H:i:s');
 
-        $timeOut       = date('Y-m-d H:i:s', $cappedEnd);
-        $totalHours    = ($cappedEnd - $start) / 3600;
+        $analysis =
+            $this->attendanceComputationService
+                ->analyzeClockOut(
+                    $userId,
+                    $timeOut
+                );
+
+        $ot = $analysis['overtime'];
+        $ut = $analysis['undertime'];
+
+        $undertimeReason = null;
+
+        if (
+            $ut['unapproved_ut'] > 0
+        )
+        {
+            $undertimeReason = $reason;
+        }
+
+        $totalHours =
+        (strtotime($timeOut) - strtotime($attendance['time_in'])) / 3600;
+        $totalHours -= (float) ($attendance['break_duration'] ?? 0);
+
+        $totalHours =
+        max(0, $totalHours);
+
         $breakDuration = (float) ($attendance['break_duration'] ?? 0);
 
         $nightDiffHours = $this->computeNightDiffHours(
@@ -90,12 +203,51 @@ class AttendanceController extends BaseController
             'total_hours' => round($totalHours, 2),
         ];
 
-        $this->attendanceModel->update($attendance['id'], [
-            'time_out'         => $timeOut,
-            'total_hours'      => round($totalHours, 2),
-            'break_duration'   => $breakDuration,
-            'night_diff_hours' => round($nightDiffHours, 2),
-        ]);
+        $status = 'present';
+
+        if ($ut['approved_ut'] > 0)
+        {
+            $status = 'approved_undertime';
+        }
+        elseif ($ut['unapproved_ut'] > 0)
+        {
+            $status = 'unapproved_undertime';
+        }
+        elseif ($ot['approved_ot'] > 0)
+        {
+            $status = 'approved_overtime';
+        }
+        elseif ($ot['unapproved_ot'] > 0)
+        {
+            $status = 'unapproved_overtime';
+        }
+
+        $this->attendanceModel->update(
+            $attendance['id'],
+            [
+                'time_out' => $timeOut,
+                'total_hours' => round($totalHours, 2),
+                'break_duration' => $breakDuration,
+                'night_diff_hours' => round($nightDiffHours, 2),
+
+                'approved_ot_hours' =>
+                    $ot['approved_ot'],
+
+                'unapproved_ot_hours' =>
+                    $ot['unapproved_ot'],
+
+                'approved_ut_hours' =>
+                    $ut['approved_ut'],
+
+                'unapproved_ut_hours' =>
+                    $ut['unapproved_ut'],
+
+                'unapproved_ut_reason' =>
+                    $undertimeReason,
+
+                'attendance_status' => $status,
+            ]
+        );
 
         service('activityLogger')->attendanceClockedOut($attendance['id'], $before, $after);
 
@@ -161,49 +313,21 @@ class AttendanceController extends BaseController
         }
     }
 
-    // -------------------------------------------------------------------------
-    // Private helpers
-    // -------------------------------------------------------------------------
-
-    /**
-     * Returns the effective clock-out timestamp, capped to the employee's
-     * scheduled end_time unless an approved overtime request covers that date.
-     */
-    private function resolveEndTimeCap(int $userId, string $clockOutDate, int $actualEnd): int
+    private function getEmployeeSchedule(int $userId): ?array
     {
         $employee = $this->db->table('employees')
             ->where('user_id', $userId)
-            ->get()->getRowArray();
+            ->get()
+            ->getRowArray();
 
-        if (! $employee) {
-            return $actualEnd;
+        if (!$employee) {
+            return null;
         }
 
-        $position = $this->db->table('employee_positions')
+        return $this->db->table('employee_positions')
             ->where('employee_id', $employee['id'])
-            ->get()->getRowArray();
-
-        if (! $position || empty($position['end_time'])) {
-            return $actualEnd;
-        }
-
-        $capTimestamp = strtotime($clockOutDate . ' ' . $position['end_time']);
-
-        // No cap needed if they're clocking out before or at the scheduled end
-        if ($actualEnd <= $capTimestamp) {
-            return $actualEnd;
-        }
-
-        // Check for an approved overtime request covering this date
-        $hasOvertime = $this->db->table('requests')
-            ->where('requested_by', $userId)
-            ->where('request_type', 'overtime')
-            ->where('status', 'approved')
-            ->where('start_date <=', $clockOutDate)
-            ->where('end_date >=', $clockOutDate)
-            ->countAllResults() > 0;
-
-        return $hasOvertime ? $actualEnd : $capTimestamp;
+            ->get()
+            ->getRowArray();
     }
 
     private function computeNightDiffHours($timeIn, $timeOut, $breakDuration)

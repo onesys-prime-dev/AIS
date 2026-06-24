@@ -27,5 +27,15 @@ class Services extends BaseService
         return new \App\Services\ActivityLogger();
     }
 
+    public static function attendanceComputationService(bool $getShared = true): \App\Services\Client\AttendanceComputationService
+    {
+        if ($getShared) {
+            return static::getSharedInstance(
+                'attendanceComputationService'
+            );
+        }
+
+        return new \App\Services\Client\AttendanceComputationService();
+    }
     
 }

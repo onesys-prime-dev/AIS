@@ -277,26 +277,39 @@ function htmlEsc(val)
     }
 
     function viewEmployeeDetails(employeeId) {
-
+ 
         const employee = EMPLOYEES.find(emp => emp.id == employeeId);
-
+ 
         if (!employee) return;
-
+ 
         let workingDays = [];
-
+ 
         let deMinimisBreakdown = {
             allocations: {},
             other: []
         };
-
+ 
         try {
             deMinimisBreakdown = JSON.parse(employee.de_minimis_breakdown || '{}');
         } catch (e) {}
-
+ 
         try {
             workingDays = JSON.parse(employee.working_days || '[]');
         } catch (e) {}
-
+ 
+        const allocations = deMinimisBreakdown.allocations || {};
+        const otherComp = Array.isArray(deMinimisBreakdown.other) ? deMinimisBreakdown.other : [];
+ 
+        const allocationLabels = {
+            rice_subsidy: 'Rice Subsidy',
+            uniform_allowance: 'Uniform Allowance',
+            laundry_allowance: 'Laundry Allowance',
+            medical_allowance: 'Medical Allowance',
+        };
+ 
+        const hasAllocations = Object.values(allocations).some(v => Number(v) > 0);
+        const hasOtherComp = otherComp.some(item => Number(item.amount) > 0);
+ 
         const html = `
             <div class="flex flex-col h-[70vh]">
                 <!-- HEADER BANNER -->
@@ -309,93 +322,92 @@ function htmlEsc(val)
                                 </svg>`
                         }
                     </div>
-
+ 
                     <div>
                         <h1 class="text-2xl font-bold text-white">
                             ${employee.first_name} ${employee.last_name}
                         </h1>
-
+ 
                         <p class="text-white/80 italic text-sm mt-0.5">
                             ${employee.position ?? 'No Position Set'}
                         </p>
-
+ 
                         <span class="inline-block mt-2 px-3 py-0.5 rounded-full text-xs font-semibold
                             ${employee.status == 1
                                 ? 'bg-green-400/30 text-white border border-green-300/50'
                                 : 'bg-red-400/30 text-white border border-red-300/50'}">
-
+ 
                             ${employee.status == 1 ? 'Active' : 'Inactive'}
                         </span>
                     </div>
-
+ 
                     <div class="ml-auto text-right">
                         <p class="text-white/60 text-xs uppercase tracking-widest">
                             Employee ID
                         </p>
-
+ 
                         <p class="text-white font-bold text-lg">
                             ${employee.employee_number}
                         </p>
                     </div>
                 </div>
-
+ 
                 <!-- FIXED TOP DETAILS -->
                 <div class="shrink-0 px-2">
-
+ 
                     <div class="flex divide-x divide-gray-200 mb-6">
                         <div class="flex-1 pr-6">
                             <p class="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-2">Department</p>
                             <p class="text-sm text-gray-700">${employee.department ?? '—'}</p>
                         </div>
-
+ 
                         <div class="flex-1 px-6">
                             <p class="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-2">Email</p>
                             <p class="text-sm text-gray-700">${employee.email ?? '—'}</p>
                         </div>
-
+ 
                         <div class="flex-1 px-6">
                             <p class="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-2">Birthdate</p>
                             <p class="text-sm text-gray-700">${employee.birthdate ?? '—'}</p>
                         </div>
-
+ 
                         <div class="flex-1 pl-6">
                             <p class="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-2">Contact No.</p>
                             <p class="text-sm text-gray-700">${employee.mobile_number ?? '—'}</p>
                         </div>
                     </div>
-
+ 
                     <hr class="border-gray-200 mb-6">
                 </div>
-
+ 
                 <!-- SCROLLABLE CONTENT -->
                 <div class="overflow-y-auto hide-scroll-bar flex-1 min-h-0 pr-2 px-2">
-
+ 
                     <!-- PERSONAL INFO + GOV IDS -->
                     <div class="flex divide-x divide-gray-200 mb-6">
-
+ 
                         <!-- Personal Info -->
                         <div class="flex-1 pr-6">
                             <p class="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-4">
                                 Personal Information
                             </p>
-
+ 
                             <div class="space-y-3">
                                 ${viewField('First Name', employee.first_name)}
                                 ${viewField('Middle Name', employee.middle_name)}
                                 ${viewField('Last Name', employee.last_name)}
                                 ${viewField('Gender', employee.gender)}
                                 ${viewField('Civil Status', employee.civil_status)}
-                                ${viewField('Contact No.', employee.mobile_number)}
                                 ${viewField('Address', employee.address)}
                             </div>
                         </div>
-
+ 
                         <!-- Gov IDs -->
                         <div class="flex-1 pl-6">
                             <p class="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-4">
                                 Government IDs
                             </p>
-
+ 
                             <div class="space-y-3">
                                 ${viewField('SSS No.', employee.sss)}
                                 ${viewField('TIN', employee.tin)}
@@ -403,45 +415,45 @@ function htmlEsc(val)
                                 ${viewField('PhilHealth No.', employee.philhealth)}
                             </div>
                         </div>
-
+ 
                     </div>
-
+ 
                     <hr class="border-gray-200 mb-6">
-
+ 
                     <!-- WORK SCHEDULE -->
                     <div class="mb-6">
                         <p class="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-4">
                             Work Schedule
                         </p>
-
+ 
                         <div class="flex divide-x divide-gray-200">
                             <div class="flex-1 pr-6 space-y-3">
                                 ${viewField('Employment Type', employee.employment_type)}
                                 ${viewField('Working Day Type', employee.working_day_type)}
                             </div>
-
+ 
                             <div class="flex-1 pl-6 space-y-3">
                                 ${viewField('Start Time', employee.start_time)}
                                 ${viewField('End Time', employee.end_time)}
                             </div>
                         </div>
-
+ 
                         <!-- Working Days -->
                         <div class="mt-4">
                             <p class="text-xs text-gray-400 uppercase tracking-widest mb-2">
                                 Working Days
                             </p>
-
+ 
                             <div class="flex gap-2 flex-wrap">
                                 ${['mon','tue','wed','thu','fri','sat','sun'].map(day => {
                                     const active = workingDays.includes(day);
-
+ 
                                     return `
                                         <div class="w-10 h-10 rounded-full flex items-center justify-center text-xs font-semibold
                                             ${active
                                                 ? 'bg-[#A891FC] text-white'
                                                 : 'bg-gray-100 text-gray-400'}">
-
+ 
                                             ${day.charAt(0).toUpperCase() + day.slice(1)}
                                         </div>
                                     `;
@@ -449,114 +461,123 @@ function htmlEsc(val)
                             </div>
                         </div>
                     </div>
-
+ 
                     <hr class="border-gray-200 mb-6">
-
-                    <!-- JOB DETAILS + COMPENSATION -->
+ 
+                    <!-- JOB DETAILS -->
                     <div class="mb-6">
                         <p class="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-4">
-                            Job Details &amp; Compensation
+                            Job Details
                         </p>
-
+ 
                         <div class="flex divide-x divide-gray-200">
                             <div class="flex-1 pr-6 space-y-3">
                                 ${viewField('Department', employee.department)}
                                 ${viewField('Position', employee.position)}
+                            </div>
+ 
+                            <div class="flex-1 pl-6 space-y-3">
                                 ${viewField('Status', employee.status == 1 ? 'Active' : 'Inactive')}
                                 ${viewField('Basic Salary', employee.monthly_salary ? '₱' + Number(employee.monthly_salary).toLocaleString() : '—')}
                             </div>
-
-                            <div class="flex-1 pl-6 space-y-3">
-                                <div class="space-y-3">
-
-                                    ${viewField(
-                                        'De Minimis Benefit',
-                                        employee.de_minimis_benefit
-                                            ? '₱' + Number(employee.de_minimis_benefit).toLocaleString()
-                                            : '—'
-                                    )}
-
-                                    ${viewField(
-                                        'Rice Subsidy',
-                                        deMinimisBreakdown.allocations?.rice_subsidy
-                                            ? '₱' + Number(deMinimisBreakdown.allocations.rice_subsidy).toLocaleString()
-                                            : '—'
-                                    )}
-
-                                    ${viewField(
-                                        'Uniform Allowance',
-                                        deMinimisBreakdown.allocations?.uniform_allowance
-                                            ? '₱' + Number(deMinimisBreakdown.allocations.uniform_allowance).toLocaleString()
-                                            : '—'
-                                    )}
-
-                                    ${viewField(
-                                        'Laundry Allowance',
-                                        deMinimisBreakdown.allocations?.laundry_allowance
-                                            ? '₱' + Number(deMinimisBreakdown.allocations.laundry_allowance).toLocaleString()
-                                            : '—'
-                                    )}
-
-                                    ${viewField(
-                                        'Medical Allowance',
-                                        deMinimisBreakdown.allocations?.medical_allowance
-                                            ? '₱' + Number(deMinimisBreakdown.allocations.medical_allowance).toLocaleString()
-                                            : '—'
-                                    )}
-
-                                </div>
-
-                                ${
-                                    deMinimisBreakdown.other?.length
-                                        ? `
-                                        <div class="mt-5">
-
-                                            <p class="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-3">
-                                                Other Non-Taxable Compensation
-                                            </p>
-
-                                            <div class="space-y-3">
-
-                                                ${deMinimisBreakdown.other.map(item => `
-                                                    <div class="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3">
-                                                        <span class="text-sm text-gray-700">
-                                                            ${item.purpose || 'Unnamed Benefit'}
-                                                        </span>
-
-                                                        <span class="text-sm font-semibold text-gray-800">
-                                                            ₱${Number(item.amount || 0).toLocaleString()}
-                                                        </span>
-                                                    </div>
-                                                `).join('')}
-
+                        </div>
+                    </div>
+ 
+                    <hr class="border-gray-200 mb-6">
+ 
+                    <!-- DE MINIMIS BENEFITS -->
+                    <div class="mb-6">
+                        <p class="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-4">
+                            De Minimis Benefits
+                        </p>
+ 
+                        <div class="bg-violet-50 rounded-2xl p-5">
+ 
+                            <div class="flex items-center justify-between mb-4 pb-3 border-b border-violet-100">
+                                <span class="text-sm text-gray-600">Amount Given (Total)</span>
+                                <span class="text-sm font-semibold text-violet-800">
+                                    ${employee.de_minimis_benefit ? '₱' + Number(employee.de_minimis_benefit).toLocaleString() : '—'}
+                                </span>
+                            </div>
+ 
+                            ${hasAllocations ? `
+                                <div class="grid grid-cols-2 gap-3 mb-1">
+                                    ${Object.keys(allocationLabels)
+                                        .filter(key => Number(allocations[key]) > 0)
+                                        .map(key => `
+                                            <div class="flex items-center justify-between bg-white rounded-xl px-4 py-2.5">
+                                                <span class="text-xs text-gray-500">${allocationLabels[key]}</span>
+                                                <span class="text-sm font-medium text-gray-800">
+                                                    ₱${Number(allocations[key]).toLocaleString()}
+                                                </span>
                                             </div>
-
-                                        </div>
-                                        `
-                                        : ''
-                                }
+                                        `).join('')}
+                                </div>
+                            ` : `
+                                <p class="text-xs text-gray-400 italic">No sub-benefit allocations recorded.</p>
+                            `}
+ 
+                            ${hasOtherComp ? `
+                                <div class="mt-4 pt-4 border-t border-violet-100">
+                                    <p class="text-xs font-semibold text-violet-700 uppercase tracking-wide mb-3">
+                                        Other Non-Taxable Compensation
+                                    </p>
+ 
+                                    <div class="space-y-2">
+                                        ${otherComp
+                                            .filter(item => Number(item.amount) > 0)
+                                            .map(item => `
+                                                <div class="flex items-center justify-between bg-white rounded-xl px-4 py-2.5">
+                                                    <span class="text-sm text-gray-700">
+                                                        ${item.purpose || 'Unnamed Benefit'}
+                                                    </span>
+                                                    <span class="text-sm font-semibold text-gray-800">
+                                                        ₱${Number(item.amount || 0).toLocaleString()}
+                                                    </span>
+                                                </div>
+                                            `).join('')}
+                                    </div>
+                                </div>
+                            ` : ''}
+ 
+                        </div>
+                    </div>
+ 
+                    <hr class="border-gray-200 mb-6">
+ 
+                    <!-- COMPENSATION & LEAVE -->
+                    <div class="mb-6">
+                        <p class="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-4">
+                            Compensation &amp; Leave
+                        </p>
+ 
+                        <div class="flex divide-x divide-gray-200">
+                            <div class="flex-1 pr-6 space-y-3">
                                 ${viewField('Allowances', employee.allowances ? '₱' + Number(employee.allowances).toLocaleString() : '—')}
+                            </div>
+ 
+                            <div class="flex-1 pl-6 space-y-3">
                                 ${viewField('Vacation Leave', (employee.vacation_leave || 0) + ' days')}
                                 ${viewField('Sick Leave', (employee.sick_leave || 0) + ' days')}
                                 ${viewField('Emergency Leave', (employee.emergency_leave || 0) + ' days')}
                             </div>
                         </div>
                     </div>
-
+ 
                     <hr class="border-gray-200 mb-6">
-
+ 
                     <!-- BANKING -->
                     <div class="pb-6">
                         <p class="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-4">
                             Banking Information
                         </p>
-
+ 
                         <div class="flex divide-x divide-gray-200">
                             <div class="flex-1 pr-6 space-y-3">
                                 ${viewField('Bank', employee.bank)}
                                 ${viewField('Account Number', employee.account_number)}
                             </div>
-
+ 
                             <div class="flex-1 pl-6 space-y-3">
                                 ${viewField('Bank Address', employee.bank_address)}
                                 ${viewField('Swift Code', employee.swift_code)}
@@ -566,11 +587,11 @@ function htmlEsc(val)
                 </div>
             </div>
         `;
-
+ 
         document.getElementById('employeeDetailsContent').innerHTML = html;
         openModalById('viewEmployeeModal');
     }
-
+ 
     function viewField(label, value = '') {
         return `
             <div>

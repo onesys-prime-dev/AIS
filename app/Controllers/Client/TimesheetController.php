@@ -179,8 +179,8 @@ class TimesheetController extends BaseController
         $att = $attModel->find($attendanceId);
         if (!$att || !$att['time_in'] || !$att['time_out']) return;
 
-        $start = new \DateTime($att['date'] . ' ' . $att['time_in']);
-        $end   = new \DateTime($att['date'] . ' ' . $att['time_out']);
+        $start = new \DateTime($att['time_in']);
+        $end   = new \DateTime($att['time_out']);
         if ($end < $start) $end->modify('+1 day');
         $diff = $end->diff($start);
         $totalMinutes = $diff->h * 60 + $diff->i;
@@ -188,7 +188,12 @@ class TimesheetController extends BaseController
         $totalMinutes = max(0, $totalMinutes - $breakMinutes);
         $totalHours = round($totalMinutes / 60, 2);
 
-        $nightDiff = $this->computeNightDiffForAttendance($att['date'], $att['time_in'], $att['time_out']);
+        $nightDiff =
+        $this->computeNightDiffForAttendance(
+            date('Y-m-d', strtotime($att['time_in'])),
+            date('H:i:s', strtotime($att['time_in'])),
+            date('H:i:s', strtotime($att['time_out']))
+        );
         $attModel->update($attendanceId, [
             'total_hours' => $totalHours,
             'night_diff_hours' => $nightDiff,

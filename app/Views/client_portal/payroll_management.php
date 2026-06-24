@@ -662,7 +662,7 @@ $_defaultYearMonth = "{$_year}-{$_month}";
                        cursor:pointer;color:#60a5fa;line-height:1;">&times;</button>
     </div>
 
-    <div class="flex flex-col flex-1">
+    <div class="flex flex-col flex-1 overflow-hidden">
 
         <!-- ================= RAW SHEET ================= -->
         <div class="tab-content active payroll-scroll-area payroll-scroll-hide" id="raw">

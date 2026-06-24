@@ -43,7 +43,7 @@
             <div class="p-4 text-center">Action</div>
         </div>
 
-        <div id="payrollStatusRows" class="overflow-y-auto flex-1 text-gray-700">
+        <div id="payrollStatusRows" class="overflow-y-auto flex-1 text-gray-700 hide-scroll-bar">
             <!-- Rows injected by JS -->
         </div>
 

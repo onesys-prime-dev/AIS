@@ -5,6 +5,7 @@ namespace App\Services\Client;
 use App\Models\Client\AttendanceModel;
 use App\Models\Client\TasksModel;
 use App\Models\Client\RequestModel;
+use App\Models\Client\EmployeePositionModel;
 use DateTime;
 
 class TimesheetsService
@@ -12,12 +13,14 @@ class TimesheetsService
     protected TasksModel $tasksModel;
     protected AttendanceModel $attendanceModel;
     protected RequestModel $requestModel;
+    protected EmployeePositionModel $employeePositionModel;
 
     public function __construct()
     {
         $this->tasksModel      = new TasksModel();
         $this->attendanceModel = new AttendanceModel();
         $this->requestModel    = new RequestModel();
+        $this->employeePositionModel = new EmployeePositionModel();
     }
 
     // ---------- Existing methods ----------
@@ -165,9 +168,28 @@ class TimesheetsService
             'night_diff'    => 0,
         ];
 
-        // Company schedule – you may move these to settings
-        $scheduledStart = '08:00:00';
-        $scheduledEnd   = '17:00:00';
+        $db = db_connect();
+
+        $employee = $db->table('employees')
+            ->where('user_id', $userId)
+            ->get()
+            ->getRowArray();
+
+        $schedule = null;
+
+        if ($employee) {
+            $schedule = $this->employeePositionModel
+                ->where('employee_id', $employee['id'])
+                ->first();
+        }
+
+        $scheduledStart =
+            $schedule['start_time']
+            ?? null;
+
+        $scheduledEnd =
+            $schedule['end_time']
+            ?? null;
         $nightStart     = '22:00:00';
         $nightEnd       = '06:00:00';
 
@@ -194,12 +216,12 @@ class TimesheetsService
 
             // OT (after scheduled end)
             $otHours = 0;
-            if ($timeOut && $timeOut > $scheduledEnd) {
-                $endObj = new DateTime($date . ' ' . $timeOut);
-                $scheduledEndObj = new DateTime($date . ' ' . $scheduledEnd);
-                $otDiff = $endObj->diff($scheduledEndObj);
-                $otHours = round($otDiff->h + $otDiff->i / 60, 2);
-            }
+            $otHours =
+                (float)
+                (
+                    $att['approved_ot_hours']
+                    ?? 0
+                );
 
             // RDOT (Rest Day OT – example: Sunday)
             $isRestDay = (date('N', strtotime($date)) == 7);
@@ -209,13 +231,12 @@ class TimesheetsService
             }
 
             // Tardy minutes
-            $tardyMinutes = 0;
-            if ($timeIn && $timeIn > $scheduledStart) {
-                $inObj = new DateTime($date . ' ' . $timeIn);
-                $startObj = new DateTime($date . ' ' . $scheduledStart);
-                $diff = $inObj->diff($startObj);
-                $tardyMinutes = $diff->h * 60 + $diff->i;
-            }
+            $tardyMinutes =
+            (int)
+            (
+                $att['late_minutes']
+                ?? 0
+            );
 
             // Night Differential
             $nightDiff = (float)($att['night_diff_hours'] ?? 0);
@@ -281,7 +302,10 @@ class TimesheetsService
         return round($nightMinutes / 60, 2);
     }
 
-    private function getRemarksForDay(int $userId, string $date): string
+    private function getRemarksForDay(
+        int $userId,
+        string $date
+    ): string
     {
         // Approved leave request
         $request = $this->requestModel
@@ -292,32 +316,61 @@ class TimesheetsService
                 ->where('end_date >=', $date)
             ->groupEnd()
             ->first();
-        if ($request) {
-            return ucfirst($request['request_type']) . ' (' . $request['reason'] . ')';
+
+        if ($request)
+        {
+            return ucfirst($request['request_type'])
+                . ' (' . $request['reason'] . ')';
         }
 
-        // Auto-mark undertime when user clocked out before scheduled end
-        $scheduledEnd = '17:00:00';
         $attendance = $this->attendanceModel
             ->where('user_id', $userId)
             ->where('DATE(time_in)', $date)
             ->first();
-        if ($attendance && !empty($attendance['time_out']) && date('H:i:s', strtotime($attendance['time_out'])) < $scheduledEnd) {
-            return 'Undertime';
-        }
 
-        // F
+        if ($attendance)
+        {
+            switch (
+                $attendance['attendance_status']
+                ?? 'present'
+            )
+            {
+                case 'approved_undertime':
+                    return 'Approved Undertime';
+
+                case 'unapproved_undertime':
+                    return 'Unapproved Undertime';
+
+                case 'approved_overtime':
+                    return 'Approved Overtime';
+
+                case 'unapproved_overtime':
+                    return 'Unapproved Overtime';
+
+                case 'present':
+                default:
+                    break;
+            }
+        }
 
         // First task of the day
         $task = $this->tasksModel
             ->select('task_performed')
-            ->join('attendance', 'attendance.id = tasks.attendance_id')
+            ->join(
+                'attendance',
+                'attendance.id = tasks.attendance_id'
+            )
             ->where('tasks.user_id', $userId)
-            ->where('DATE(attendance.time_in)', $date)
+            ->where(
+                'DATE(attendance.time_in)',
+                $date
+            )
             ->first();
-        return $task ? $task['task_performed'] : '';
-    }
 
+        return $task
+            ? $task['task_performed']
+            : '';
+    }
     // ---------- Private helpers ----------
     private function baseListByUserIdBuilder(int $userId): TasksModel
     {

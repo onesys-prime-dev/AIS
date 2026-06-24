@@ -128,7 +128,7 @@
             </table>
 
             <!-- BODY -->
-            <div class="overflow-y-auto hide-scroll-bar flex-1">
+            <div class="overflow-y-auto hide-scroll-bar flex-1 h-full">
 
                 <table class="min-w-[1280px] w-full text-sm border-collapse table-fixed">
 
