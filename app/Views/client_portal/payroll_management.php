@@ -1818,7 +1818,7 @@ function recomputeBulkRow(empId, trigger) {
     const absCapped    = Math.min(absences, d.basicPay);           // can't deduct more than basic pay
     const netBasicPay  = Math.max(0, d.basicPay - absCapped + nsd); // NSD included in net basic pay
     const grossTaxable = netBasicPay + ot + salAdj + holiday;       // taxable portion
-    const grossComp    = grossTaxable + nonTax;                      // total gross (taxable + non-taxable)
+    const grossComp    = Math.round((grossTaxable + nonTax) * 100) / 100;  // total gross (taxable + non-taxable)
     const sssTotal     = d.sssDed || 0, phic = d.phicDed || 0, hdmf = d.hdmfDed || 0, wt = d.withholdingTax || 0;
     const regNetTax    = grossTaxable - sssTotal - phic - hdmf;
     const totalDed     = sssTotal + phic + hdmf + wt + sssLoan + calLoan + hdmfLoan + advances + calAdv;
@@ -2327,14 +2327,19 @@ function updateWithholdingTax(currentGross) {
         wt = semiMonthlyBracket(currentGross);
 
     } else if (periodType === 'second_half') {
-        // Cumulative monthly: (prior net taxable + current net taxable) via monthly brackets, minus prior WT
+        // Cumulative monthly: (prior net taxable + current net taxable) via monthly brackets, minus prior WT.
+        // Work in integer centavos for the subtraction so floating-point cannot cause off-by-one rounding.
         const { sss, phic, hdmf } = getContribs();
         const priorNetTaxable   = safeParseFloat(document.getElementById('edit_priorGross')?.value);
         const priorWT           = safeParseFloat(document.getElementById('edit_priorWT')?.value);
         const currentNetTaxable = Math.max(0, currentGross - sss - phic - hdmf);
         const monthlyTaxable    = Math.max(0, priorNetTaxable + currentNetTaxable);
         const monthlyWT         = monthlyBrackets(monthlyTaxable);
-        wt = Math.max(0, monthlyWT - priorWT);
+        // Round monthlyWT to centavos first, then subtract priorWT in integer cents to avoid
+        // float64 errors (e.g. 9183.2175 losing a fractional bit and rounding the wrong way).
+        const monthlyWTCents    = Math.round(monthlyWT * 100);
+        const priorWTCents      = Math.round(priorWT * 100);
+        wt = Math.max(0, monthlyWTCents - priorWTCents) / 100;
         // Show computation breakdown so values can be verified
         const statusEl = document.getElementById('priorHalfStatus');
         if (statusEl && statusEl.style.display !== 'none') {
@@ -2346,7 +2351,7 @@ function updateWithholdingTax(currentGross) {
                 `(${currentGross.toFixed(2)} − ${contrib.toFixed(2)} contribs) = ` +
                 `Monthly taxable <b>${monthlyTaxable.toFixed(2)}</b> → ` +
                 `Monthly WT <b>${monthlyWT.toFixed(4)}</b> − Prior WT <b>${priorWT.toFixed(2)}</b> = ` +
-                `<b>${(Math.floor(wt * 100) / 100).toFixed(2)}</b>`;
+                `<b>${wt.toFixed(2)}</b>`;
         }
 
     } else { // monthly
@@ -2356,8 +2361,11 @@ function updateWithholdingTax(currentGross) {
         wt = monthlyBrackets(netTaxable);
     }
 
-    // BIR standard: truncate to centavo (no rounding up)
-    wt = Math.floor(wt * 100) / 100;
+    // Round to centavo. Semi-monthly bracket values are exact centavos so this is the same
+    // as truncation for 1st half; for 2nd-half cumulative the prior-WT subtraction can
+    // produce a mid-centavo fraction (e.g. 9183.2175) that must be rounded, not floored,
+    // to match the BIR reference computation.
+    wt = Math.round(wt * 100) / 100;
     document.getElementById('wtPayable').value = wt.toFixed(2);
     return wt;
 }
@@ -2507,7 +2515,7 @@ async function syncToRegister() {
     // Gross Compensation = Gross Taxable + de minimis + VL Cash (non-taxable)
     const vlCash       = parseFloat(document.getElementById('vlCashPhp')?.value || 0);
     const grossTaxable = semiMonthly + overtime + nd + holPay + salAdj - absAmt;
-    const grossComp    = grossTaxable + totalDeMin + vlCash;
+    const grossComp    = Math.round((grossTaxable + totalDeMin + vlCash) * 100) / 100;
 
     // Ensure period type is detected and prior-half data is loaded before computing WT.
     // payslipPeriodStart is only set when the payslip tab is visited; sync it here from the
@@ -2694,12 +2702,19 @@ function getComputedPayslipValues() {
     let netBasicPay = basicPay - totalDeductionsFromPay + nightPremium;
     if (netBasicPay < 0) netBasicPay = 0;
     
-    let totalOvertime = regOt + regOtGt10 + regOtNightPrem
-                      + satOt + satOtGt10 + satNightPrem
-                      + sunOt + sunOtGt10 + sunNightPrem
-                      + holOt + holOtGt10 + holNightPrem;
+    const _rotNDHrs_c   = safeParseFloat(document.getElementById('regOtNightHours')?.value);
+    const _satNDHrs_c   = safeParseFloat(document.getElementById('satNightDiffHours')?.value);
+    const _sunNDHrs_c   = safeParseFloat(document.getElementById('sunNightDiffHours')?.value);
+    const _holNDHrs_c   = safeParseFloat(document.getElementById('holNightDiffHours')?.value);
+    const _storedOTNSD_c = regOtNightPrem + satNightPrem + sunNightPrem + holNightPrem;
+    const _corrOTNSD_c  = _exactOTNSDCorr(_rotNDHrs_c, _satNDHrs_c, _sunNDHrs_c, _holNDHrs_c, _storedOTNSD_c);
+    let totalOvertime = regOt + regOtGt10 + _corrOTNSD_c
+                      + satOt + satOtGt10
+                      + sunOt + sunOtGt10
+                      + holOt + holOtGt10;
     let grossPay = netBasicPay + totalOvertime + taxableOther + nonTaxable + vlCashConversion;
-    
+    grossPay = Math.round(grossPay * 100) / 100;  // centavo-round to absorb float64 accumulation
+
     let sssDed         = safeParseFloat(document.getElementById('sssEE')?.value);
     let phicDed        = safeParseFloat(document.getElementById('phicEE')?.value);
     let hdmfDed        = safeParseFloat(document.getElementById('hdmfEE')?.value);
@@ -3076,6 +3091,25 @@ function fetchAndSetPriorHalfWT() { return new Promise(resolve => {
         .catch(() => { clearPriorFields(); hideStatus(); recalcTotals(); resolve(); });
 }); }
 
+// Corrects the OT NSD total by computing from hours × (monthly÷174) × ndRate and rounding
+// the aggregate once — avoids the 0.01 sum-of-rounded-parts vs round-of-sum discrepancy.
+// Falls back to storedSum when the correction exceeds 0.01 (guard against mult mismatches).
+function _exactOTNSDCorr(rotHrs, satHrs, sunHrs, holHrs, storedSum) {
+    const monthly = safeParseFloat(document.getElementById('monthlySalary')?.value);
+    const ndRate  = parseFloat(window._payrollSettings?.night_diff_rate) || 0.10;
+    if (monthly <= 0 || (rotHrs + satHrs + sunHrs + holHrs) <= 0) return storedSum;
+    const s = window._payrollSettings || {};
+    const restMult = parseFloat(s.rest_day_rate)    || 1.30;
+    const holMult  = parseFloat(s.reg_holiday_rate) || 2.00;
+    const exactRate = monthly / 174;
+    const rawNSD = rotHrs * exactRate * ndRate
+                 + satHrs * exactRate * restMult * ndRate
+                 + sunHrs * exactRate * restMult * ndRate
+                 + holHrs * exactRate * holMult  * ndRate;
+    const corrNSD = Math.round(rawNSD * 100) / 100;
+    return Math.abs(corrNSD - storedSum) <= 0.01 ? corrNSD : storedSum;
+}
+
 function recalcTotals() {
     let basicPayVal          = safeParseFloat(document.getElementById('edit_basicPay')?.value);
     let nightPremium         = safeParseFloat(document.getElementById('edit_nightPremium')?.value);
@@ -3097,15 +3131,22 @@ function recalcTotals() {
     let holOtGt10      = safeParseFloat(document.getElementById('edit_holOtGt10')?.value);
     let holNightPrem   = safeParseFloat(document.getElementById('edit_holNightPrem')?.value);
     let vlCashConv     = safeParseFloat(document.getElementById('edit_vlCashConversion')?.value);
-    let totalOt = regOt + regOtGt10 + regOtNightPrem
-                + satOt + satOtGt10 + satNightPrem
-                + sunOt + sunOtGt10 + sunNightPrem
-                + holOt + holOtGt10 + holNightPrem;
+    const _rotNDHrs_r = safeParseFloat(document.getElementById('edit_regOtNightPremHrs')?.value);
+    const _satNDHrs_r = safeParseFloat(document.getElementById('edit_satNightPremHrs')?.value);
+    const _sunNDHrs_r = safeParseFloat(document.getElementById('edit_sunNightPremHrs')?.value);
+    const _holNDHrs_r = safeParseFloat(document.getElementById('edit_holNightPremHrs')?.value);
+    const _storedOTNSD_r = regOtNightPrem + satNightPrem + sunNightPrem + holNightPrem;
+    const _corrOTNSD_r = _exactOTNSDCorr(_rotNDHrs_r, _satNDHrs_r, _sunNDHrs_r, _holNDHrs_r, _storedOTNSD_r);
+    let totalOt = regOt + regOtGt10 + _corrOTNSD_r
+                + satOt + satOtGt10
+                + sunOt + sunOtGt10
+                + holOt + holOtGt10;
 
     let taxableSum    = safeParseFloat(document.getElementById('edit_taxAdj')?.value);
     let nonTaxableSum = safeParseFloat(document.getElementById('edit_nonTaxable')?.value);
     // Gross = net basic pay + taxable OT/ND + other taxable + non-taxable + VL cash (non-taxable)
     let gross = netBasicPay + totalOt + taxableSum + nonTaxableSum + vlCashConv;
+    gross = Math.round(gross * 100) / 100;  // centavo-round to absorb float64 accumulation
 
     // WT base = taxable earnings only (VL Cash is non-taxable, excluded)
     const wtBase = netBasicPay + totalOt + taxableSum;
@@ -3243,12 +3284,19 @@ function computePayslipData() {
     let netBasicPay = basicPay - totalDeductionsFromPay + nightPremium;
     if (netBasicPay < 0) netBasicPay = 0;
     
-    let totalOvertime = regOt + regOtGt10 + regOtNightPrem
-                      + satOt + satOtGt10 + satNightPrem
-                      + sunOt + sunOtGt10 + sunNightPrem
-                      + holOt + holOtGt10 + holNightPrem;
+    const _rotNDHrs_c   = safeParseFloat(document.getElementById('regOtNightHours')?.value);
+    const _satNDHrs_c   = safeParseFloat(document.getElementById('satNightDiffHours')?.value);
+    const _sunNDHrs_c   = safeParseFloat(document.getElementById('sunNightDiffHours')?.value);
+    const _holNDHrs_c   = safeParseFloat(document.getElementById('holNightDiffHours')?.value);
+    const _storedOTNSD_c = regOtNightPrem + satNightPrem + sunNightPrem + holNightPrem;
+    const _corrOTNSD_c  = _exactOTNSDCorr(_rotNDHrs_c, _satNDHrs_c, _sunNDHrs_c, _holNDHrs_c, _storedOTNSD_c);
+    let totalOvertime = regOt + regOtGt10 + _corrOTNSD_c
+                      + satOt + satOtGt10
+                      + sunOt + sunOtGt10
+                      + holOt + holOtGt10;
     let grossPay = netBasicPay + totalOvertime + taxableOther + nonTaxable + vlCashConversion;
-    
+    grossPay = Math.round(grossPay * 100) / 100;  // centavo-round to absorb float64 accumulation
+
     let sssDed         = safeParseFloat(document.getElementById('sssEE')?.value);
     let phicDed        = safeParseFloat(document.getElementById('phicEE')?.value);
     let hdmfDed        = safeParseFloat(document.getElementById('hdmfEE')?.value);
@@ -3459,11 +3507,17 @@ function getEditedPayslipValues() {
 
     const totalDeductionsFromPay = Math.min(absentAmt + undertimeAmt, basicPay);
     const netBasicPay   = Math.max(0, basicPay - totalDeductionsFromPay + nightPremium);
-    const totalOvertime = regOt + regOtGt10 + regOtNightPrem
-                        + satOt + satOtGt10 + satNightPrem
-                        + sunOt + sunOtGt10 + sunNightPrem
-                        + holOt + holOtGt10 + holNightPrem;
-    const grossPay      = netBasicPay + totalOvertime + taxableOther + nonTaxable + vlCashConversion;
+    const _rotNDHrs_e   = sp('edit_regOtNightPremHrs');
+    const _satNDHrs_e   = sp('edit_satNightPremHrs');
+    const _sunNDHrs_e   = sp('edit_sunNightPremHrs');
+    const _holNDHrs_e   = sp('edit_holNightPremHrs');
+    const _storedOTNSD_e = regOtNightPrem + satNightPrem + sunNightPrem + holNightPrem;
+    const _corrOTNSD_e  = _exactOTNSDCorr(_rotNDHrs_e, _satNDHrs_e, _sunNDHrs_e, _holNDHrs_e, _storedOTNSD_e);
+    const totalOvertime = regOt + regOtGt10 + _corrOTNSD_e
+                        + satOt + satOtGt10
+                        + sunOt + sunOtGt10
+                        + holOt + holOtGt10;
+    const grossPay      = Math.round((netBasicPay + totalOvertime + taxableOther + nonTaxable + vlCashConversion) * 100) / 100;
     const totalDeductions = sssDed + phicDed + hdmfDed + withholdingTax + sssLoan + calamityLoan + hdmfLoan + salaryAdvance + calAdv;
     const netPay        = grossPay - totalDeductions;
 
