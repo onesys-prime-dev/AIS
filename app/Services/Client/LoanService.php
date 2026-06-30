@@ -637,11 +637,20 @@ class LoanService
         );
     }
 
-    public function getEmployeeLoanBreakdown(int $employeeId, string $periodStart, string $periodEnd): array 
+    public function getEmployeeLoanBreakdown(
+        int $employeeId,
+        string $periodStart,
+        string $periodEnd
+    ): array
     {
         $schedules = $this->scheduleModel
             ->select('
+                employee_loan_schedule.id AS schedule_id,
+                employee_loan_schedule.loan_id,
                 employee_loan_schedule.amount_due,
+                employee_loan_schedule.due_date,
+                employee_loan_schedule.remaining_balance,
+                employee_loans.loan_category,
                 employee_loans.loan_type
             ')
             ->join(
@@ -658,17 +667,21 @@ class LoanService
         $breakdown = [];
 
         foreach ($schedules as $row) {
-            $loanName = trim($row['loan_type'] ?? 'Loan');
-            $amount   = (float)($row['amount_due'] ?? 0);
+            $loanCategory = trim($row['loan_category'] ?? '');
+            $loanType     = trim($row['loan_type'] ?? 'Loan');
+            $amount        = (float) ($row['amount_due'] ?? 0);
+
             if ($amount <= 0) {
                 continue;
             }
-            
+
             $existingIndex = null;
 
             foreach ($breakdown as $index => $loan) {
                 if (
-                    strtolower($loan['loan_name']) === strtolower($loanName)
+                    strtolower($loan['loan_type']) === strtolower($loanType)
+                    &&
+                    strtolower($loan['loan_category']) === strtolower($loanCategory)
                 ) {
                     $existingIndex = $index;
                     break;
@@ -679,11 +692,18 @@ class LoanService
                 $breakdown[$existingIndex]['amount'] += $amount;
             } else {
                 $breakdown[] = [
-                    'loan_name' => $loanName,
+                    'schedule_id' => (int) ($row['schedule_id'] ?? 0),
+                    'loan_id' => (int) ($row['loan_id'] ?? 0),
+                    'loan_category' => $loanCategory,
+                    'loan_type' => $loanType,
                     'amount' => $amount,
+                    'due_date' => $row['due_date'],
+                    'remaining_balance' => (float) ($row['remaining_balance'] ?? 0),
                 ];
             }
         }
+
+        dd($breakdown);
 
         return $breakdown;
     }

@@ -627,7 +627,7 @@ class PayrollController extends BaseController
 
             foreach ($loanDeductions as $loan) {
                 $loanSummary[] =
-                    ($loan['loan_name'] ?? 'Loan')
+                    ($loan['loan_type'] ?? 'Loan')
                     . ': '
                     . number_format($loan['amount'] ?? 0, 2);
             }
@@ -1626,8 +1626,8 @@ class PayrollController extends BaseController
 
         foreach (($data['loan_deductions'] ?? []) as $loan) {
 
-            $loanName = htmlspecialchars(
-                $loan['loan_name'] ?? 'Loan'
+            $loanType = htmlspecialchars(
+                $loan['loan_type'] ?? 'Loan'
             );
 
             $loanAmount = $fmt(
@@ -1636,7 +1636,7 @@ class PayrollController extends BaseController
 
             $loanRowsHtml .= "
                 <tr>
-                    <td {$ic}>{$loanName}</td>
+                    <td {$ic}>{$loanType}</td>
                     <td {$ir}>{$loanAmount}</td>
                 </tr>
             ";
@@ -2466,6 +2466,7 @@ class PayrollController extends BaseController
                     els.amount_due,
                     els.due_date,
                     els.remaining_balance,
+                    el.loan_category,
                     el.loan_type,
                     el.employee_id
                 ")
@@ -2518,7 +2519,9 @@ class PayrollController extends BaseController
 
                     'loan_id'     => (int) $row['loan_id'],
 
-                    'loan_name'   => $row['loan_type'],
+                    'loan_category' => $row['loan_category'],
+
+                    'loan_type'   => $row['loan_type'],
 
                     'amount'      => (float) $row['amount_due'],
 

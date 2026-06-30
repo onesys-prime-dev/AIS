@@ -560,6 +560,40 @@ $_defaultYearMonth = "{$_year}-{$_month}";
     width: 500px;
     border-radius: 10px;
 }
+
+.loan-category-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+    margin-top: 15px;
+}
+
+.loan-category {
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    padding: 15px;
+    background: #fafafa;
+}
+
+.loan-category h4 {
+    margin-bottom: 15px;
+    font-size: 15px;
+    font-weight: 600;
+    color: #374151;
+    border-bottom: 1px solid #e5e7eb;
+    padding-bottom: 8px;
+}
+
+.loan-category label {
+    display: block;
+    margin-bottom: 5px;
+    font-size: 13px;
+}
+
+.loan-category input {
+    width: 100%;
+    margin-bottom: 12px;
+}
 </style>
 </head>
 <body class="p-6">
@@ -794,12 +828,62 @@ $_defaultYearMonth = "{$_year}-{$_month}";
             <div class="grid-2 section">
                 <div class="rs-card">
                     <h3 class="font-semibold">Loans &amp; Advances</h3>
-                    <div class="grid-2">
-                        <div><label>SSS Salary Loan</label><input type="number" id="sssSalaryLoan" value="0"></div>
-                        <div><label>SSS Calamity Loan</label><input type="number" id="sssCalamityLoan" value="0"></div>
-                        <div><label>HDMF Loan</label><input type="number" id="hdmfLoan" value="0"></div>
-                        <div><label>Salary Advance</label><input type="number" id="advSalary" value="0"></div>
-                        <div><label>Calamity Advance</label><input type="number" id="advCalamity" value="0"></div>
+                    <div class="loan-category-grid">
+                        <!-- SSS -->
+                        <div class="loan-category">
+                            <h4>SSS Loans</h4>
+
+                            <div>
+                                <label>Salary Loan</label>
+                                <input type="number" id="sssSalaryLoan" value="0">
+                            </div>
+
+                            <div>
+                                <label>Calamity Loan</label>
+                                <input type="number" id="sssCalamityLoan" value="0">
+                            </div>
+                        </div>
+
+                        <!-- HDMF -->
+                        <div class="loan-category">
+                            <h4>HDMF / MP2</h4>
+
+                            <div>
+                                <label>HDMF Loan</label>
+                                <input type="number" id="hdmfLoan" value="0">
+                            </div>
+
+                            <div>
+                                <label>Multi-Purpose Loan</label>
+                                <input type="number" id="hdmfMplLoan" value="0">
+                            </div>
+
+                            <div>
+                                <label>Calamity Loan</label>
+                                <input type="number" id="hdmfCalamityLoan" value="0">
+                            </div>
+                        </div>
+
+                        <!-- Advances -->
+                        <div class="loan-category">
+                            <h4>Advances</h4>
+
+                            <div>
+                                <label>Salary Advance</label>
+                                <input type="number" id="advSalary" value="0">
+                            </div>
+
+                            <div>
+                                <label>Cash Advance</label>
+                                <input type="number" id="advCash" value="0">
+                            </div>
+
+                            <div>
+                                <label>Emergency Advance</label>
+                                <input type="number" id="advEmergency" value="0">
+                            </div>
+                        </div>
+
                     </div>
                 </div>
                 <div class="rs-card">
@@ -1055,7 +1139,11 @@ $_defaultYearMonth = "{$_year}-{$_month}";
                         <div><label>SSS Salary Loan</label><input type="number" id="regSssLoanSalary" value="0"></div>
                         <div><label>SSS Calamity Loan</label><input type="number" id="regSssLoanCalamity" value="0"></div>
                         <div><label>HDMF Loan</label><input type="number" id="regHdmfLoan" value="0"></div>
-                        <div><label>Advances to Employees</label><input type="number" id="advWorkingLeave" value="0"></div>
+                        <div><label>Multi-Purpose Loan</label><input type="number" id="regHdmfMplLoan" value="0"></div>
+                        <div><label>HDMF Calamity Loan</label><input type="number" id="regHdmfCalamityLoan" value="0"></div>
+                        <div><label>Salary Advance</label><input type="number" id="regAdvSalary" value="0"></div>
+                        <div><label>Cash Advance</label><input type="number" id="regAdvCash" value="0"></div>
+                        <div><label>Emergency Advance</label><input type="number" id="regAdvEmergency" value="0"></div>
                         <div><label>Non-Taxable Compensation</label><input type="number" id="advNonTaxable" value="0"></div>
                         <div><label>Net Pay</label><input type="number" id="netPayRegister" value="0"></div>
                         <div><label>Monthly Gross Compensation</label><input type="number" id="monthlyGrossComp" value="0"></div>
@@ -1529,8 +1617,11 @@ function _buildBulkPayload(empId, d) {
         gross_pay: d.grossPay, sss_ee: d.sssDed, phic_ee: d.phicDed, hdmf_ee: d.hdmfDed,
         withholding_tax: d.withholdingTax,
         sss_loan: gv('sssSalaryLoan'), calamity_loan: gv('sssCalamityLoan'),
-        hdmf_loan: gv('hdmfLoan'), sal_adv: gv('advSalary'), cal_adv: gv('advCalamity'),
-        salary_advance: gv('advSalary'), other_deductions: 0,
+        hdmf_loan: gv('hdmfLoan'), salary_advance: gv('advSalary'),
+        cash_advance: gv('advCash'),
+        emergency_advance: gv('advEmergency'),
+        hdmf_mpl_loan: gv('hdmfMplLoan'),
+        hdmf_calamity_loan: gv('hdmfCalamityLoan'), other_deductions: 0,
         net_pay: d.netPay,
     };
 }
@@ -2124,8 +2215,103 @@ async function fillEmployeeData(employeeId, silent = false) {
                       + holPay + salAdj - absentAmount - undertimeAmount;
     updateWithholdingTax(Math.max(0, taxableBase));
 
+    // ------------------------------------------------------
+    // Fetch loans for this payroll period
+    // ------------------------------------------------------
+    try {
+
+        const loanUrl =
+            `<?= site_url('client_portal/payroll/loanBreakdown') ?>/${employeeId}/${periodStart}/${periodEnd}`;
+
+        const loanResp = await fetch(loanUrl);
+
+        if (!loanResp.ok) {
+            throw new Error(
+                `Server error ${loanResp.status}`
+            );
+        }
+
+        const loans = await loanResp.json();
+
+        console.log('Loans:', loans);
+
+        // Reset all loan fields first
+        document.getElementById('sssSalaryLoan').value = 0;
+        document.getElementById('sssCalamityLoan').value = 0;
+
+        document.getElementById('hdmfLoan').value = 0;
+        document.getElementById('hdmfMplLoan').value = 0;
+        document.getElementById('hdmfCalamityLoan').value = 0;
+
+        document.getElementById('advSalary').value = 0;
+        document.getElementById('advCash').value = 0;
+        document.getElementById('advEmergency').value = 0;
+
+        loans.forEach(loan => {
+            const amount = parseFloat(loan.amount || 0);
+            const category = (loan.loan_category || '').trim().toLowerCase();
+            const loanType = (loan.loan_type || '').trim().toLowerCase();
+
+            switch (loanType) {
+
+                case 'salary loan':
+                    addAmount('sssSalaryLoan', amount);
+                    break;
+
+                case 'hdmf (pag-ibig) loan':
+                case 'hdmf loan':
+                case 'pag-ibig loan':
+                    addAmount('hdmfLoan', amount);
+                    break;
+
+                case 'multi-purpose loan':
+                case 'mpl':
+                    addAmount('hdmfMplLoan', amount);
+                    break;
+
+                case 'calamity loan':
+                    if (category === 'sss loans') {
+                        addAmount('sssCalamityLoan', amount);
+                    }
+                    else if (category === 'mp2 savings program') {
+                        addAmount('hdmfCalamityLoan', amount);
+                    }
+                    break;
+
+                case 'salary advance':
+                    addAmount('advSalary', amount);
+                    break;
+
+                case 'cash advance':
+                    addAmount('advCash', amount);
+                    break;
+
+                case 'emergency advance':
+                    addAmount('advEmergency', amount);
+                    break;
+            }
+        });
+
+    } catch (err) {
+        console.error(
+            'Loan fetch error:',
+            err
+        );
+    }
+
     if (!silent) alert('Raw sheet auto‑filled with attendance data.');
     return true;
+}
+
+function addAmount(id, amount) {
+    const el = document.getElementById(id);
+    if (!el) return;
+
+    el.value =
+    (
+        parseFloat(el.value || 0)
+        + amount
+    ).toFixed(2);
 }
 
 // ── SSS / PHIC / HDMF auto-fill (2025 schedule, employee share only) ──────
@@ -2615,8 +2801,35 @@ async function syncToRegister() {
     const sssLoan  = parseFloat(document.getElementById('sssSalaryLoan')?.value  || 0);
     const calLoan  = parseFloat(document.getElementById('sssCalamityLoan')?.value || 0);
     const hdmfLoan = parseFloat(document.getElementById('hdmfLoan')?.value        || 0);
-    const advance  = parseFloat(document.getElementById('advSalary')?.value       || 0);
-    const calAdv   = parseFloat(document.getElementById('advCalamity')?.value     || 0);
+    const advSalary =
+    parseFloat(document.getElementById('advSalary')?.value || 0);
+
+    const advCash =
+        parseFloat(document.getElementById('advCash')?.value || 0);
+
+    const advEmergency =
+        parseFloat(document.getElementById('advEmergency')?.value || 0);
+
+    const hdmfMplLoan =
+        parseFloat(document.getElementById('hdmfMplLoan')?.value || 0);
+
+    const hdmfCalamityLoan =
+        parseFloat(document.getElementById('hdmfCalamityLoan')?.value || 0);
+
+    document.getElementById('regAdvSalary').value =
+        advSalary.toFixed(2);
+
+    document.getElementById('regAdvCash').value =
+        advCash.toFixed(2);
+
+    document.getElementById('regAdvEmergency').value =
+        advEmergency.toFixed(2);
+
+    document.getElementById('regHdmfMplLoan').value =
+        hdmfMplLoan.toFixed(2);
+
+    document.getElementById('regHdmfCalamityLoan').value =
+        hdmfCalamityLoan.toFixed(2);
     if (document.getElementById('regSssLoanSalary'))
         document.getElementById('regSssLoanSalary').value   = sssLoan.toFixed(2);
     if (document.getElementById('regSssLoanCalamity'))
@@ -2634,7 +2847,20 @@ async function syncToRegister() {
 
     // ── Net Pay ───────────────────────────────────────────────────────────────
     const wtax   = parseFloat(document.getElementById('wtPayable').value || 0);
-    const netPay = grossComp - sss - phic - hdmf - wtax - sssLoan - calLoan - hdmfLoan - advance - calAdv;
+    const netPay =
+        grossComp
+        - sss
+        - phic
+        - hdmf
+        - wtax
+        - sssLoan
+        - calLoan
+        - hdmfLoan
+        - hdmfMplLoan
+        - hdmfCalamityLoan
+        - advSalary
+        - advCash
+        - advEmergency;
     document.getElementById('netPayRegister').value = netPay.toFixed(2);
 
     // Apply period-specific field visibility and label updates
@@ -2857,18 +3083,52 @@ function buildPayslipTable() {
     document.getElementById('deductionsBody').innerHTML = dedHtml;
 
     const loanRows = [
-        { desc: 'Salary Loan',    id: 'edit_sssLoan',     val: safeParseFloat(document.getElementById('sssSalaryLoan')?.value) },
-        { desc: 'Calamity Loan',  id: 'edit_calamityLoan',val: safeParseFloat(document.getElementById('sssCalamityLoan')?.value) },
-        { desc: 'HDMF Loan',      id: 'edit_hdmfLoan',    val: safeParseFloat(document.getElementById('hdmfLoan')?.value) },
-        { desc: 'Salary Advance', id: 'edit_advSalary',   val: safeParseFloat(document.getElementById('advSalary')?.value) },
-        { desc: 'Cal. Advance',   id: 'edit_calAdv',      val: safeParseFloat(document.getElementById('advCalamity')?.value) },
+        ['Salary Loan', 'regSssLoanSalary'],
+        ['Calamity Loan', 'regSssLoanCalamity'],
+        ['HDMF Loan', 'regHdmfLoan'],
+        ['Multi-Purpose Loan', 'regHdmfMplLoan'],
+        ['HDMF Calamity Loan', 'regHdmfCalamityLoan'],
+        ['Salary Advance', 'regAdvSalary'],
+        ['Cash Advance', 'regAdvCash'],
+        ['Emergency Advance', 'regAdvEmergency']
     ];
+
     let loanHtml = '';
-    loanRows.forEach(row => {
-        loanHtml += `<tr><td class="text-left"><input type="text" value="${row.desc}" style="width:100%; background:#e5e5e5; border:none;"></td>
-                    <td class="text-right"><input type="number" id="${row.id}" value="${row.val.toFixed(2)}" step="any" style="width:100px;"></td></tr>`;
+
+    loanRows.forEach(([label, id]) => {
+        const amount =
+            safeParseFloat(
+                document.getElementById(id)?.value
+            );
+
+        if (amount <= 0) return;
+
+        loanHtml += `
+            <tr>
+                <td>${label}</td>
+                <td class="text-right">
+                    <input
+                        type="number"
+                        id="edit_${id}"
+                        value="${amount.toFixed(2)}"
+                        step="any"
+                        style="width:100px;"
+                    >
+                </td>
+            </tr>
+        `;
     });
+
     document.getElementById('loansBody').innerHTML = loanHtml;
+
+    document
+    .querySelectorAll('#loansBody input')
+    .forEach(el => {
+        el.addEventListener('input', () => {
+            _payslipEdited = true;
+            recalcTotals();
+        });
+    });
 
     // Bidirectional hours ↔ amount for time-based rows
     regRows.filter(r => r.hoursId).forEach(row => {
@@ -3231,11 +3491,15 @@ function autoFillPayslip() {
     setNum('edit_phic', d.phicDed);
     setNum('edit_hdmf', d.hdmfDed);
     setNum('edit_wtax', d.withholdingTax);
-    setNum('edit_sssLoan',     safeParseFloat(document.getElementById('sssSalaryLoan')?.value));
-    setNum('edit_calamityLoan',safeParseFloat(document.getElementById('sssCalamityLoan')?.value));
-    setNum('edit_hdmfLoan',    safeParseFloat(document.getElementById('hdmfLoan')?.value));
-    setNum('edit_advSalary',   safeParseFloat(document.getElementById('advSalary')?.value));
-    setNum('edit_calAdv',      safeParseFloat(document.getElementById('advCalamity')?.value));
+    setNum('edit_regSssLoanSalary', safeParseFloat(document.getElementById('sssSalaryLoan')?.value));
+    setNum('edit_regSssLoanCalamity', safeParseFloat(document.getElementById('sssCalamityLoan')?.value));
+    setNum('edit_regHdmfLoan', safeParseFloat(document.getElementById('hdmfLoan')?.value));
+    setNum('edit_regHdmfMplLoan', safeParseFloat(document.getElementById('hdmfMplLoan')?.value));
+    setNum('edit_regHdmfCalamityLoan', safeParseFloat(document.getElementById('hdmfCalamityLoan')?.value));
+    setNum('edit_regAdvSalary', safeParseFloat(document.getElementById('advSalary')?.value));
+    setNum('edit_regAdvCash', safeParseFloat(document.getElementById('advCash')?.value));
+    setNum('edit_regAdvEmergency', safeParseFloat(document.getElementById('advEmergency')?.value));
+
     autoDetectPeriodType(); // set dropdown from period date + cutoff setting
     fetchAndSetPriorHalfWT();
 }

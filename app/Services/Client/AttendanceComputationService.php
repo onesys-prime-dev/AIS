@@ -254,52 +254,154 @@ class AttendanceComputationService{
 
         return $result;
     }
-
+    
     public function analyzeClockOut(
         int $userId,
         string $actualOut
     ): array
     {
         $date = date('Y-m-d');
+        $schedule = $this->getEmployeeSchedule($userId);
 
-        $schedule =
-            $this->getEmployeeSchedule(
-                $userId
-            );
-
-        if (!$schedule) {
+        if (! $schedule) {
             return [
                 'overtime' => [
-                    'approved_ot' => 0,
+                    'approved_ot'   => 0,
                     'unapproved_ot' => 0,
                 ],
                 'undertime' => [
-                    'approved_ut' => 0,
+                    'approved_ut'   => 0,
                     'unapproved_ut' => 0,
                 ],
             ];
         }
 
-        $scheduledEnd =
-            $date . ' ' .
-            $schedule['end_time'];
+        /*
+        |--------------------------------------------------------------------------
+        | Get today's attendance
+        |--------------------------------------------------------------------------
+        */
+
+        $attendance = $this->attendanceModel
+            ->where('user_id', $userId)
+            ->where('DATE(time_in)', $date)
+            ->orderBy('id', 'DESC')
+            ->first();
+
+        if (! $attendance) {
+            return [
+                'overtime' => [
+                    'approved_ot'   => 0,
+                    'unapproved_ot' => 0,
+                ],
+                'undertime' => [
+                    'approved_ut'   => 0,
+                    'unapproved_ut' => 0,
+                ],
+            ];
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Required working hours
+        |--------------------------------------------------------------------------
+        */
+
+        $scheduledStart = $date . ' ' . $schedule['start_time'];
+        $scheduledEnd = $date . ' ' . $schedule['end_time'];
+        $requiredHours = (strtotime($scheduledEnd) - strtotime($scheduledStart)) / 3600;
+
+        /*
+        |--------------------------------------------------------------------------
+        | Actual rendered hours
+        |--------------------------------------------------------------------------
+        */
+
+        $workedHours =
+            (
+                strtotime($actualOut)
+                -
+                strtotime($attendance['time_in'])
+            ) / 3600;
+
+        $workedHours -=
+            (float) ($attendance['break_duration'] ?? 0);
+
+        $workedHours = max(0, $workedHours);
+
+        /*
+        |--------------------------------------------------------------------------
+        | Difference
+        |--------------------------------------------------------------------------
+        */
+
+        $difference =
+            round(
+                $workedHours - $requiredHours,
+                2
+            );
+
+        $approvedOT = 0;
+        $unapprovedOT = 0;
+        $approvedUT = 0;
+        $unapprovedUT = 0;
+
+        /*
+        |--------------------------------------------------------------------------
+        | OVERTIME
+        |--------------------------------------------------------------------------
+        */
+
+        if ($difference > 0) {
+
+            $request =
+                $this->getApprovedRequest(
+                    $userId,
+                    $date,
+                    'overtime'
+                );
+
+            if ($request) {
+                $approvedOT = $difference;
+            } else {
+                $unapprovedOT = $difference;
+            }
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | UNDERTIME
+        |--------------------------------------------------------------------------
+        */
+
+        if ($difference < 0) {
+
+            $hours =
+                abs($difference);
+
+            $request =
+                $this->getApprovedRequest(
+                    $userId,
+                    $date,
+                    'undertime'
+                );
+
+            if ($request) {
+                $approvedUT = $hours;
+            } else {
+                $unapprovedUT = $hours;
+            }
+        }
 
         return [
-            'overtime' =>
-                $this->calculateOvertime(
-                    $userId,
-                    $date,
-                    $actualOut,
-                    $scheduledEnd
-                ),
-
-            'undertime' =>
-                $this->calculateUndertime(
-                    $userId,
-                    $date,
-                    $actualOut,
-                    $scheduledEnd
-                )
+            'overtime' => [
+                'approved_ot'   => $approvedOT,
+                'unapproved_ot' => $unapprovedOT,
+            ],
+            'undertime' => [
+                'approved_ut'   => $approvedUT,
+                'unapproved_ut' => $unapprovedUT,
+            ],
         ];
     }
 }
