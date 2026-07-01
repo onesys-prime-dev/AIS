@@ -2,13 +2,17 @@
 
 namespace App\Services\Client;
 
+use App\Models\Client\AttendanceModel;
+
 class AttendanceComputationService{
 
     protected $db;
+    protected AttendanceModel $attendanceModel;
 
     public function __construct()
     {
         $this->db = db_connect();
+        $this->attendanceModel = new AttendanceModel();
     }
 
     public function getEmployeeSchedule(

@@ -50,9 +50,9 @@
 
     $topCards = [
         [
-            'title' => 'About the System',
-            'desc' => 'Everything you need to know about the system.',
-            'target' => '#about-system',
+            'title' => 'Browse Documentation',
+            'desc' => 'System overview, role guides, workflows, and more.',
+            'target' => '#documentation',
             'icon' => 'about',
         ],
         [
@@ -62,59 +62,85 @@
             'icon' => 'faq',
         ],
         [
-            'title' => 'System Features',
-            'desc' => 'Master the tools designed to streamline your workflow.',
-            'target' => '#feature-grid',
+            'title' => 'Contact Support',
+            'desc' => 'Reach the support team or send a help request.',
+            'target' => '#contact-section',
             'icon' => 'features',
         ],
     ];
 
-    $featureCards = [
+    // Popular searches shown as chips under the search bar, mirroring how
+    // established help centers (Zendesk, Intercom) surface trending topics.
+    $popularSearches = [
+        'Payroll not generated',
+        'Payslip access',
+        'Bookkeeping upload',
+        'Overtime approval',
+        'Tax compliance',
+    ];
+
+    // One card per documentation article below. Each maps directly to a
+    // real section id in the docs, so there are no dead links.
+    $docCategories = [
         [
-            'title' => 'Employee Requests',
-            'desc' => 'Save hours of manual work with error-free automated payroll.',
-            'target' => '#doc-core-workflows',
-            'icon' => base_url('icons/request.png'),
-            'image' => base_url('images/background/employee_request.png'),
-            'tone' => 'rgba(62, 36, 10, 0.62)',
-            'size' => 'card-standard',
+            'title' => 'System Overview',
+            'desc' => 'What OTIS is, its purpose, and the three portals it provides.',
+            'tag' => 'System',
+            'target' => '#doc-system-overview',
+            'icon' => 'overview',
         ],
         [
-            'title' => 'Employee Management',
-            'desc' => 'Build a stronger workforce by keeping all staff data organized.',
-            'target' => '#about-system',
-            'icon' => base_url('icons/employee.png'),
-            'image' => base_url('images/background/employee_management.png'),
-            'tone' => 'rgba(28, 36, 52, 0.58)',
-            'size' => 'card-standard',
+            'title' => 'User Role Guides',
+            'desc' => 'What each role can see and do, from Employee to Administrator.',
+            'tag' => 'Access',
+            'target' => '#doc-role-guides',
+            'icon' => 'roles',
         ],
         [
-            'title' => 'System Customization',
-            'desc' => 'Personalize your workspace with custom branding and color themes.',
-            'target' => '#doc-support',
-            'icon' => base_url('icons/customization.png'),
-            'image' => base_url('images/background/system_customization.png'),
-            'tone' => 'rgba(18, 34, 70, 0.62)',
-            'size' => 'card-standard',
+            'title' => 'Operational Workflows',
+            'desc' => 'Step-by-step flow for payroll, bookkeeping, reconciliation, and tax.',
+            'tag' => 'Workflows',
+            'target' => '#doc-operational-workflows',
+            'icon' => 'workflows',
         ],
         [
-            'title' => 'Payroll Management',
-            'desc' => 'Automate payroll processing with clear checks and reliable outputs.',
-            'target' => '#doc-core-workflows',
-            'icon' => base_url('icons/payroll.png'),
-            'image' => base_url('images/background/payroll_management.png'),
-            'tone' => 'rgba(20, 30, 44, 0.58)',
-            'size' => 'card-wide',
+            'title' => 'Knowledge Base',
+            'desc' => 'Common issues, their causes, and how to resolve them.',
+            'tag' => 'Troubleshooting',
+            'target' => '#doc-knowledge-base',
+            'icon' => 'knowledge',
         ],
         [
-            'title' => 'Bookkeeping',
-            'desc' => 'Simplified financial records and audit-ready reporting workflows.',
-            'target' => '#doc-core-workflows',
-            'icon' => base_url('icons/activity.png'),
-            'image' => base_url('images/background/bookkeeping.png'),
-            'tone' => 'rgba(40, 34, 24, 0.54)',
-            'size' => 'card-medium',
+            'title' => 'Compliance & Audit',
+            'desc' => 'Audit logging, security controls, and government compliance.',
+            'tag' => 'Compliance',
+            'target' => '#doc-compliance-audit',
+            'icon' => 'compliance',
         ],
+        [
+            'title' => 'Support Center',
+            'desc' => 'Ticket lifecycle, priority levels, and what to include when reporting.',
+            'tag' => 'Support',
+            'target' => '#doc-support-center',
+            'icon' => 'support',
+        ],
+        [
+            'title' => 'Release Notes',
+            'desc' => 'What shipped, what is coming, and current known limitations.',
+            'tag' => 'Updates',
+            'target' => '#doc-release-notes',
+            'icon' => 'release',
+        ],
+    ];
+
+    $docIcons = [
+        'overview' => '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/>',
+        'roles' => '<path d="M17 21v-2a4 4 0 00-4-4H7a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/>',
+        'workflows' => '<path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/><path d="M9 12h6M9 16h6"/>',
+        'knowledge' => '<circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 015.82 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
+        'compliance' => '<path d="M12 2l8 4v6c0 5-3.5 9-8 10-4.5-1-8-5-8-10V6z"/><path d="M9 12l2 2 4-4"/>',
+        'support' => '<path d="M18 21H4a2 2 0 01-2-2V7a2 2 0 012-2h5l2-3h2l2 3h5a2 2 0 012 2v12a2 2 0 01-2 2z"/><circle cx="12" cy="13" r="3"/>',
+        'release' => '<path d="M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9z"/><polyline points="13 2 13 9 20 9"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/>',
     ];
 
     $ecovisAddress = 'Unit 1802, The Peak Tower, Salcedo Village, 107 L.P. Leviste Street, Makati City, 1227 Metro Manila';
@@ -199,7 +225,8 @@
         color: var(--help-accent);
         background: linear-gradient(180deg, #edf3ff, #dfe8f7);
         border: 1px solid #c9d5ea;
-        pointer-events: none;
+        padding: 0;
+        cursor: pointer;
         box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
     }
 
@@ -272,7 +299,7 @@
         height: 65px;
     }
 
-    .about-title .icon, .feature-badge .icon, .faq-head .icon{
+    .faq-head .icon {
         width: 55px;
         height: 55px;
     }
@@ -281,149 +308,49 @@
         background: rgba(255, 255, 255, 0.5);
     }
 
-    .about-wrap {
-        padding-top: clamp(18px, 3vw, 34px);
-        padding-bottom: clamp(18px, 3vw, 34px);
-    }
-
-    .about-grid {
-        display: grid;
-        grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
-        gap: 24px;
-        align-items: center;
-    }
-
-    .about-title {
+    .search-chips {
         display: flex;
-        align-items: center;
-        gap: 15px;
-        font-size: clamp(2rem, 4vw, 3.25rem);
-        font-weight: 700;
-        color: var(--help-text);
-        margin-bottom: 10px;
-        letter-spacing: -0.03em;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 8px;
+        margin: 0 0 25px;
     }
 
-    .about-copy {
-        border-left: 3px solid rgba(79, 127, 224, 0.4);
-        padding-left: 16px;
-        font-size: 1rem;
+    .search-chip {
+        border: 1px solid var(--help-border);
+        background: rgba(255, 255, 255, 0.75);
         color: var(--help-muted);
-        line-height: 1.8;
-    }
-
-    .about-img {
-        width: 100%;
-        height: 100%;
-        min-height: 280px;
-        max-height: 360px;
-        object-fit: cover;
-        display: block;
-        border-radius: 20px;
-        box-shadow: var(--help-shadow);
-    }
-
-    .feature-wrap {
-        padding-top: clamp(18px, 3vw, 32px);
-        padding-bottom: clamp(18px, 3vw, 32px);
-    }
-
-    .feature-head {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: 16px;
-        margin-bottom: 16px;
-    }
-
-    .feature-head h3 {
-        font-size: clamp(1.6rem, 3vw, 2.45rem);
-        font-weight: 700;
-        color: var(--help-text);
-        letter-spacing: -0.03em;
-    }
-
-    .feature-head small {
-        display: block;
-        font-size: 0.85rem;
-        color: var(--help-muted);
-        font-weight: 400;
-        margin-top: 4px;
-    }
-
-    .feature-badge {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        font-size: clamp(1.2rem, 2vw, 1.7rem);
+        font-size: 0.82rem;
         font-weight: 600;
-        color: var(--help-text);
+        padding: 6px 14px;
+        border-radius: 999px;
+        cursor: pointer;
+        transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
     }
 
-    .feature-badge svg {
-        width: 28px;
-        height: 28px;
-        color: var(--help-accent);
-    }
-    .feature-topic-grid {
-        display: grid;
-        grid-template-columns: repeat(6, minmax(0, 1fr));
-        gap: 18px;
-        margin-top: 18px;
+    .search-chip:hover {
+        background: rgba(79, 127, 224, 0.1);
+        color: var(--help-accent-strong);
+        border-color: rgba(79, 127, 224, 0.35);
     }
 
-    .feature-card {
-        position: relative;
-        min-height: 180px;
-        border-radius: 18px;
-        padding: 22px;
-        overflow: hidden;
-        display: flex;
-        flex-direction: column;
-        justify-content: flex-end;
-        text-decoration: none;
-        color: #fff;
-        box-shadow: 0 20px 40px rgba(17,24,39,0.16);
-        transition: transform 0.22s ease, box-shadow 0.22s ease;
-        background: transparent;
+    .docs-empty-state {
+        display: none;
+        text-align: center;
+        padding: 40px 20px;
+        color: var(--help-muted);
+        font-size: 0.95rem;
+        background: var(--help-surface-strong);
+        border: 1px dashed var(--help-border);
+        border-radius: 16px;
     }
 
-    .feature-card.card-standard { grid-column: span 2; }
-    .feature-card.card-wide { grid-column: span 4; min-height: 220px; }
-    .feature-card.card-medium { grid-column: span 2; min-height: 220px; }
-
-    .feature-card::before {
-        content: '';
-        position: absolute;
-        inset: 0;
-        background-image: linear-gradient(to top, rgba(6,10,18,0.78) 8%, rgba(6,10,18,0.28) 52%, var(--topic-tone, rgba(10,20,40,0.5)) 100%), var(--topic-image);
-        background-size: cover;
-        background-position: center;
-        transform: scale(1.02);
-        transition: transform 0.22s ease;
-        z-index: 0;
+    .docs-empty-state.show {
+        display: block;
     }
-
-    .feature-card::after {
-        content: '';
-        position: absolute;
-        inset: 0;
-        background: linear-gradient(135deg, rgba(255,255,255,0.04), rgba(255,255,255,0));
-        z-index: 0;
-    }
-
-    .feature-card:hover { transform: translateY(-6px); box-shadow: 0 34px 64px rgba(17,24,39,0.24); }
-    .feature-card:hover::before { transform: scale(1.07); }
-
-    .feature-card > * { position: relative; z-index: 1; }
-
-    .feature-card .card-icon { width:46px; height:46px; border-radius:999px; background:#fff; display:grid; place-items:center; box-shadow:0 8px 18px rgba(0,0,0,0.18); }
-    .feature-card .card-icon img { width:20px; height:20px; }
-
-    .feature-card .name { font-size:1.05rem; font-weight:700; color:#fff; margin-top:8px; text-shadow:0 3px 18px rgba(0,0,0,0.5); }
-    .feature-card .desc { font-size:0.92rem; color: rgba(255,255,255,0.92); margin-top:8px; line-height:1.45; text-shadow:0 2px 12px rgba(0,0,0,0.35); }
 
     .faq-wrap {
+
         padding-top: clamp(18px, 3vw, 32px);
         padding-bottom: clamp(18px, 3vw, 32px);
     }
@@ -736,55 +663,249 @@
         color: #ffffff;
     }
 
-    .doc-article {
-        border-radius: 10px;
-        padding: 18px;
-        background: var(--help-surface);
-        border: 1px solid var(--help-border);
-        box-shadow: 0 8px 20px rgba(15,23,36,0.04);
-        margin-bottom: 14px;
+    /* Documentation layout */
+    .docs-layout {
+        display: grid;
+        grid-template-columns: 240px minmax(0, 1fr);
+        gap: 32px;
+        align-items: start;
     }
 
-    .doc-article h2 { font-size: 1.25rem; margin-bottom: 6px; }
-    .doc-article h3 { font-size: 1rem; margin-top: 10px; }
+    .docs-sidebar {
+        position: sticky;
+        top: 24px;
+        background: var(--help-surface-strong);
+        border: 1px solid var(--help-border);
+        border-radius: 16px;
+        padding: 20px 14px;
+        box-shadow: var(--help-shadow);
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        max-height: calc(100vh - 48px);
+        overflow-y: auto;
+    }
 
-    /* Featured Guides & Resources Styles */
+    .docs-sidebar h4 {
+        font-size: 0.72rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--help-muted);
+        padding: 0 12px;
+        margin-bottom: 10px;
+    }
+
+    .docs-sidebar a {
+        display: block;
+        padding: 9px 12px;
+        border-radius: 10px;
+        font-size: 0.88rem;
+        font-weight: 600;
+        color: var(--help-muted);
+        text-decoration: none;
+        border-left: 2px solid transparent;
+        transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+    }
+
+    .docs-sidebar a:hover {
+        background: rgba(79, 127, 224, 0.08);
+        color: var(--help-text);
+    }
+
+    .docs-sidebar a.active {
+        background: rgba(79, 127, 224, 0.12);
+        color: var(--help-accent-strong);
+        border-left-color: var(--help-accent);
+    }
+
+    .docs-content {
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+        min-width: 0;
+    }
+
+    /* Doc article typography */
+    .doc-article {
+        border-radius: 16px;
+        padding: 30px clamp(20px, 3vw, 36px);
+        background: var(--help-surface-strong);
+        border: 1px solid var(--help-border);
+        box-shadow: var(--help-shadow);
+        scroll-margin-top: 20px;
+    }
+
+    .doc-article h2 {
+        font-size: 1.5rem;
+        font-weight: 800;
+        color: var(--help-text);
+        letter-spacing: -0.02em;
+        padding-bottom: 14px;
+        margin-bottom: 18px;
+        border-bottom: 1px solid var(--help-border);
+    }
+
+    .doc-article h3 {
+        font-size: 1.02rem;
+        font-weight: 700;
+        color: var(--help-text);
+        margin: 24px 0 10px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .doc-article h3:first-of-type {
+        margin-top: 2px;
+    }
+
+    .doc-article h3::before {
+        content: '';
+        width: 4px;
+        height: 15px;
+        border-radius: 999px;
+        background: var(--help-accent);
+        flex: 0 0 auto;
+    }
+
+    .doc-article p {
+        font-size: 0.94rem;
+        line-height: 1.7;
+        color: var(--help-muted);
+        margin-bottom: 6px;
+    }
+
+    .doc-article p strong {
+        color: var(--help-text);
+    }
+
+    .doc-article ul,
+    .doc-article ol {
+        margin: 4px 0 14px;
+        padding-left: 0;
+        list-style: none;
+    }
+
+    .doc-article ul li,
+    .doc-article ol li {
+        position: relative;
+        padding: 7px 0 7px 26px;
+        font-size: 0.91rem;
+        line-height: 1.55;
+        color: var(--help-muted);
+        border-bottom: 1px dashed var(--help-border);
+    }
+
+    .doc-article ul li:last-child,
+    .doc-article ol li:last-child {
+        border-bottom: 0;
+    }
+
+    .doc-article ul li::before {
+        content: '';
+        position: absolute;
+        left: 4px;
+        top: 16px;
+        width: 6px;
+        height: 6px;
+        border-radius: 999px;
+        background: var(--help-accent);
+    }
+
+    .doc-article ol {
+        counter-reset: doc-step;
+    }
+
+    .doc-article ol li {
+        counter-increment: doc-step;
+        padding-left: 32px;
+    }
+
+    .doc-article ol li::before {
+        content: counter(doc-step);
+        position: absolute;
+        left: 0;
+        top: 6px;
+        width: 20px;
+        height: 20px;
+        border-radius: 999px;
+        background: rgba(79, 127, 224, 0.12);
+        color: var(--help-accent-strong);
+        font-size: 0.7rem;
+        font-weight: 700;
+        display: grid;
+        place-items: center;
+    }
+
+    .doc-article table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 6px 0 14px;
+        font-size: 0.88rem;
+        border-radius: 12px;
+        overflow: hidden;
+        border: 1px solid var(--help-border);
+    }
+
+    .doc-article thead th {
+        background: rgba(79, 127, 224, 0.08);
+        color: var(--help-text);
+        text-align: left;
+        font-weight: 700;
+        padding: 11px 14px;
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }
+
+    .doc-article tbody td {
+        padding: 11px 14px;
+        color: var(--help-muted);
+        border-top: 1px solid var(--help-border);
+    }
+
+    .doc-article tbody tr:nth-child(even) {
+        background: rgba(79, 127, 224, 0.03);
+    }
+
+    @media (max-width: 900px) {
+        .docs-layout {
+            grid-template-columns: 1fr;
+        }
+
+        .docs-sidebar {
+            position: static;
+            max-height: none;
+            flex-direction: row;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .docs-sidebar h4 {
+            width: 100%;
+        }
+    }
+
+    /* Documentation category grid */
     .featured-guides-wrap {
         padding-top: clamp(28px, 4vw, 48px);
         padding-bottom: clamp(28px, 4vw, 48px);
         background: rgba(255, 255, 255, 0.5);
     }
 
-    .guide-item {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 48px;
-        align-items: center;
-        margin-bottom: 64px;
+    .docs-section-title {
+        font-size: clamp(1.9rem, 4vw, 2.6rem);
+        font-weight: 700;
+        color: var(--help-text);
+        letter-spacing: -0.03em;
+        margin-bottom: 8px;
     }
 
-    .guide-item-reverse {
-        direction: rtl;
-    }
-
-    .guide-item-reverse > * {
-        direction: ltr;
-    }
-
-    .guide-content {
-        padding: 12px 0;
-    }
-
-    .guide-image {
-        min-height: 340px;
-        background: var(--help-surface-strong);
-        border: 1px solid var(--help-border);
-        border-radius: 20px;
-        padding: 32px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        box-shadow: var(--help-shadow);
+    .docs-section-sub {
+        font-size: 0.95rem;
+        color: var(--help-muted);
+        margin-bottom: 28px;
     }
 
     .guides-grid {
@@ -852,19 +973,8 @@
     }
 
     @media (max-width: 900px) {
-        .feature-head {
-            flex-direction: column;
-            align-items: flex-start;
-            gap: 8px;
-        }
-
-        .top-card,
-        .feature-card {
+        .top-card {
             min-height: auto;
-        }
-
-        .feature-card .name {
-            margin-top: 32px;
         }
 
         .map-box {
@@ -874,21 +984,6 @@
         .map-link-btn {
             left: 12px;
             bottom: 12px;
-        }
-
-        .guide-item {
-            grid-template-columns: 1fr;
-            gap: 24px;
-            margin-bottom: 48px;
-        }
-
-        .guide-item-reverse {
-            direction: ltr;
-        }
-
-        .guide-image {
-            min-height: 280px;
-            padding: 24px;
         }
     }
 
@@ -903,7 +998,6 @@
         }
 
         .top-card,
-        .feature-card,
         .touch-box,
         .history-panel {
             border-radius: 16px;
@@ -920,10 +1014,6 @@
         .contact-row {
             grid-template-columns: 1fr;
         }
-
-        .feature-card .name {
-            margin-top: 24px;
-        }
     }
 </style>
 
@@ -932,15 +1022,21 @@
         <div class="help-container">
             <h1 class="hero-title">Help Centre</h1>
             <div class="hero-search">
-                <input type="text" placeholder="Start typing your search" aria-label="Search help" />
-                <span class="hero-search-dot" aria-hidden="true">
+                <input type="text" id="helpSearchInput" placeholder="Search articles, e.g. &quot;payroll&quot; or &quot;payslip&quot;" aria-label="Search help" autocomplete="off" />
+                <button type="button" class="hero-search-dot" id="helpSearchClear" aria-label="Clear search">
                     <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
                         <circle cx="11" cy="11" r="6.5" stroke="currentColor" stroke-width="2"></circle>
                         <path d="M16.2 16.2L20 20" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
                     </svg>
-                </span>
+                </button>
             </div>
             <p class="hero-sub">Choose a topic below to learn more about the system</p>
+
+            <div class="search-chips">
+                <?php foreach ($popularSearches as $term): ?>
+                    <button type="button" class="search-chip" data-search-term="<?= esc($term) ?>"><?= esc($term) ?></button>
+                <?php endforeach; ?>
+            </div>
 
             <div class="top-cards">
                 <?php foreach ($topCards as $item): ?>
@@ -967,145 +1063,47 @@
         </div>
     </section>
 
-    <section id="about-system" class="section-gray about-wrap">
-        <div class="help-container about-grid">
-            <div>
-                <div class="about-title">
-                    <img src="<?= base_url('icons/help-about.png') ?>" class="icon">
-                    About OTIS
-                </div>
-                <div class="about-copy">
-                    <strong>OTIS (One Transaction Integrated System)</strong> is a comprehensive accounting solution designed to centralize and automate core financial operations by integrating payroll, bookkeeping, and tax management into a single, unified environment. By eliminating the need for disparate systems, OTIS keeps every transaction synchronized across essential records.
-                </div>
-            </div>
-            <div>
-                <img src="<?= base_url('images/background/building.png') ?>" alt="About OTIS" class="about-img" />
-            </div>
-        </div>
-    </section>
-
-    <section id="feature-grid" class="feature-wrap">
+    <section id="documentation" class="featured-guides-wrap">
         <div class="help-container">
-            <div class="feature-head">
-                <h3>Explore Support Topics<small>Can’t find what you’re looking for?</small></h3>
-            </div>
+            <h2 class="docs-section-title">Documentation</h2>
+            <p class="docs-section-sub">Browse by topic below, or jump straight to a section using the sidebar.</p>
 
-            <div class="feature-topic-grid">
-                <?php foreach ($featureCards as $item): ?>
-                    <a
-                        href="<?= esc($item['target']) ?>"
-                        class="feature-card <?= esc($item['size'] ?? 'card-standard') ?>"
-                        style="--topic-image: url('<?= esc($item['image'] ?? base_url('images/background/building.png')) ?>'); --topic-tone: <?= esc($item['tone'] ?? 'rgba(10,20,40,0.5)') ?>;"
-                    >
-                        <div class="card-icon">
-                            <img src="<?= esc($item['icon'] ?? base_url('icons/help-features.png')) ?>" alt="">
+            <div class="guides-grid" style="margin-bottom: 40px;">
+                <?php foreach ($docCategories as $item): ?>
+                    <a href="<?= esc($item['target']) ?>" class="guide-card">
+                        <div class="guide-card-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <?= $docIcons[$item['icon']] ?? '' ?>
+                            </svg>
                         </div>
-                        <div class="name"><?= esc($item['title']) ?></div>
-                        <div class="desc"><?= esc($item['desc']) ?></div>
+                        <div class="guide-card-meta"><?= esc($item['tag']) ?></div>
+                        <h3><?= esc($item['title']) ?></h3>
+                        <p><?= esc($item['desc']) ?></p>
                     </a>
                 <?php endforeach; ?>
             </div>
-        </div>
-    </section>
 
-    <section id="documentation" class="featured-guides-wrap">
-        <div class="help-container">
-            <!-- Featured Guides Section -->
-            <div style="margin-bottom: 48px;">
-                <h2 style="font-size: clamp(1.9rem, 4vw, 2.8rem); font-weight: 700; color: var(--help-text); letter-spacing: -0.03em; margin-bottom: 32px;">Featured Guides</h2>
-
-                <!-- Access & Login Guide -->
-                <div class="guide-item">
-                    <div class="guide-content">
-                        <h3 style="font-size: 1.8rem; font-weight: 700; color: var(--help-text); margin-bottom: 16px; letter-spacing: -0.02em;">Access & Login</h3>
-                        <p style="font-size: 1.05rem; color: var(--help-muted); line-height: 1.7; margin-bottom: 20px;">Get started with your account. Learn how to sign in securely, recover forgotten passwords, and set up multi-factor authentication for enhanced security.</p>
-                        <a href="#doc-access" style="display: inline-block; padding: 12px 24px; background: var(--help-accent); color: white; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 0.95rem; transition: all 0.18s ease;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 12px 24px rgba(79, 127, 224, 0.3)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none';">Read Guide →</a>
-                    </div>
-                    <div class="guide-image">
-                        <div style="width: 100%; height: 100%; background: linear-gradient(135deg, rgba(79, 127, 224, 0.15), rgba(79, 127, 224, 0.05)); border-radius: 16px; display: flex; align-items: center; justify-content: center;">
-                            <svg viewBox="0 0 200 200" style="width: 140px; height: 140px; opacity: 0.6;">
-                                <circle cx="100" cy="70" r="35" fill="currentColor" color="rgba(79, 127, 224, 0.4)"/>
-                                <rect x="50" y="120" width="100" height="50" rx="8" fill="currentColor" color="rgba(79, 127, 224, 0.3)"/>
-                                <circle cx="80" cy="135" r="6" fill="currentColor" color="rgba(79, 127, 224, 0.6)"/>
-                                <circle cx="120" cy="135" r="6" fill="currentColor" color="rgba(79, 127, 224, 0.6)"/>
-                            </svg>
-                        </div>
-                    </div>
+            <div class="docs-layout">
+                <aside class="docs-sidebar">
+                    <h4>On this page</h4>
+                    <a href="#doc-system-overview">System Overview</a>
+                    <a href="#doc-role-guides">User Role Guides</a>
+                    <a href="#doc-operational-workflows">Operational Workflows</a>
+                    <a href="#doc-knowledge-base">Knowledge Base</a>
+                    <a href="#doc-compliance-audit">Compliance & Audit</a>
+                    <a href="#doc-support-center">Support Center</a>
+                    <a href="#doc-release-notes">Release Notes</a>
+                </aside>
+                <div class="docs-content">
+                    <?php include __DIR__ . '/docs/system_overview.php'; ?>
+                    <?php include __DIR__ . '/docs/role_guides.php'; ?>
+                    <?php include __DIR__ . '/docs/operational_workflows.php'; ?>
+                    <?php include __DIR__ . '/docs/knowledge_base.php'; ?>
+                    <?php include __DIR__ . '/docs/compliance_audit.php'; ?>
+                    <?php include __DIR__ . '/docs/support_center.php'; ?>
+                    <?php include __DIR__ . '/docs/release_notes.php'; ?>
+                    <div class="docs-empty-state" id="docsEmptyState">No articles match your search. Try a different term or <a href="#contact-section" style="color: var(--help-accent-strong); font-weight:600;">contact support</a>.</div>
                 </div>
-
-                <!-- Troubleshooting Guide -->
-                <div class="guide-item guide-item-reverse">
-                    <div class="guide-image">
-                        <div style="width: 100%; height: 100%; background: linear-gradient(135deg, rgba(79, 127, 224, 0.15), rgba(79, 127, 224, 0.05)); border-radius: 16px; display: flex; align-items: center; justify-content: center;">
-                            <svg viewBox="0 0 200 200" style="width: 140px; height: 140px; opacity: 0.6;">
-                                <path d="M 60 80 L 100 120 L 140 80" stroke="currentColor" stroke-width="8" fill="none" stroke-linecap="round" stroke-linejoin="round" color="rgba(79, 127, 224, 0.5)"/>
-                                <circle cx="100" cy="150" r="8" fill="currentColor" color="rgba(79, 127, 224, 0.6)"/>
-                            </svg>
-                        </div>
-                    </div>
-                    <div class="guide-content">
-                        <h3 style="font-size: 1.8rem; font-weight: 700; color: var(--help-text); margin-bottom: 16px; letter-spacing: -0.02em;">Troubleshooting</h3>
-                        <p style="font-size: 1.05rem; color: var(--help-muted); line-height: 1.7; margin-bottom: 20px;">Encounter an issue? Find quick fixes for common problems, browser-specific issues, and learn when to escalate to our support team.</p>
-                        <a href="#doc-troubleshooting" style="display: inline-block; padding: 12px 24px; background: var(--help-accent); color: white; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 0.95rem; transition: all 0.18s ease;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 12px 24px rgba(79, 127, 224, 0.3)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none';">Read Guide →</a>
-                    </div>
-                </div>
-            </div>
-
-            <!-- More Resources Section -->
-            <div>
-                <h2 style="font-size: clamp(1.9rem, 4vw, 2.8rem); font-weight: 700; color: var(--help-text); letter-spacing: -0.03em; margin-bottom: 32px;">More Resources</h2>
-                
-                <div class="guides-grid">
-                    <!-- Core Workflows Card -->
-                    <a href="#doc-core-workflows" class="guide-card">
-                        <div class="guide-card-icon">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
-                                <path d="M9 12h6M9 16h6"/>
-                            </svg>
-                        </div>
-                        <div class="guide-card-meta">MAY 4, 2026</div>
-                        <h3>Core Workflows</h3>
-                        <p>Top user transactions and step-by-step guides for completing common tasks in the system.</p>
-                    </a>
-
-                    <!-- Support & SLA Card -->
-                    <a href="#doc-support" class="guide-card">
-                        <div class="guide-card-icon">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M18 21H4a2 2 0 01-2-2V7a2 2 0 012-2h5l2-3h2l2 3h5a2 2 0 012 2v12a2 2 0 01-2 2z"/>
-                                <circle cx="12" cy="13" r="3"/>
-                            </svg>
-                        </div>
-                        <div class="guide-card-meta">MAY 4, 2026</div>
-                        <h3>Support & SLA</h3>
-                        <p>Contact channels, expected response times, and our service level agreements for various priority levels.</p>
-                    </a>
-
-                    <!-- Release Notes Card -->
-                    <a href="#doc-release-notes" class="guide-card">
-                        <div class="guide-card-icon">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9z"/>
-                                <polyline points="13 2 13 9 20 9"/>
-                                <line x1="8" y1="13" x2="16" y2="13"/>
-                                <line x1="8" y1="17" x2="16" y2="17"/>
-                            </svg>
-                        </div>
-                        <div class="guide-card-meta">MAY 4, 2026</div>
-                        <h3>Release Notes</h3>
-                        <p>Recent changes, new features, bug fixes, and known limitations of the current system version.</p>
-                    </a>
-                </div>
-            </div>
-
-            <!-- Documentation Content (Hidden initially, shown on click) -->
-            <div style="margin-top: 48px; display: none;" id="doc-content">
-                <?php include __DIR__ . '/docs/access.php'; ?>
-                <?php include __DIR__ . '/docs/core_workflows.php'; ?>
-                <?php include __DIR__ . '/docs/troubleshooting.php'; ?>
-                <?php include __DIR__ . '/docs/support.php'; ?>
-                <?php include __DIR__ . '/docs/release_notes.php'; ?>
             </div>
         </div>
     </section>
@@ -1208,7 +1206,7 @@
         <div class="footer-inner">
             <div>&copy; 2026 OTIS. All rights reserved.</div>
             <div class="footer-links">
-                <a href="#about-system">Privacy Policy</a>
+                <a href="#doc-compliance-audit">Privacy Policy</a>
                 <a href="#faq-list">Terms of Service</a>
                 <a href="#contact-section">Cookie Settings</a>
             </div>
@@ -1255,6 +1253,119 @@
                 ].join('\n');
             });
         }
+    })();
+</script>
+
+<script>
+    (function () {
+        const shell = document.querySelector('.help-shell');
+        const sidebarLinks = Array.from(document.querySelectorAll('.docs-sidebar a[href^="#doc-"]'));
+        const sections = sidebarLinks
+            .map(function (link) { return document.querySelector(link.getAttribute('href')); })
+            .filter(Boolean);
+
+        if (!shell || !sections.length) {
+            return;
+        }
+
+        function setActive() {
+            const shellTop = shell.getBoundingClientRect().top;
+            let activeId = sections[0].id;
+
+            sections.forEach(function (section) {
+                const offset = section.getBoundingClientRect().top - shellTop;
+                if (offset <= 120) {
+                    activeId = section.id;
+                }
+            });
+
+            sidebarLinks.forEach(function (link) {
+                link.classList.toggle('active', link.getAttribute('href') === '#' + activeId);
+            });
+        }
+
+        shell.addEventListener('scroll', setActive, { passive: true });
+        window.addEventListener('resize', setActive);
+        setActive();
+    })();
+</script>
+
+<script>
+    (function () {
+        const input = document.getElementById('helpSearchInput');
+        const clearBtn = document.getElementById('helpSearchClear');
+        const emptyState = document.getElementById('docsEmptyState');
+        const docArticles = Array.from(document.querySelectorAll('.doc-article'));
+        const faqItems = Array.from(document.querySelectorAll('.faq-item'));
+        const shell = document.querySelector('.help-shell');
+        const docsSection = document.getElementById('documentation');
+
+        if (!input) {
+            return;
+        }
+
+        let hasScrolledToResults = false;
+
+        function applyFilter(rawQuery) {
+            const query = rawQuery.trim().toLowerCase();
+            const isFiltering = query.length >= 2;
+
+            let visibleDocs = 0;
+            docArticles.forEach(function (article) {
+                const matches = !isFiltering || article.textContent.toLowerCase().includes(query);
+                article.style.display = matches ? '' : 'none';
+                if (matches) {
+                    visibleDocs += 1;
+                }
+            });
+
+            let visibleFaqs = 0;
+            faqItems.forEach(function (item) {
+                const matches = !isFiltering || item.textContent.toLowerCase().includes(query);
+                item.style.display = matches ? '' : 'none';
+                if (matches) {
+                    visibleFaqs += 1;
+                }
+            });
+
+            if (emptyState) {
+                emptyState.classList.toggle('show', isFiltering && visibleDocs === 0);
+            }
+
+            clearBtn.classList.toggle('has-value', query.length > 0);
+
+            if (isFiltering && !hasScrolledToResults && shell && docsSection) {
+                hasScrolledToResults = true;
+                docsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+
+            if (!isFiltering) {
+                hasScrolledToResults = false;
+            }
+        }
+
+        let debounceTimer = null;
+        input.addEventListener('input', function () {
+            window.clearTimeout(debounceTimer);
+            debounceTimer = window.setTimeout(function () {
+                applyFilter(input.value);
+            }, 150);
+        });
+
+        clearBtn.addEventListener('click', function () {
+            input.value = '';
+            input.focus();
+            applyFilter('');
+        });
+
+        document.querySelectorAll('.search-chip').forEach(function (chip) {
+            chip.addEventListener('click', function () {
+                const term = chip.getAttribute('data-search-term') || '';
+                input.value = term;
+                input.focus();
+                applyFilter(term);
+            });
+        });
     })();
 </script>
 

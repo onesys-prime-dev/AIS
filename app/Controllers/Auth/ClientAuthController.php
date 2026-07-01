@@ -74,13 +74,21 @@ class ClientAuthController extends LoginController
         $user = auth()->user();
 
         if ($user) {
-            (new PresenceModel())->setOffline((int) $user->id);
+            (new PresenceModel())->setOffline(
+                (int) $user->id
+            );
         }
 
         $this->clearFaceVerificationSession();
+
         auth()->logout();
 
-        return redirect()->to('/login')->with('info', 'You have been logged out successfully.');
+        return redirect()
+            ->to('/login')
+            ->with(
+                'info',
+                'You have been logged out successfully.'
+            );
     }
 
     private function clearFaceVerificationSession(): void

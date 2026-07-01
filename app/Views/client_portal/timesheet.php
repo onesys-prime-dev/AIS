@@ -128,9 +128,9 @@
             </table>
 
             <!-- BODY -->
-            <div class="overflow-y-auto hide-scroll-bar flex-1 h-full">
+            <div class="overflow-y-auto hide-scroll-bar flex-1">
 
-                <table class="min-w-[1280px] w-full text-sm border-collapse table-fixed">
+                <table class="min-w-[1280px] h-full w-full text-sm border-collapse table-fixed">
 
                     <colgroup>
                         <col class="w-[120px]">
@@ -264,6 +264,16 @@
         echo view('components/view_modal', [
             'id'      => 'viewPayslipModal',
             'content' => $content
+        ]);
+    ?>
+
+    <!-- View Timesheet Details Modal -->
+    <?php
+        $content = '<div id="historyDetailsContainer"></div>';
+        echo view('components/view_modal', [
+            'id' => 'viewHistoryDetailsModal',
+            'title' => 'Timesheet Details',
+            'content' => $content,
         ]);
     ?>
 

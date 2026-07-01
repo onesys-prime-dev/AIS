@@ -60,13 +60,93 @@
             <div class="grid grid-cols-[2fr_1.5fr_1fr] items-center border-b hover:bg-gray-50 w-full">
                 <div class="p-4">${dateRange}</div>
                 <div class="p-4">${item.total_hours ? `${Number(item.total_hours).toFixed(2)} hrs` : '---'}</div>
-                <div class="p-4 text-center">
-                    <span class="inline-flex items-center rounded-lg bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700">
-                        View
-                    </span>
+                <div class="p-4">
+                    <div class="flex justify-center gap-2">
+
+                        <button
+                            onclick="viewHistory('${item.period_start}', '${item.period_end}')"
+                            class="px-3 py-2 rounded-lg bg-slate-100 text-slate-700 text-xs font-semibold hover:bg-slate-200 transition">
+                            View
+                        </button>
+
+                        <button
+                            onclick="exportHistory('${item.period_start}', '${item.period_end}')"
+                            class="px-3 py-2 rounded-lg bg-green-100 text-green-700 text-xs font-semibold hover:bg-green-200 transition">
+                            Export
+                        </button>
+
+                    </div>
                 </div>
             </div>
         `;
+    }
+
+    function exportHistory(start, end)
+    {
+        window.location.href = `<?= site_url('client_portal/timesheet/export-history') ?>?start=${start}&end=${end}`;
+    }
+
+    function viewHistory(start, end)
+    {
+        fetch(
+            `<?= site_url('client_portal/timesheet/history-details') ?>?start=${start}&end=${end}`
+        )
+        .then(res => res.json())
+        .then(data => {
+            console.log(data);
+            openModalById('viewHistoryDetailsModal');
+            renderHistoryDetails(data.daily || []);
+        });
+    }
+
+    function renderHistoryDetails(rows)
+    {
+        const container =
+            document.getElementById(
+                'historyDetailsContainer'
+            );
+
+        if (!container) return;
+
+        if (!rows.length) {
+            container.innerHTML =
+                '<p>No records found.</p>';
+
+            return;
+        }
+
+        let html = `
+            <table class="w-full text-sm">
+                <thead class="bg-gray-100">
+                    <tr>
+                        <th class="p-3 text-left">Date</th>
+                        <th class="p-3 text-left">In</th>
+                        <th class="p-3 text-left">Out</th>
+                        <th class="p-3 text-left">Regular</th>
+                        <th class="p-3 text-left">OT</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+
+        rows.forEach(row => {
+            html += `
+                <tr>
+                   <td class="p-3 border-b">${row.date}</td>
+                   <td class="p-3 border-b">${row.in}</td>
+                   <td class="p-3 border-b">${row.out}</td>
+                   <td class="p-3 border-b">${row.regular_hours}</td>
+                   <td class="p-3 border-b">${row.ot_hours}</td>
+                </tr>
+            `;
+        });
+
+        html += `
+                </tbody>
+            </table>
+        `;
+
+        container.innerHTML = html;
     }
 
     (function () {

@@ -550,10 +550,11 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
 
     .header-notif-desc{
         font-size:14px;
-
         color:#475569;
-
         line-height:1.45;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
 
     .header-notif-time{
