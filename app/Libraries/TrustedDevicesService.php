@@ -4,7 +4,7 @@ namespace App\Libraries;
 
 use App\Models\TrustedDeviceModel;
 
-class TrustedDeviceService
+class TrustedDevicesService
 {
     private TrustedDeviceModel $model;
 

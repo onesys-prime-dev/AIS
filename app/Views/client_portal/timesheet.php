@@ -130,7 +130,7 @@
             <!-- BODY -->
             <div class="overflow-y-auto hide-scroll-bar flex-1">
 
-                <table class="min-w-[1280px] h-full w-full text-sm border-collapse table-fixed">
+                <table class="min-w-[1280px] w-full text-sm border-collapse table-fixed">
 
                     <colgroup>
                         <col class="w-[120px]">

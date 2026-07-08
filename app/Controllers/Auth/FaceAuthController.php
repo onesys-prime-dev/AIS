@@ -5,7 +5,7 @@ namespace App\Controllers\Auth;
 use App\Controllers\BaseController;
 use App\Models\PresenceModel;
 use App\Services\CompreFaceService;
-use App\Libraries\TrustedDeviceService;
+use App\Libraries\TrustedDevicesService;
 use Config\CompreFace;
 use Throwable;
 
@@ -113,7 +113,7 @@ class FaceAuthController extends BaseController
 
         session()->set('face_verified', true);
 
-        $trusted = new TrustedDeviceService();
+        $trusted = new TrustedDevicesService();
         $trusted->trustCurrentDevice($authUserId);
 
         session()->remove('temp_user_id');

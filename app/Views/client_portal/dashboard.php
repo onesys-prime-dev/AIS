@@ -1269,7 +1269,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 <!-- functioning break button -->
                 <?php if ($currentAttendance): ?>
                 <a href="<?= site_url('client_portal/toggle-break/'.$currentAttendance['id']) ?>"
-                    class="icon-btn coffee <?= ($currentAttendance['break_start'] && !$currentAttendance['break_end']) ? 'on-break' : '' ?>"
+                    class="icon-btn coffee <?= ($currentAttendance['break_start'] && !$currentAttendance['break_end']) ? 'on-break' : '' ?>">
                         <span></span><span></span><span></span>
                 </a>
 
