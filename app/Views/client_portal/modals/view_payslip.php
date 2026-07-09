@@ -564,7 +564,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (currentDownloadUrl) {
                 window.location.href = currentDownloadUrl;
             } else {
-                alert('No payslip selected');
+                showToast('No payslip selected.', 'warning');
             }
         });
     }

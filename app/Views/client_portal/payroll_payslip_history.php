@@ -139,7 +139,7 @@
 
     window.resendPayslipEmail = async function(id, btn) {
         const data = PAYSLIP_DATA[id];
-        if (!data) { alert('No stored payslip data for this record.'); return; }
+        if (!data) { showToast('No stored payslip data for this record.', 'warning'); return; }
         if (!confirm('Send payslip PDF to the employee\'s email?')) return;
 
         const origText  = btn.textContent;
@@ -153,17 +153,17 @@
             });
             const json = await res.json();
             if (!res.ok || !json.success) throw new Error(json.error || 'Send failed');
-            alert('Payslip sent successfully to employee email.');
-            location.reload();
+            showToast('Payslip sent successfully to employee email.', 'success');
+            setTimeout(() => location.reload(), 1200);
         } catch (e) {
-            alert('Error: ' + e.message);
+            showToast('Error: ' + e.message, 'error');
             btn.disabled    = false;
             btn.textContent = origText;
         }
     };
 
     window.sendFromViewer = async function() {
-        if (!_viewerData) { alert('No payslip loaded.'); return; }
+        if (!_viewerData) { showToast('No payslip loaded.', 'warning'); return; }
         if (!confirm('Send this payslip PDF to the employee\'s email?')) return;
         const btn = document.getElementById('payslipViewerSendBtn');
         btn.disabled    = true;
@@ -176,11 +176,11 @@
             });
             const json = await res.json();
             if (!res.ok || !json.success) throw new Error(json.error || 'Send failed');
-            alert('Payslip sent successfully to employee email.');
+            showToast('Payslip sent successfully to employee email.', 'success');
             document.getElementById('payslipViewerModal').style.display = 'none';
-            location.reload();
+            setTimeout(() => location.reload(), 1200);
         } catch (e) {
-            alert('Error: ' + e.message);
+            showToast('Error: ' + e.message, 'error');
             btn.disabled    = false;
             btn.textContent = 'Send to Employee Email';
         }

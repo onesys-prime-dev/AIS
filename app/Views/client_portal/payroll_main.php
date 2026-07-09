@@ -11,6 +11,7 @@
         <button type="button" class="tab" data-tab="payroll-settings">Payroll Settings</button>
         <button type="button" class="tab" data-tab="payslip-history">Payslip History</button>
         <button type="button" class="tab" data-tab="year-end">13th Month &amp; Annualization</button>
+        <button type="button" class="tab" data-tab="payroll-register">Payroll Register</button>
     </div>
 
     <div class="tab-panel h-full flex flex-col min-h-0 overflow-hidden px-8 pb-8" data-panel="payroll-status" style="display:flex;">
@@ -33,13 +34,16 @@
         <?= view('client_portal/payroll_13th_month') ?>
     </div>
 
+    <div class="tab-panel h-full flex flex-col min-h-0 overflow-hidden p-8" data-panel="payroll-register" style="display:none;">
+        <?= view('client_portal/payroll_register') ?>
+    </div>
+
 </div>
 
 <?= $this->endSection() ?>
 
 
 <?= $this->section('scripts') ?>
-<script src="<?= base_url('js/components/flash-notifications.js') ?>"></script>
 <script src="<?= base_url('js/components/modal-handler.js') ?>?v=2"></script>
 
 <script>

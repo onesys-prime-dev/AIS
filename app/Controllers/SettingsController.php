@@ -192,7 +192,7 @@ class SettingsController extends BaseController
 
             return $this->response->setStatusCode(502)->setJSON([
                 'status' => 'error',
-                'message' => 'Face enrollment is unavailable: ' . $e->getMessage(),
+                'message' => $this->safeErrorMessage($e, 'Face enrollment is unavailable right now. Please try again later.'),
             ]);
         }
 

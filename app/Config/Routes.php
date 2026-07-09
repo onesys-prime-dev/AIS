@@ -105,6 +105,7 @@ $routes->group('client_portal', ['namespace' => 'App\Controllers\Client'], funct
     $routes->get('payroll/payslipHistory', 'PayrollController::payslipHistory');
     $routes->get('payroll/getPayslipData/(:num)', 'PayrollController::getPayslipData/$1');
     
+    $routes->get('payroll/getRegisterRows', 'PayrollController::getRegisterRows');
     $routes->get('payroll/exportRegister', 'PayrollController::exportRegister');
     $routes->get('payroll/exportTimesheet', 'PayrollController::exportTimesheet');
     $routes->post('payroll/importTimesheet', 'PayrollController::importTimesheet');

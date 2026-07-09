@@ -1066,7 +1066,7 @@
 
             if (!nameFormat.test(fullName)) {
                 e.preventDefault();
-                alert('Full Name must follow this format: Lastname, FirstName(s) MiddleName');
+                showToast('Full Name must follow this format: Lastname, FirstName(s) MiddleName', 'warning');
                 fullNameInput?.focus();
                 return;
             }
@@ -1074,7 +1074,7 @@
             const [lastName, given] = fullName.split(',', 2).map((part) => part.trim());
             if (!lastName || !given) {
                 e.preventDefault();
-                alert('Please provide both last name and first name(s).');
+                showToast('Please provide both last name and first name(s).', 'warning');
                 fullNameInput?.focus();
             }
         });
@@ -1162,8 +1162,4 @@
     })();
 </script>
 
-<?= $this->endSection() ?>
-
-<?= $this->section('scripts') ?>
-<script src="<?= base_url('js/components/flash-notifications.js') ?>"></script>
 <?= $this->endSection() ?>

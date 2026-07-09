@@ -226,7 +226,8 @@ class LoanController extends BaseController
             return redirect()->back()->with('success','Employee loan created successfully.');
 
             } catch (\Exception $e) {
-                return redirect()->back()->withInput()->with('error',$e->getMessage());
+                log_message('error', static::class . ': ' . $e->getMessage() . ' | ' . $e->getFile() . ':' . $e->getLine());
+                return redirect()->back()->withInput()->with('error', $this->safeErrorMessage($e, 'Unable to create employee loan. Please check the inputs and try again.'));
             }
     }
 
@@ -368,11 +369,7 @@ class LoanController extends BaseController
 
         } catch (\Exception $e) {
 
-            return redirect()->back()
-                ->with(
-                    'error',
-                    $e->getMessage()
-                );
+            return $this->flashError($e, 'Unable to update loan. Please try again.');
         }
     }
 

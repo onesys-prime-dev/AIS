@@ -20,15 +20,81 @@ class PayrollController extends BaseController
     protected $helpers = ['url', 'form'];
 
     // ================= PAYROLL STATUS TAB =================
+
+    /**
+     * Compute actual period_start / period_end dates for a given month and half,
+     * respecting the cross-month Period Definition settings.
+     * Returns [periodStart, periodEnd] strings (Y-m-d), or [null, null] for monthly.
+     */
+    private function computeStatusPeriodDates(string $month, string $periodType, \App\Models\Client\PayrollSettingsModel $psModel): array
+    {
+        if ($periodType === 'monthly') {
+            return [null, null];
+        }
+
+        [$y, $m] = array_map('intval', explode('-', $month));
+
+        // Cross-month definition takes priority
+        $h1SD = (int)($psModel->getSetting('half1_start_day') ?? 0);
+        $h1ED = (int)($psModel->getSetting('half1_end_day')   ?? 0);
+        $h2SD = (int)($psModel->getSetting('half2_start_day') ?? 0);
+        $h2ED = (int)($psModel->getSetting('half2_end_day')   ?? 0);
+
+        if ($h1SD > 0 && $h1ED > 0 && $h2SD > 0 && $h2ED > 0) {
+            $h1SO = (int)($psModel->getSetting('half1_start_offset') ?? 0);
+            $h1EO = (int)($psModel->getSetting('half1_end_offset')   ?? 0);
+            $h2SO = (int)($psModel->getSetting('half2_start_offset') ?? 0);
+            $h2EO = (int)($psModel->getSetting('half2_end_offset')   ?? 0);
+
+            if ($periodType === '1st_half') {
+                return [
+                    $this->buildPeriodDate($y, $m, $h1SD, $h1SO),
+                    $this->buildPeriodDate($y, $m, $h1ED, $h1EO),
+                ];
+            }
+            return [
+                $this->buildPeriodDate($y, $m, $h2SD, $h2SO),
+                $this->buildPeriodDate($y, $m, $h2ED, $h2EO),
+            ];
+        }
+
+        // Simple cutoff fallback
+        $cutoff  = (int)($psModel->getSetting('first_half_cutoff') ?? 15);
+        $lastDay = (int)date('t', mktime(0, 0, 0, $m, 1, $y));
+
+        if ($periodType === '1st_half') {
+            return [sprintf('%04d-%02d-01', $y, $m), sprintf('%04d-%02d-%02d', $y, $m, $cutoff)];
+        }
+        return [sprintf('%04d-%02d-%02d', $y, $m, $cutoff + 1), sprintf('%04d-%02d-%02d', $y, $m, $lastDay)];
+    }
+
     public function payrollView()
     {
-        $month = $this->request->getGet('month') ?? date('Y-m');
-        $data['selected_month'] = $month;
+        $month      = $this->request->getGet('month')  ?? date('Y-m');
+        $periodType = $this->request->getGet('period') ?? 'monthly';
+        if (!in_array($periodType, ['monthly', '1st_half', '2nd_half'], true)) {
+            $periodType = 'monthly';
+        }
+
+        $psModel = new \App\Models\Client\PayrollSettingsModel();
+        [$periodStart, $periodEnd] = $this->computeStatusPeriodDates($month, $periodType, $psModel);
+
+        $data['selected_month']   = $month;
+        $data['selected_period']  = $periodType;
+        $data['period_start_date'] = $periodStart;
+        $data['period_end_date']   = $periodEnd;
 
         $db = \Config\Database::connect();
 
-        // ALL active employees, enriched with employee-management data and
-        // a LEFT JOIN to payroll (for the selected month) and employee_payslips.
+        // Build payslip join condition — monthly uses month match, half-periods use exact dates
+        if ($periodType === 'monthly') {
+            $psJoinCond = "ps.employee_id = e.id AND DATE_FORMAT(ps.period_start,'%Y-%m') = ?";
+            $psBinds    = [$month, $periodType, $month];
+        } else {
+            $psJoinCond = "ps.employee_id = e.id AND ps.period_start = ? AND ps.period_end = ?";
+            $psBinds    = [$month, $periodType, $periodStart, $periodEnd];
+        }
+
         $rows = $db->query("
             SELECT
                 e.id            AS employee_id,
@@ -54,13 +120,12 @@ class PayrollController extends BaseController
             LEFT JOIN employee_accounts ea  ON ea.employee_id = e.id
             LEFT JOIN employee_positions ep ON ep.employee_id = e.id
             LEFT JOIN payroll p
-                ON p.employee_id = e.id AND p.month_year = ?
+                ON p.employee_id = e.id AND p.month_year = ? AND p.period_type = ?
             LEFT JOIN employee_payslips ps
-                ON ps.employee_id = e.id
-                AND DATE_FORMAT(ps.period_start,'%Y-%m') = ?
+                ON $psJoinCond
             GROUP BY e.id, p.id, ep.id
             ORDER BY e.first_name, e.last_name
-        ", [$month, $month])->getResultArray();
+        ", $psBinds)->getResultArray();
 
         foreach ($rows as &$row) {
             if (!empty($row['photo_path'])) {
@@ -89,6 +154,7 @@ class PayrollController extends BaseController
             $employeeId = $post['employee_id'] ?? null;
             $monthYear  = $post['month_year']  ?? null;
             $status     = $post['status']      ?? 'Paid';
+            $periodType = $post['period_type'] ?? 'monthly';
 
             if (!$employeeId || !$monthYear) {
                 return $this->response->setStatusCode(400)->setJSON(['error' => 'Missing employee_id or month_year']);
@@ -96,9 +162,15 @@ class PayrollController extends BaseController
             if (!in_array($status, ['Paid', 'Pending'], true)) {
                 return $this->response->setStatusCode(400)->setJSON(['error' => 'Invalid status']);
             }
+            if (!in_array($periodType, ['monthly', '1st_half', '2nd_half'], true)) {
+                $periodType = 'monthly';
+            }
 
             $model    = new PayrollModel();
-            $existing = $model->where('employee_id', $employeeId)->where('month_year', $monthYear)->first();
+            $existing = $model->where('employee_id', $employeeId)
+                              ->where('month_year', $monthYear)
+                              ->where('period_type', $periodType)
+                              ->first();
 
             if ($existing) {
                 $model->update($existing['id'], ['status' => $status]);
@@ -107,6 +179,7 @@ class PayrollController extends BaseController
                 $model->insert([
                     'employee_id' => $employeeId,
                     'month_year'  => $monthYear,
+                    'period_type' => $periodType,
                     'status'      => $status,
                     'currency'    => 'PHP',
                     'dst'         => 0,
@@ -116,8 +189,7 @@ class PayrollController extends BaseController
 
             return $this->response->setJSON(['success' => true, 'id' => $id, 'status' => $status]);
         } catch (\Throwable $e) {
-            log_message('error', 'markPayrollStatus: ' . $e->getMessage());
-            return $this->response->setStatusCode(500)->setJSON(['error' => $e->getMessage()]);
+            return $this->jsonError($e, 'Unable to update payroll status. Please try again.');
         }
     }
 
@@ -128,7 +200,7 @@ class PayrollController extends BaseController
             $model->save($this->request->getPost());
             return redirect()->back()->with('success', 'Payroll record created successfully');
         } catch (\Exception $e) {
-            return redirect()->back()->with('error', $e->getMessage());
+            return $this->flashError($e, 'Unable to create payroll record. Please try again.');
         }
     }
 
@@ -139,7 +211,7 @@ class PayrollController extends BaseController
             $model->update($id, $this->request->getPost());
             return redirect()->back()->with('success', 'Payroll record updated successfully');
         } catch (\Exception $e) {
-            return redirect()->back()->with('error', $e->getMessage());
+            return $this->flashError($e, 'Unable to update payroll record. Please try again.');
         }
     }
 
@@ -150,7 +222,7 @@ class PayrollController extends BaseController
             $model->delete($id);
             return redirect()->back()->with('success', 'Payroll record deleted successfully');
         } catch (\Exception $e) {
-            return redirect()->back()->with('error', $e->getMessage());
+            return $this->flashError($e, 'Unable to delete payroll record. Please try again.');
         }
     }
 
@@ -209,11 +281,15 @@ class PayrollController extends BaseController
             $deMinimis     = (float)($posRow['de_minimis_benefit'] ?? 0);
             $allowances    = (float)($posRow['allowances']         ?? 0);
 
-            $breakdown   = [];
-            $allocations = [];
+            $breakdown             = [];
+            $allocations           = [];
+            $otherNonTaxableTotal  = 0.0;
             try {
-                $breakdown = json_decode($posRow['de_minimis_breakdown'] ?? '{}', true) ?: [];
+                $breakdown   = json_decode($posRow['de_minimis_breakdown'] ?? '{}', true) ?: [];
                 $allocations = $breakdown['allocations'] ?? [];
+                foreach (($breakdown['other'] ?? []) as $item) {
+                    $otherNonTaxableTotal += (float)($item['amount'] ?? 0);
+                }
             } catch (\Throwable $e) {
                 $allocations = [];
             }
@@ -221,8 +297,13 @@ class PayrollController extends BaseController
             $workingDays = $this->getWorkingDaysInMonth($month);
 
             if ($monthlySalary > 0) {
-                // Employee management is always the canonical source
-                $dailyRate = $monthlySalary / 21.75;
+                // DOLE: OT/NSD base = basic pay only (exclude non-basic allowances).
+                // If employee_positions stores total comp in monthly_salary and separates
+                // the non-basic portion in the allowances field, subtract it here.
+                $basicMonthly = ($allowances > 0 && $allowances < $monthlySalary)
+                    ? $monthlySalary - $allowances
+                    : $monthlySalary;
+                $dailyRate = $monthlySalary * 12 / 261; // full monthly — matches Excel I column
             } else {
                 // Fallback: check if payroll status has a daily_rate override
                 $payrollModel = new PayrollModel();
@@ -233,15 +314,20 @@ class PayrollController extends BaseController
 
                 if ($payroll && (float)$payroll['daily_rate'] > 0) {
                     $dailyRate     = (float)$payroll['daily_rate'];
-                    $monthlySalary = $dailyRate * 21.75;
+                    $basicMonthly  = $dailyRate * 261 / 12;
+                    $monthlySalary = $basicMonthly;
                 } else {
                     return $this->response->setStatusCode(404)->setJSON([
                         'error' => "No salary set for this employee. Please set a Basic Salary in Employee Management.",
                     ]);
                 }
+                $basicMonthly = $monthlySalary;
             }
 
-            $hourlyRate = $monthlySalary / 174;
+            // Display rates use full monthly salary (matches Excel I/J columns).
+            // OT/NSD base uses basic monthly only (DOLE excludes non-basic allowances).
+            $hourlyRate   = $monthlySalary * 12 / 261 / 8;
+            $otHourlyRate = $basicMonthly  * 12 / 261 / 8;
 
             $first    = trim($employee['first_name']  ?? '');
             $last     = trim($employee['last_name']   ?? '');
@@ -254,18 +340,19 @@ class PayrollController extends BaseController
                 'name'                 => $fullName,
                 'position'             => $position,
                 'monthly_salary'       => round($monthlySalary, 2),
-                'daily_rate'           => round($dailyRate, 2),
-                'hourly_rate'          => round($hourlyRate, 2),
+                'daily_rate'           => round($dailyRate, 4),
+                'hourly_rate'          => round($hourlyRate, 4),
+                'ot_hourly_rate'       => round($otHourlyRate, 4),
                 'de_minimis_default'   => round($deMinimis, 2),
                 'allowances_default'   => round($allowances, 2),
-                'rice_subsidy'         => isset($allocations['rice_subsidy'])       ? (float) $allocations['rice_subsidy']       : null,
-                'uniform_allowance'    => isset($allocations['uniform_allowance'])  ? (float) $allocations['uniform_allowance']  : null,
-                'laundry_allowance'    => isset($allocations['laundry_allowance'])  ? (float) $allocations['laundry_allowance']  : null,
-                'medical_allowance'    => isset($allocations['medical_allowance'])  ? (float) $allocations['medical_allowance']  : null,
+                'rice_subsidy'              => isset($allocations['rice_subsidy'])      ? (float) $allocations['rice_subsidy']      : null,
+                'uniform_allowance'         => isset($allocations['uniform_allowance']) ? (float) $allocations['uniform_allowance'] : null,
+                'laundry_allowance'         => isset($allocations['laundry_allowance']) ? (float) $allocations['laundry_allowance'] : null,
+                'medical_allowance'         => isset($allocations['medical_allowance']) ? (float) $allocations['medical_allowance'] : null,
+                'other_non_taxable_default' => round($otherNonTaxableTotal, 2),
             ]);
         } catch (\Exception $e) {
-            log_message('error', 'getEmployeeDetails: ' . $e->getMessage());
-            return $this->response->setStatusCode(500)->setJSON(['error' => 'Server error: ' . $e->getMessage()]);
+            return $this->jsonError($e, 'Unable to load employee details.');
         }
     }
 
@@ -340,10 +427,7 @@ class PayrollController extends BaseController
 
             return $this->response->setJSON($summary);
         } catch (\Throwable $e) {
-            log_message('error', 'getAttendanceSummary error: ' . $e->getMessage() . ' | ' . $e->getFile() . ':' . $e->getLine());
-            return $this->response->setStatusCode(500)->setJSON([
-                'error' => 'Server error: ' . $e->getMessage(),
-            ]);
+            return $this->jsonError($e, 'Unable to load attendance summary.');
         }
     }
 
@@ -374,53 +458,109 @@ class PayrollController extends BaseController
             $byDate[$attDate][] = $att;
         }
 
-        $workedDays     = count($byDate); // unique dates with at least one complete record
-        $regularHours   = 0.0;
-        $nightDiffHours = 0.0;
-        $tardyMinutes   = 0;
-        $regOtHours     = 0.0;
-        $restOtHours    = 0.0;
-        $holidayOtHours = 0.0;
+        $workedDays      = count($byDate);
+        $regularHours    = 0.0;
+        $tardyMinutes    = 0;
+        $regOtHours      = 0.0;
+        $workdayNsdHours = 0.0;
+        $satRegHours     = 0.0;
+        $satOtHours      = 0.0;
+        $satNsdHours     = 0.0;
+        $sunRegHours     = 0.0;
+        $sunOtHours      = 0.0;
+        $sunNsdHours     = 0.0;
+        $holRegHours     = 0.0;
+        $holOtHours      = 0.0;
+        $holNsdHours     = 0.0;
+        $specHolRegHours = 0.0;
+        $specHolOtHours  = 0.0;
+        $specHolNsdHours = 0.0;
+
+        // Pre-load holidays for the period (handles recurring via HolidayModel)
+        $holidayModel = new \App\Models\Client\HolidayModel();
+        $holidayCache = [];
+        $getHolidayType = function(string $date) use ($holidayModel, &$holidayCache): ?string {
+            if (!array_key_exists($date, $holidayCache)) {
+                $h = $holidayModel->isHoliday($date);
+                $holidayCache[$date] = $h ? ($h['type'] ?? 'special') : null;
+            }
+            return $holidayCache[$date];
+        };
 
         foreach ($byDate as $attDate => $recs) {
-            // Tardy: only the earliest clock-in of the day counts
             usort($recs, fn($a, $b) => strcmp($a['time_in'], $b['time_in']));
             $firstIn = date('H:i:s', strtotime($recs[0]['time_in']));
             if ($scheduledStart && $firstIn > $scheduledStart) {
                 $tardyMinutes += (int)round((strtotime($firstIn) - strtotime($scheduledStart)) / 60);
             }
 
-            // Sum hours across all records for the day
-            $dayHours     = 0.0;
-            $dayNightDiff = 0.0;
+            $dayHours = 0.0;
+            $dayNsd   = 0.0;
             foreach ($recs as $rec) {
-                $dayHours     += (float)($rec['total_hours']      ?? 0);
-                $dayNightDiff += (float)($rec['night_diff_hours'] ?? 0);
+                $dayHours += (float)($rec['total_hours']      ?? 0);
+                $dayNsd   += (float)($rec['night_diff_hours'] ?? 0);
             }
 
-            $regularHours   += min($dayHours, 8);
-            $nightDiffHours += $dayNightDiff;
+            $ot          = max(0, $dayHours - 8);
+            $dow         = (int)date('N', strtotime($attDate));
+            $holidayType = $getHolidayType($attDate);
 
-            // OT = hours beyond 8 for the whole day
-            $ot        = max(0, $dayHours - 8);
-            $isRestDay = (date('N', strtotime($attDate)) == 7); // Sunday
-
-            if ($isRestDay) {
-                $restOtHours += $ot;
+            if ($holidayType === 'regular') {
+                $holRegHours += min($dayHours, 8);
+                $holOtHours  += $ot;
+                $holNsdHours += $dayNsd;
+            } elseif ($holidayType === 'special') {
+                $specHolRegHours += min($dayHours, 8);
+                $specHolOtHours  += $ot;
+                $specHolNsdHours += $dayNsd;
+            } elseif ($dow === 6) {
+                $satRegHours += min($dayHours, 8);
+                $satOtHours  += $ot;
+                $satNsdHours += $dayNsd;
+            } elseif ($dow === 7) {
+                $sunRegHours += min($dayHours, 8);
+                $sunOtHours  += $ot;
+                $sunNsdHours += $dayNsd;
             } else {
-                $regOtHours += $ot;
+                $regularHours    += min($dayHours, 8);
+                $regOtHours      += $ot;
+                $workdayNsdHours += $dayNsd;
+            }
+        }
+
+        // Only weekday (Mon–Fri) attendance counts against the absent_days denominator.
+        // Weekend or holiday shifts inflate $workedDays but should not mask weekday absences.
+        $workedWeekdays = 0;
+        foreach (array_keys($byDate) as $attDate) {
+            if ((int)date('N', strtotime($attDate)) < 6) {
+                $workedWeekdays++;
             }
         }
 
         return [
-            'worked_days'      => $workedDays,
-            'absent_days'      => max(0, $totalWorkingDays - $workedDays),
-            'regular_hours'    => round($regularHours, 2),
-            'night_diff_hours' => round($nightDiffHours, 2),
-            'tardy_minutes'    => $tardyMinutes,
-            'reg_ot_hours'     => round($regOtHours, 2),
-            'rest_ot_hours'    => round($restOtHours, 2),
-            'holiday_ot_hours' => round($holidayOtHours, 2),
+            'worked_days'        => $workedDays,
+            'absent_days'        => max(0, $totalWorkingDays - $workedWeekdays),
+            'regular_hours'      => round($regularHours, 2),
+            'tardy_minutes'      => $tardyMinutes,
+            'reg_ot_hours'       => round($regOtHours, 2),
+            'workday_nsd_hours'  => round($workdayNsdHours, 2),
+            'sat_reg_hours'      => round($satRegHours, 2),
+            'sat_ot_hours'       => round($satOtHours, 2),
+            'sat_nsd_hours'      => round($satNsdHours, 2),
+            'sun_reg_hours'      => round($sunRegHours, 2),
+            'sun_ot_hours'       => round($sunOtHours, 2),
+            'sun_nsd_hours'      => round($sunNsdHours, 2),
+            'hol_reg_hours'      => round($holRegHours, 2),
+            'hol_ot_hours'       => round($holOtHours, 2),
+            'hol_nsd_hours'      => round($holNsdHours, 2),
+            'spec_hol_reg_hours' => round($specHolRegHours, 2),
+            'spec_hol_ot_hours'  => round($specHolOtHours, 2),
+            'spec_hol_nsd_hours' => round($specHolNsdHours, 2),
+            // Legacy aliases kept for any existing code still reading them
+            'night_diff_hours'        => round($workdayNsdHours + $satNsdHours + $sunNsdHours + $holNsdHours, 2),
+            'rest_day_regular_hours'  => round($satRegHours + $sunRegHours, 2),
+            'rest_ot_hours'           => round($satOtHours  + $sunOtHours,  2),
+            'holiday_ot_hours'        => round($holOtHours, 2),
         ];
     }
 
@@ -452,7 +592,7 @@ class PayrollController extends BaseController
 
             if (!$employeeId || !$start || !$end) {
 
-                throw new \Exception('Missing required parameters');
+                throw new \App\Exceptions\ValidationException('Missing required parameters');
 
             }
 
@@ -567,17 +707,155 @@ class PayrollController extends BaseController
 
         } catch (\Exception $e) {
 
-            log_message(
-                'error',
-                'computeAndSave: ' . $e->getMessage()
-            );
-
-            return $this->response
-                ->setJSON([
-                    'error' => $e->getMessage()
-                ])
-                ->setStatusCode(500);
+            return $this->jsonError($e, 'Unable to compute payroll. Please check the inputs and try again.');
         }
+    }
+
+    // ================= PAYROLL REGISTER (JSON for view) =================
+    public function getRegisterRows()
+    {
+        $month  = $this->request->getGet('month')  ?? date('Y-m');
+        $period = $this->request->getGet('period') ?? '';   // '1st_half' | '2nd_half' | ''
+
+        $db = \Config\Database::connect();
+
+        // Build period filter
+        if ($period === '1st_half' || $period === '2nd_half') {
+            $psModel = new \App\Models\Client\PayrollSettingsModel();
+            [$pStart, $pEnd] = $this->computeStatusPeriodDates($month, $period, $psModel);
+            $periodWhere = "ps.period_start = ? AND ps.period_end = ?";
+            $binds = [$pStart, $pEnd];
+        } else {
+            $periodWhere = "DATE_FORMAT(ps.period_start,'%Y-%m') = ?";
+            $binds = [$month];
+        }
+
+        $rows = $db->query("
+            SELECT
+                CONCAT(TRIM(e.first_name),' ',TRIM(e.last_name))   AS employee_name,
+                COALESCE(ep.monthly_salary, 0)                      AS monthly_salary,
+                ps.period_start, ps.period_end,
+                ps.net_pay                                          AS db_net_pay,
+                ps.generated_data
+            FROM employee_payslips ps
+            INNER JOIN employees e   ON e.id = ps.employee_id
+            LEFT  JOIN users u       ON u.id = e.user_id AND u.active = 1
+            LEFT  JOIN employee_positions ep ON ep.employee_id = e.id
+            WHERE $periodWhere
+            ORDER BY e.first_name, e.last_name
+        ", $binds)->getResultArray();
+
+        $result = [];
+        $i = 1;
+        foreach ($rows as $row) {
+            $d  = json_decode((string)($row['generated_data'] ?? ''), true) ?? [];
+            $gf = fn($k, $alt = null) => (float)($d[$k] ?? ($alt !== null ? (float)($d[$alt] ?? 0) : 0));
+
+            // Monthly & semi-monthly
+            $monthly    = (float)$row['monthly_salary'];
+            $semiMonthly = $monthly / 2;
+
+            // De Minimis — individual components (stored separately in generated_data)
+            $yearEndGifts    = $gf('year_end_gifts');
+            $riceSubsidy     = $gf('rice_subsidy');
+            $uniformAllow    = $gf('uniform_allowance');
+            $laundryAllow    = $gf('laundry_allowance');
+            $mealAllow       = $gf('meal_allowance');
+            $medicalAllow    = $gf('medical_allowance');
+            $otherNonTax     = $gf('other_earnings_non_taxable');
+            $salAdjNonTax    = $gf('salary_adjustment_non_tax');
+            $deMinimis       = $yearEndGifts + $riceSubsidy + $uniformAllow + $laundryAllow + $mealAllow + $medicalAllow + $salAdjNonTax;
+
+            // Earnings
+            // Bug 1 fix: other_earnings_taxable includes holiday_pay, so we isolate salary adj fields.
+            $salAdj  = $gf('salary_adjustment') + $gf('override_amount') + $gf('ned_amount');
+            // Excel register "Overtime" = workday OT + Saturday (regular+OT) only.
+            // Sun/Hol OT goes into "Holiday Pay" column to match Excel format.
+            $regOt      = $gf('reg_ot') + $gf('reg_ot_gt10');
+            $satOt      = $gf('sat_ot') + $gf('sat_ot_gt10');
+            $sunOtTotal = $gf('sun_ot') + $gf('sun_ot_gt10');
+            $holOtTotal = $gf('hol_ot') + $gf('hol_ot_gt10');
+            $pureOtSum  = $regOt + $satOt;
+            $otRaw      = $gf('overtime_pay', 'total_overtime');
+            // If individual fields are missing (legacy record), fall back to overtime_pay
+            $otTotal    = ($pureOtSum == 0 && $otRaw > 0) ? $otRaw : $pureOtSum;
+            // Bug 2 fix: NSD = all NSD types (workday + sat + sun + hol)
+            $nsd     = $gf('night_diff_pay') + $gf('sat_night_prem') + $gf('sun_night_prem') + $gf('hol_night_prem');
+            // Bug 3 fix: include undertime in absences
+            $absent  = $gf('absent_amt') + $gf('undertime_amt');
+            // Holiday Pay = stored holiday_pay (special/reg hol premium) + Sun OT + Hol OT
+            $holiday  = ($pureOtSum == 0 && $otRaw > 0)
+                      ? $gf('holiday_pay')  // legacy: no split available
+                      : $gf('holiday_pay') + $sunOtTotal + $holOtTotal;
+            $grossPay = $gf('gross_pay');
+
+            // If gross_pay not stored, compute it (fallback for legacy payslips)
+            if ($grossPay <= 0) {
+                $netBasic = $gf('net_basic_pay');
+                $grossPay = $netBasic + $otRaw + $salAdj + $gf('holiday_pay') + $deMinimis + $otherNonTax;
+            }
+
+            // Taxable / non-taxable split
+            $nonTaxable   = $deMinimis + $otherNonTax;
+            $grossTaxable = $grossPay - $nonTaxable;
+
+            // Government deductions (0 for 1st half per Excel convention)
+            $sss  = $gf('sss_ee');
+            $phic = $gf('phic_ee');
+            $hdmf = $gf('hdmf_ee');
+
+            // Regular Net Taxable = Gross Taxable − SSS − PHIC − HDMF
+            $netTaxable = $grossTaxable - $sss - $phic - $hdmf;
+
+            // Withholding Tax (signed: negative = refund due for 2nd-half over-withheld employees)
+            $wthRaw    = (float)($d['withholding_tax'] ?? 0);
+            $wthDue    = max(0.0, $wthRaw);       // amount deducted from pay (≥0)
+            $taxRefund = max(0.0, -$wthRaw);      // refund added to net pay (≥0)
+
+            // Loan deductions
+            $sssLoan      = $gf('sss_loan');
+            $calamityLoan = $gf('calamity_loan');
+            $hdmfLoan     = $gf('hdmf_loan');
+            $advances     = $gf('sal_adv', 'salary_advance');
+
+            // Net Pay — use stored value (authoritative); it already incorporates refund since JS fix.
+            $netPay = (float)($d['net_pay'] ?? $row['db_net_pay'] ?? 0);
+
+            $result[] = [
+                'no'               => $i++,
+                'employee_name'    => $row['employee_name'],
+                'monthly_salary'   => round($monthly,       2),
+                'semi_monthly'     => round($semiMonthly,   2),
+                'year_end_gifts'   => round($yearEndGifts,  2),
+                'rice_subsidy'     => round($riceSubsidy,   2),
+                'uniform_allow'    => round($uniformAllow,  2),
+                'laundry_allow'    => round($laundryAllow,  2),
+                'meal_allow'       => round($mealAllow,     2),
+                'medical_allow'    => round($medicalAllow,  2),
+                'other_non_tax'    => round($otherNonTax,   2),
+                'salary_adj'       => round($salAdj,        2),
+                'overtime'         => round($otTotal,       2),
+                'nsd'              => round($nsd,           2),
+                'absences'         => round($absent,        2),
+                'holiday_pay'      => round($holiday,       2),
+                'gross_comp'       => round($grossPay,      2),
+                'gross_taxable'    => round($grossTaxable,  2),
+                'non_taxable'      => round($nonTaxable,    2),
+                'sss'              => round($sss,           2),
+                'phic'             => round($phic,          2),
+                'hdmf'             => round($hdmf,          2),
+                'net_taxable'      => round($netTaxable,    2),
+                'wth'              => round($wthDue,        2),
+                'tax_refund'       => round($taxRefund,     2),
+                'sss_loan'         => round($sssLoan,       2),
+                'calamity_loan'    => round($calamityLoan,  2),
+                'hdmf_loan'        => round($hdmfLoan,      2),
+                'advances'         => round($advances,      2),
+                'net_pay'          => round($netPay,        2),
+            ];
+        }
+
+        return $this->response->setJSON($result);
     }
 
     // ================= EXPORT / IMPORT =================
@@ -684,7 +962,7 @@ class PayrollController extends BaseController
 
         $attendanceModel = new AttendanceModel();
         $records = $attendanceModel
-            ->select('DATE(time_in) as date, time_in, time_out, break_duration, total_hours')
+            ->select('DATE(time_in) as date, time_in, time_out, break_duration, total_hours, night_diff_hours')
             ->where('user_id', $employee['user_id'])
             ->where('DATE(time_in) >=', $startDate)
             ->where('DATE(time_in) <=', $endDate)
@@ -695,7 +973,7 @@ class PayrollController extends BaseController
         header('Content-Type: text/csv');
         header('Content-Disposition: attachment; filename="' . $filename . '"');
         $output = fopen('php://output', 'w');
-        fputcsv($output, ['employee_number', 'date', 'time_in', 'time_out', 'break_duration', 'total_hours']);
+        fputcsv($output, ['employee_number', 'date', 'time_in', 'time_out', 'break_duration', 'total_hours', 'night_diff_hours']);
         foreach ($records as $row) {
             fputcsv($output, [
                 $employee['employee_number'],
@@ -703,7 +981,8 @@ class PayrollController extends BaseController
                 $row['time_in'],
                 $row['time_out'],
                 $row['break_duration'],
-                $row['total_hours']
+                $row['total_hours'],
+                $row['night_diff_hours'] ?? 0,
             ]);
         }
         fclose($output);
@@ -735,13 +1014,20 @@ class PayrollController extends BaseController
             $date   = trim($data['date']     ?? '');
             $timeInDt  = (strpos($rawIn,  ' ') !== false) ? $rawIn  : "{$date} {$rawIn}";
             $timeOutDt = $rawOut !== '' ? ((strpos($rawOut, ' ') !== false) ? $rawOut : "{$date} {$rawOut}") : null;
-            $totalHours = $this->calculateTotalHours($timeInDt, $timeOutDt, $breakDur);
+            $totalHours    = isset($data['total_hours']) && $data['total_hours'] !== ''
+                           ? (float)$data['total_hours']
+                           : $this->calculateTotalHours($timeInDt, $timeOutDt, $breakDur);
+            // Use stored night_diff_hours if present in CSV; otherwise compute from timestamps
+            $nightDiffHours = isset($data['night_diff_hours']) && $data['night_diff_hours'] !== ''
+                            ? (float)$data['night_diff_hours']
+                            : (($timeInDt && $timeOutDt) ? $this->calcNightDiffHours($timeInDt, $timeOutDt) : 0);
             $attendanceModel->insert([
-                'user_id'        => $employee['user_id'],
-                'time_in'        => $timeInDt,
-                'time_out'       => $timeOutDt,
-                'break_duration' => $breakDur,
-                'total_hours'    => $totalHours,
+                'user_id'          => $employee['user_id'],
+                'time_in'          => $timeInDt,
+                'time_out'         => $timeOutDt,
+                'break_duration'   => $breakDur,
+                'total_hours'      => $totalHours,
+                'night_diff_hours' => round($nightDiffHours, 2),
             ]);
             $successCount++;
         }
@@ -759,17 +1045,31 @@ class PayrollController extends BaseController
         return max(0, $hours - $breakDuration);
     }
 
+    private function calcNightDiffHours(string $timeIn, string $timeOut): float
+    {
+        $start   = new \DateTime($timeIn);
+        $end     = new \DateTime($timeOut);
+        $date    = $start->format('Y-m-d');
+        $ndStart = new \DateTime($date . ' 22:00:00');
+        $ndEnd   = (new \DateTime($date . ' 06:00:00'))->modify('+1 day');
+        $ovStart = max($start, $ndStart);
+        $ovEnd   = min($end,   $ndEnd);
+        if ($ovStart >= $ovEnd) return 0.0;
+        $diff = $ovStart->diff($ovEnd);
+        return ($diff->h * 60 + $diff->i) / 60.0;
+    }
+
     // ================= GENERATE PDF PAYSLIP =================
     public function generatePayslip($transactionId)
     {
         try {
             $txModel = new PayrollTransactionModel();
             $payroll = $txModel->find($transactionId);
-            if (!$payroll) throw new \Exception('Payroll transaction not found');
+            if (!$payroll) throw new \App\Exceptions\ValidationException('Payroll transaction not found');
 
             $employeeModel = new EmployeeModel();
             $employee = $employeeModel->find($payroll['employee_id']);
-            
+
             $data = [
                 'payroll' => $payroll,
                 'employee' => $employee,
@@ -786,7 +1086,7 @@ class PayrollController extends BaseController
             $dompdf->stream("payslip_{$employee['employee_number']}_{$payroll['period_start']}.pdf", ['Attachment' => false]);
             exit;
         } catch (\Exception $e) {
-            return redirect()->back()->with('error', $e->getMessage());
+            return $this->flashError($e, 'Unable to generate payslip PDF.');
         }
     }
 
@@ -795,14 +1095,14 @@ class PayrollController extends BaseController
         try {
             $txModel = new PayrollTransactionModel();
             $payroll = $txModel->find($transactionId);
-            if (!$payroll) throw new \Exception('Transaction not found');
+            if (!$payroll) throw new \App\Exceptions\ValidationException('Transaction not found');
 
             $employeeModel = new EmployeeModel();
             $employee = $employeeModel->find($payroll['employee_id']);
             $emailAddress = $this->getUserEmail($employee['user_id']);
 
             if (!$emailAddress) {
-                throw new \Exception('Employee email not found');
+                throw new \App\Exceptions\ValidationException('Employee email not found');
             }
 
             $data = [
@@ -835,10 +1135,10 @@ class PayrollController extends BaseController
                 unlink($tempPath . $filename);
                 return $this->response->setJSON(['success' => true, 'message' => 'Payslip sent to ' . $emailAddress]);
             } else {
-                throw new \Exception('Failed to send email');
+                throw new \App\Exceptions\ValidationException('Failed to send email');
             }
         } catch (\Exception $e) {
-            return $this->response->setJSON(['error' => $e->getMessage()])->setStatusCode(500);
+            return $this->jsonError($e, 'Unable to send payslip email.');
         }
     }
 
@@ -975,28 +1275,28 @@ class PayrollController extends BaseController
             
             $employeeModel = new EmployeeModel();
             $employee = $employeeModel->find($employeeId);
-            if (!$employee) throw new \Exception('Employee not found');
-            
+            if (!$employee) throw new \App\Exceptions\ValidationException('Employee not found');
+
             $emailAddress = $this->getUserEmail($employee['user_id']);
 
             if (!$emailAddress) {
-                throw new \Exception('Employee email not found');
+                throw new \App\Exceptions\ValidationException('Employee email not found');
             }
-            
+
             $html = view('client_portal/email_payslip', ['data' => $data, 'employee' => $employee]);
-            
+
             $email = service('email');
             $email->setTo($emailAddress);
             $email->setSubject("Payslip for period {$data['period_start']} to {$data['period_end']}");
             $email->setMessage($html);
-            
+
             if ($email->send()) {
                 return $this->response->setJSON(['success' => true]);
             } else {
-                throw new \Exception('Failed to send email');
+                throw new \App\Exceptions\ValidationException('Failed to send email');
             }
         } catch (\Exception $e) {
-            return $this->response->setJSON(['error' => $e->getMessage()])->setStatusCode(500);
+            return $this->jsonError($e, 'Unable to send payslip email.');
         }
     }
 
@@ -1005,14 +1305,14 @@ class PayrollController extends BaseController
         try {
             $data       = $this->request->getJSON(true);
             $employeeId = $data['employee_id'] ?? null;
-            if (!$employeeId) throw new \Exception('Missing employee_id');
+            if (!$employeeId) throw new \App\Exceptions\ValidationException('Missing employee_id');
 
             $employeeModel = new \App\Models\Client\EmployeeModel();
             $employee = $employeeModel->find($employeeId);
-            if (!$employee) throw new \Exception('Employee not found');
+            if (!$employee) throw new \App\Exceptions\ValidationException('Employee not found');
 
             $emailAddress = $this->getUserEmail($employee['user_id']);
-            if (!$emailAddress) throw new \Exception('Employee email not found');
+            if (!$emailAddress) throw new \App\Exceptions\ValidationException('Employee email not found');
 
             $payslipModel = new \App\Models\Client\EmployeePayslipModel();
 
@@ -1048,7 +1348,7 @@ class PayrollController extends BaseController
             }
 
             if (!$payslipRecordId) {
-                throw new \Exception('Could not resolve payslip record ID after save.');
+                throw new \App\Exceptions\ValidationException('Could not resolve payslip record ID after save.');
             }
 
             // --- Step 2: Generate PDF ---
@@ -1127,8 +1427,7 @@ class PayrollController extends BaseController
                 ])->setStatusCode(500);
             }
         } catch (\Exception $e) {
-            log_message('error', 'sendPdf exception: ' . $e->getMessage());
-            return $this->response->setJSON(['error' => $e->getMessage()])->setStatusCode(500);
+            return $this->jsonError($e, 'Unable to generate and send the payslip PDF.');
         }
     }
 
@@ -1142,12 +1441,12 @@ class PayrollController extends BaseController
             $netPay      = $data['net_pay']       ?? null;
 
             if (!$employeeId || !$periodStart || !$periodEnd || $netPay === null) {
-                throw new \Exception('Missing required fields.');
+                throw new \App\Exceptions\ValidationException('Missing required fields.');
             }
 
             $employeeModel = new \App\Models\Client\EmployeeModel();
             $employee = $employeeModel->find($employeeId);
-            if (!$employee) throw new \Exception('Employee not found');
+            if (!$employee) throw new \App\Exceptions\ValidationException('Employee not found');
 
             $payslipModel = new \App\Models\Client\EmployeePayslipModel();
 
@@ -1183,7 +1482,7 @@ class PayrollController extends BaseController
             }
 
             if (!$recordId) {
-                throw new \Exception('Failed to resolve payslip record after save.');
+                throw new \App\Exceptions\ValidationException('Failed to resolve payslip record after save.');
             }
 
             // --- Step 2: Generate PDF and update file_path (best-effort, non-fatal) ---
@@ -1220,8 +1519,7 @@ class PayrollController extends BaseController
 
             return $this->response->setJSON(['success' => true, 'payslip_id' => $recordId]);
         } catch (\Exception $e) {
-            log_message('error', 'savePayslipRecord: ' . $e->getMessage());
-            return $this->response->setJSON(['error' => $e->getMessage()])->setStatusCode(500);
+            return $this->jsonError($e, 'Unable to save payslip record.');
         }
     }
 
@@ -1341,22 +1639,33 @@ class PayrollController extends BaseController
           - (float)($d['undertime_amt']  ?? 0)
         ));
 
-        $hasIndividual = isset($d['reg_ot']) || isset($d['sat_ot']) || isset($d['sun_ot']);
-        $totalOt = $hasIndividual
-            ? (float)($d['reg_ot'] ?? 0) + (float)($d['reg_ot_gt10'] ?? 0) + (float)($d['reg_ot_night'] ?? 0)
-              + (float)($d['sat_ot'] ?? 0) + (float)($d['sat_ot_gt10'] ?? 0) + (float)($d['sat_night_prem'] ?? 0)
-              + (float)($d['sun_ot'] ?? 0) + (float)($d['sun_ot_gt10'] ?? 0) + (float)($d['sun_night_prem'] ?? 0)
-              + (float)($d['hol_ot'] ?? 0) + (float)($d['hol_ot_gt10'] ?? 0) + (float)($d['hol_night_prem'] ?? 0)
-            : (float)($d['overtime_pay'] ?? 0);
+        // Prefer total_overtime (NSD-corrected aggregate saved by the JS) over re-summing
+        // individual fields, which can give a 0.01 discrepancy due to per-type rounding.
+        if (isset($d['total_overtime'])) {
+            $totalOt = (float)$d['total_overtime'];
+        } else {
+            $hasIndividual = isset($d['reg_ot']) || isset($d['sat_ot']) || isset($d['sun_ot']);
+            $totalOt = $hasIndividual
+                ? (float)($d['reg_ot'] ?? 0) + (float)($d['reg_ot_gt10'] ?? 0) + (float)($d['reg_ot_night'] ?? 0)
+                  + (float)($d['sat_ot'] ?? 0) + (float)($d['sat_ot_gt10'] ?? 0) + (float)($d['sat_night_prem'] ?? 0)
+                  + (float)($d['sun_ot'] ?? 0) + (float)($d['sun_ot_gt10'] ?? 0) + (float)($d['sun_night_prem'] ?? 0)
+                  + (float)($d['hol_ot'] ?? 0) + (float)($d['hol_ot_gt10'] ?? 0) + (float)($d['hol_night_prem'] ?? 0)
+                : (float)($d['overtime_pay'] ?? 0);
+        }
 
         $otherTaxable = (float)($d['other_earnings_taxable'] ?? ($d['other_taxable'] ?? 0));
         $netTaxable   = $netBasicPay + $totalOt + $otherTaxable;
         $wt           = (float)($d['withholding_tax'] ?? 0);
 
+        // prior_gross = total 1st-half gross pay (taxable + non-taxable).
+        // Used by the 2nd-half SSS computation to derive the monthly MSC from total compensation.
+        $priorGross = (float)($d['gross_pay'] ?? 0);
+
         return $this->response->setJSON([
             'found'        => true,
             'net_taxable'  => round($netTaxable, 2),
             'wt'           => round($wt, 2),
+            'prior_gross'  => round($priorGross, 2),
             'period_start' => $priorStart,
             'period_end'   => $priorEnd,
         ]);
@@ -1714,33 +2023,38 @@ class PayrollController extends BaseController
         <td style="text-align:right;"><strong>' . $fmt($grossPay) . '</strong></td>
     </tr>
 </table>
-<table style="margin-top:6px;">
-    <tr>
-        <th colspan="2">REGULAR DEDUCTIONS</th>
-        <th colspan="2">LOANS/ADVANCES</th>
-    </tr>
-    <tr>
-        <td>SSS</td><td style="text-align:right;">' . $fmt($data['sss_ee'] ?? 0) . '</td>
-        <td>Salary Loan</td><td style="text-align:right;">' . $fmtAmt($data['sss_loan'] ?? 0) . '</td>
-    </tr>
-    <tr>
-        <td>Philhealth</td><td style="text-align:right;">' . $fmt($data['phic_ee'] ?? 0) . '</td>
-        <td>Calamity Loan</td><td style="text-align:right;">' . $fmtAmt($data['calamity_loan'] ?? 0) . '</td>
-    </tr>
-    <tr>
-        <td>HDMF</td><td style="text-align:right;">' . $fmt($data['hdmf_ee'] ?? 0) . '</td>
-        <td>Salary Advance</td><td style="text-align:right;">' . $fmtAmt($data['salary_advance'] ?? 0) . '</td>
-    </tr>
-    <tr>
-        <td>Withholding tax</td><td style="text-align:right;">' . $fmt($data['withholding_tax'] ?? 0) . '</td>
-        <td colspan="2"></td>
-    </tr>
-    <tr><th colspan="2">OTHER DEDUCTIONS</th><th colspan="2"></th></tr>
-    <tr>
-        <td colspan="2"></td>
-        <td colspan="2" style="text-align:right;"><strong>TOTAL DEDUCTIONS</strong>&nbsp;&nbsp;' . $fmt($totalDeductionsDisplay) . '</td>
-    </tr>
-</table>
+' . (function() use ($data, $fmt, $totalDeductionsDisplay) {
+    $regDeds = [
+        ['SSS',             (float)($data['sss_ee']          ?? 0)],
+        ['Philhealth',      (float)($data['phic_ee']         ?? 0)],
+        ['HDMF',            (float)($data['hdmf_ee']         ?? 0)],
+        ['Withholding tax', (float)($data['withholding_tax'] ?? 0)],
+    ];
+    $allLoans = [
+        ['Salary Loan',    (float)($data['sss_loan']       ?? 0)],
+        ['Calamity Loan',  (float)($data['calamity_loan']  ?? 0)],
+        ['HDMF Loan',      (float)($data['hdmf_loan']      ?? 0)],
+        ['Salary Advance', (float)($data['salary_advance'] ?? 0)],
+        ['Cal. Advance',   (float)($data['cal_adv']        ?? 0)],
+    ];
+    $loans = array_values(array_filter($allLoans, fn($r) => $r[1] > 0));
+    $maxRows = max(count($regDeds), count($loans));
+    $loanHeader = '<th colspan="2">LOANS/ADVANCES</th>';
+    $out = '<table style="margin-top:6px;"><tr><th colspan="2">REGULAR DEDUCTIONS</th>' . $loanHeader . '</tr>';
+    for ($i = 0; $i < $maxRows; $i++) {
+        $l = $regDeds[$i] ?? null;
+        $r = $loans[$i]   ?? null;
+        $out .= '<tr>';
+        $out .= $l ? '<td>' . $l[0] . '</td><td style="text-align:right;">' . $fmt($l[1]) . '</td>'
+                   : '<td colspan="2"></td>';
+        $out .= $r ? '<td>' . $r[0] . '</td><td style="text-align:right;">' . $fmt($r[1]) . '</td>'
+                   : '<td colspan="2"></td>';
+        $out .= '</tr>';
+    }
+    $out .= '<tr><td colspan="2"></td><td colspan="2" style="text-align:right;"><strong>TOTAL DEDUCTIONS</strong>&nbsp;&nbsp;' . $fmt($totalDeductionsDisplay) . '</td></tr>';
+    $out .= '</table>';
+    return $out;
+})() . '
 <table style="margin-top:6px;">
     <tr>
         <td style="width:30%;">Employee signature:</td>
@@ -2535,7 +2849,7 @@ class PayrollController extends BaseController
 
             log_message(
                 'error',
-                'getLoanBreakdown Error: ' . $e->getMessage()
+                'getLoanBreakdown Error: ' . $e->getMessage() . ' | ' . $e->getFile() . ':' . $e->getLine()
             );
 
             return $this->response
@@ -2544,7 +2858,7 @@ class PayrollController extends BaseController
 
                     'success' => false,
 
-                    'message' => $e->getMessage()
+                    'message' => $this->safeErrorMessage($e, 'Unable to load loan breakdown.')
 
                 ]);
         }

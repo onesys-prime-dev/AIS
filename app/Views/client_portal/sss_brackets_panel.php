@@ -206,10 +206,10 @@
                 saveBtn.textContent = 'Saved ✓';
                 setTimeout(() => { saveBtn.textContent = 'Save Brackets'; }, 2000);
             } else {
-                alert('Save failed: ' + (data.message ?? 'Unknown error'));
+                showToast('Save failed: ' + (data.message ?? 'Unknown error'), 'error');
             }
         } catch (e) {
-            alert('Network error. Please try again.');
+            showToast('Network error. Please try again.', 'error');
         } finally {
             saveBtn.disabled = false;
         }
@@ -253,8 +253,8 @@
     modalCancel.addEventListener('click', () => yearModal.classList.add('hidden'));
     modalConfirm.addEventListener('click', async () => {
         const yr = parseInt(newYearInput.value);
-        if (!yr || yr < 2020 || yr > 2099) { alert('Please enter a valid year.'); return; }
-        if (years.find(y => y.year == yr)) { alert(`Year ${yr} already exists.`); return; }
+        if (!yr || yr < 2020 || yr > 2099) { showToast('Please enter a valid year.', 'warning'); return; }
+        if (years.find(y => y.year == yr)) { showToast(`Year ${yr} already exists.`, 'warning'); return; }
 
         const copyFrom = copyFromSelect.value || null;
         const res = await fetch(`${BASE}/sss/createYear`, {
@@ -271,7 +271,7 @@
             loadBrackets(yr);
             updateActiveBadge();
         } else {
-            alert('Error: ' + (data.message ?? 'Could not create year.'));
+            showToast('Error: ' + (data.message ?? 'Could not create year.'), 'error');
         }
     });
 

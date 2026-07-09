@@ -353,11 +353,11 @@ class EmployeeController extends BaseController
 
         } catch (\Throwable $e) {
 
-            log_message('error', $e->getMessage());
+            log_message('error', static::class . ': ' . $e->getMessage() . ' | ' . $e->getFile() . ':' . $e->getLine());
 
             return redirect()->back()
                 ->withInput()
-                ->with('error', $e->getMessage());
+                ->with('error', $this->safeErrorMessage($e, 'Unable to create employee. Please check the inputs and try again.'));
         }
     }
 
@@ -371,8 +371,7 @@ class EmployeeController extends BaseController
             return redirect()->back()
                 ->with('success', 'Employee updated successfully');
         } catch (\Throwable $e) {
-            return redirect()->back()
-                ->with('error', $e->getMessage());
+            return $this->flashError($e, 'Unable to update employee. Please check the inputs and try again.');
         }
     }
 
@@ -483,9 +482,11 @@ class EmployeeController extends BaseController
 
         } catch (\Throwable $e) {
 
+            log_message('error', static::class . ': ' . $e->getMessage() . ' | ' . $e->getFile() . ':' . $e->getLine());
+
             return $this->response->setJSON([
                 'success' => false,
-                'message' => $e->getMessage()
+                'message' => $this->safeErrorMessage($e, 'Unable to import employees from this file.')
             ]);
         }
     }

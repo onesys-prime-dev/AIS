@@ -355,7 +355,6 @@
 <?= $this->endSection() ?>
 
 <?= $this->section('scripts') ?>
-<script src="<?= base_url('js/components/flash-notifications.js') ?>"></script>
 <script src="<?= base_url('js/components/modal-handler.js') ?>?v=2"></script>
 <script src="<?= base_url('js/components/crud-table.js') ?>"></script>
 
@@ -498,9 +497,9 @@ function saveTaskLog() {
     .then(res => res.json())
     .then(data => {
         if (data.success) location.reload();
-        else alert('Update failed: ' + (data.message || 'Unknown error'));
+        else showToast('Update failed: ' + (data.message || 'Unknown error'), 'error');
     })
-    .catch(err => { console.error(err); alert('Network error'); });
+    .catch(err => { console.error(err); showToast('Network error. Please try again.', 'error'); });
 }
 
 function filterAndSort() {

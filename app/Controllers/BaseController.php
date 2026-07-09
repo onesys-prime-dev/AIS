@@ -23,6 +23,43 @@ abstract class BaseController extends Controller
         return (int) (session('company_id') ?? 1);
     }
 
+    /**
+     * Log the full exception server-side and return a JSON error response.
+     * In production, $publicMessage is shown to the client instead of the raw
+     * exception text so internals (queries, file paths, stack info) never leak.
+     */
+    protected function jsonError(Throwable $e, string $publicMessage = 'Something went wrong. Please try again.', int $statusCode = 500)
+    {
+        log_message('error', static::class . ': ' . $e->getMessage() . ' | ' . $e->getFile() . ':' . $e->getLine());
+
+        return $this->response->setStatusCode($statusCode)->setJSON(['error' => $this->safeErrorMessage($e, $publicMessage)]);
+    }
+
+    /**
+     * Log the full exception server-side and redirect back with a sanitized
+     * flash error message (same rationale as jsonError()).
+     */
+    protected function flashError(Throwable $e, string $publicMessage = 'Something went wrong. Please try again.')
+    {
+        log_message('error', static::class . ': ' . $e->getMessage() . ' | ' . $e->getFile() . ':' . $e->getLine());
+
+        return redirect()->back()->with('error', $this->safeErrorMessage($e, $publicMessage));
+    }
+
+    /**
+     * ValidationException messages are always author-written and safe to show
+     * (e.g. "Employee not found"). Anything else may contain internals (SQL,
+     * file paths, stack info), so it's only shown outside production.
+     */
+    protected function safeErrorMessage(Throwable $e, string $publicMessage): string
+    {
+        if ($e instanceof \App\Exceptions\ValidationException || ENVIRONMENT !== 'production') {
+            return $e->getMessage();
+        }
+
+        return $publicMessage;
+    }
+
     private function bootstrapActiveCompanyBranding(): void
     {
         if (! function_exists('auth') || ! auth()->loggedIn()) {

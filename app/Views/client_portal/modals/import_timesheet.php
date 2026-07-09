@@ -21,12 +21,12 @@
         });
         const result = await response.json();
         if (result.success) {
-            alert('Timesheet imported successfully.');
+            showToast('Timesheet imported successfully.', 'success');
             // Close modal (if using a modal)
             const modal = document.getElementById('importTimesheetModal');
             if (modal) modal.style.display = 'none';
         } else {
-            alert('Import failed: ' + (result.error || 'Unknown error'));
+            showToast('Import failed: ' + (result.error || 'Unknown error'), 'error');
         }
     });
 </script>

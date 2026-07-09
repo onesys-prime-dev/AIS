@@ -1137,13 +1137,13 @@ document.getElementById('employeeImportInput')?.addEventListener('change', async
         });
         const result = await res.json();
         if (result.success) {
-            alert(result.message || 'Employees imported successfully.');
-            window.location.reload();
+            showToast(result.message || 'Employees imported successfully.', 'success');
+            setTimeout(() => window.location.reload(), 1200);
         } else {
-            alert('Import failed: ' + (result.message || 'Unknown error'));
+            showToast('Import failed: ' + (result.message || 'Unknown error'), 'error');
         }
     } catch (err) {
-        alert('Network error during import.');
+        showToast('Network error during import.', 'error');
         console.error(err);
     }
     this.value = '';

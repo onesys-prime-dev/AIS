@@ -1,5 +1,10 @@
 <?= $this->extend('layouts/main') ?>
 <?= $this->section('content') ?>
+<?php
+    $authUser        = auth()->loggedIn() ? auth()->user() : null;
+    $isPayrollStaff  = $authUser ? $authUser->inGroup('client_payroll_staff') : false;
+    $authUsername    = $authUser->username ?? '';
+?>
 <style>
 
 .requests-content-container{
@@ -823,7 +828,7 @@
 
     <?php $requests = $requests ?? []; ?>
 
-    <?php if (auth()->user()->inGroup('client_payroll_staff')): ?>
+    <?php if ($isPayrollStaff): ?>
         <div class="tabs">
             <button type="button" class="tab active" id="tabBtnRequests" onclick="switchTab('requests')">Requests</button>
             <button type="button" class="tab" id="tabBtnCodes" onclick="switchTab('codes')">Approval Codes</button>
@@ -840,7 +845,7 @@
 
                 <!-- Per-tab controls -->
                 <div id="requestsControls" style="display:flex;align-items:center;gap:1rem;">
-                    <?php if (auth()->user()->inGroup('client_payroll_staff')): ?>
+                    <?php if ($isPayrollStaff): ?>
                     <button class="generate-code-btn" id="generateCodeBtn" onclick="openCodeModal()">
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
@@ -873,7 +878,7 @@
                             $isClickable = in_array($request['status'], ['approved', 'rejected']);
                             $clickAttr   = '';
                             if ($isClickable) {
-                                if (auth()->user()->inGroup('client_payroll_staff')) {
+                                if ($isPayrollStaff) {
                                     $clickAttr = 'onclick="openRequestReviewModal(' . (int) $request['id'] . ')"';
                                 } else {
                                     $clickAttr = 'onclick="openRequestDetailModal(' . (int) $request['id'] . ')"';
@@ -910,7 +915,7 @@
 
                             <div class="request-header <?= esc($request['status']) ?>">
                                 <div class="request-person">
-                                    <?php if (auth()->user()->inGroup('client_payroll_staff')): ?>
+                                    <?php if ($isPayrollStaff): ?>
                                         <?php if (! empty($request['photo_path'])): ?>
                                             <div class="request-avatar" style="background-image:url('<?= esc((string) $request['photo_path']) ?>');"></div>
                                         <?php else: ?>
@@ -924,7 +929,7 @@
                                 </div>
 
                                 <div class="request-actions">
-                                    <?php if (auth()->user()->inGroup('client_payroll_staff') && $request['status'] == 'pending'): ?>
+                                    <?php if ($isPayrollStaff && $request['status'] == 'pending'): ?>
                                         <button type="button" class="btn-circle btn-view" onclick="openRequestReviewModal(<?= (int) $request['id'] ?>)">⌕</button>
                                     <?php else: ?>
                                         <span class="status-badge <?= esc($request['status']) ?>">
@@ -963,7 +968,7 @@
         </div>
 
         <!-- ── TAB: Approval Codes (payroll staff only) ── -->
-        <?php if (auth()->user()->inGroup('client_payroll_staff')): ?>
+        <?php if ($isPayrollStaff): ?>
         <div class="tab-panel" id="panelCodes">
             <?= view('components/crud_table', [
             'title'   => 'Approval Codes',
@@ -975,7 +980,7 @@
         <?php endif; ?>
     </div>
 
-<?php if (auth()->user()->inGroup('client_payroll_staff')): ?>
+<?php if ($isPayrollStaff): ?>
     <div class="request-review-modal-overlay" id="requestReviewModalOverlay">
         <div class="request-review-modal">
             <div class="request-review-modal-header">
@@ -1033,7 +1038,7 @@
 <?php endif; ?>
 
 <!-- ── Request Detail Modal (employees, read-only) ── -->
-<?php if (! auth()->user()->inGroup('client_payroll_staff')): ?>
+<?php if (! $isPayrollStaff): ?>
 <div class="request-detail-modal-overlay" id="requestDetailModalOverlay">
     <div class="request-detail-modal">
         <div class="request-detail-modal-header" id="requestDetailModalHeader">
@@ -1070,7 +1075,7 @@
 <?php endif; ?>
 
 <!-- ── Approval Code Modal (payroll staff only) ── -->
-<?php if (auth()->user()->inGroup('client_payroll_staff')): ?>
+<?php if ($isPayrollStaff): ?>
 <div class="code-modal-overlay" id="codeModalOverlay">
     <div class="code-modal">
         <h2>Generate Approval Code</h2>
@@ -1178,7 +1183,7 @@ document.getElementById('statusFilter').addEventListener('change', function () {
 });
 
 // ── Request detail modal (employees, read-only) ──────────────────────────────
-<?php if (! auth()->user()->inGroup('client_payroll_staff')): ?>
+<?php if (! $isPayrollStaff): ?>
 
 function formatDetailDateRange(request) {
     const startDate = request.start_date ? new Date(request.start_date) : null;
@@ -1250,7 +1255,7 @@ document.getElementById('requestDetailModalOverlay')?.addEventListener('click', 
 <?php endif; ?>
 
 // ── Request review modal ─────────────────────────────────────────────────────
-<?php if (auth()->user()->inGroup('client_payroll_staff')): ?>
+<?php if ($isPayrollStaff): ?>
 
 function formatRequestDateRange(request) {
     const startDate = request.start_date ? new Date(request.start_date) : null;
@@ -1341,7 +1346,7 @@ document.getElementById('requestReviewModalOverlay')?.addEventListener('click', 
 <?php endif; ?>
 
 // ── Approval Codes table ──────────────────────────────────────────────────────
-<?php if (auth()->user()->inGroup('client_payroll_staff')): ?>
+<?php if ($isPayrollStaff): ?>
 
 function configureCodesFilterUi() {
     const container = document.querySelector('[data-crud-table="approvalCodesTable"]');
@@ -1446,7 +1451,7 @@ refreshApprovalCodesTable();
 <?php endif; ?>
 
 // ── Approval Code Modal ───────────────────────────────────────────────────────
-<?php if (auth()->user()->inGroup('client_payroll_staff')): ?>
+<?php if ($isPayrollStaff): ?>
 
 let currentCode = null;
 
@@ -1537,7 +1542,7 @@ async function doGenerateCode() {
             if (typeof createCrudTable === 'function') {
                 APPROVAL_CODES.unshift({
                     code:              data.code,
-                    generated_by_name: data.generated_by_name || '<?= esc(auth()->user()->username) ?>',
+                    generated_by_name: data.generated_by_name || '<?= esc($authUsername) ?>',
                     is_used:           0,
                     used_by_name:      null,
                     preset_data:       data.preset_data || null,

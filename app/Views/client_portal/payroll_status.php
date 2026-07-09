@@ -3,7 +3,7 @@
     <div class="flex justify-between items-center my-4">
         <div class="p-1">
             <h1 class="text-3xl font-bold text-gray-800 mb-1">Payroll Status</h1>
-            <p class="text-gray-500 text-sm">All active employees for the selected month. Mark payroll as Paid once processed. Salary data comes from Employee Management.</p>
+            <p class="text-gray-500 text-sm">Track payroll per period. Mark as Paid once processed.</p>
         </div>
 
         <div class="flex items-center gap-3">
@@ -32,7 +32,48 @@
         </div>
     </div>
 
-    <!-- Table header -->
+    <!-- Period tabs + Search row -->
+    <div class="flex items-center justify-between mb-3 gap-3 flex-wrap">
+        <!-- Period Tabs -->
+        <div class="flex items-center bg-gray-100 rounded-xl p-1 gap-1" id="periodTabBar">
+<?php
+    $selPeriod = $selected_period ?? 'monthly';
+    // Format a Y-m-d date as "Mon d" (e.g. "Jun 1")
+    $fmtPD = fn($d) => $d ? date('M j', strtotime($d)) : null;
+    $h1Start = $fmtPD($period_start_date ?? null);
+    $h1End   = $fmtPD($period_end_date   ?? null);
+    // For the inactive tab labels we need the other half's dates; they aren't computed here,
+    // so we fall back to generic labels when the other half isn't selected.
+?>
+            <button type="button" data-period="monthly"
+                class="period-tab px-4 py-2 rounded-lg text-sm font-medium transition-all <?= $selPeriod === 'monthly' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700' ?>">
+                Monthly
+            </button>
+            <button type="button" data-period="1st_half"
+                class="period-tab px-4 py-2 rounded-lg text-sm font-medium transition-all <?= $selPeriod === '1st_half' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700' ?>">
+                1st Half<?php if ($selPeriod === '1st_half' && $h1Start && $h1End): ?>
+                    <span class="text-xs <?= $selPeriod === '1st_half' ? 'text-gray-500' : 'text-gray-400' ?> ml-1">(<?= esc($h1Start) ?>–<?= esc($h1End) ?>)</span>
+                <?php endif ?>
+            </button>
+            <button type="button" data-period="2nd_half"
+                class="period-tab px-4 py-2 rounded-lg text-sm font-medium transition-all <?= $selPeriod === '2nd_half' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700' ?>">
+                2nd Half<?php if ($selPeriod === '2nd_half' && $h1Start && $h1End): ?>
+                    <span class="text-xs <?= $selPeriod === '2nd_half' ? 'text-gray-500' : 'text-gray-400' ?> ml-1">(<?= esc($h1Start) ?>–<?= esc($h1End) ?>)</span>
+                <?php endif ?>
+            </button>
+        </div>
+
+        <!-- Search -->
+        <div class="relative flex-shrink-0">
+            <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"/>
+            </svg>
+            <input type="text" id="employeeSearch" placeholder="Search employee…"
+                class="pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 w-52 transition">
+        </div>
+    </div>
+
+    <!-- Table -->
     <div class="bg-white border border-gray-400 rounded-2xl shadow-lg flex flex-col min-h-0 overflow-hidden p-5 gap-3">
         <div class="grid grid-cols-[2.5fr_1.5fr_1.5fr_1.2fr_1fr]
                     bg-[#DCDCDC] text-[#737373] border border-[#9E9E9E] rounded-lg overflow-hidden text-sm font-bold">
@@ -49,6 +90,10 @@
 
         <div id="payrollStatusEmpty" class="hidden py-12 text-center text-gray-400 text-sm">
             No active employees found.
+        </div>
+
+        <div id="payrollStatusNoMatch" class="hidden py-12 text-center text-gray-400 text-sm">
+            No employees match your search.
         </div>
     </div>
 </div>
@@ -71,11 +116,12 @@
 
 <script>
 (function () {
-    const PAYROLLS   = <?= json_encode($payrolls ?? []) ?>;
-    const MONTH      = <?= json_encode($selected_month ?? date('Y-m')) ?>;
-    const MARK_URL   = "<?= site_url('client_portal/payroll/markStatus') ?>";
-    const CSRF_NAME  = "<?= csrf_token() ?>";
-    const CSRF_HASH  = "<?= csrf_hash() ?>";
+    const PAYROLLS    = <?= json_encode($payrolls ?? []) ?>;
+    const MONTH       = <?= json_encode($selected_month ?? date('Y-m')) ?>;
+    const PERIOD      = <?= json_encode($selected_period ?? 'monthly') ?>;
+    const MARK_URL    = "<?= site_url('client_portal/payroll/markStatus') ?>";
+    const CSRF_NAME   = "<?= csrf_token() ?>";
+    const CSRF_HASH   = "<?= csrf_hash() ?>";
 
     function esc(v) {
         return String(v ?? '').replace(/[&<>"']/g, m =>
@@ -109,8 +155,6 @@
             : `<span class="text-red-400 text-xs">No salary set</span>`;
 
         const currentStatus = p.payroll_status || null;
-
-        // Action buttons
         const isPaid = currentStatus === 'Paid';
         const markPaidBtn = !isPaid
             ? `<button type="button" onclick="markStatus('${esc(p.employee_id)}','Paid',this)" class="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold rounded-lg transition">Mark Paid</button>`
@@ -119,8 +163,12 @@
             ? `<button type="button" onclick="markStatus('${esc(p.employee_id)}','Pending',this)" class="px-3 py-1.5 bg-yellow-500 hover:bg-yellow-600 text-white text-xs font-semibold rounded-lg transition">Set Pending</button>`
             : '';
 
+        const searchKey = (p.employee_name + ' ' + (p.position || '')).toLowerCase();
+
         return `
-        <div class="grid grid-cols-[2.5fr_1.5fr_1.5fr_1.2fr_1fr] items-center border-b hover:bg-gray-50 transition-colors" data-employee-id="${esc(p.employee_id)}">
+        <div class="grid grid-cols-[2.5fr_1.5fr_1.5fr_1.2fr_1fr] items-center border-b hover:bg-gray-50 transition-colors ps-row"
+             data-employee-id="${esc(p.employee_id)}"
+             data-search="${esc(searchKey)}">
             <div class="p-4 flex items-center gap-3">
                 ${avatar}
                 <div>
@@ -156,12 +204,11 @@
             const resp = await fetch(MARK_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-                body: JSON.stringify({ employee_id: employeeId, month_year: MONTH, status })
+                body: JSON.stringify({ employee_id: employeeId, month_year: MONTH, status, period_type: PERIOD })
             });
             const result = await resp.json();
             if (!resp.ok || !result.success) throw new Error(result.error || 'Server error');
 
-            // Update row in-place
             const row = btn.closest('[data-employee-id]');
             row.querySelector('.status-cell').innerHTML = statusBadge(status);
             const actionCell = row.querySelector('.action-cell');
@@ -173,13 +220,38 @@
         } catch (err) {
             btn.disabled = false;
             btn.textContent = status === 'Paid' ? 'Mark Paid' : 'Set Pending';
-            alert('Could not update status: ' + err.message);
+            showToast('Could not update status: ' + err.message, 'error');
         }
     };
 
     render(PAYROLLS);
 
-    // Month picker
+    // ── Search ────────────────────────────────────────────────────────────────
+    document.getElementById('employeeSearch')?.addEventListener('input', function () {
+        const q = this.value.trim().toLowerCase();
+        const rows = document.querySelectorAll('.ps-row');
+        const noMatch = document.getElementById('payrollStatusNoMatch');
+        let visible = 0;
+        rows.forEach(row => {
+            const match = !q || row.dataset.search.includes(q);
+            row.style.display = match ? '' : 'none';
+            if (match) visible++;
+        });
+        noMatch.classList.toggle('hidden', visible > 0 || rows.length === 0);
+    });
+
+    // ── Period Tabs ───────────────────────────────────────────────────────────
+    document.querySelectorAll('.period-tab').forEach(btn => {
+        btn.addEventListener('click', function () {
+            const period = this.dataset.period;
+            const url = new URL(window.location.href);
+            url.searchParams.set('month', MONTH);
+            url.searchParams.set('period', period);
+            window.location.href = url.toString();
+        });
+    });
+
+    // ── Month Picker ──────────────────────────────────────────────────────────
     const MONTH_NAMES_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
     let pickerYear = null;
 
@@ -227,6 +299,7 @@
     document.getElementById('monthPicker')?.addEventListener('change', function () {
         const url = new URL(window.location.href);
         url.searchParams.set('month', this.value);
+        url.searchParams.set('period', PERIOD);
         window.location.href = url.toString();
     });
 

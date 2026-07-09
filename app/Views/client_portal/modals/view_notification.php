@@ -444,8 +444,8 @@
         if (stage) stage.innerHTML = '';
         if (modal) modal.style.display = 'none';
     }
-    function deleteCurrentNotificationForMe() { if (typeof deleteCurrentNotificationForMeHandler === 'function') return deleteCurrentNotificationForMeHandler(); alert('Delete triggered'); }
-    function editCurrentNotification() { if (typeof editCurrentNotificationHandler === 'function') return editCurrentNotificationHandler(); alert('Edit triggered'); }
+    function deleteCurrentNotificationForMe() { if (typeof deleteCurrentNotificationForMeHandler === 'function') return deleteCurrentNotificationForMeHandler(); showToast('Delete triggered', 'info'); }
+    function editCurrentNotification() { if (typeof editCurrentNotificationHandler === 'function') return editCurrentNotificationHandler(); showToast('Edit triggered', 'info'); }
 
     document.addEventListener('keydown', function (event) {
         if (event.key === 'Escape') {

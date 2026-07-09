@@ -404,7 +404,7 @@
         const id   = document.getElementById('hol_edit_id').value;
         const date = document.getElementById('hol_date').value;
         const name = document.getElementById('hol_name').value.trim();
-        if (!date || !name) { alert('Date and name are required.'); return; }
+        if (!date || !name) { showToast('Date and name are required.', 'warning'); return; }
         const payload = {
             id:           id || null,
             holiday_date: date,
@@ -418,7 +418,7 @@
         });
         const json = await res.json();
         if (json.success) { clearHolForm(); loadHolidays(); }
-        else alert(json.message || 'Save failed.');
+        else showToast(json.message || 'Save failed.', 'error');
     }
 
     function editHoliday(h) {
@@ -447,7 +447,7 @@
         });
         const json = await res.json();
         if (json.success) loadHolidays();
-        else alert(json.message || 'Delete failed.');
+        else showToast(json.message || 'Delete failed.', 'error');
     }
 
     // Pre-fill with standard PH public holidays for the selected year

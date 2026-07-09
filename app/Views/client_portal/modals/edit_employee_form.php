@@ -483,8 +483,9 @@
         <div class="bg-emerald-50 rounded-3xl p-6 space-y-5">
 
             <div>
-                <label class="edit-form-label">General Allowances</label>
-                <input type="number" id="edit_allowances" name="allowances" min="0" step="0.01" class="edit-form-input">
+                <label class="edit-form-label">Non-Basic Allowances <span class="text-xs font-normal text-gray-500">(excluded from OT/NSD base per DOLE)</span></label>
+                <input type="number" id="edit_allowances" name="allowances" min="0" step="0.01" class="edit-form-input" placeholder="e.g., 2925">
+                <p class="text-xs text-gray-400 mt-1">Monthly allowances included in Basic Salary above that are NOT part of basic wage (e.g., transportation, COLA). OT and NSD will be computed on Basic Salary minus this amount.</p>
             </div>
 
             <div>
@@ -605,7 +606,7 @@ document.getElementById('editEmployeeForm').addEventListener('submit', function(
 
     if (!checkedDays.length) {
         e.preventDefault();
-        alert('Please select at least one working day.');
+        showToast('Please select at least one working day.', 'warning');
         return;
     }
 
@@ -614,7 +615,7 @@ document.getElementById('editEmployeeForm').addEventListener('submit', function(
 
     if (startTime && endTime && startTime >= endTime) {
         e.preventDefault();
-        alert('End Time must be later than Start Time.');
+        showToast('End Time must be later than Start Time.', 'warning');
         return;
     }
 
@@ -625,7 +626,7 @@ document.getElementById('editEmployeeForm').addEventListener('submit', function(
     });
     if (deMinAllocated > deMinTotal) {
         e.preventDefault();
-        alert('De Minimis sub-benefits exceed the Amount Given (Total). Please adjust the values.');
+        showToast('De Minimis sub-benefits exceed the Amount Given (Total). Please adjust the values.', 'warning');
         return;
     }
 });

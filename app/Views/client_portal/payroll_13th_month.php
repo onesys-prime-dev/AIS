@@ -190,7 +190,7 @@
     window.computeYearEnd = function () {
         const year = parseInt(document.getElementById('yearEndYear').value);
         if (!year || year < 2000 || year > 2100) {
-            alert('Please enter a valid year (2000–2100).');
+            showToast('Please enter a valid year (2000–2100).', 'warning');
             return;
         }
 
@@ -209,7 +209,7 @@
         })
         .then(r => r.json())
         .then(data => {
-            if (data.error) { alert(data.error); return; }
+            if (data.error) { showToast(data.error, 'error'); return; }
 
             if (data.exempt_limit) {
                 document.getElementById('exemptLimitDisplay').textContent =
@@ -343,7 +343,7 @@
     // ── CSV exports ───────────────────────────────────────────────────
     window.export13thMonthCSV = function () {
         const rows = collectTableRows('tbody13th', 8);
-        if (!rows.length) { alert('Nothing to export. Click Compute first.'); return; }
+        if (!rows.length) { showToast('Nothing to export. Click Compute first.', 'warning'); return; }
         const year   = document.getElementById('yearEndYear').value;
         const header = ['Employee','Periods','Basic Salary','Less: Absences/Tardiness','Net Total Basic','13th Month Pay','Tax-Exempt','Taxable Excess'];
         downloadCSV(`13th_month_${year}.csv`, [header, ...rows]);
@@ -351,7 +351,7 @@
 
     window.exportAnnualizationCSV = function () {
         const rows = collectTableRows('tbodyAnn', 7);
-        if (!rows.length) { alert('Nothing to export. Click Compute first.'); return; }
+        if (!rows.length) { showToast('Nothing to export. Click Compute first.', 'warning'); return; }
         const year   = document.getElementById('yearEndYear').value;
         const header = ['Employee','Annual Taxable Comp','13th Mo. Taxable Excess','Total Annual Taxable','Annual Tax Due','Tax Withheld YTD','Year-End Adjustment'];
         downloadCSV(`annualization_${year}.csv`, [header, ...rows]);
@@ -401,7 +401,7 @@
         if (typeof window.applyYearEndToPayroll === 'function') {
             await window.applyYearEndToPayroll(type, { empId, empName, year, amount, isRefund });
         } else {
-            alert('Could not reach the payroll form. Please switch to the Generate Payslip tab manually.');
+            showToast('Could not reach the payroll form. Please switch to the Generate Payslip tab manually.', 'error');
         }
     };
 

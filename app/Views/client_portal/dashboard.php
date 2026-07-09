@@ -1051,19 +1051,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
             <div class="clock-inner">
 
-                <!-- success/error messages for taking break -->
-                <?php if(session()->getFlashdata('success')): ?>
-                    <div id="toast-success" class="opacity-0 scale-95 transition-all duration-300" style="background:#dcfce7;padding:10px;border-radius:6px;margin-bottom:15px;">
-                        <?= session()->getFlashdata('success') ?>
-                    </div>
-                <?php endif; ?>
-
-                <?php if(session()->getFlashdata('error')): ?>
-                    <div id="toast-error" class="opacity-0 scale-95 transition-all duration-300" style="background:#fecaca;padding:10px;border-radius:6px;margin-bottom:15px;">
-                        <?= session()->getFlashdata('error') ?>
-                    </div>
-                <?php endif; ?> 
-
                 <div class="status">
                     Status :
                         <span id="statusBadge">
@@ -2266,8 +2253,8 @@ document.addEventListener('DOMContentLoaded', function () {
             !hasApprovedUT &&
             !reason
         ) {
-            alert(
-                'Please enter a reason.'
+            showToast(
+                'Please enter a reason.', 'warning'
             );
             return;
         }

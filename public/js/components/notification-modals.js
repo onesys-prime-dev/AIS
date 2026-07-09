@@ -616,7 +616,7 @@ window.deleteCurrentNotificationForMe = async function () {
         }
 
         if (!response.ok || !result || result.success !== true) {
-            alert(result?.message || 'Unable to delete notification.');
+            showToast(result?.message || 'Unable to delete notification.', 'error');
             return;
         }
 
@@ -643,7 +643,7 @@ window.deleteCurrentNotificationForMe = async function () {
         }
     } catch (error) {
         console.error('Unable to delete notification.', error);
-        alert('Unable to delete notification.');
+        showToast('Unable to delete notification.', 'error');
     }
 };
 

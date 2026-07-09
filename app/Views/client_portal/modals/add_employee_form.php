@@ -660,13 +660,15 @@
 
                         <div>
                             <label class="block text-sm text-gray-600 mb-2">
-                                General Allowances
+                                Non-Basic Allowances
+                                <span class="block text-xs text-gray-400 font-normal">excluded from OT/NSD base per DOLE</span>
                             </label>
 
                             <input type="number"
                                 name="allowances"
-                                placeholder="e.g., 1500"
+                                placeholder="e.g., 2925"
                                 class="form-input">
+                            <p class="text-xs text-gray-400 mt-1">Monthly allowances inside Basic Salary that are NOT basic wage. OT/NSD uses Basic Salary minus this amount.</p>
                         </div>
 
                     </div>
@@ -902,16 +904,16 @@ document.getElementById('employeeForm').addEventListener('submit', function(e) {
     const firstName = document.querySelector('input[name="first_name"]').value.trim();
     const lastName = document.querySelector('input[name="last_name"]').value.trim();
 
-    if (!firstName || !lastName) { e.preventDefault(); alert('First and Last Name are required.'); return; }
-    if (!email) { e.preventDefault(); alert('Email is required.'); return; }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { e.preventDefault(); alert('Please enter a valid email address.'); return; }
-    if (!password) { e.preventDefault(); alert('Password is required.'); return; }
-    if (password.length < 8) { e.preventDefault(); alert('Password must be at least 8 characters.'); return; }
-    if (!document.querySelectorAll('input[name="working_days[]"]:checked').length) { e.preventDefault(); alert('Please select at least one working day.'); return; }
+    if (!firstName || !lastName) { e.preventDefault(); showToast('First and Last Name are required.', 'warning'); return; }
+    if (!email) { e.preventDefault(); showToast('Email is required.', 'warning'); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { e.preventDefault(); showToast('Please enter a valid email address.', 'warning'); return; }
+    if (!password) { e.preventDefault(); showToast('Password is required.', 'warning'); return; }
+    if (password.length < 8) { e.preventDefault(); showToast('Password must be at least 8 characters.', 'warning'); return; }
+    if (!document.querySelectorAll('input[name="working_days[]"]:checked').length) { e.preventDefault(); showToast('Please select at least one working day.', 'warning'); return; }
 
     const s = document.querySelector('input[name="start_time"]').value;
     const en = document.querySelector('input[name="end_time"]').value;
-    if (s && en && s >= en) { e.preventDefault(); alert('End Time must be later than Start Time.'); return; }
+    if (s && en && s >= en) { e.preventDefault(); showToast('End Time must be later than Start Time.', 'warning'); return; }
 
     // De Minimis: allocated sub-benefits cannot exceed the total amount given
     const deMinimisTotal = parseFloat(document.getElementById('de_minimis_total')?.value) || 0;
@@ -921,7 +923,7 @@ document.getElementById('employeeForm').addEventListener('submit', function(e) {
     });
     if (deMinimisAllocated > deMinimisTotal) {
         e.preventDefault();
-        alert('De Minimis sub-benefits exceed the Amount Given (Total). Please adjust the values.');
+        showToast('De Minimis sub-benefits exceed the Amount Given (Total). Please adjust the values.', 'warning');
         return;
     }
 });

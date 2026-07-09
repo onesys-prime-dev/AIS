@@ -808,7 +808,7 @@
 
         if (!setting)
         {
-            alert('Loan settings not configured.');
+            showToast('Loan settings not configured.', 'warning');
             return;
         }
 
@@ -833,8 +833,8 @@
             !employee
         )
         {
-            alert(
-                'Please complete all required fields.'
+            showToast(
+                'Please complete all required fields.', 'warning'
             );
 
             return;
@@ -842,8 +842,8 @@
 
         if (installments <= 0)
         {
-            alert(
-                'Installment count must be greater than 0.'
+            showToast(
+                'Installment count must be greater than 0.', 'warning'
             );
 
             return;
@@ -854,8 +854,8 @@
             parseInt(setting.max_installments)
         )
         {
-            alert(
-                `Maximum installment allowed is ${setting.max_installments}`
+            showToast(
+                `Maximum installment allowed is ${setting.max_installments}`, 'warning'
             );
 
             return;
@@ -912,8 +912,8 @@
 
         if (principal > maxLoan)
         {
-            alert(
-                `Maximum allowed loan for ${loanType} is ${formatCurrency(maxLoan)}`
+            showToast(
+                `Maximum allowed loan for ${loanType} is ${formatCurrency(maxLoan)}`, 'warning'
             );
 
             return;

@@ -99,7 +99,7 @@ class FaceAuthController extends BaseController
 
             return $this->response->setStatusCode(502)->setJSON([
                 'status' => 'error',
-                'message' => 'Face verification is unavailable: ' . $e->getMessage(),
+                'message' => $this->safeErrorMessage($e, 'Face verification is unavailable right now. Please try again later.'),
             ]);
         }
 

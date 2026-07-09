@@ -17,6 +17,7 @@ class PayrollModel extends Model
     protected $allowedFields = [
         'employee_id',
         'month_year',
+        'period_type',
         'phone',
         'daily_rate',
         'dst',
