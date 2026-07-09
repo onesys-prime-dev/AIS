@@ -1,14 +1,34 @@
-<div id="doc-release-notes" class="doc-article" style="margin:18px 0;padding:18px;background:#fff;border:1px solid #e6eef9;border-radius:12px;">
-    <h2>Release Notes & Known Issues</h2>
-    <p><strong>Purpose:</strong> Summaries of recent changes, fixes, and known limitations.</p>
-    <p><strong>Audience:</strong> All users and administrators.</p>
+<div id="doc-release-notes" class="doc-article">
+    <h2>Release Notes</h2>
 
-    <h3>Latest release — 2026.05</h3>
+    <h3>Version 1.0.0</h3>
+
     <ul>
-        <li>Fixed: Attachment upload error on mobile devices.</li>
-        <li>Added: Email notifications for approval reminders.</li>
-        <li>Known: Export CSV may truncate very long comment fields (workaround: use PDF export).</li>
+        <li>Payroll Management Module</li>
+        <li>Bookkeeping Module</li>
+        <li>Financial Reporting</li>
+        <li>Bank Reconciliation</li>
+        <li>Tax Compliance Dashboard</li>
+        <li>Client Document Management</li>
+        <li>Audit Logging</li>
+        <li>Support Ticketing</li>
     </ul>
 
-    <p><strong>Owner:</strong> Release Manager • <strong>Version:</strong> 1.0 • <strong>Last updated:</strong> 2026-05-03</p>
+    <h3>Upcoming Features</h3>
+
+    <ul>
+        <li>Biometric Device Integration</li>
+        <li>Automated Bank Import</li>
+        <li>Email Notifications</li>
+        <li>Advanced Dashboard Analytics</li>
+        <li>Mobile Responsive Employee Portal</li>
+    </ul>
+
+    <h3>Known Limitations</h3>
+
+    <ul>
+        <li>Bulk payroll adjustment upload is unavailable.</li>
+        <li>Direct bank API integration is under development.</li>
+        <li>Offline payroll processing is not supported.</li>
+    </ul>
 </div>

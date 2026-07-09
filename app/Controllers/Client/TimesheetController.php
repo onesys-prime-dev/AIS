@@ -228,4 +228,85 @@ class TimesheetController extends BaseController
             return ['start' => date('Y-m-16', strtotime($date)), 'end' => date('Y-m-t', strtotime($date))];
         }
     }
+
+    public function historyDetails()
+    {
+        $user = auth()->user();
+
+        $start = $this->request->getGet('start');
+        $end = $this->request->getGet('end');
+
+        $data =
+            $this->timesheetsService
+                ->getDetailedTimesheet(
+                    $user->id,
+                    $start,
+                    $end
+                );
+
+        return $this->response->setJSON($data);
+    }
+
+    public function exportHistory()
+    {
+        $user = auth()->user();
+
+        if (!$user) {
+            return redirect()->to('/login');
+        }
+
+        $start = $this->request->getGet('start');
+        $end = $this->request->getGet('end');
+
+        $data = $this->timesheetsService
+            ->getDetailedTimesheet(
+                $user->id,
+                $start,
+                $end
+            );
+
+        $filename = "Timesheet_{$start}_to_{$end}.csv";
+
+        header('Content-Type: text/csv');
+        header("Content-Disposition: attachment; filename=\"{$filename}\"");
+        header('Pragma: no-cache');
+        header('Expires: 0');
+
+        $output = fopen('php://output', 'w');
+
+        // Header row
+        fputcsv($output, [
+            'Date',
+            'Time In',
+            'Time Out',
+            'Regular Hours',
+            'OT Hours',
+            'RDOT Hours',
+            'Tardy Minutes',
+            'Night Diff',
+            'Remarks',
+            'Client',
+            'Task Performed'
+        ]);
+
+        // Data rows
+        foreach ($data['daily'] as $row) {
+            fputcsv($output, [
+                $row['date'] ?? '',
+                $row['in'] ?? '',
+                $row['out'] ?? '',
+                $row['regular_hours'] ?? '',
+                $row['ot_hours'] ?? '',
+                $row['rdot_hours'] ?? '',
+                $row['tardy_minutes'] ?? '',
+                $row['night_diff'] ?? '',
+                $row['remarks'] ?? '',
+                $row['client'] ?? '',
+                $row['task_performed'] ?? '',
+            ]);
+        }
+
+        fclose($output);
+        exit;
+}
 }

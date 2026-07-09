@@ -80,15 +80,17 @@
     border-radius: 12px;
     overflow: hidden;
     width: 100%;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
 }
 
 .request-card.clickable {
     cursor: pointer;
-    transition: border-color 0.15s ease;
 }
 
-.request-card.clickable:hover {
+.request-card:hover {
     border-color: #d1d5db;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.13);
 }
 
 /* ── Status stripe ── */
@@ -111,17 +113,6 @@
 .request-grid-container {
     overflow-y: auto;
     max-height: 100%;
-}
-
-
-/* ── Card hover (all cards) ── */
-.request-card {
-    transition: border-color 0.15s ease, box-shadow 0.15s ease;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-}
-.request-card:hover {
-    border-color: #d1d5db;
-    box-shadow: 0 6px 18px rgba(0,0,0,0.13);
 }
 
 /* ── Card header ── */
@@ -662,6 +653,7 @@
 
 .detail-close-btn:hover { background: #d1d5db; }
 
+/* ── Request Review Modal (payroll staff — pending only) ── */
 .request-review-modal-overlay {
     position: fixed;
     inset: 0;
@@ -807,23 +799,217 @@
     color: #fff;
 }
 
-.review-action-btn:hover {
-    transform: translateY(-1px);
-}
-
-.review-action-btn.reject { background: #ef4444; }
+.review-action-btn:hover { transform: translateY(-1px); }
+.review-action-btn.reject  { background: #ef4444; }
 .review-action-btn.approve { background: #16a34a; }
-.review-action-btn.cancel { background: #6b7280; }
+.review-action-btn.cancel  { background: #6b7280; }
 
 @media (max-width: 768px) {
-    .request-review-modal {
-        max-height: calc(100vh - 1rem);
-    }
-
-    .request-review-modal-body {
-        grid-template-columns: 1fr;
-    }
+    .request-review-modal { max-height: calc(100vh - 1rem); }
+    .request-review-modal-body { grid-template-columns: 1fr; }
 }
+
+/* ── Staff Detail Modal (payroll staff — approved/rejected, read-only) ── */
+.staff-detail-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.45);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    padding: 1rem;
+}
+.staff-detail-modal-overlay.open { display: flex; }
+
+.staff-detail-modal {
+    background: #fff;
+    border-radius: 16px;
+    width: 100%;
+    max-width: 500px;
+    max-height: calc(100vh - 2rem);
+    box-shadow: 0 25px 50px rgba(0,0,0,0.22);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    animation: modalPop 0.2s ease;
+}
+
+.staff-detail-modal-top {
+    padding: 18px 20px;
+    min-height: 88px;
+    border-bottom: 0.5px solid #e5e7eb;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.staff-detail-modal-top-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.staff-detail-avatar {
+    width: 46px; height: 46px; min-width: 46px;
+    border-radius: 50%;
+    background: #f3f4f6;
+    border: 0.5px solid #e5e7eb;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px; font-weight: 600; color: #374151;
+    background-size: cover; background-position: center;
+    flex-shrink: 0;
+}
+
+.staff-detail-name-block { min-width: 0; }
+.staff-detail-name  { font-size: 18px; font-weight: 700; color: #ffffff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.staff-detail-empno { font-size: 13px; color: rgba(255,255,255,0.85); margin-top: 4px; }
+
+.staff-detail-close-x {
+    border: none;
+    background: #f3f4f6;
+    color: #6b7280;
+    border-radius: 50%;
+    width: 30px; height: 30px;
+    font-size: 18px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    line-height: 1;
+    flex-shrink: 0;
+    transition: background 0.15s;
+}
+.staff-detail-close-x:hover { background: #e5e7eb; color: #111827; }
+
+/* Info tiles row */
+.staff-detail-tiles {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    border-bottom: 0.5px solid #e5e7eb;
+}
+
+.staff-detail-tile {
+    padding: 14px 18px;
+    border-right: 0.5px solid #e5e7eb;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.staff-detail-tile:last-child { border-right: none; }
+
+.staff-detail-tile-lbl {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #9ca3af;
+    font-weight: 600;
+}
+
+.staff-detail-tile-val {
+    font-size: 13px;
+    font-weight: 600;
+    color: #111827;
+}
+
+/* Body rows */
+.staff-detail-modal-body {
+    padding: 4px 22px 8px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.staff-detail-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 10px;
+    padding: 10px 0;
+    border-bottom: 0.5px solid #f3f4f6;
+}
+.staff-detail-row:last-of-type { border-bottom: none; }
+
+.staff-detail-lbl { font-size: 12px; color: #6b7280; white-space: nowrap; flex-shrink: 0; }
+.staff-detail-val { font-size: 13px; color: #111827; font-weight: 500; text-align: right; }
+
+.staff-detail-note-block {
+    margin: 8px 0 12px;
+    border-radius: 10px;
+    padding: 12px 14px;
+    border: 0.5px solid;
+}
+.staff-detail-note-block.approved {
+    background: #f0fdf6;
+    border-color: #bbf7d0;
+}
+.staff-detail-note-block.rejected {
+    background: #fff5f5;
+    border-color: #fecaca;
+}
+
+.staff-detail-note-lbl {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 700;
+    margin-bottom: 5px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+.staff-detail-note-block.approved .staff-detail-note-lbl { color: #15803d; }
+.staff-detail-note-block.rejected .staff-detail-note-lbl { color: #b91c1c; }
+
+.staff-detail-note-text {
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.6;
+}
+.staff-detail-note-block.approved .staff-detail-note-text { color: #166534; }
+.staff-detail-note-block.rejected .staff-detail-note-text { color: #991b1b; }
+
+.staff-detail-modal-footer {
+    padding: 12px 22px 18px;
+    display: flex;
+    justify-content: flex-end;
+    border-top: 0.5px solid #e5e7eb;
+}
+.staff-detail-close-btn {
+    background: #f3f4f6; color: #374151;
+    border: none; border-radius: 10px;
+    padding: 9px 22px; font-weight: 600; font-size: 14px;
+    cursor: pointer; transition: background 0.15s;
+}
+.staff-detail-close-btn:hover { background: #e5e7eb; }
+
+.staff-detail-badge {
+    padding: 4px 12px; border-radius: 20px;
+    font-size: 12px; font-weight: 600; flex-shrink: 0;
+}
+.staff-detail-badge.approved { background: #E1F5EE; color: #0F6E56; }
+.staff-detail-badge.rejected { background: #FCEBEB; color: #A32D2D; }
+
+.staff-detail-close-btn {
+    background: #f3f4f6; color: #374151;
+    border: none; border-radius: 10px;
+    padding: 9px 22px; font-weight: 600; font-size: 14px;
+    cursor: pointer; transition: background 0.15s;
+}
+.staff-detail-close-btn:hover { background: #e5e7eb; }
+
+.staff-detail-modal-top.approved {
+    background: linear-gradient(135deg, #0f8a63 0%, #1D9E75 100%);
+    color: #fff;
+}
+
+.staff-detail-modal-top.rejected {
+    background: linear-gradient(135deg, #b3261e 0%, #cf3c3c 100%);
+    color: #fff;
+}
+
+.staff-detail-modal-top.pending {
+    background: linear-gradient(135deg, #8a5a00 0%, #BA7517 100%);
+    color: #fff;
+}
+
 </style>
 
     <?php $requests = $requests ?? []; ?>
@@ -842,8 +1028,6 @@
             </div>
 
             <div class="filter-container">
-
-                <!-- Per-tab controls -->
                 <div id="requestsControls" style="display:flex;align-items:center;gap:1rem;">
                     <?php if ($isPayrollStaff): ?>
                     <button class="generate-code-btn" id="generateCodeBtn" onclick="openCodeModal()">
@@ -862,9 +1046,7 @@
                     </select>
                 </div>
 
-                <!-- Codes tab has no extra header controls (crud_table has its own search) -->
                 <div id="codesControls" style="display:none;"></div>
-
             </div>
         </div>
 
@@ -879,7 +1061,7 @@
                             $clickAttr   = '';
                             if ($isClickable) {
                                 if ($isPayrollStaff) {
-                                    $clickAttr = 'onclick="openRequestReviewModal(' . (int) $request['id'] . ')"';
+                                    $clickAttr = 'onclick="openStaffDetailModal(' . (int) $request['id'] . ')"';
                                 } else {
                                     $clickAttr = 'onclick="openRequestDetailModal(' . (int) $request['id'] . ')"';
                                 }
@@ -980,6 +1162,7 @@
         <?php endif; ?>
     </div>
 
+<!-- ── Request Review Modal (payroll staff — pending requests) ── -->
 <?php if ($isPayrollStaff): ?>
     <div class="request-review-modal-overlay" id="requestReviewModalOverlay">
         <div class="request-review-modal">
@@ -1033,6 +1216,67 @@
                     <button type="button" class="review-action-btn approve" id="reviewApproveBtn" onclick="submitRequestReview('approved')">Approve</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- ── Staff Detail Modal (payroll staff — approved/rejected, read-only) ── -->
+    <div class="staff-detail-modal-overlay" id="staffDetailModalOverlay">
+        <div class="staff-detail-modal">
+
+            <!-- Header: avatar + name + close -->
+            <div class="staff-detail-modal-top">
+                <div class="staff-detail-modal-top-left">
+                    <div class="staff-detail-avatar" id="staffDetailAvatar"></div>
+                    <div class="staff-detail-name-block">
+                        <div class="staff-detail-name" id="staffDetailName">---</div>
+                        <div class="staff-detail-empno" id="staffDetailEmpNo">---</div>
+                    </div>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px;">
+                    <span class="staff-detail-badge" id="staffDetailBadge"></span>
+                    <button type="button" class="staff-detail-close-x" onclick="closeStaffDetailModal()">&times;</button>
+                </div>
+            </div>
+
+            <!-- Three info tiles: type / duration / condition -->
+            <div class="staff-detail-tiles">
+                <div class="staff-detail-tile">
+                    <span class="staff-detail-tile-lbl">Request type</span>
+                    <span class="staff-detail-tile-val" id="staffDetailType">---</span>
+                </div>
+                <div class="staff-detail-tile">
+                    <span class="staff-detail-tile-lbl">Duration</span>
+                    <span class="staff-detail-tile-val" id="staffDetailDuration">---</span>
+                </div>
+                <div class="staff-detail-tile">
+                    <span class="staff-detail-tile-lbl">Condition</span>
+                    <span class="staff-detail-tile-val" id="staffDetailCondition">---</span>
+                </div>
+            </div>
+
+            <!-- Detail rows -->
+            <div class="staff-detail-modal-body">
+                <div class="staff-detail-row">
+                    <span class="staff-detail-lbl">Schedule</span>
+                    <span class="staff-detail-val" id="staffDetailDates">---</span>
+                </div>
+                <div class="staff-detail-row">
+                    <span class="staff-detail-lbl">Employee message</span>
+                    <span class="staff-detail-val" id="staffDetailReason">---</span>
+                </div>
+
+                <!-- Review note (colored by status) -->
+                <div class="staff-detail-note-block" id="staffDetailNoteBlock" style="display:none;">
+                    <div class="staff-detail-note-lbl">
+                        &#9432; Review note
+                    </div>
+                    <div class="staff-detail-note-text" id="staffDetailNote">---</div>
+                </div>
+            </div>
+
+            <div class="staff-detail-modal-footer">
+                <button type="button" class="staff-detail-close-btn" onclick="closeStaffDetailModal()">Close</button>
+            </div>
         </div>
     </div>
 <?php endif; ?>
@@ -1091,11 +1335,9 @@
             <textarea id="presetReviewMessage" rows="3" placeholder="e.g. Auto-approved by HR" maxlength="255"></textarea>
         </div>
 
-        <!-- Code display -->
         <div class="code-display idle" id="codeDisplay">No code generated yet</div>
 
         <div class="code-modal-actions">
-            <!-- Generate button — always visible -->
             <button class="gen-code-action-btn" id="doGenerateCodeBtn" onclick="doGenerateCode()">
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
@@ -1103,7 +1345,6 @@
                 Generate
             </button>
 
-            <!-- Copy button — only visible after a code is generated -->
             <button class="copy-btn" id="copyCodeBtn" onclick="copyCode()" style="display:none;">
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-4 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
@@ -1127,7 +1368,6 @@
 <script>
 // ── Data from PHP ─────────────────────────────────────────────────────────────
 <?php
-// Decode preset_data JSON strings into objects so JS receives them as plain objects
 $approvalCodesForJs = $approvalCodes ?? [];
 foreach ($approvalCodesForJs as &$ac) {
     if (! empty($ac['preset_data']) && is_string($ac['preset_data'])) {
@@ -1140,7 +1380,7 @@ unset($ac);
 const APPROVAL_CODES = <?= json_encode($approvalCodesForJs) ?>;
 const REQUESTS = <?= json_encode($requests ?? [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 function htmlEsc(val) {
     if (val == null) return '';
     return String(val)
@@ -1160,32 +1400,7 @@ function formatDateTime(val) {
     }).format(d);
 }
 
-// ── Tab switching ─────────────────────────────────────────────────────────────
-function switchTab(tab) {
-    const isRequests = tab === 'requests';
-
-    document.getElementById('panelRequests').classList.toggle('active', isRequests);
-    document.getElementById('panelCodes').classList.toggle('active', !isRequests);
-
-    document.getElementById('tabBtnRequests').classList.toggle('active', isRequests);
-    document.getElementById('tabBtnCodes').classList.toggle('active', !isRequests);
-
-    document.getElementById('requestsControls').style.display = isRequests ? 'flex' : 'none';
-    document.getElementById('codesControls').style.display    = isRequests ? 'none' : 'flex';
-}
-
-// ── Requests tab: status filter ───────────────────────────────────────────────
-document.getElementById('statusFilter').addEventListener('change', function () {
-    const selected = this.value;
-    document.querySelectorAll('.request-card').forEach(card => {
-        card.style.display = (selected === 'all' || card.dataset.status === selected) ? 'block' : 'none';
-    });
-});
-
-// ── Request detail modal (employees, read-only) ──────────────────────────────
-<?php if (! $isPayrollStaff): ?>
-
-function formatDetailDateRange(request) {
+function formatRequestDateRange(request) {
     const startDate = request.start_date ? new Date(request.start_date) : null;
     const endDate   = request.end_date   ? new Date(request.end_date)   : null;
     const duration  = Number(request.duration || 0);
@@ -1194,126 +1409,116 @@ function formatDetailDateRange(request) {
         : 'N/A';
     if (!startDate || isNaN(startDate.getTime())) return 'N/A';
     const startText = fmt(startDate);
-    const endText = endDate && !isNaN(endDate.getTime()) && endDate.getTime() !== startDate.getTime()
+    const endText   = endDate && !isNaN(endDate.getTime()) && endDate.getTime() !== startDate.getTime()
         ? fmt(endDate) : null;
     const rangeText = endText ? `${startText} to ${endText}` : startText;
     return duration > 0 ? `${rangeText} (${duration} day${duration !== 1 ? 's' : ''})` : rangeText;
 }
 
-function openRequestDetailModal(requestId) {
+function getTypeLabel(request) {
+    return (request.request_type === 'leave' && request.leave_category && request.leave_category !== 'leave')
+        ? request.leave_category.charAt(0).toUpperCase() + request.leave_category.slice(1) + ' Leave'
+        : (request.request_type ? request.request_type.charAt(0).toUpperCase() + request.request_type.slice(1) : 'N/A');
+}
+
+// ── Tab switching ─────────────────────────────────────────────────────────────
+function switchTab(tab) {
+    const isRequests = tab === 'requests';
+    document.getElementById('panelRequests').classList.toggle('active', isRequests);
+    document.getElementById('panelCodes').classList.toggle('active', !isRequests);
+    document.getElementById('tabBtnRequests').classList.toggle('active', isRequests);
+    document.getElementById('tabBtnCodes').classList.toggle('active', !isRequests);
+    document.getElementById('requestsControls').style.display = isRequests ? 'flex' : 'none';
+    document.getElementById('codesControls').style.display    = isRequests ? 'none' : 'flex';
+}
+
+// ── Status filter ─────────────────────────────────────────────────────────────
+document.getElementById('statusFilter').addEventListener('change', function () {
+    const selected = this.value;
+    document.querySelectorAll('.request-card').forEach(card => {
+        card.style.display = (selected === 'all' || card.dataset.status === selected) ? 'block' : 'none';
+    });
+});
+
+// ── Staff Detail Modal (payroll staff — approved/rejected) ────────────────────
+<?php if ($isPayrollStaff): ?>
+
+function openStaffDetailModal(requestId) {
     const request = Array.isArray(REQUESTS) ? REQUESTS.find(r => String(r.id) === String(requestId)) : null;
     if (!request) return;
 
-    const status = String(request.status || 'pending');
+    const status = String(request.status || '');
 
-    // Header colour
-    const header = document.getElementById('requestDetailModalHeader');
-    header.className = 'request-detail-modal-header ' + status;
+    const top = document.querySelector('.staff-detail-modal-top');
+    top.className = 'staff-detail-modal-top ' + status;
 
-    // Title
-    const statusLabel = status.charAt(0).toUpperCase() + status.slice(1);
-    document.getElementById('requestDetailModalTitle').textContent = statusLabel + ' Request';
+    // Badge
+    const badge = document.getElementById('staffDetailBadge');
+    badge.className = 'staff-detail-badge ' + status;
+    badge.textContent = status.charAt(0).toUpperCase() + status.slice(1);
 
-    // Type
-    const typeLabel = (request.request_type === 'leave' && request.leave_category && request.leave_category !== 'leave')
-        ? request.leave_category.charAt(0).toUpperCase() + request.leave_category.slice(1) + ' Leave'
-        : (request.request_type ? request.request_type.charAt(0).toUpperCase() + request.request_type.slice(1) : 'N/A');
-    document.getElementById('detailRequestType').textContent = typeLabel;
-
-    // Dates
-    document.getElementById('detailDateRange').textContent = formatDetailDateRange(request);
-
-    // Reason
-    document.getElementById('detailReason').textContent = request.reason || '---';
-
-    // Review note
-    const reviewNoteRow = document.getElementById('detailReviewNoteRow');
-    const reviewNote    = document.getElementById('detailReviewNote');
-    if (request.review_message) {
-        reviewNote.textContent = request.review_message;
-        reviewNoteRow.style.display = '';
+    // Avatar
+    const avatarEl = document.getElementById('staffDetailAvatar');
+    const name = request.requested_by_name || '';
+    const initials = name.trim().split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) || 'U';
+    if (request.photo_path) {
+        avatarEl.style.backgroundImage = `url('${request.photo_path}')`;
+        avatarEl.textContent = '';
     } else {
-        reviewNoteRow.style.display = 'none';
+        avatarEl.style.backgroundImage = '';
+        avatarEl.textContent = initials;
     }
 
-    // Status badge
-    const badgeColour = status === 'approved' ? '#16a34a' : status === 'rejected' ? '#ef4444' : '#f59e0b';
-    document.getElementById('detailStatus').innerHTML =
-        `<span style="background:${badgeColour};color:#fff;padding:3px 12px;border-radius:20px;font-size:13px;">${statusLabel}</span>`;
+    // Header
+    document.getElementById('staffDetailName').textContent  = name || 'N/A';
+    document.getElementById('staffDetailEmpNo').textContent = 'Employee No: ' + (request.employee_number || 'N/A');
 
-    document.getElementById('requestDetailModalOverlay').classList.add('open');
+    // Tiles
+    document.getElementById('staffDetailType').textContent     = getTypeLabel(request);
+    const dur = Number(request.duration || 0);
+    document.getElementById('staffDetailDuration').textContent = dur > 0 ? `${dur} day${dur !== 1 ? 's' : ''}` : 'N/A';
+    document.getElementById('staffDetailCondition').textContent = request.approval_code ? 'Approval code' : 'Manual review';
+
+    // Detail rows
+    document.getElementById('staffDetailDates').textContent  = formatRequestDateRange(request);
+    document.getElementById('staffDetailReason').textContent = request.reason || '---';
+
+    // Review note — colored by status
+    const noteBlock = document.getElementById('staffDetailNoteBlock');
+    const noteText  = document.getElementById('staffDetailNote');
+    if (request.review_message) {
+        noteText.textContent    = request.review_message;
+        noteBlock.className     = 'staff-detail-note-block ' + status;
+        noteBlock.style.display = '';
+    } else {
+        noteBlock.style.display = 'none';
+    }
+
+    document.getElementById('staffDetailModalOverlay').classList.add('open');
 }
 
-function closeRequestDetailModal() {
-    document.getElementById('requestDetailModalOverlay').classList.remove('open');
+function closeStaffDetailModal() {
+    document.getElementById('staffDetailModalOverlay').classList.remove('open');
 }
 
-document.getElementById('requestDetailModalOverlay')?.addEventListener('click', function (e) {
-    if (e.target === this) closeRequestDetailModal();
+document.getElementById('staffDetailModalOverlay')?.addEventListener('click', function (e) {
+    if (e.target === this) closeStaffDetailModal();
 });
 
-<?php endif; ?>
-
-// ── Request review modal ─────────────────────────────────────────────────────
-<?php if ($isPayrollStaff): ?>
-
-function formatRequestDateRange(request) {
-    const startDate = request.start_date ? new Date(request.start_date) : null;
-    const endDate = request.end_date ? new Date(request.end_date) : null;
-    const duration = Number(request.duration || 0);
-
-    const formatDate = (value) => {
-        if (!value || isNaN(value.getTime())) return 'N/A';
-        return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(value);
-    };
-
-    if (!startDate || isNaN(startDate.getTime())) {
-        return 'N/A';
-    }
-
-    const startText = formatDate(startDate);
-    const endText = endDate && !isNaN(endDate.getTime()) && endDate.getTime() !== startDate.getTime()
-        ? formatDate(endDate)
-        : null;
-
-    const rangeText = endText ? `${startText} to ${endText}` : startText;
-    const durationText = duration > 0 ? `(${duration} day${duration !== 1 ? 's' : ''})` : '';
-
-    return durationText ? `${rangeText} ${durationText}` : rangeText;
-}
-
+// ── Request Review Modal (payroll staff — pending only) ───────────────────────
 function openRequestReviewModal(requestId) {
     const request = Array.isArray(REQUESTS) ? REQUESTS.find(item => String(item.id) === String(requestId)) : null;
-
     if (!request) return;
 
-    document.getElementById('reviewEmployeeName').textContent = request.requested_by_name || 'N/A';
-    const typeLabel = (request.request_type === 'leave' && request.leave_category && request.leave_category !== 'leave')
-        ? request.leave_category.charAt(0).toUpperCase() + request.leave_category.slice(1) + ' Leave'
-        : (request.request_type ? request.request_type.charAt(0).toUpperCase() + request.request_type.slice(1) : 'N/A');
-    document.getElementById('reviewRequestType').textContent = typeLabel;
-    document.getElementById('reviewRequestDates').textContent = formatRequestDateRange(request);
-    document.getElementById('reviewRequestReason').textContent = request.reason || '---';
-    document.getElementById('reviewApprovalCondition').textContent = request.approval_code ? `Approved via approval code: ${request.approval_code}` : 'Manual review required';
+    document.getElementById('reviewEmployeeName').textContent    = request.requested_by_name || 'N/A';
+    document.getElementById('reviewRequestType').textContent     = getTypeLabel(request);
+    document.getElementById('reviewRequestDates').textContent    = formatRequestDateRange(request);
+    document.getElementById('reviewRequestReason').textContent   = request.reason || '---';
+    document.getElementById('reviewApprovalCondition').textContent = request.approval_code
+        ? `Approved via approval code: ${request.approval_code}`
+        : 'Manual review required';
 
-    const reviewMessage = document.getElementById('reviewMessage');
-    const reviewPanelTitle = document.getElementById('reviewPanelTitle');
-    const rejectBtn = document.getElementById('reviewRejectBtn');
-    const approveBtn = document.getElementById('reviewApproveBtn');
-    const modalFooter = document.getElementById('requestReviewModalFooter');
-
-    reviewMessage.value = request.review_message || '';
-    reviewMessage.readOnly = String(request.status) !== 'pending';
-    reviewMessage.placeholder = String(request.status) === 'pending'
-        ? 'Enter a rejection message or approval condition...'
-        : 'Saved review note';
-    reviewPanelTitle.textContent = String(request.status) === 'pending' ? 'Review Note' : 'Saved Review Note';
-
-    const isPending = String(request.status) === 'pending';
-    rejectBtn.style.display = isPending ? 'inline-flex' : 'none';
-    approveBtn.style.display = isPending ? 'inline-flex' : 'none';
-    modalFooter.style.justifyContent = isPending ? 'flex-end' : 'flex-end';
-
+    document.getElementById('reviewMessage').value = '';
     document.getElementById('requestReviewStatus').value = 'pending';
     document.getElementById('requestReviewForm').action = '<?= site_url('client_portal/requests/update') ?>/' + requestId;
     document.getElementById('requestReviewModalOverlay').classList.add('open');
@@ -1324,7 +1529,7 @@ function closeRequestReviewModal() {
 }
 
 function submitRequestReview(status) {
-    const form = document.getElementById('requestReviewForm');
+    const form          = document.getElementById('requestReviewForm');
     const reviewMessage = document.getElementById('reviewMessage');
 
     if (status === 'rejected' && reviewMessage.value.trim() === '') {
@@ -1345,6 +1550,51 @@ document.getElementById('requestReviewModalOverlay')?.addEventListener('click', 
 
 <?php endif; ?>
 
+// ── Employee Detail Modal (employees — approved/rejected, read-only) ───────────
+<?php if (! $isPayrollStaff): ?>
+
+function openRequestDetailModal(requestId) {
+    const request = Array.isArray(REQUESTS) ? REQUESTS.find(r => String(r.id) === String(requestId)) : null;
+    if (!request) return;
+
+    const status      = String(request.status || 'pending');
+    const statusLabel = status.charAt(0).toUpperCase() + status.slice(1);
+
+    const header = document.getElementById('requestDetailModalHeader');
+    header.className = 'request-detail-modal-header ' + status;
+    document.getElementById('requestDetailModalTitle').textContent = statusLabel + ' Request';
+    document.getElementById('detailRequestType').textContent       = getTypeLabel(request);
+    document.getElementById('detailDateRange').textContent         = formatRequestDateRange(request);
+    document.getElementById('detailReason').textContent            = request.reason || '---';
+
+    // Review note — colored by status
+    const noteBlock = document.getElementById('staffDetailNoteBlock');
+    const noteText  = document.getElementById('staffDetailNote');
+    if (request.review_message) {
+        noteText.textContent    = request.review_message;
+        noteBlock.className     = 'staff-detail-note-block ' + status;
+        noteBlock.style.display = '';
+    } else {
+        noteBlock.style.display = 'none';
+    }
+
+    const badgeColour = status === 'approved' ? '#16a34a' : status === 'rejected' ? '#ef4444' : '#f59e0b';
+    document.getElementById('detailStatus').innerHTML =
+        `<span style="background:${badgeColour};color:#fff;padding:3px 12px;border-radius:20px;font-size:13px;">${statusLabel}</span>`;
+
+    document.getElementById('requestDetailModalOverlay').classList.add('open');
+}
+
+function closeRequestDetailModal() {
+    document.getElementById('requestDetailModalOverlay').classList.remove('open');
+}
+
+document.getElementById('requestDetailModalOverlay')?.addEventListener('click', function (e) {
+    if (e.target === this) closeRequestDetailModal();
+});
+
+<?php endif; ?>
+
 // ── Approval Codes table ──────────────────────────────────────────────────────
 <?php if ($isPayrollStaff): ?>
 
@@ -1352,7 +1602,6 @@ function configureCodesFilterUi() {
     const container = document.querySelector('[data-crud-table="approvalCodesTable"]');
     if (!container) return;
 
-    // Hide filters that don't apply to this table
     ['status', 'department', 'employment_type'].forEach(f => {
         const el = container.querySelector(`[data-filter="${f}"]`)?.closest('div');
         if (el) el.classList.add('hidden');
@@ -1371,15 +1620,14 @@ function configureCodesFilterUi() {
 }
 
 function approvalCodeRowTemplate(row) {
-    const statusBadge = row.is_used == 1 
-    ? `<span style="background:#6b7280;color:#fff;padding:3px 10px;border-radius:20px;font-size:13px;">Used</span>`
-    : `<span style="background:#16a34a;color:#fff;padding:3px 10px;border-radius:20px;font-size:13px;">Unused</span>`;
+    const statusBadge = row.is_used == 1
+        ? `<span style="background:#6b7280;color:#fff;padding:3px 10px;border-radius:20px;font-size:13px;">Used</span>`
+        : `<span style="background:#16a34a;color:#fff;padding:3px 10px;border-radius:20px;font-size:13px;">Unused</span>`;
 
     const usedBy = row.is_used == 1
         ? htmlEsc(row.used_by_name || '—')
         : '<span style="color:#9ca3af;">—</span>';
 
-    // Render preset_data summary if present
     let presetCell = '<span style="color:#9ca3af;">—</span>';
     const preset = row.preset_data;
     if (preset && typeof preset === 'object' && Object.keys(preset).length > 0) {
@@ -1387,7 +1635,6 @@ function approvalCodeRowTemplate(row) {
             presetCell = `<span style="font-size:12px;line-height:1.6;"><strong>${htmlEsc(preset.duration)} day${Number(preset.duration) !== 1 ? 's' : ''}</strong></span>`;
         }
     } else if (preset && typeof preset === 'string') {
-        // Arrive as JSON string from PHP — parse it
         try {
             const p = JSON.parse(preset);
             if (p.duration) {
@@ -1427,7 +1674,6 @@ function refreshApprovalCodesTable() {
         },
         sort: ({ a, b, sortBy, sortOrder }) => {
             let left, right;
-
             if (sortBy === 'is_used') {
                 left  = a.is_used ?? 0;
                 right = b.is_used ?? 0;
@@ -1438,7 +1684,6 @@ function refreshApprovalCodesTable() {
                 left  = String(a[sortBy] ?? '').toLowerCase();
                 right = String(b[sortBy] ?? '').toLowerCase();
             }
-
             if (left < right) return sortOrder === 'asc' ? -1 : 1;
             if (left > right) return sortOrder === 'asc' ?  1 : -1;
             return 0;
@@ -1455,90 +1700,69 @@ refreshApprovalCodesTable();
 
 let currentCode = null;
 
-const COPY_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-4 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg> Copy`;
+const COPY_ICON  = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-4 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg> Copy`;
 const CHECK_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg> Copied!`;
 
-/** Open the modal in a clean idle state — no generation yet. */
 function openCodeModal() {
     currentCode = null;
+    const display  = document.getElementById('codeDisplay');
+    const copyBtn  = document.getElementById('copyCodeBtn');
+    const genBtn   = document.getElementById('doGenerateCodeBtn');
 
-    const display   = document.getElementById('codeDisplay');
-    const copyBtn   = document.getElementById('copyCodeBtn');
-    const genBtn    = document.getElementById('doGenerateCodeBtn');
-    const duration  = document.getElementById('presetDuration');
-
-    // Reset display
     display.textContent = 'No code generated yet';
     display.className   = 'code-display idle';
-
-    // Hide copy until a code exists
     copyBtn.style.display = 'none';
     copyBtn.classList.remove('copied');
     copyBtn.innerHTML = COPY_ICON;
-
-    // Reset generate button
     genBtn.disabled = false;
-
-    // Reset duration input
-    duration.value = '1';
+    document.getElementById('presetDuration').value = '1';
     const reviewInput = document.getElementById('presetReviewMessage');
     if (reviewInput) reviewInput.value = '';
 
     document.getElementById('codeModalOverlay').classList.add('open');
 }
 
-/** Called by the Generate button inside the modal. */
 async function doGenerateCode() {
-    const display = document.getElementById('codeDisplay');
-    const copyBtn = document.getElementById('copyCodeBtn');
-    const genBtn  = document.getElementById('doGenerateCodeBtn');
+    const display       = document.getElementById('codeDisplay');
+    const copyBtn       = document.getElementById('copyCodeBtn');
+    const genBtn        = document.getElementById('doGenerateCodeBtn');
     const durationInput = document.getElementById('presetDuration');
-    const duration = parseInt(durationInput.value, 10);
+    const duration      = parseInt(durationInput.value, 10);
 
-    // Show generating state
-    display.textContent = 'Generating\u2026';
-    display.className   = 'code-display generating';
+    display.textContent   = 'Generating\u2026';
+    display.className     = 'code-display generating';
     copyBtn.style.display = 'none';
-    genBtn.disabled = true;
+    genBtn.disabled       = true;
 
     if (!Number.isFinite(duration) || duration < 1) {
         display.textContent = 'Please enter a duration of at least 1 day.';
         display.className   = 'code-display idle';
-        genBtn.disabled = false;
+        genBtn.disabled     = false;
         durationInput.focus();
         return;
     }
 
     const reviewMessage = (document.getElementById('presetReviewMessage') || {}).value || '';
-    const presetData = {};
-    presetData.duration = duration;
-    if (reviewMessage && reviewMessage.trim() !== '') {
-        presetData.review_message = reviewMessage.trim();
-    }
+    const presetData    = { duration };
+    if (reviewMessage.trim()) presetData.review_message = reviewMessage.trim();
 
     try {
         const resp = await fetch('<?= site_url('client_portal/requests/generate-code') ?>', {
             method: 'POST',
-            headers: {
-                'X-Requested-With': 'XMLHttpRequest',
-                'Content-Type': 'application/json',
-            },
+            headers: { 'X-Requested-With': 'XMLHttpRequest', 'Content-Type': 'application/json' },
             body: JSON.stringify({ preset_data: presetData }),
         });
 
         const data = await resp.json();
 
         if (data.success) {
-            currentCode = data.code;
-            display.textContent = data.code;
-            display.className   = 'code-display';
-
-            // Reveal copy button now that we have a code
+            currentCode           = data.code;
+            display.textContent   = data.code;
+            display.className     = 'code-display';
             copyBtn.style.display = 'inline-flex';
             copyBtn.classList.remove('copied');
-            copyBtn.innerHTML = COPY_ICON;
+            copyBtn.innerHTML     = COPY_ICON;
 
-            // Inject new code into the live table without a page reload
             if (typeof createCrudTable === 'function') {
                 APPROVAL_CODES.unshift({
                     code:              data.code,
@@ -1574,13 +1798,10 @@ document.getElementById('codeModalOverlay')?.addEventListener('click', function 
 
 async function copyCode() {
     if (!currentCode) return;
-
     const copyBtn = document.getElementById('copyCodeBtn');
-
     try {
         await navigator.clipboard.writeText(currentCode);
     } catch {
-        // Fallback for non-HTTPS / older browsers
         const ta = document.createElement('textarea');
         ta.value = currentCode;
         ta.style.cssText = 'position:fixed;opacity:0';
@@ -1589,7 +1810,6 @@ async function copyCode() {
         document.execCommand('copy');
         document.body.removeChild(ta);
     }
-
     copyBtn.classList.add('copied');
     copyBtn.innerHTML = CHECK_ICON;
     setTimeout(() => {

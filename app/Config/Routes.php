@@ -45,6 +45,9 @@ $routes->group('client_portal', ['filter' => 'auth'], function($routes){
     $routes->post('timesheets/update/(:num)', 'Client\TimesheetController::update/$1');
     $routes->get('timesheets/delete/(:num)', 'Client\TimesheetController::delete/$1');
     $routes->get('timesheets/daily-log', 'Client\TimesheetController::dailyTimeLog');
+    $routes->get('timesheet/history-details', 'Client\TimesheetController::historyDetails');
+    $routes->get('timesheet/export-history', 'Client\TimesheetController::exportHistory');
+
     $routes->get('profile', 'Client\EmployeeAccountController::index');
     $routes->post('profile/photo', 'Client\EmployeeAccountController::updatePhoto');
     $routes->post('profile/identity', 'Client\EmployeeAccountController::updateIdentity');
@@ -63,7 +66,7 @@ $routes->group('client_portal', ['filter' => 'auth'], function($routes){
 
 $routes->post('client_portal/time-in', 'Client\AttendanceController::timeIn');
 $routes->post('client_portal/time-out/(:num)', 'Client\AttendanceController::timeOut/$1');
-$routes->post('client_portal/toggle-break/(:num)', 'Client\AttendanceController::toggleBreak/$1');
+$routes->get('client_portal/toggle-break/(:num)', 'Client\AttendanceController::toggleBreak/$1');
 $routes->get('client_portal/requests/new', 'Client\RequestController::create'); 
 $routes->post('client_portal/requests/store', 'Client\RequestController::store');
 $routes->get('client_portal/requests', 'Client\RequestController::index');

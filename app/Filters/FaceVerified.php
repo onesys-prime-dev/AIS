@@ -6,6 +6,7 @@ use Config\CompreFace;
 use CodeIgniter\Filters\FilterInterface;
 use CodeIgniter\HTTP\RequestInterface;
 use CodeIgniter\HTTP\ResponseInterface;
+use App\Libraries\TrustedDeviceService;
 
 class FaceVerified implements FilterInterface
 {
@@ -24,7 +25,17 @@ class FaceVerified implements FilterInterface
             return null;
         }
 
+        $userId = (int) auth()->id();
+
+        $trusted = new TrustedDeviceService();
+
+        if ($trusted->isTrusted($userId)) {
+            session()->set('face_verified', true);
+            return null;
+        }
+
         return redirect()->to('/face-verify');
+
     }
 
     public function after(RequestInterface $request, ResponseInterface $response, $arguments = null)

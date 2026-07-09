@@ -964,6 +964,151 @@ $currentAttendance = $currentAttendance ?? null;
         line-height: 1.5;
     }
 
+    /* Dropzone */
+    .attach-dropzone {
+        border: 1.5px dashed #d1d5db;
+        border-radius: 10px;
+        background: #fafafa;
+        padding: 20px;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        cursor: pointer;
+        margin: 5px 0 10px 0;
+        transition: border-color .15s ease, background .15s ease;
+    }
+
+    .attach-dropzone:hover,
+    .attach-dropzone.dragover {
+        border-color: #dc2626;
+        background: #fef2f2;
+    }
+
+    .attach-dropzone .icon-wrap {
+        width: 40px;
+        height: 40px;
+        border-radius: 8px;
+        background: #fee2e2;
+        color: #dc2626;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+
+    .attach-dropzone .icon-wrap svg { width: 20px; height: 20px; }
+    .attach-dropzone .copy { line-height: 1.35; }
+    .attach-dropzone .copy .primary {
+        font-size: 14px;
+        font-weight: 600;
+        color: #111827;
+    }
+
+    .attach-dropzone .copy .primary span {
+        color: #dc2626;
+        text-decoration: underline;
+    }
+
+    .attach-dropzone .copy .secondary {
+        font-size: 12px;
+        color: #9ca3af;
+        margin-top: 2px;
+    }
+
+    .attach-dropzone input[type="file"] { display: none; }
+    
+    /* File list */
+    .attach-list {
+        margin: 5px 0 4px 0;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .attach-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        padding: 10px 12px;
+        background: #fff;
+    }
+
+    .attach-row .thumb {
+        width: 38px;
+        height: 38px;
+        border-radius: 6px;
+        object-fit: cover;
+        flex-shrink: 0;
+        background: #f3f4f6;
+        border: 1px solid #e5e7eb;
+    }
+
+    .attach-row .file-icon {
+        width: 38px;
+        height: 38px;
+        border-radius: 6px;
+        flex-shrink: 0;
+        background: #eef2ff;
+        color: #4f46e5;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .attach-row .file-icon.pdf { background: #fee2e2; color: #dc2626; }
+    .attach-row .file-icon.doc { background: #dbeafe; color: #2563eb; }
+    .attach-row .file-icon svg { width: 18px; height: 18px; }
+    
+    .attach-row .meta {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .attach-row .meta .name {
+        font-size: 13px;
+        font-weight: 500;
+        color: #111827;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .attach-row .meta .size {
+        font-size: 12px;
+        color: #9ca3af;
+        margin-top: 1px;
+    }
+
+    .attach-row .remove-btn {
+        width: 28px;
+        height: 28px;
+        border-radius: 6px;
+        border: none;
+        background: transparent;
+        color: #9ca3af;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        flex-shrink: 0;
+        transition: background .15s ease, color .15s ease;
+    }
+
+    .attach-row .remove-btn:hover {
+        background: #fee2e2;
+        color: #dc2626;
+    }
+
+    .attach-row .remove-btn svg { width: 15px; height: 15px; }
+    
+    .attach-empty-hint {
+        font-size: 12px;
+        color: #9ca3af;
+        margin-top: 6px;
+    }
+
     @media (max-width: 900px){
         .dashboard-main{
             grid-template-columns:1fr;
@@ -1111,7 +1256,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 <!-- functioning break button -->
                 <?php if ($currentAttendance): ?>
                 <a href="<?= site_url('client_portal/toggle-break/'.$currentAttendance['id']) ?>"
-                    class="icon-btn coffee <?= ($currentAttendance['break_start'] && !$currentAttendance['break_end']) ? 'on-break' : '' ?>"
+                    class="icon-btn coffee <?= ($currentAttendance['break_start'] && !$currentAttendance['break_end']) ? 'on-break' : '' ?>">
                         <span></span><span></span><span></span>
                 </a>
 
@@ -1493,7 +1638,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     <button type="button" onclick="closeAnnouncementForm()">✕</button>
                 </div>
 
-                <div class="modal-body scroll-bar">
+                <div class="modal-body hide-scroll-bar">
                     <div class="announcement-grid">
                         <div class="announcement-field full-span">
                             <label>Announcement Title *</label>
@@ -1548,17 +1693,21 @@ document.addEventListener('DOMContentLoaded', function () {
 
                         <div class="announcement-field full-span">
                             <label>Attachments</label>
-                            <div class="file-input-wrapper">
-                                <button type="button" id="file-upload-button" class="file-upload-button" aria-label="Attach files">
-                                    <!-- paperclip / attach SVG -->
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                                        <path d="M21.44 11.05l-8.49 8.49a5 5 0 01-7.07 0 5 5 0 010-7.07l8.49-8.49a3.5 3.5 0 014.95 4.95L11.83 18.97a2 2 0 01-2.83 0 2 2 0 010-2.83l6.36-6.36" stroke="#374151" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                                    </svg>
-                                </button>
-                                <input class="file-input-hidden" type="file" id="announcementAttachments" name="attachments[]" multiple accept="image/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
-                                <span id="announcementAttachmentsName" class="announcement-attachments-name">No files chosen</span>
+                            
+                            <div class="attach-dropzone" id="dropzone">
+                                <div class="icon-wrap">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M21.44 11.05l-8.49 8.49a5 5 0 01-7.07 0 5 5 0 010-7.07l8.49-8.49a3.5 3.5 0 014.95 4.95L11.83 18.97a2 2 0 01-2.83 0 2 2 0 010-2.83l6.36-6.36"/>
+                                </svg>
+                                </div>
+                                <div class="copy">
+                                <div class="primary"><span>Click to upload</span> or drag and drop</div>
+                                <div class="secondary">PDF, DOC, or image — up to 10MB each</div>
+                                </div>
+                                <input type="file" id="fileInput" name="attachments[]" multiple accept="image/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
                             </div>
-                            <div id="announcementAttachmentsList" class="announcement-attachments-list"></div>
+                            
+                            <div class="attach-list" id="attachList"></div>
                         </div>
 
                         <div class="announcement-field full-span">
@@ -2384,6 +2533,95 @@ document.addEventListener('DOMContentLoaded', function () {
             btn.addEventListener('click', function () { el.click(); });
         }
     });
+</script>
+
+<script>
+  const dropzone = document.getElementById('dropzone');
+  const fileInput = document.getElementById('fileInput');
+  const attachList = document.getElementById('attachList');
+  let files = [];
+ 
+  dropzone.addEventListener('click', () => fileInput.click());
+ 
+  ['dragenter', 'dragover'].forEach(evt =>
+    dropzone.addEventListener(evt, e => {
+      e.preventDefault();
+      dropzone.classList.add('dragover');
+    })
+  );
+  ['dragleave', 'drop'].forEach(evt =>
+    dropzone.addEventListener(evt, e => {
+      e.preventDefault();
+      dropzone.classList.remove('dragover');
+    })
+  );
+  dropzone.addEventListener('drop', e => {
+    addFiles(e.dataTransfer.files);
+  });
+ 
+  fileInput.addEventListener('change', () => {
+    addFiles(fileInput.files);
+    fileInput.value = '';
+  });
+ 
+  function addFiles(fileListObj) {
+    Array.from(fileListObj).forEach(f => files.push(f));
+    render();
+  }
+ 
+  function removeFile(index) {
+    files.splice(index, 1);
+    render();
+  }
+ 
+  function formatSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  }
+ 
+  function iconFor(file) {
+    if (file.type === 'application/pdf') {
+      return { cls: 'pdf', svg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>` };
+    }
+    if (file.type.includes('word') || file.name.match(/\.docx?$/i)) {
+      return { cls: 'doc', svg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>` };
+    }
+    return { cls: '', svg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>` };
+  }
+ 
+  function render() {
+    attachList.innerHTML = '';
+    files.forEach((file, i) => {
+      const row = document.createElement('div');
+      row.className = 'attach-row';
+ 
+      let mediaHtml;
+      if (file.type.startsWith('image/')) {
+        const url = URL.createObjectURL(file);
+        mediaHtml = `<img class="thumb" src="${url}" alt="">`;
+      } else {
+        const ic = iconFor(file);
+        mediaHtml = `<div class="file-icon ${ic.cls}">${ic.svg}</div>`;
+      }
+ 
+      row.innerHTML = `
+        ${mediaHtml}
+        <div class="meta">
+          <div class="name">${file.name}</div>
+          <div class="size">${formatSize(file.size)}</div>
+        </div>
+        <button type="button" class="remove-btn" data-index="${i}" aria-label="Remove file">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      `;
+      attachList.appendChild(row);
+    });
+ 
+    attachList.querySelectorAll('.remove-btn').forEach(btn => {
+      btn.addEventListener('click', () => removeFile(Number(btn.dataset.index)));
+    });
+  }
 </script>
 
 <?= $this->endSection() ?>

@@ -5,6 +5,7 @@ namespace App\Controllers\Auth;
 use App\Controllers\BaseController;
 use App\Models\PresenceModel;
 use App\Services\CompreFaceService;
+use App\Libraries\TrustedDevicesService;
 use Config\CompreFace;
 use Throwable;
 
@@ -111,8 +112,16 @@ class FaceAuthController extends BaseController
         }
 
         session()->set('face_verified', true);
+
+        $trusted = new TrustedDevicesService();
+        $trusted->trustCurrentDevice($authUserId);
+
         session()->remove('temp_user_id');
-        $this->presenceModel->updatePresence($authUserId, 'Online');
+
+        $this->presenceModel->updatePresence(
+            $authUserId,
+            'Online'
+        );
 
         return $this->response->setJSON([
             'status' => 'success',
