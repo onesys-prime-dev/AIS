@@ -19,18 +19,21 @@ class AnnouncementService
 
     public function __construct()
     {
-        $this->announcementModel = new AnnouncementModel();
+        $this->announcementModel     = new AnnouncementModel();
         $this->announcementViewModel = new AnnouncementViewModel();
-        $this->employeeModel = new EmployeeModel();
+
+        $this->employeeModel         = new EmployeeModel();
         $this->employeePositionModel = new EmployeePositionModel();
+
         $this->logger = service('activityLogger');
+
         $this->attachmentModel = new \App\Models\Client\AnnouncementAttachmentModel();
     }
 
     private function applyVisibilityScope(object $user, bool $includeFuture = false)
     {
-        $now = date('Y-m-d H:i:s');
-        $userId = (int) $user->id;
+        $now            = date('Y-m-d H:i:s');
+        $userId         = (int) $user->id;
         $isPayrollStaff = $user->inGroup('client_payroll_staff');
         $userDepartment = $this->getDepartmentByUserId($userId);
 
@@ -53,8 +56,8 @@ class AnnouncementService
         $builder->groupStart()
             ->where('expires_at', null)
             ->orWhere('expires_at >=', $now)
-        ->groupEnd()
-        ->groupStart()
+            ->groupEnd()
+            ->groupStart()
             ->where('audience', 'all');
 
         if ($isPayrollStaff) {
@@ -65,7 +68,7 @@ class AnnouncementService
             $builder->orGroupStart()
                 ->where('audience', 'department')
                 ->where('department', $userDepartment)
-            ->groupEnd();
+                ->groupEnd();
         }
 
         return $builder->groupEnd();
