@@ -35,6 +35,25 @@ class DashboardController extends BaseController
             ->where('time_out', null)
             ->first();
 
+        // Total break budget (minutes) from this employee's configured break
+        // schedule (see AttendanceController::getBreakScheduleMinutes) — falls
+        // back to 60 (one legacy break) if nothing's been configured, so the
+        // dashboard's break countdown ring isn't stuck assuming a flat hour for
+        // employees whose admin set up a different total.
+        $breakMinutesTotal = 60;
+        $db = \Config\Database::connect();
+        $employeeRow = $db->table('employees')->where('user_id', $userId)->get()->getRowArray();
+        if ($employeeRow) {
+            $positionRow = $db->table('employee_positions')->where('employee_id', $employeeRow['id'])->get()->getRowArray();
+            $rawSchedule = $positionRow['break_schedule'] ?? null;
+            if ($rawSchedule) {
+                $decoded = json_decode($rawSchedule, true);
+                if (is_array($decoded) && count($decoded) > 0) {
+                    $breakMinutesTotal = array_sum(array_map('intval', $decoded));
+                }
+            }
+        }
+
         $requests = [];
 
         // only payroll staff see requests
@@ -69,6 +88,7 @@ class DashboardController extends BaseController
             'savedTasks' => $savedTasks,
             'publishedNotifications' => $publishedNotifications,
             'unpublishedNotifications' => $unpublishedNotifications,
+            'breakMinutesTotal' => $breakMinutesTotal,
         ]);
     }
 }

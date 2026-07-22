@@ -599,10 +599,17 @@ $currentAttendance = $currentAttendance ?? null;
         background:white;
         width:100%;
         max-width:460px;
-        max-height: auto;
+        max-height:85vh;
+        display:flex;
+        flex-direction:column;
+        overflow:hidden;
         border-radius:14px;
         box-shadow:0 25px 50px rgba(0,0,0,0.25);
         animation:modalPop 0.2s ease;
+    }
+
+    #taskLogModal .modal{
+        max-width:640px;
     }
 
     #viewNotificationsModal .modal {
@@ -648,11 +655,11 @@ $currentAttendance = $currentAttendance ?? null;
         display:flex;
         justify-content:space-between;
         align-items:center;
-        margin-bottom:15px;
         font-size: 20px;
         font-weight: 700;
         padding:16px 20px;
         margin-bottom:0;
+        flex-shrink:0;
         border-bottom:1px solid #e5e7eb;
     }
 
@@ -883,6 +890,25 @@ $currentAttendance = $currentAttendance ?? null;
         padding:0;
         accent-color:#8b5cf6;
     }
+
+    .tl-duration-chip{
+        border:1px solid #e5e7eb; background:#f9fafb; color:#4b5563;
+        padding:3px 10px; border-radius:999px; font-size:11px; font-weight:600;
+        cursor:pointer; transition:.15s ease;
+    }
+    .tl-duration-chip:hover{ background:#ede9fe; border-color:#c4b5fd; color:#6d28d9; }
+
+    /* Compound selectors (.modal .tl-time-select) so this reliably beats the
+       generic ".modal select { width:100%; ... }" rule above regardless of
+       load order — see the civm-* fix in components/view_modal.php for the
+       same pattern applied to a different collision. */
+    .modal .tl-time-row{ display:flex; align-items:center; gap:4px; margin-top:5px; margin-bottom:10px; }
+    .modal .tl-time-select{
+        flex:1; min-width:0; width:auto; margin:0; padding:8px 4px;
+        border:1px solid #d1d5db; border-radius:8px; text-align:center; font-size:13px;
+    }
+    .modal .tl-time-select.tl-time-ampm{ flex:0 0 58px; }
+    .modal .tl-time-colon{ color:#9ca3af; font-weight:700; font-size:13px; }
 
     @keyframes modalPop{
         from{ transform:scale(0.95); opacity:0; }
@@ -1256,7 +1282,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 <!-- functioning break button -->
                 <?php if ($currentAttendance): ?>
                 <a href="<?= site_url('client_portal/toggle-break/'.$currentAttendance['id']) ?>"
-                    class="icon-btn coffee <?= ($currentAttendance['break_start'] && !$currentAttendance['break_end']) ? 'on-break' : '' ?>">
+                    class="icon-btn coffee <?= $currentAttendance['break_start'] ? 'on-break' : '' ?>">
                         <span></span><span></span><span></span>
                 </a>
 
@@ -1290,6 +1316,11 @@ document.addEventListener('DOMContentLoaded', function () {
                         type="hidden"
                         name="unapproved_ut_reason"
                         id="unapproved_ut_reason">
+
+                    <input
+                        type="hidden"
+                        name="missed_clockout_reason"
+                        id="missed_clockout_reason">
 
                     <button
                         type="button"
@@ -1521,37 +1552,99 @@ document.addEventListener('DOMContentLoaded', function () {
     <div class="modal-overlay" id="taskLogModal">
         <div class="modal">
             <div class="modal-header">
-                <span>Task Log</span>
-                <button onclick="closeTaskLog()">✕</button>
+                <div>
+                    <span>Task Log</span>
+                    <p id="task_att_date" class="text-xs text-gray-400 font-normal mt-0.5"></p>
+                </div>
+                <button onclick="closeTaskLogModal()">✕</button>
             </div>
 
-            <form id="taskLogForm" action="<?= site_url('client_portal/tasks/submit') ?>" method="post">
-                <div class="modal-body">
+            <div class="modal-body">
+
+                <!-- TIMELINE -->
+                <div class="mb-4">
+                    <div class="flex items-center justify-between" style="margin-bottom:6px;">
+                        <label class="text-xs font-semibold text-gray-500">Your Clocked-In Time</label>
+                        <span id="tl_window_label" class="text-xs text-gray-400"></span>
+                    </div>
+                    <div id="tl_timeline" class="relative w-full bg-gray-100 rounded-lg overflow-hidden border border-gray-200" style="height:32px;cursor:pointer;"></div>
+                    <p class="text-[11px] text-gray-400 mt-1">Colored blocks are already-logged tasks — click a free (empty) spot to start a new one there.</p>
+                </div>
+
+                <!-- TASK LIST -->
+                <div class="mb-4">
+                    <label class="text-xs font-semibold text-gray-500 block" style="margin-bottom:6px;">Logged Tasks</label>
+                    <div id="tl_task_list"></div>
+                    <p id="tl_empty_msg" class="text-xs text-gray-400 text-center py-3 hidden">No tasks logged yet for this session.</p>
+                </div>
+
+                <!-- ADD/EDIT FORM -->
+                <div class="border-t border-gray-100 pt-4">
+                    <div class="flex items-center justify-between mb-1">
+                        <label id="tl_form_title" class="text-xs font-semibold text-gray-700">Add a Task</label>
+                        <button type="button" id="tl_cancel_edit_btn" onclick="cancelTaskEdit()" class="hidden text-xs text-purple-600 hover:text-purple-700 font-semibold">Cancel edit</button>
+                    </div>
+
                     <label>Select Preset Task</label>
                     <select id="savedTasksDropdown">
                         <option value="">-- Write your task manually --</option>
                     </select>
 
                     <label>Or write your task *</label>
-                    <textarea id="taskPerformed" name="task_performed" placeholder="e.g. Coding Session" required></textarea>
+                    <textarea id="task_att_text" placeholder="e.g. Coding Session"></textarea>
 
-                    <label>Start Time *</label>
-                    <input type="time" name="start_time" required>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label>Start Time *</label>
+                            <input type="hidden" id="task_start_time">
+                            <div class="tl-time-row">
+                                <select id="task_start_hour" class="tl-time-select"></select>
+                                <span class="tl-time-colon">:</span>
+                                <select id="task_start_minute" class="tl-time-select"></select>
+                                <select id="task_start_ampm" class="tl-time-select tl-time-ampm"></select>
+                            </div>
+                        </div>
+                        <div>
+                            <label>End Time *</label>
+                            <input type="hidden" id="task_end_time">
+                            <div class="tl-time-row">
+                                <select id="task_end_hour" class="tl-time-select"></select>
+                                <span class="tl-time-colon">:</span>
+                                <select id="task_end_minute" class="tl-time-select"></select>
+                                <select id="task_end_ampm" class="tl-time-select tl-time-ampm"></select>
+                            </div>
+                        </div>
+                    </div>
 
-                    <label>End Time *</label>
-                    <input type="time" name="end_time" required>
+                    <div class="flex items-center justify-between" style="margin-top:-6px;margin-bottom:10px;">
+                        <div class="flex" style="gap:6px;">
+                            <button type="button" onclick="applyDurationPreset(15)" class="tl-duration-chip">15m</button>
+                            <button type="button" onclick="applyDurationPreset(30)" class="tl-duration-chip">30m</button>
+                            <button type="button" onclick="applyDurationPreset(60)" class="tl-duration-chip">1h</button>
+                            <button type="button" onclick="applyDurationPreset(120)" class="tl-duration-chip">2h</button>
+                        </div>
+                        <span id="tl_duration_label" style="font-size:11px;font-weight:600;color:#6b7280;"></span>
+                    </div>
+
+                    <label>Client</label>
+                    <input type="text" id="task_att_client" placeholder="e.g. Acme Corp">
 
                     <label class="checkbox-container">
-                        <input type="checkbox" name="save_task" id="saveTaskToggle">
+                        <input type="checkbox" id="saveTaskToggle">
                         Save this task as a preset
                     </label>
-                </div>  
 
-                <div class="modal-footer">
-                    <button type="button" class="cancel-btn" onclick="closeTaskLog()">Cancel</button>
-                    <button type="submit" class="submit-btn">Log Task</button>
+                    <p id="tl_form_error" class="text-xs text-red-600 mb-2 hidden" style="margin-top:-4px;"></p>
+
+                    <input type="hidden" id="task_att_id">
+                    <input type="hidden" id="task_editing_id" value="">
                 </div>
-            </form>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="cancel-btn" onclick="closeTaskLogModal()">Close</button>
+                <button type="button" id="tl_save_btn" class="submit-btn" onclick="saveTask()">Add Task</button>
+            </div>
         </div>
     </div>
 
@@ -1610,7 +1703,11 @@ document.addEventListener('DOMContentLoaded', function () {
                         </div>
 
                         <label>Start Date</label>
-                        <input type="date" name="start_date" id="reqStartDate" required>
+                        <input type="date" name="start_date" id="reqStartDate" required oninput="checkBackdatedRequest()">
+
+                        <div id="reqBackdatedNotice" style="display:none;background:#EDE9FE;color:#5B21B6;font-size:12px;font-weight:600;padding:6px 10px;border-radius:6px;margin:-4px 0 10px;">
+                            ⓘ This date has already passed — this will be filed as a backdated request for payroll to review.
+                        </div>
 
                         <label>End Date</label>
                         <input type="date" name="end_date" id="reqEndDate">
@@ -1833,11 +1930,86 @@ document.addEventListener('DOMContentLoaded', function () {
             </div>
         </div>
 
+        <div class="modal-overlay" id="missedClockoutModal">
+            <div class="modal">
+
+                <div class="modal-header">
+                    <span>Missed Clock-Out</span>
+                    <button
+                        type="button"
+                        onclick="closeMissedClockoutModal()"
+                    >
+                        ✕
+                    </button>
+                </div>
+
+                <div class="modal-body">
+
+                    <p style="
+                        color:#dc2626;
+                        font-weight:600;
+                        margin-bottom:15px;
+                    ">
+                        It looks like you forgot to clock out
+                        on your last shift.
+                    </p>
+
+                    <p style="
+                        margin-bottom:20px;
+                        color:#6b7280;
+                    ">
+                        Please provide a reason so payroll can
+                        review this attendance record.
+                    </p>
+
+                    <label>
+                        Reason for Late Clock-Out
+                    </label>
+
+                    <textarea
+                        id="missedClockoutReason"
+                        placeholder="Enter your reason..."
+                    ></textarea>
+
+                </div>
+
+                <div class="modal-footer">
+
+                    <button
+                        type="button"
+                        class="cancel-btn"
+                        onclick="closeMissedClockoutModal()"
+                    >
+                        Cancel
+                    </button>
+
+                    <button
+                        type="button"
+                        class="submit-btn"
+                        onclick="proceedMissedClockout()"
+                    >
+                        Proceed Clock Out
+                    </button>
+
+                </div>
+
+            </div>
+        </div>
+
 <script>
     const attendance = <?= json_encode($currentAttendance ?? null) ?>;
     const scheduledEnd = <?= json_encode($currentAttendance['scheduled_end'] ?? null) ?>;
     console.log('scheduledEnd:', scheduledEnd);
     console.log('currentAttendance:', attendance);
+
+    // Required globals for public/js/components/task-log.js (loaded below).
+    const TASKS_BASE_URL  = "<?= site_url('client_portal/timesheet/tasks') ?>";
+    const UPDATE_TASK_URL = "<?= site_url('client_portal/timesheet/tasks/edit') ?>";
+    const DELETE_TASK_URL = "<?= site_url('client_portal/timesheet/tasks/delete') ?>";
+    function escapeHtml(str) {
+        if (!str) return '';
+        return String(str).replace(/[&<>]/g, m => m === '&' ? '&amp;' : (m === '<' ? '&lt;' : '&gt;'));
+    }
 
     async function loadSavedTasks() {
         try {
@@ -1856,7 +2028,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
             // attach change listener here after options are loaded
             dropdown.onchange = function() {
-                document.getElementById("taskPerformed").value = this.value;
+                document.getElementById("task_att_text").value = this.value;
             };
 
         } catch (err) {
@@ -1866,17 +2038,38 @@ document.addEventListener('DOMContentLoaded', function () {
 
     /* MODALS */
     function openTaskLog() {
-        document.getElementById("taskLogModal").style.display = "flex";
+        if (!attendance) {
+            if (typeof showToast === 'function') showToast('You must be clocked in to log a task.', 'warning');
+            return;
+        }
         loadSavedTasks();
-    }
-
-    function closeTaskLog() {
-        document.getElementById("taskLogModal").style.display = "none";
-        document.getElementById("taskLogForm").reset();
+        const today = new Date().toISOString().slice(0, 10);
+        openTaskLogModal(attendance.id, today);
     }
 
     function openRequestForm(){
         document.getElementById("requestModal").style.display="flex";
+    }
+
+    // Opens the Request form pre-filled as an Overtime request for a specific
+    // date — used right after a missed clock-out, so the employee doesn't have
+    // to already know this step exists in order to get those hours paid.
+    function openLateOvertimeRequest(dateStr, reason) {
+        openRequestForm();
+
+        const typeSelect = document.getElementById('reqType');
+        typeSelect.value = 'overtime';
+        toggleLeaveCategoryField('overtime');
+
+        document.getElementById('reqStartDate').value = dateStr;
+        document.getElementById('reqEndDate').value = dateStr;
+        document.getElementById('reqReason').value = reason || '';
+
+        checkBackdatedRequest();
+
+        if (typeof showToast === 'function') {
+            showToast('These extra hours are only paid once an Overtime request for this date is approved — review and submit below.', 'warning');
+        }
     }
 
     function closeRequestForm(){
@@ -1889,6 +2082,24 @@ document.addEventListener('DOMContentLoaded', function () {
         }
         resetPresetState();
         document.getElementById("requestForm").reset();
+        document.getElementById("reqBackdatedNotice").style.display = "none";
+    }
+
+    function checkBackdatedRequest() {
+        const input  = document.getElementById("reqStartDate");
+        const notice = document.getElementById("reqBackdatedNotice");
+        if (!input.value) {
+            notice.style.display = "none";
+            return;
+        }
+
+        const [y, m, d] = input.value.split('-').map(Number);
+        const picked    = new Date(y, m - 1, d);
+
+        const now   = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+        notice.style.display = (picked < today) ? "block" : "none";
     }
 
     function toggleRequestCodeMode(on) {
@@ -2188,7 +2399,7 @@ document.addEventListener('DOMContentLoaded', function () {
     /* CLOCK SYSTEM */
 
     const SHIFT_MINUTES = 480;
-    const BREAK_MINUTES = 60;
+    const BREAK_MINUTES = <?= (int) ($breakMinutesTotal ?? 60) ?>;
 
     let shiftRemaining = SHIFT_MINUTES;
     let breakRemaining = 0;
@@ -2212,8 +2423,10 @@ document.addEventListener('DOMContentLoaded', function () {
         // Remaining shift
         shiftRemaining = SHIFT_MINUTES - (workedMinutes - breakUsed);
 
-        // if currently on break (break_start set but break_end not yet set)
-        if (attendance.break_start && !attendance.break_end) {
+        // if currently on break — break_start is cleared back to null each time a
+        // break ends, so its mere presence means "on break right now" (break_end
+        // may still hold a stale value from an earlier break today, so don't gate on it)
+        if (attendance.break_start) {
             onBreak = true;
 
             // break_start is also a full datetime string now
@@ -2322,6 +2535,33 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function handleClockOut()
     {
+        // Clocking out on a later calendar day than the shift started means this
+        // is an overdue/missed clock-out (e.g. forgot to clock out yesterday),
+        // not an early clock-out — the scheduled-end comparison below assumes
+        // "today", so it would otherwise misreport this as clocking out early.
+        if (attendance && attendance.time_in)
+        {
+            const shiftDate = attendance.time_in.slice(0, 10);
+
+            const localNow = new Date();
+            const todayDate =
+                localNow.getFullYear() + '-' +
+                String(localNow.getMonth() + 1).padStart(2, '0') + '-' +
+                String(localNow.getDate()).padStart(2, '0');
+
+            if (shiftDate !== todayDate)
+            {
+                document
+                    .getElementById(
+                        'missedClockoutModal'
+                    )
+                    .style.display =
+                    'flex';
+
+                return;
+            }
+        }
+
         if (!scheduledEnd)
         {
             document
@@ -2431,7 +2671,58 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
+    function proceedMissedClockout()
+    {
+        const textarea =
+            document.getElementById(
+                'missedClockoutReason'
+            );
+
+        const reason =
+            textarea
+                ? textarea.value.trim()
+                : '';
+
+        if (!reason) {
+            showToast(
+                'Please enter a reason.', 'warning'
+            );
+            return;
+        }
+
+        document.getElementById(
+            'missed_clockout_reason'
+        ).value = reason;
+
+        document
+            .getElementById(
+                'clockOutForm'
+            )
+            .submit();
+    }
+
+    function closeMissedClockoutModal()
+    {
+        document.getElementById('missedClockoutModal').style.display = 'none';
+
+        const textarea =
+            document.getElementById('missedClockoutReason');
+
+        if (textarea) {
+            textarea.value = '';
+        }
+    }
+
+    <?php $otPrompt = session()->getFlashdata('prompt_ot_request'); ?>
+    <?php if ($otPrompt): ?>
+    openLateOvertimeRequest(
+        <?= json_encode($otPrompt['date']) ?>,
+        <?= json_encode($otPrompt['reason']) ?>
+    );
+    <?php endif; ?>
+
 </script>
+<script src="<?= base_url('js/components/task-log.js') ?>"></script>
 
 <script>
     // Preview and removal helpers for announcement attachments

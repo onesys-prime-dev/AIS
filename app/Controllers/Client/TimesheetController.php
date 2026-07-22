@@ -5,6 +5,7 @@ namespace App\Controllers\Client;
 use App\Controllers\BaseController;
 use App\Services\Client\TimesheetsService;
 use App\Models\Client\AttendanceModel;
+use App\Models\Client\EmployeeModel;
 
 class TimesheetController extends BaseController
 {
@@ -42,47 +43,8 @@ class TimesheetController extends BaseController
             'totals'            => $detailed['totals'],
             'period_start'      => $period['start'],
             'period_end'        => $period['end'],
+            'isPayrollAdmin'    => $this->isPayrollAdmin(),
         ]);
-    }
-
-    public function update(int $id)
-    {
-        $user = auth()->user();
-        if (!$user) return redirect()->to('/login');
-
-        $date = trim($this->request->getPost('date'));
-        $startTime = trim($this->request->getPost('start_time'));
-        $endTime = trim($this->request->getPost('end_time'));
-        $taskPerformed = trim($this->request->getPost('task_performed'));
-
-        if ($taskPerformed === '') {
-            return redirect()->back()->with('error', 'Task Performed is required.');
-        }
-        // ... validation as before ...
-
-        $updated = $this->timesheetsService->updateByUserId($id, (int) $user->id, [
-            'date' => $date,
-            'start_time' => $startTime,
-            'end_time' => $endTime,
-            'task_performed' => $taskPerformed,
-        ]);
-
-        if (!$updated) {
-            return redirect()->back()->with('error', 'Unable to update timesheet.');
-        }
-        return redirect()->back()->with('success', 'Timesheet updated successfully.');
-    }
-
-    public function delete(int $id)
-    {
-        $user = auth()->user();
-        if (!$user) return redirect()->to('/login');
-
-        $deleted = $this->timesheetsService->deleteByUserId($id, (int) $user->id);
-        if (!$deleted) {
-            return redirect()->back()->with('error', 'Unable to delete timesheet.');
-        }
-        return redirect()->back()->with('success', 'Timesheet deleted successfully.');
     }
 
     public function dailyTimeLog()
@@ -95,43 +57,64 @@ class TimesheetController extends BaseController
         return $this->response->setJSON($dailyTimeLog);
     }
 
-    // AJAX endpoint to update the task log (task_performed) for a day
-    public function updateTaskLog(int $attendanceId)
+    // AJAX endpoint: list every task logged against one attendance session,
+    // plus the clock-in/out window they must fit within.
+    public function listTasks(int $attendanceId)
     {
         $user = auth()->user();
         if (!$user) {
             return $this->response->setStatusCode(401)->setJSON(['success' => false, 'message' => 'Unauthenticated']);
         }
 
-        $data          = $this->request->getJSON(true);
-        $taskPerformed = trim($data['task_performed'] ?? '');
-        $client        = trim($data['client']         ?? '');
+        return $this->response->setJSON(
+            $this->timesheetsService->listTasksForAttendance($attendanceId, (int) $user->id)
+        );
+    }
 
-        $attModel   = new AttendanceModel();
-        $attendance = $attModel->where('id', $attendanceId)->where('user_id', $user->id)->first();
-        if (!$attendance) {
-            return $this->response->setJSON(['success' => false, 'message' => 'Attendance record not found']);
+    // AJAX endpoint: log a new task against an attendance session.
+    public function createTask(int $attendanceId)
+    {
+        $user = auth()->user();
+        if (!$user) {
+            return $this->response->setStatusCode(401)->setJSON(['success' => false, 'message' => 'Unauthenticated']);
         }
 
-        $tasksModel = new \App\Models\Client\TasksModel();
-        $existing   = $tasksModel->where('attendance_id', $attendanceId)->where('user_id', $user->id)->first();
+        $data = $this->request->getJSON(true) ?? [];
 
-        $payload = [
-            'task_performed' => $taskPerformed,
-            'client'         => $client,
-        ];
+        return $this->response->setJSON(
+            $this->timesheetsService->createTask($attendanceId, (int) $user->id, $data)
+        );
+    }
 
-        if ($existing) {
-            $tasksModel->update($existing['id'], $payload);
-        } else {
-            $tasksModel->insert(array_merge($payload, [
-                'attendance_id' => $attendanceId,
-                'user_id'       => $user->id,
-                'saved_at'      => date('Y-m-d H:i:s'),
-            ]));
+    // AJAX endpoint: edit an existing task (looked up by its own id).
+    public function updateTask(int $taskId)
+    {
+        $user = auth()->user();
+        if (!$user) {
+            return $this->response->setStatusCode(401)->setJSON(['success' => false, 'message' => 'Unauthenticated']);
         }
 
-        return $this->response->setJSON(['success' => true]);
+        $data = $this->request->getJSON(true) ?? [];
+
+        return $this->response->setJSON(
+            $this->timesheetsService->updateByUserId($taskId, (int) $user->id, $data)
+        );
+    }
+
+    // AJAX endpoint: delete a task (looked up by its own id).
+    public function deleteTask(int $taskId)
+    {
+        $user = auth()->user();
+        if (!$user) {
+            return $this->response->setStatusCode(401)->setJSON(['success' => false, 'message' => 'Unauthenticated']);
+        }
+
+        $deleted = $this->timesheetsService->deleteByUserId($taskId, (int) $user->id);
+
+        return $this->response->setJSON([
+            'success' => $deleted,
+            'message' => $deleted ? null : 'Task not found',
+        ]);
     }
 
     // AJAX endpoint to update IN/OUT times (admin use)
@@ -204,19 +187,20 @@ class TimesheetController extends BaseController
     {
         $nightStart = '22:00:00';
         $nightEnd   = '06:00:00';
-        $startTs = strtotime("$date $timeIn");
-        $endTs   = strtotime("$date $timeOut");
-        if ($endTs < $startTs) $endTs += 86400;
+        $start = new \DateTime("$date $timeIn");
+        $end   = new \DateTime("$date $timeOut");
+        if ($end < $start) $end->modify('+1 day');
 
-        $nightStartTs = strtotime("$date $nightStart");
-        $nightEndTs   = strtotime("$date $nightEnd");
-        if ($nightEndTs < $nightStartTs) $nightEndTs += 86400;
+        $nightStartDt = new \DateTime("$date $nightStart");
+        $nightEndDt   = new \DateTime("$date $nightEnd");
+        if ($nightEndDt < $nightStartDt) $nightEndDt->modify('+1 day');
 
-        $nightMinutes = 0;
-        for ($t = $startTs; $t < $endTs; $t++) {
-            if ($t >= $nightStartTs && $t < $nightEndTs) $nightMinutes++;
-        }
-        return round($nightMinutes / 60, 2);
+        $overlapStart = max($start, $nightStartDt);
+        $overlapEnd   = min($end, $nightEndDt);
+        if ($overlapStart >= $overlapEnd) return 0.0;
+
+        $diff = $overlapStart->diff($overlapEnd);
+        return round(($diff->h * 60 + $diff->i) / 60, 2);
     }
 
     private function resolveCutoffByDate(string $date): array
@@ -265,8 +249,11 @@ class TimesheetController extends BaseController
                 $end
             );
 
-        $filename = "Timesheet_{$start}_to_{$end}.csv";
+        $this->streamTimesheetCsv($data['daily'], "Timesheet_{$start}_to_{$end}.csv");
+    }
 
+    private function streamTimesheetCsv(array $rows, string $filename): void
+    {
         header('Content-Type: text/csv');
         header("Content-Disposition: attachment; filename=\"{$filename}\"");
         header('Pragma: no-cache');
@@ -274,31 +261,33 @@ class TimesheetController extends BaseController
 
         $output = fopen('php://output', 'w');
 
-        // Header row
         fputcsv($output, [
             'Date',
             'Time In',
             'Time Out',
             'Regular Hours',
             'OT Hours',
+            'Unapproved OT Hours',
             'RDOT Hours',
             'Tardy Minutes',
+            'Undertime Hours',
             'Night Diff',
             'Remarks',
             'Client',
             'Task Performed'
         ]);
 
-        // Data rows
-        foreach ($data['daily'] as $row) {
+        foreach ($rows as $row) {
             fputcsv($output, [
                 $row['date'] ?? '',
                 $row['in'] ?? '',
                 $row['out'] ?? '',
                 $row['regular_hours'] ?? '',
                 $row['ot_hours'] ?? '',
+                $row['unapproved_ot_hours'] ?? '',
                 $row['rdot_hours'] ?? '',
                 $row['tardy_minutes'] ?? '',
+                $row['undertime_hours'] ?? '',
                 $row['night_diff'] ?? '',
                 $row['remarks'] ?? '',
                 $row['client'] ?? '',
@@ -308,5 +297,97 @@ class TimesheetController extends BaseController
 
         fclose($output);
         exit;
-}
+    }
+
+    // ================= ADMIN: REVIEW AN EMPLOYEE'S TIMESHEET =================
+
+    private function isPayrollAdmin(): bool
+    {
+        $user = auth()->user();
+        if (!$user) return false;
+        return $user->inGroup('client_payroll_staff') || $user->inGroup('superadmin') || $user->inGroup('admin');
+    }
+
+    public function adminEmployeeTimesheetHistory()
+    {
+        if (!$this->isPayrollAdmin()) {
+            return $this->response->setStatusCode(403)->setJSON(['error' => 'Unauthorized']);
+        }
+
+        $employeeId = (int) $this->request->getGet('employee_id');
+        if (!$employeeId) {
+            return $this->response->setJSON(['error' => 'Missing employee_id']);
+        }
+
+        try {
+            $employee = (new EmployeeModel())->find($employeeId);
+            if (!$employee) {
+                return $this->response->setJSON(['error' => 'Employee not found']);
+            }
+
+            $userId = (int) $employee['user_id'];
+
+            return $this->response->setJSON([
+                'employee_name'  => trim(($employee['first_name'] ?? '') . ' ' . ($employee['last_name'] ?? '')),
+                'current_period' => $this->resolveCutoffByDate(date('Y-m-d')),
+                'history'        => $this->timesheetsService->listCutoffHistoryByUserId($userId),
+            ]);
+        } catch (\Throwable $e) {
+            return $this->jsonError($e, 'Unable to load employee timesheet history.');
+        }
+    }
+
+    public function adminEmployeeTimesheet()
+    {
+        if (!$this->isPayrollAdmin()) {
+            return $this->response->setStatusCode(403)->setJSON(['error' => 'Unauthorized']);
+        }
+
+        $employeeId = (int) $this->request->getGet('employee_id');
+        $start      = $this->request->getGet('start');
+        $end        = $this->request->getGet('end');
+
+        if (!$employeeId || !$start || !$end) {
+            return $this->response->setJSON(['error' => 'Missing employee_id, start, or end']);
+        }
+
+        try {
+            $employee = (new EmployeeModel())->find($employeeId);
+            if (!$employee) {
+                return $this->response->setJSON(['error' => 'Employee not found']);
+            }
+
+            $data = $this->timesheetsService->getDetailedTimesheet((int) $employee['user_id'], $start, $end);
+            $data['employee_name'] = trim(($employee['first_name'] ?? '') . ' ' . ($employee['last_name'] ?? ''));
+
+            return $this->response->setJSON($data);
+        } catch (\Throwable $e) {
+            return $this->jsonError($e, 'Unable to load employee timesheet.');
+        }
+    }
+
+    public function adminExportEmployeeTimesheet()
+    {
+        if (!$this->isPayrollAdmin()) {
+            return $this->response->setStatusCode(403)->setBody('Unauthorized');
+        }
+
+        $employeeId = (int) $this->request->getGet('employee_id');
+        $start      = $this->request->getGet('start');
+        $end        = $this->request->getGet('end');
+
+        if (!$employeeId || !$start || !$end) {
+            return $this->response->setStatusCode(400)->setBody('Missing employee_id, start, or end');
+        }
+
+        $employee = (new EmployeeModel())->find($employeeId);
+        if (!$employee) {
+            return $this->response->setStatusCode(404)->setBody('Employee not found');
+        }
+
+        $data = $this->timesheetsService->getDetailedTimesheet((int) $employee['user_id'], $start, $end);
+        $slug = preg_replace('/[^A-Za-z0-9_-]+/', '_', trim(($employee['first_name'] ?? '') . '_' . ($employee['last_name'] ?? '')));
+
+        $this->streamTimesheetCsv($data['daily'], "Timesheet_{$slug}_{$start}_to_{$end}.csv");
+    }
 }

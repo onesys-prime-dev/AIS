@@ -9,9 +9,9 @@
         <button type="button" class="tab active" data-tab="payroll-status">Payroll Status</button>
         <button type="button" class="tab" data-tab="generate-payslip">Generate Payslip</button>
         <button type="button" class="tab" data-tab="payroll-settings">Payroll Settings</button>
-        <button type="button" class="tab" data-tab="payslip-history">Payslip History</button>
         <button type="button" class="tab" data-tab="year-end">13th Month &amp; Annualization</button>
-        <button type="button" class="tab" data-tab="payroll-register">Payroll Register</button>
+        <button type="button" class="tab" data-tab="payroll-register">Payroll Register &amp; History</button>
+        <button type="button" class="tab" data-tab="audit-log">Audit Log</button>
     </div>
 
     <div class="tab-panel h-full flex flex-col min-h-0 overflow-hidden px-8 pb-8" data-panel="payroll-status" style="display:flex;">
@@ -26,16 +26,16 @@
         <?= view('client_portal/payroll_settings_panel') ?>
     </div>
 
-    <div class="tab-panel h-full flex flex-col min-h-0 overflow-hidden p-8" data-panel="payslip-history" style="display:none;">
-        <?= view('client_portal/payroll_payslip_history') ?>
-    </div>
-
     <div class="tab-panel h-full flex flex-col min-h-0 overflow-y-auto p-8" data-panel="year-end" style="display:none;">
         <?= view('client_portal/payroll_13th_month') ?>
     </div>
 
     <div class="tab-panel h-full flex flex-col min-h-0 overflow-hidden p-8" data-panel="payroll-register" style="display:none;">
         <?= view('client_portal/payroll_register') ?>
+    </div>
+
+    <div class="tab-panel h-full flex flex-col min-h-0 overflow-hidden p-8" data-panel="audit-log" style="display:none;">
+        <?= view('client_portal/payroll_audit_log') ?>
     </div>
 
 </div>
@@ -59,7 +59,8 @@
         }
         window.activatePayrollTab = activateTab;
 
-        let yearEndLoaded = false;
+        let yearEndLoaded  = false;
+        let auditLogLoaded = false;
         tabs.forEach(tab => {
             tab.addEventListener('click', function () {
                 activateTab(tab.dataset.tab);
@@ -68,6 +69,12 @@
                     const yr = document.getElementById('yearEndYear')?.value ?? new Date().getFullYear();
                     if (typeof window._loadYearEndRecords === 'function') {
                         window._loadYearEndRecords(yr);
+                    }
+                }
+                if (tab.dataset.tab === 'audit-log' && !auditLogLoaded) {
+                    auditLogLoaded = true;
+                    if (typeof window._loadAuditLog === 'function') {
+                        window._loadAuditLog();
                     }
                 }
             });

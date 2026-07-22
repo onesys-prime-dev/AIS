@@ -42,11 +42,13 @@ $routes->group('client_portal', ['filter' => 'auth'], function($routes){
     $routes->get('loans/payments/(:num)','Client\LoanController::getLoanPayments/$1');
     $routes->get('loans/getEmployeeLoanInfo/(:num)','Client\LoanController::getEmployeeLoanInfo/$1');
 
-    $routes->post('timesheets/update/(:num)', 'Client\TimesheetController::update/$1');
-    $routes->get('timesheets/delete/(:num)', 'Client\TimesheetController::delete/$1');
     $routes->get('timesheets/daily-log', 'Client\TimesheetController::dailyTimeLog');
     $routes->get('timesheet/history-details', 'Client\TimesheetController::historyDetails');
     $routes->get('timesheet/export-history', 'Client\TimesheetController::exportHistory');
+    $routes->get('timesheet/tasks/(:num)', 'Client\TimesheetController::listTasks/$1');
+    $routes->post('timesheet/tasks/(:num)/create', 'Client\TimesheetController::createTask/$1');
+    $routes->post('timesheet/tasks/edit/(:num)', 'Client\TimesheetController::updateTask/$1');
+    $routes->post('timesheet/tasks/delete/(:num)', 'Client\TimesheetController::deleteTask/$1');
 
     $routes->get('profile', 'Client\EmployeeAccountController::index');
     $routes->post('profile/photo', 'Client\EmployeeAccountController::updatePhoto');
@@ -64,32 +66,34 @@ $routes->group('client_portal', ['filter' => 'auth'], function($routes){
     $routes->post('help/update/(:num)', 'Client\HelpController::update/$1');
 });
 
-$routes->post('client_portal/time-in', 'Client\AttendanceController::timeIn');
-$routes->post('client_portal/time-out/(:num)', 'Client\AttendanceController::timeOut/$1');
-$routes->get('client_portal/toggle-break/(:num)', 'Client\AttendanceController::toggleBreak/$1');
-$routes->get('client_portal/requests/new', 'Client\RequestController::create'); 
-$routes->post('client_portal/requests/store', 'Client\RequestController::store');
-$routes->get('client_portal/requests', 'Client\RequestController::index');
-$routes->post('client_portal/requests/update/(:num)', 'Client\RequestController::updateStatus/$1');
-$routes->post('client_portal/request-notifications/viewed', 'Client\RequestNotificationController::viewed');
-$routes->post('client_portal/request-notifications/dismiss', 'Client\RequestNotificationController::dismiss');
-$routes->post('client_portal/announcements/store', 'Client\AnnouncementController::store');
-$routes->post('client_portal/announcements/viewed', 'Client\AnnouncementController::viewed');
-$routes->post('client_portal/announcements/dismiss', 'Client\AnnouncementController::dismiss');
-$routes->post('client_portal/announcements/delete/(:num)', 'Client\AnnouncementController::delete/$1');
-$routes->post('client_portal/tasks/submit', 'Client\TaskController::submitTask');
-$routes->get('client_portal/tasks/saved', 'Client\TaskController::getSavedTasks');
-$routes->get('client_portal/timesheet', 'Client\TimesheetController::index');
-$routes->get('settings/customization', 'SettingsController::customization');
-$routes->post('settings/customization/save', 'SettingsController::saveCustomization');
-$routes->get('settings/face-recognition', 'SettingsController::faceRecognition');
-$routes->post('settings/face-recognition/enroll', 'SettingsController::enrollFace');
-$routes->get('settings/face-recognition/status', 'SettingsController::faceRecognitionStatus');
-$routes->post('client_portal/requests/generate-code', 'Client\RequestController::generateApprovalCode');
-$routes->get('client_portal/requests/lookup-code', 'Client\RequestController::lookupCode');
+$routes->group('', ['filter' => 'auth'], function($routes) {
+    $routes->post('client_portal/time-in', 'Client\AttendanceController::timeIn');
+    $routes->post('client_portal/time-out/(:num)', 'Client\AttendanceController::timeOut/$1');
+    $routes->get('client_portal/toggle-break/(:num)', 'Client\AttendanceController::toggleBreak/$1');
+    $routes->get('client_portal/requests/new', 'Client\RequestController::create');
+    $routes->post('client_portal/requests/store', 'Client\RequestController::store');
+    $routes->get('client_portal/requests', 'Client\RequestController::index');
+    $routes->post('client_portal/requests/update/(:num)', 'Client\RequestController::updateStatus/$1');
+    $routes->post('client_portal/request-notifications/viewed', 'Client\RequestNotificationController::viewed');
+    $routes->post('client_portal/request-notifications/dismiss', 'Client\RequestNotificationController::dismiss');
+    $routes->post('client_portal/announcements/store', 'Client\AnnouncementController::store');
+    $routes->post('client_portal/announcements/viewed', 'Client\AnnouncementController::viewed');
+    $routes->post('client_portal/announcements/dismiss', 'Client\AnnouncementController::dismiss');
+    $routes->post('client_portal/announcements/delete/(:num)', 'Client\AnnouncementController::delete/$1');
+    $routes->post('client_portal/tasks/submit', 'Client\TaskController::submitTask');
+    $routes->get('client_portal/tasks/saved', 'Client\TaskController::getSavedTasks');
+    $routes->get('client_portal/timesheet', 'Client\TimesheetController::index');
+    $routes->get('settings/customization', 'SettingsController::customization');
+    $routes->post('settings/customization/save', 'SettingsController::saveCustomization');
+    $routes->get('settings/face-recognition', 'SettingsController::faceRecognition');
+    $routes->post('settings/face-recognition/enroll', 'SettingsController::enrollFace');
+    $routes->get('settings/face-recognition/status', 'SettingsController::faceRecognitionStatus');
+    $routes->post('client_portal/requests/generate-code', 'Client\RequestController::generateApprovalCode');
+    $routes->get('client_portal/requests/lookup-code', 'Client\RequestController::lookupCode');
+});
 
 // ================= PAYROLL ROUTES =================
-$routes->group('client_portal', ['namespace' => 'App\Controllers\Client'], function($routes) {
+$routes->group('client_portal', ['namespace' => 'App\Controllers\Client', 'filter' => 'auth'], function($routes) {
     $routes->get('payroll', 'PayrollController::payrollView');
     $routes->get('payroll/employees_json', 'PayrollController::getEmployees');
     $routes->get('payroll/employee_details/(:num)', 'PayrollController::getEmployeeDetails/$1');
@@ -107,16 +111,20 @@ $routes->group('client_portal', ['namespace' => 'App\Controllers\Client'], funct
     $routes->get('payroll/downloadPayslip/(:num)', 'PayrollController::downloadPayslip/$1');
     $routes->get('payroll/payslipHistory', 'PayrollController::payslipHistory');
     $routes->get('payroll/getPayslipData/(:num)', 'PayrollController::getPayslipData/$1');
+    $routes->get('payroll/getPayslipActivity/(:num)', 'PayrollController::getPayslipActivity/$1');
     
     $routes->get('payroll/getRegisterRows', 'PayrollController::getRegisterRows');
+    $routes->get('payroll/getRegisterRawSheet', 'PayrollController::getRegisterRawSheet');
     $routes->get('payroll/exportRegister', 'PayrollController::exportRegister');
+    $routes->get('payroll/getPayslipEditData', 'PayrollController::getPayslipEditData');
+    $routes->post('payroll/savePayslipEditData', 'PayrollController::savePayslipEditData');
     $routes->get('payroll/exportTimesheet', 'PayrollController::exportTimesheet');
     $routes->post('payroll/importTimesheet', 'PayrollController::importTimesheet');
 
     $routes->get('payroll/loanBreakdown/(:num)/(:any)/(:any)','PayrollController::getLoanBreakdown/$1/$2/$3');
 });
 
-$routes->group('client_portal/payroll', ['namespace' => 'App\Controllers\Client'], function($routes) {
+$routes->group('client_portal/payroll', ['namespace' => 'App\Controllers\Client', 'filter' => 'auth'], function($routes) {
     $routes->get('getTimesheet/(:num)/(:any)/(:any)', 'PayrollController::getTimesheet/$1/$2/$3');
     $routes->post('importCSV', 'PayrollController::importCSV');
     $routes->get('exportCSV/(:any)', 'PayrollController::exportCSV/$1');
@@ -159,9 +167,12 @@ $routes->group('client_portal/payroll', ['namespace' => 'App\Controllers\Client'
     $routes->get('holidays/list',        'PayrollController::holidayList');
     $routes->post('holidays/save',       'PayrollController::holidaySave');
     $routes->post('holidays/delete',     'PayrollController::holidayDelete');
+
+    // ========== Audit Log ==========
+    $routes->get('getAuditLog',          'PayrollController::getAuditLog');
 });
 
-$routes->group('client_portal', ['namespace' => 'App\Controllers\Client'], function($routes) {
+$routes->group('client_portal', ['namespace' => 'App\Controllers\Client', 'filter' => 'auth'], function($routes) {
     $routes->post('payroll/compute', 'PayrollController::computeAndSave');
     $routes->get('payroll/employees_json', 'PayrollController::getEmployees');
     $routes->get('payroll/employee_details/(:num)', 'PayrollController::getEmployeeDetails/$1');
@@ -171,15 +182,15 @@ $routes->group('client_portal', ['namespace' => 'App\Controllers\Client'], funct
     $routes->get('payroll/get/(:num)', 'PayrollController::getPayroll/$1');
     $routes->get('payroll/generate/(:num)', 'PayrollController::generatePayslip/$1');
     $routes->post('payroll/send/(:num)', 'PayrollController::sendPayslip/$1');
-    
+
     $routes->get('payroll', 'PayrollController::payrollView');
     $routes->post('payroll/sendStatic', 'PayrollController::sendStatic');
     $routes->post('payroll/sendPdf', 'PayrollController::sendPdf');
-    $routes->post('client_portal/payroll/sendStatic', 'Client\PayrollController::sendStatic');
-    $routes->post('client_portal/payroll/sendPdf', 'Client\PayrollController::sendPdf');
     $routes->post('payroll/savePayslipRecord', 'PayrollController::savePayslipRecord');
     $routes->get('payroll/getAllPayslips', 'PayrollController::getAllPayslips');
-    $routes->post('client_portal/timesheet/update-attendance/(:num)', 'Client\TimesheetController::updateAttendance/$1');
-    $routes->post('client_portal/timesheet/update-task-log/(:num)', 'Client\TimesheetController::updateTaskLog/$1');
-    $routes->get('company-logo', 'Client\PayrollController::getCompanyLogo');
+    $routes->post('timesheet/update-attendance/(:num)', 'TimesheetController::updateAttendance/$1');
+    $routes->get('timesheet/employee/history', 'TimesheetController::adminEmployeeTimesheetHistory');
+    $routes->get('timesheet/employee', 'TimesheetController::adminEmployeeTimesheet');
+    $routes->get('timesheet/employee/export', 'TimesheetController::adminExportEmployeeTimesheet');
+    $routes->get('company-logo', 'PayrollController::getCompanyLogo');
 });

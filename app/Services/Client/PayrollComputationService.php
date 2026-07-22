@@ -424,7 +424,7 @@ class PayrollComputationService
         if ($semiMonthlyTaxable <= 33333)  return round(937.50  + ($semiMonthlyTaxable - 16667) * 0.20, 2);
         if ($semiMonthlyTaxable <= 83333)  return round(4270.70 + ($semiMonthlyTaxable - 33333) * 0.25, 2);
         if ($semiMonthlyTaxable <= 333333) return round(16770.70 + ($semiMonthlyTaxable - 83333) * 0.30, 2);
-        return round(91770.70 + ($semiMonthlyTaxable - 333333) * 0.35, 2);
+        return round(91770.00 + ($semiMonthlyTaxable - 333333) * 0.35, 2);
     }
 
     // ========== Helpers for previous cut‑off data ==========

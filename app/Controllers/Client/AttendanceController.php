@@ -146,6 +146,12 @@ class AttendanceController extends BaseController
             ) ?? ''
         );
 
+        $missedClockoutReason = trim(
+            $this->request->getPost(
+                'missed_clockout_reason'
+            ) ?? ''
+        );
+
         $attendance = $this->attendanceModel
             ->where('id', $id)
             ->where('user_id', $userId)
@@ -177,6 +183,12 @@ class AttendanceController extends BaseController
         {
             $undertimeReason = $reason;
         }
+
+        // Clocking out on a later calendar day than the shift's date means this is
+        // an overdue/missed clock-out (e.g. forgot to clock out yesterday), not an
+        // early clock-out — keep its reason separate from unapproved_ut_reason.
+        $isMissedClockout = date('Y-m-d', strtotime($attendance['time_in'])) !== date('Y-m-d', strtotime($timeOut));
+        $missedClockoutReasonToSave = $isMissedClockout ? $missedClockoutReason : null;
 
         $totalHours =
         (strtotime($timeOut) - strtotime($attendance['time_in'])) / 3600;
@@ -245,13 +257,48 @@ class AttendanceController extends BaseController
                 'unapproved_ut_reason' =>
                     $undertimeReason,
 
+                'missed_clockout_reason' =>
+                    $missedClockoutReasonToSave,
+
                 'attendance_status' => $status,
             ]
         );
 
         service('activityLogger')->attendanceClockedOut($attendance['id'], $before, $after);
 
-        return redirect()->back()->with('success', 'Time out recorded!');
+        $response = redirect()->back()->with('success', 'Time out recorded!');
+
+        // Prompt the employee to file a late overtime request right away — the
+        // extra hours from a missed clock-out aren't paid unless one gets
+        // approved, and there's nothing else on the dashboard that would tell
+        // a first-time user this step exists.
+        if ($isMissedClockout) {
+            $response = $response->with('prompt_ot_request', [
+                'date'   => date('Y-m-d', strtotime($attendance['time_in'])),
+                'reason' => $missedClockoutReasonToSave,
+            ]);
+        }
+
+        return $response;
+    }
+
+    /**
+     * Each employee's configured break list (see EmployeePositionModel::break_schedule,
+     * a JSON array of per-break minutes, e.g. [15,60,15] for a 15-min break, an hour
+     * lunch, then another 15-min break). Falls back to a single 60-minute break for
+     * anyone who hasn't been configured yet, matching the previous flat-1-hour rule.
+     */
+    private function getBreakScheduleMinutes(int $userId): array
+    {
+        $schedule = $this->getEmployeeSchedule($userId);
+        $raw      = $schedule['break_schedule'] ?? null;
+        if ($raw) {
+            $decoded = json_decode($raw, true);
+            if (is_array($decoded) && count($decoded) > 0) {
+                return array_values(array_map('intval', $decoded));
+            }
+        }
+        return [60];
     }
 
     public function toggleBreak($id)
@@ -268,13 +315,14 @@ class AttendanceController extends BaseController
             return redirect()->back()->with('error', 'No active attendance found!');
         }
 
-        if (! empty($attendance['break_start']) && ! empty($attendance['break_end'])) {
-            return redirect()->back()->with('error', "You've already used your 1 hour break!");
-        }
+        $breakSchedule = $this->getBreakScheduleMinutes($userId);
+        $breaksTaken   = (int) ($attendance['breaks_taken'] ?? 0);
+        $totalBreaks   = count($breakSchedule);
 
-        if (empty($attendance['break_start']) && empty($attendance['break_end'])) {
-            if ($attendance['break_duration'] >= 1) {
-                return redirect()->back()->with('error', "You've used up your 1 hour break!");
+        if (empty($attendance['break_start'])) {
+            // Starting a break
+            if ($breaksTaken >= $totalBreaks) {
+                return redirect()->back()->with('error', "You've used all your breaks for today ({$breaksTaken}/{$totalBreaks}).");
             }
 
             $breakStartTime = date('Y-m-d H:i:s');
@@ -290,16 +338,20 @@ class AttendanceController extends BaseController
 
             return redirect()->back()->with('success', 'Break started!');
         } else {
-            $breakStart = strtotime($attendance['break_start']);
-            $breakEnd   = time();
-            $breakHours = ($breakEnd - $breakStart) / 3600;
-            $totalBreak = min($attendance['break_duration'] + $breakHours, 1.0);
+            // Ending a break — credit the preset duration configured for this break
+            // slot, not the actual elapsed time, so it always matches what was set
+            // up in Employee Management regardless of how long the employee is away.
+            $presetMinutes = $breakSchedule[$breaksTaken] ?? end($breakSchedule);
+            $newBreaksTaken = $breaksTaken + 1;
+            $totalBreak     = (float) ($attendance['break_duration'] ?? 0) + ($presetMinutes / 60);
 
             $breakEndTime = date('Y-m-d H:i:s');
 
             $this->attendanceModel->update($id, [
+                'break_start'    => null,
                 'break_end'      => $breakEndTime,
                 'break_duration' => $totalBreak,
+                'breaks_taken'   => $newBreaksTaken,
             ]);
 
             service('activityLogger')->attendanceBreakRecorded($id,
@@ -308,7 +360,7 @@ class AttendanceController extends BaseController
             );
 
             return redirect()->back()
-                ->with('success', 'Break ended!')
+                ->with('success', "Break ended! Credited {$presetMinutes} min ({$newBreaksTaken}/{$totalBreaks} breaks used).")
                 ->with('break_hours', round($totalBreak, 2));
         }
     }

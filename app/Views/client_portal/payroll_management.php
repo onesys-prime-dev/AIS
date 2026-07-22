@@ -58,12 +58,67 @@ $_defaultYearMonth = "{$_year}-{$_month}";
         min-height:300px;
     }
 
+    /* Bulk table containers (Raw Sheet / Register / Payslip list) — sized close to
+       the full viewport by default so it reads like a full-screen table without
+       actually engaging the browser's Fullscreen API. */
+    .bulk-table-scroll{
+        overflow-x:auto;
+        overflow-y:auto;
+        max-height:88vh;
+    }
+    /* When the parent view is put into fullscreen, use the full screen height instead */
+    [id$="-view"]:fullscreen{
+        background:#fff;
+        padding:16px;
+        overflow-y:auto;
+    }
+    [id$="-view"]:fullscreen .bulk-table-scroll{
+        max-height:none;
+    }
+
     /* Hide individual panels when bulk mode is active */
     body.bulk-active #individual-mode,
     body.bulk-active #individual-register-mode,
     body.bulk-active #individual-payslip-mode,
     body.bulk-active #individual-employee-section,
     body.bulk-active #individualActionBtns { display:none !important; }
+
+    /* Bulk mode stacks a couple of nested padded containers that each eat real
+       editing space with margin you can't use. Shrink them (spacing only, not
+       a look/design change) so the table gets more of the actual screen.
+       NOTE: does NOT touch <body> itself — this page is embedded inside the
+       app shell's own body (h-screen fixed-height layout), and padding the
+       real <body> broke that layout, making the whole page appear to shift. */
+    body.bulk-active #payrollOuterCard{ padding:12px !important; }
+    body.bulk-active [data-panel="generate-payslip"]{ padding:8px !important; }
+    /* Padding differs between Individual/Bulk, so switching modes resizes the
+       card — animate that instead of letting it jump instantly. */
+    #payrollOuterCard,
+    [data-panel="generate-payslip"]{ transition:padding 0.45s cubic-bezier(0.4,0,0.2,1); }
+
+    /* Table height is set dynamically via JS (see _fillTableToViewport) so it
+       fills exactly to the bottom of the screen wherever it lands, instead of
+       a fixed max-height that may leave blank space or run past the fold. */
+    .bulk-table-scroll{ transition:max-height 0.35s cubic-bezier(0.4,0,0.2,1); }
+
+    /* Smooth scrolling for both the page and the table's own scroll box. */
+    #payrollOuterCard, .bulk-table-scroll{ scroll-behavior:smooth; }
+
+    /* Fade+slide-in used whenever a panel gets unhidden via JS (setup summary
+       collapsing/expanding, review details toggling, tables appearing after
+       generate) so content eases in instead of popping into place. */
+    .bulk-fade-in{ animation:bulkFadeIn 0.3s cubic-bezier(0.2,0.8,0.2,1); }
+    @keyframes bulkFadeIn{
+        from{ opacity:0; transform:translateY(6px); }
+        to{ opacity:1; transform:translateY(0); }
+    }
+
+    /* Smooth hover/press feedback on the controls used throughout the bulk flow */
+    .mode-btn, .period-btn, #bulkGenerateBtn, #bulkSendAllBtn, #bulkExportBtn,
+    #bulk-panel button, .bulk-table-scroll button{
+        transition:background-color 0.15s ease, transform 0.1s ease, opacity 0.15s ease;
+    }
+    #bulk-panel button:active, .bulk-table-scroll button:active{ transform:scale(0.97); }
 
     .payroll-scroll-hide{
         scrollbar-width:none;
@@ -600,7 +655,7 @@ $_defaultYearMonth = "{$_year}-{$_month}";
 </head>
 <body class="p-6">
 
-<div class="bg-white rounded-2xl shadow-lg p-8 h-full overflow-y-auto border border-gray-300 flex flex-col">
+<div id="payrollOuterCard" class="bg-white rounded-2xl shadow-lg p-8 h-full overflow-y-auto border border-gray-300 flex flex-col">
 
     <!-- GLOBAL MODE SWITCH -->
     <div class="mode-switch" style="margin-bottom:10px;">
@@ -610,72 +665,86 @@ $_defaultYearMonth = "{$_year}-{$_month}";
 
     <!-- BULK PANEL — shown above all tabs when in Bulk mode -->
     <div id="bulk-panel" style="display:none;margin-bottom:14px;">
-        <div style="display:grid;grid-template-columns:280px 1fr;gap:16px;align-items:start;">
-            <!-- Left: employee checklist -->
-            <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:12px;">
-                <div style="font-size:13px;font-weight:700;color:#374151;margin-bottom:8px;">Select Employees</div>
-                <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">
-                    <button type="button" onclick="bulkSelectAll()" style="font-size:12px;padding:4px 10px;border:1px solid #d1d5db;border-radius:6px;background:#fff;cursor:pointer;">All</button>
-                    <button type="button" onclick="bulkDeselectAll()" style="font-size:12px;padding:4px 10px;border:1px solid #d1d5db;border-radius:6px;background:#fff;cursor:pointer;">Clear</button>
-                    <input type="text" id="bulkListSearch" placeholder="Filter…"
-                        oninput="filterBulkList(this.value)"
-                        style="flex:1;padding:5px 8px;border:1px solid #d1d5db;border-radius:6px;font-size:12px;">
-                </div>
-                <div id="bulkEmployeeList" style="max-height:180px;overflow-y:auto;border:1px solid #e5e7eb;border-radius:8px;background:#fff;">
-                    <div style="padding:14px;text-align:center;color:#9ca3af;font-size:13px;">Loading…</div>
-                </div>
-                <div style="margin-top:6px;font-size:12px;color:#6b7280;" id="bulkSelectionCount">0 employees selected</div>
-            </div>
 
-            <!-- Right: period + actions + review -->
-            <div>
-                <div style="display:grid;grid-template-columns:150px 1fr;gap:12px;margin-bottom:12px;">
-                    <div>
-                        <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px;">Month</label>
-                        <input type="month" id="bulkPeriodMonth" value="<?= $_defaultYearMonth ?>"
-                            style="height:36px;padding:5px 8px;border:1px solid #cfcfcf;border-radius:8px;font-size:13px;background:#e9e9e9;width:100%;"
-                            onchange="syncBulkPeriod()">
+        <!-- Compact summary bar — shown once generated, instead of the full setup below -->
+        <div id="bulkSetupSummary" style="display:none;align-items:center;gap:12px;flex-wrap:wrap;background:#f5f3ff;border:1px solid #ddd6fe;border-radius:10px;padding:10px 14px;margin-bottom:12px;">
+            <span id="bulkSetupSummaryText" style="font-size:13px;font-weight:600;color:#4c1d95;"></span>
+            <button type="button" onclick="toggleBulkSetup(true)" style="margin-left:auto;font-size:12px;padding:5px 12px;border:1px solid #c4b5fd;border-radius:6px;background:#fff;color:#6d28d9;cursor:pointer;font-weight:600;">Change Selection</button>
+        </div>
+
+        <!-- Full setup — employee picker, period, actions. Collapses after a successful generate. -->
+        <div id="bulkSetupSection">
+            <div style="display:grid;grid-template-columns:280px 1fr;gap:16px;align-items:start;">
+                <!-- Left: employee checklist -->
+                <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:12px;">
+                    <div style="font-size:13px;font-weight:700;color:#374151;margin-bottom:8px;">Select Employees</div>
+                    <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">
+                        <button type="button" onclick="bulkSelectAll()" style="font-size:12px;padding:4px 10px;border:1px solid #d1d5db;border-radius:6px;background:#fff;cursor:pointer;">All</button>
+                        <button type="button" onclick="bulkDeselectAll()" style="font-size:12px;padding:4px 10px;border:1px solid #d1d5db;border-radius:6px;background:#fff;cursor:pointer;">Clear</button>
+                        <input type="text" id="bulkListSearch" placeholder="Filter…"
+                            oninput="filterBulkList(this.value)"
+                            style="flex:1;padding:5px 8px;border:1px solid #d1d5db;border-radius:6px;font-size:12px;">
                     </div>
-                    <div>
-                        <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px;">Period</label>
-                        <div class="period-btn-group">
-                            <button type="button" class="period-btn bulk-period-btn <?= $_defaultPeriod === 'first_half'  ? 'active' : '' ?>" data-period="first_half"  onclick="selectBulkPeriodBtn(this)">1st Half</button>
-                            <button type="button" class="period-btn bulk-period-btn <?= $_defaultPeriod === 'second_half' ? 'active' : '' ?>" data-period="second_half" onclick="selectBulkPeriodBtn(this)">2nd Half</button>
-                            <button type="button" class="period-btn bulk-period-btn" data-period="monthly" onclick="selectBulkPeriodBtn(this)">Monthly</button>
+                    <div id="bulkEmployeeList" style="max-height:180px;overflow-y:auto;border:1px solid #e5e7eb;border-radius:8px;background:#fff;">
+                        <div style="padding:14px;text-align:center;color:#9ca3af;font-size:13px;">Loading…</div>
+                    </div>
+                    <div style="margin-top:6px;font-size:12px;color:#6b7280;" id="bulkSelectionCount">0 employees selected</div>
+                </div>
+
+                <!-- Right: period + actions -->
+                <div>
+                    <div style="display:grid;grid-template-columns:150px 1fr;gap:12px;margin-bottom:12px;">
+                        <div>
+                            <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px;">Month</label>
+                            <input type="month" id="bulkPeriodMonth" value="<?= $_defaultYearMonth ?>"
+                                style="height:36px;padding:5px 8px;border:1px solid #cfcfcf;border-radius:8px;font-size:13px;background:#e9e9e9;width:100%;"
+                                onchange="syncBulkPeriod()">
                         </div>
-                        <div id="bulkPeriodDisplay" style="margin-top:4px;font-size:12px;color:#6b7280;"></div>
+                        <div>
+                            <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px;">Period</label>
+                            <div class="period-btn-group">
+                                <button type="button" class="period-btn bulk-period-btn <?= $_defaultPeriod === 'first_half'  ? 'active' : '' ?>" data-period="first_half"  onclick="selectBulkPeriodBtn(this)">1st Half</button>
+                                <button type="button" class="period-btn bulk-period-btn <?= $_defaultPeriod === 'second_half' ? 'active' : '' ?>" data-period="second_half" onclick="selectBulkPeriodBtn(this)">2nd Half</button>
+                                <button type="button" class="period-btn bulk-period-btn" data-period="monthly" onclick="selectBulkPeriodBtn(this)">Monthly</button>
+                            </div>
+                            <div id="bulkPeriodDisplay" style="margin-top:4px;font-size:12px;color:#6b7280;"></div>
+                        </div>
+                    </div>
+
+                    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;">
+                        <button type="button" id="bulkGenerateBtn" onclick="startBulkGenerate()"
+                            style="background:#7b5cff;color:#fff;border:none;border-radius:8px;padding:9px 20px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px;">
+                            <span id="bulkBtnText">Generate Payslips</span>
+                            <span id="bulkBtnSpinner" style="display:none;">⏳</span>
+                        </button>
+                        <button type="button" id="bulkSendAllBtn" onclick="sendBulkAll()" style="display:none;
+                            background:#16a34a;color:#fff;border:none;border-radius:8px;padding:9px 20px;font-size:13px;font-weight:600;cursor:pointer;">
+                            ✉ Send All
+                        </button>
+                        <button type="button" id="bulkExportBtn" onclick="exportBulkCSV()" style="display:none;
+                            background:#374151;color:#fff;border:none;border-radius:8px;padding:9px 20px;font-size:13px;font-weight:600;cursor:pointer;">
+                            ↓ Export CSV
+                        </button>
+                        <span id="bulkStatusMsg" style="font-size:13px;color:#6b7280;"></span>
                     </div>
                 </div>
+            </div>
+        </div>
 
-                <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;">
-                    <button type="button" id="bulkGenerateBtn" onclick="startBulkGenerate()"
-                        style="background:#7b5cff;color:#fff;border:none;border-radius:8px;padding:9px 20px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px;">
-                        <span id="bulkBtnText">Generate Payslips</span>
-                        <span id="bulkBtnSpinner" style="display:none;">⏳</span>
-                    </button>
-                    <button type="button" id="bulkSendAllBtn" onclick="sendBulkAll()" style="display:none;
-                        background:#16a34a;color:#fff;border:none;border-radius:8px;padding:9px 20px;font-size:13px;font-weight:600;cursor:pointer;">
-                        ✉ Send All
-                    </button>
-                    <button type="button" id="bulkExportBtn" onclick="exportBulkCSV()" style="display:none;
-                        background:#374151;color:#fff;border:none;border-radius:8px;padding:9px 20px;font-size:13px;font-weight:600;cursor:pointer;">
-                        ↓ Export CSV
-                    </button>
-                    <span id="bulkStatusMsg" style="font-size:13px;color:#6b7280;"></span>
+        <!-- Review table — collapses to a one-line summary once generated, same
+             pattern as the setup panel above, so it doesn't stay in the way of
+             the actual table below. -->
+        <div id="bulkReviewPanel" style="display:none;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;">
+            <div id="bulkReviewSummary" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 12px;font-size:13px;font-weight:600;color:#374151;background:#f9fafb;"></div>
+            <div id="bulkReviewDetails" style="display:none;">
+                <div style="display:grid;grid-template-columns:2fr 1.1fr 1.1fr 1.2fr 90px;background:#DCDCDC;color:#737373;font-size:13px;font-weight:700;border-top:1px solid #e5e7eb;border-bottom:1px solid #9E9E9E;">
+                    <div style="padding:8px 12px;">Employee</div>
+                    <div style="padding:8px 12px;">Gross Pay</div>
+                    <div style="padding:8px 12px;">Deductions</div>
+                    <div style="padding:8px 12px;">Net Pay</div>
+                    <div style="padding:8px 12px;text-align:center;">View</div>
                 </div>
-
-                <!-- Review table -->
-                <div id="bulkReviewPanel" style="display:none;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;">
-                    <div style="display:grid;grid-template-columns:2fr 1.1fr 1.1fr 1.2fr 90px;background:#DCDCDC;color:#737373;font-size:13px;font-weight:700;border-bottom:1px solid #9E9E9E;">
-                        <div style="padding:8px 12px;">Employee</div>
-                        <div style="padding:8px 12px;">Gross Pay</div>
-                        <div style="padding:8px 12px;">Deductions</div>
-                        <div style="padding:8px 12px;">Net Pay</div>
-                        <div style="padding:8px 12px;text-align:center;">View</div>
-                    </div>
-                    <div id="bulkReviewRows"></div>
-                    <div id="bulkReviewSummary" style="padding:8px 12px;font-size:13px;font-weight:600;color:#374151;border-top:1px solid #e5e7eb;background:#f9fafb;"></div>
-                </div>
+                <div id="bulkReviewRows"></div>
             </div>
         </div>
     </div>
@@ -698,7 +767,7 @@ $_defaultYearMonth = "{$_year}-{$_month}";
                        cursor:pointer;color:#60a5fa;line-height:1;">&times;</button>
     </div>
 
-    <div class="flex flex-col flex-1 overflow-hidden">
+    <div class="flex flex-col flex-1" style="min-height:0;overflow:visible;">
 
         <!-- ================= RAW SHEET ================= -->
         <div class="tab-content active payroll-scroll-area payroll-scroll-hide" id="raw">
@@ -736,9 +805,10 @@ $_defaultYearMonth = "{$_year}-{$_month}";
                         <label for="bulkRawImportFile" style="cursor:pointer;background:#374151;color:#fff;border:none;border-radius:8px;padding:7px 16px;font-size:13px;font-weight:600;display:inline-flex;align-items:center;">&#8679; Import CSV</label>
                         <input type="file" id="bulkRawImportFile" accept=".csv" style="display:none;" onchange="importBulkCSV('raw',this)">
                         <button type="button" onclick="exportBulkCSV('raw')" style="background:#28a745;color:#fff;border:none;border-radius:8px;padding:7px 16px;font-size:13px;font-weight:600;cursor:pointer;">&#8681; Export CSV</button>
+                        <button type="button" onclick="toggleBulkFullscreen('bulk-raw-view')" style="background:#7b5cff;color:#fff;border:none;border-radius:8px;padding:7px 16px;font-size:13px;font-weight:600;cursor:pointer;">&#10021; Full Screen</button>
                     </div>
                 </div>
-                <div id="bulk-raw-tbody" style="overflow-x:auto;"></div>
+                <div id="bulk-raw-tbody" class="bulk-table-scroll"></div>
             </div>
 
             <div id="individual-mode">
@@ -893,6 +963,7 @@ $_defaultYearMonth = "{$_year}-{$_month}";
                         <div><label>Undertime (PHP)</label><input type="number" id="utPhp" value="0"></div>
                         <div><label>Absent Day(s)</label><input type="number" id="absentDays" value="0"></div>
                         <div><label>Absent (PHP)</label><input type="number" id="absentPhp" value="0"></div>
+                        <div><label>Break Hours <span style="font-weight:400;color:#777;font-size:11px;">(reference only)</span></label><input type="number" id="breakHoursRef" value="0" readonly style="background:#f3f4f6;"></div>
                     </div>
                 </div>
             </div>
@@ -1075,10 +1146,11 @@ $_defaultYearMonth = "{$_year}-{$_month}";
                         <label for="bulkRegImportFile" style="cursor:pointer;background:#374151;color:#fff;border:none;border-radius:8px;padding:7px 16px;font-size:13px;font-weight:600;display:inline-flex;align-items:center;">&#8679; Import CSV</label>
                         <input type="file" id="bulkRegImportFile" accept=".csv" style="display:none;" onchange="importBulkCSV('register',this)">
                         <button type="button" onclick="exportBulkCSV('register')" style="background:#28a745;color:#fff;border:none;border-radius:8px;padding:7px 16px;font-size:13px;font-weight:600;cursor:pointer;">&#8681; Export CSV</button>
+                        <button type="button" onclick="toggleBulkFullscreen('bulk-register-view')" style="background:#7b5cff;color:#fff;border:none;border-radius:8px;padding:7px 16px;font-size:13px;font-weight:600;cursor:pointer;">&#10021; Full Screen</button>
                     </div>
                 </div>
                 <!-- Table injected by _buildRegisterTable() -->
-                <div id="bulk-register-tbody" style="overflow-x:auto;"></div>
+                <div id="bulk-register-tbody" class="bulk-table-scroll"></div>
             </div>
 
             <div id="individual-register-mode">
@@ -1197,9 +1269,10 @@ $_defaultYearMonth = "{$_year}-{$_month}";
                     <div style="display:flex;gap:8px;flex-wrap:wrap;">
                         <button type="button" onclick="sendBulkAll()" style="background:#16a34a;color:#fff;border:none;border-radius:8px;padding:7px 16px;font-size:13px;font-weight:600;cursor:pointer;">&#9993; Send All</button>
                         <button type="button" onclick="exportBulkCSV('register')" style="background:#28a745;color:#fff;border:none;border-radius:8px;padding:7px 16px;font-size:13px;font-weight:600;cursor:pointer;">&#8681; Export CSV</button>
+                        <button type="button" onclick="toggleBulkFullscreen('bulk-payslip-view')" style="background:#7b5cff;color:#fff;border:none;border-radius:8px;padding:7px 16px;font-size:13px;font-weight:600;cursor:pointer;">&#10021; Full Screen</button>
                     </div>
                 </div>
-                <div id="bulk-payslip-list" style="display:grid;gap:8px;">
+                <div id="bulk-payslip-list" class="bulk-table-scroll" style="display:grid;gap:8px;">
                     <div style="text-align:center;padding:20px;color:#9ca3af;font-size:13px;">Generate payslips to see list</div>
                 </div>
             </div>
@@ -1249,6 +1322,7 @@ $_defaultYearMonth = "{$_year}-{$_month}";
             </div>
 
             <div id="priorHalfStatus" style="display:none;padding:6px 10px;border-radius:4px;font-size:0.82em;margin-top:6px;"></div>
+            <input type="hidden" id="edit_priorDeMin" value="0">
             <input type="hidden" id="edit_priorGrossTotal" value="0">
 
             <!-- VL Cash Conversion — payslip tab manual override -->
@@ -1373,11 +1447,87 @@ function nextTab(tabId){
     document.querySelectorAll('.sub-tab').forEach(t=>t.classList.remove('active'));
     document.querySelector(`[data-tab="${tabId}"]`).classList.add('active');
     if(tabId === 'payslip') buildPayslipTable();
+    // A different table is now visible — resize it to fill the screen too.
+    setTimeout(_fillTableToViewport, 0);
 }
 
 document.querySelectorAll('.sub-tab').forEach(btn=>{
     btn.onclick = () => nextTab(btn.dataset.tab);
 });
+
+// Replays the fade-in animation on an element each time it's unhidden
+// (re-adding the same class doesn't restart a CSS animation, so force a reflow).
+function _fadeInEl(el) {
+    if (!el) return;
+    el.classList.remove('bulk-fade-in');
+    void el.offsetWidth;
+    el.classList.add('bulk-fade-in');
+}
+
+// Collapse the employee/period setup into a compact summary bar after a
+// successful generate (frees up screen space for the results), or expand it
+// back when the user clicks "Change Selection".
+function toggleBulkSetup(expand) {
+    const section = document.getElementById('bulkSetupSection');
+    const summary = document.getElementById('bulkSetupSummary');
+    if (!section || !summary) return;
+    section.style.display = expand ? 'block' : 'none';
+    summary.style.display = expand ? 'none' : 'flex';
+    _fadeInEl(expand ? section : summary);
+    if (!expand) {
+        const count = selectedEmployeeIds.size;
+        const activeBtn = document.querySelector('.bulk-period-btn.active');
+        const periodLabel = activeBtn ? activeBtn.textContent.trim() : '';
+        const monthEl = document.getElementById('bulkPeriodMonth');
+        const monthLabel = monthEl?.value || '';
+        const text = document.getElementById('bulkSetupSummaryText');
+        if (text) text.textContent = `✓ ${count} employee${count === 1 ? '' : 's'} · ${periodLabel} · ${monthLabel}`;
+    }
+}
+
+// Toggle the per-employee review table (defaults to collapsed after a
+// generate — the summary line is enough, and the full breakdown is one
+// click away instead of permanently taking up space above the real table).
+function toggleBulkReviewDetails() {
+    const details = document.getElementById('bulkReviewDetails');
+    const btn = document.getElementById('bulkReviewToggleBtn');
+    if (!details) return;
+    const show = details.style.display === 'none';
+    details.style.display = show ? 'block' : 'none';
+    if (show) _fadeInEl(details);
+    if (btn) btn.textContent = show ? 'Hide Details ▲' : 'Show Details ▼';
+}
+
+// Grow the currently-visible bulk table's scroll box to fill down to the
+// bottom of the card (#payrollOuterCard) from wherever it starts — not just
+// "most of the screen," the actual full remaining space inside the card.
+// Only recalculated on events that actually change layout (generate
+// finishing, switching tabs, resizing the window) — NOT on every scroll
+// tick, which fought the user's own scrolling (shrinking the table as they
+// scrolled up kept resetting their scroll position, making it feel "stuck").
+function _fillTableToViewport() {
+    const visible = document.querySelector('.tab-content.active .bulk-table-scroll');
+    const card = document.getElementById('payrollOuterCard');
+    if (!visible || !card || visible.offsetParent === null) return;
+    const cardBottom = card.getBoundingClientRect().bottom;
+    const tableTop = visible.getBoundingClientRect().top;
+    const available = cardBottom - tableTop - 12;
+    visible.style.maxHeight = Math.max(200, available) + 'px';
+}
+window.addEventListener('resize', () => _fillTableToViewport());
+
+// Expand/collapse a bulk table view to fill the whole screen.
+function toggleBulkFullscreen(viewId) {
+    const el = document.getElementById(viewId);
+    if (!el) return;
+    if (document.fullscreenElement) {
+        document.exitFullscreen();
+    } else {
+        el.requestFullscreen?.().catch(err => {
+            showToast('Could not enter full screen: ' + err.message, 'error');
+        });
+    }
+}
 
 // ================= MODE SWITCH =================
 function switchMode(mode, e){
@@ -1385,13 +1535,18 @@ function switchMode(mode, e){
     // CSS class hides all individual panels without needing per-element JS
     document.body.classList.toggle('bulk-active', isBulk);
     document.getElementById('bulk-panel').style.display = isBulk ? 'block' : 'none';
-    const notice = document.getElementById('bulk-raw-notice');
-    if (notice) notice.style.display = isBulk ? 'block' : 'none';
     // Show bulk tab views only if we already have generated data
     const hasData = bulkGeneratedPayloads.length > 0;
+    // Only show the "click Generate Payslips" hint before the first generate —
+    // once there's data it's just wasted space above the table.
+    const notice = document.getElementById('bulk-raw-notice');
+    if (notice) notice.style.display = (isBulk && !hasData) ? 'block' : 'none';
     ['bulk-raw-view','bulk-register-view','bulk-payslip-view'].forEach(id => {
         const el = document.getElementById(id);
-        if (el) el.style.display = (isBulk && hasData) ? 'block' : 'none';
+        if (!el) return;
+        const show = isBulk && hasData;
+        el.style.display = show ? 'block' : 'none';
+        if (show) _fadeInEl(el);
     });
     document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
     e.target.classList.add('active');
@@ -1545,10 +1700,13 @@ async function startBulkGenerate() {
     bulkGeneratedPayloads = [];
 
     // Show review table with loading placeholders
-    const reviewPanel = document.getElementById('bulkReviewPanel');
-    const reviewRows  = document.getElementById('bulkReviewRows');
-    const reviewSumm  = document.getElementById('bulkReviewSummary');
+    const reviewPanel   = document.getElementById('bulkReviewPanel');
+    const reviewRows    = document.getElementById('bulkReviewRows');
+    const reviewSumm    = document.getElementById('bulkReviewSummary');
+    const reviewDetails = document.getElementById('bulkReviewDetails');
     reviewPanel.style.display = 'block';
+    _fadeInEl(reviewPanel);
+    if (reviewDetails) reviewDetails.style.display = 'none'; // collapsed by default each generate
     reviewRows.innerHTML = ids.map((id, i) => {
         const emp = employeesList.find(e => String(e.id) === String(id));
         return `<div id="brow-${id}" style="display:grid;grid-template-columns:2fr 1.1fr 1.1fr 1.2fr 90px;align-items:center;border-bottom:1px solid #f3f4f6;font-size:13px;">
@@ -1562,8 +1720,9 @@ async function startBulkGenerate() {
     reviewSumm.textContent = '';
 
     const fmt = n => '₱' + Number(n||0).toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2});
-    let ok = 0, fail = 0;
+    let ok = 0, fail = 0, firstErrMsg = '';
 
+    let processed = 0;
     for (const empId of ids) {
         const statusEl = document.getElementById('bcell-status-'+empId);
         try {
@@ -1571,6 +1730,11 @@ async function startBulkGenerate() {
             const emp = employeesList.find(e => String(e.id) === String(empId));
             document.getElementById('empName').value = emp ? emp.name : '';
             document.getElementById('selectedEmployeeId').value = empId;
+
+            processed++;
+            if (btnText) btnText.textContent = `Generating ${processed} of ${ids.length}…`;
+            reviewSumm.textContent = `Generating ${processed} of ${ids.length} — please wait, this can take a while for a large selection…`;
+            reviewSumm.style.color = '#6b7280';
 
             const filled = await fillEmployeeData(empId, true);
             if (!filled) throw new Error('Data load failed');
@@ -1600,7 +1764,9 @@ async function startBulkGenerate() {
                 style="background:#7b5cff;color:#fff;border:none;border-radius:6px;padding:4px 10px;font-size:11px;cursor:pointer;font-weight:600;">View</button>`;
             ok++;
         } catch(err) {
-            statusEl.innerHTML = '<span style="color:#dc2626;font-size:11px;">Error</span>';
+            const msg = String(err && err.message || err);
+            if (!firstErrMsg) firstErrMsg = msg;
+            statusEl.innerHTML = `<span style="color:#dc2626;font-size:11px;cursor:help;" title="${msg.replace(/"/g,'&quot;')}">Error ⓘ</span>`;
             console.error('Bulk generate error for '+empId+':', err);
             fail++;
         }
@@ -1608,13 +1774,41 @@ async function startBulkGenerate() {
 
     genBtn.disabled = false; spinner.style.display = 'none';
     if (btnText) btnText.textContent = 'Regenerate (' + ids.length + ' employees)';
-    reviewSumm.textContent = ok + ' generated' + (fail ? ', ' + fail + ' failed' : '') + ' — review above, then click Send All.';
+    reviewSumm.innerHTML = `<span>${ok} generated`
+        + (fail ? `, ${fail} failed (${firstErrMsg})` : '')
+        + `</span><button id="bulkReviewToggleBtn" type="button" onclick="toggleBulkReviewDetails()"
+            style="margin-left:auto;font-size:12px;padding:5px 10px;border:1px solid #d1d5db;border-radius:6px;background:#fff;color:#374151;cursor:pointer;font-weight:600;">Show Details ▼</button>`;
     if (ok > 0) {
         sendBtn.style.display = 'inline-flex';
         const exportBtn = document.getElementById('bulkExportBtn');
         if (exportBtn) exportBtn.style.display = 'inline-flex';
-        // Populate the tab tables (Raw Sheet, Register, Payslip tabs)
-        renderBulkTabViews();
+        // Populate the tab tables (Raw Sheet, Register, Payslip tabs).
+        // Wrapped: an uncaught error here used to abort silently, leaving the
+        // status message blank and the tab tables permanently hidden with no
+        // visible sign anything went wrong.
+        try {
+            renderBulkTabViews();
+        } catch (err) {
+            console.error('renderBulkTabViews failed:', err);
+            msgEl.style.color = '#dc2626';
+            msgEl.textContent = 'Generated, but the tables below failed to render: ' + err.message;
+            return;
+        }
+        // Free up screen space: collapse the employee/period picker, hide the
+        // now-redundant "click Generate" hint, and scroll straight to the
+        // editable table on the active tab (not just the summary above it) —
+        // the goal is landing on a big, near-full-screen table without
+        // needing Full Screen.
+        toggleBulkSetup(false);
+        const notice = document.getElementById('bulk-raw-notice');
+        if (notice) notice.style.display = 'none';
+        const activeTabId = document.querySelector('.sub-tab.active')?.dataset.tab;
+        const targetView = { raw: 'bulk-raw-view', register: 'bulk-register-view', payslip: 'bulk-payslip-view' }[activeTabId];
+        const scrollTarget = document.getElementById(targetView) || reviewPanel;
+        scrollTarget.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        // The scroll listener keeps this updated live, but also fill once
+        // right after the smooth-scroll settles as a safety net.
+        setTimeout(_fillTableToViewport, 500);
     }
     msgEl.style.color = fail ? '#dc2626' : '#16a34a';
     msgEl.textContent = fail ? fail + ' failed — check console' : '';
@@ -1695,7 +1889,7 @@ async function sendBulkAll() {
             // Send PDF
             const resp = await fetch('<?= site_url('client_portal/payroll/sendPdf') ?>', {
                 method:'POST', headers:{'Content-Type':'application/json'},
-                body: JSON.stringify(payload)
+                body: JSON.stringify({ ...payload, send_method: 'bulk' })
             });
             const res = await resp.json();
             if (!resp.ok || !res.success) throw new Error(res.error||'Send failed');
@@ -1745,16 +1939,19 @@ function _bRowCalc(p, d) {
     const taxAdj      = Math.max(0, -wtRaw);   // refund column (non-negative)
     const sssLoan     = p.sss_loan||0, calLoan = p.calamity_loan||0, advances = p.salary_advance||0;
     const hdmfLoan    = p.hdmf_loan||d.hdmfLoan||0, calAdv = p.cal_adv||d.calAdv||0;
+    const hdmfMplLoan = p.hdmf_mpl_loan||0, hdmfCalamityLoan = p.hdmf_calamity_loan||0;
+    const cashAdvance = p.cash_advance||0, emergencyAdvance = p.emergency_advance||0;
     const regNetTax   = grossTaxable-sssTotal-phic-hdmf;
     // Net pay: deduct wt (≥0) then add back refund (taxAdj ≥0); equivalent to subtracting signed wtRaw.
-    const netPay      = grossComp-sssTotal-phic-hdmf-wt+taxAdj-sssLoan-calLoan-hdmfLoan-advances-calAdv;
+    const netPay      = grossComp-sssTotal-phic-hdmf-wt+taxAdj-sssLoan-calLoan-hdmfLoan-hdmfMplLoan-hdmfCalamityLoan-advances-cashAdvance-emergencyAdvance-calAdv;
     return { monthly:d.basicPay*2, semi:d.basicPay, yearEnd, rice, uniform, laundry, meal, medical, deMin,
         otherNonTax, salAdj, totalOT, nsd, absTotal, holiday,
         grossComp, grossTaxable, nonTax,
         sssRss:0, sssWisp:0, sssTotal, phic, hdmf,
         regNetTax, netTaxPrev:0, monthlyTax:0,
         wtBracket:0, wtBasic:0, wtPct:0, wtBasicAmt:0, wtExcess:0,
-        wtPaid:0, wt, sssLoan, calLoan, hdmfLoan, advances, calAdv, taxAdj, netPay };
+        wtPaid:0, wt, sssLoan, calLoan, hdmfLoan, hdmfMplLoan, hdmfCalamityLoan,
+        advances, cashAdvance, emergencyAdvance, calAdv, taxAdj, netPay };
 }
 
 function exportBulkCSV(type = 'raw') {
@@ -1914,7 +2111,9 @@ function renderBulkTabViews() {
 
     ['bulk-raw-view','bulk-register-view','bulk-payslip-view'].forEach(id => {
         const el = document.getElementById(id);
-        if (el) el.style.display = 'block';
+        if (!el) return;
+        el.style.display = 'block';
+        _fadeInEl(el);
     });
 }
 
@@ -2004,7 +2203,7 @@ async function sendSingleBulk(idx, btn) {
         });
         const resp = await fetch('<?= site_url('client_portal/payroll/sendPdf') ?>', {
             method:'POST', headers:{'Content-Type':'application/json'},
-            body: JSON.stringify(item.payload)
+            body: JSON.stringify({ ...item.payload, send_method: 'bulk' })
         });
         const res = await resp.json();
         if (!resp.ok || !res.success) throw new Error(res.error||'Send failed');
@@ -2195,7 +2394,17 @@ async function fillEmployeeData(employeeId, silent = false) {
         document.getElementById('laundryAllowance').value = ((empData.laundry_allowance  || 0) / _dmDiv).toFixed(2);
         document.getElementById('medicalAllowance').value = ((empData.medical_allowance  || 0) / _dmDiv).toFixed(2);
     } else if (empData.de_minimis_default > 0) {
-        document.getElementById('riceSubsidy').value = (empData.de_minimis_default / _dmDiv).toFixed(2);
+        document.getElementById('riceSubsidy').value      = (empData.de_minimis_default / _dmDiv).toFixed(2);
+        document.getElementById('uniformAllowance').value = '0.00';
+        document.getElementById('laundryAllowance').value = '0.00';
+        document.getElementById('medicalAllowance').value = '0.00';
+    } else {
+        // Neither a breakdown nor a default total — reset explicitly so bulk-mode
+        // generation doesn't silently carry over the previous employee's values.
+        document.getElementById('riceSubsidy').value      = '0.00';
+        document.getElementById('uniformAllowance').value = '0.00';
+        document.getElementById('laundryAllowance').value = '0.00';
+        document.getElementById('medicalAllowance').value = '0.00';
     }
     const _salAdjNonTaxEl = document.getElementById('salaryAdjustmentNonTax');
     if (_salAdjNonTaxEl) {
@@ -2221,6 +2430,8 @@ async function fillEmployeeData(employeeId, silent = false) {
 
     // 3. Populate raw sheet with correct capping of absence deduction
     document.getElementById('absentDays').value = summary.absent_days;
+    const breakHoursRefEl = document.getElementById('breakHoursRef');
+    if (breakHoursRefEl) breakHoursRefEl.value = (summary.break_hours || 0).toFixed(2);
     const dailyRate = parseFloat(document.getElementById('dailyRate').value) || 0;
     const semiMonthlyPay = parseFloat(document.getElementById('semiMonthlySalary').value) || 0;
     let absentAmount = summary.absent_days * dailyRate;
@@ -2455,22 +2666,37 @@ function addAmount(id, amount) {
 }
 
 // ── SSS / PHIC / HDMF auto-fill (2025 schedule, employee share only) ──────
+// Hardcoded fallback — used only if the sss_brackets table (edited via Payroll
+// Settings → SSS Brackets) hasn't loaded yet or the fetch failed. Kept in sync
+// with that table's values (verified against the client's "2025 SSS Table"
+// sheet: range_start = lower bound of the bracket; ee_regular = 5% × Regular
+// SS MSC capped at 20,000; ee_wisp = 5% × WISP MSC from MSC 20,500+; the 20250
+// bracket's wisp share is 50, not the "expected" 25 from a clean per-500
+// progression — the first WISP bracket isn't a smooth continuation of the
+// progression seen from 20750 onward, matching the official reference table).
+const SSS_FALLBACK_TABLE = [
+    [0,    250,  0],[5250, 275,  0],[5750, 300,  0],[6250, 325,  0],[6750, 350,  0],
+    [7250, 375,  0],[7750, 400,  0],[8250, 425,  0],[8750, 450,  0],[9250, 475,  0],
+    [9750, 500,  0],[10250,525,  0],[10750,550,  0],[11250,575,  0],[11750,600,  0],
+    [12250,625,  0],[12750,650,  0],[13250,675,  0],[13750,700,  0],[14250,725,  0],
+    [14750,750,  0],[15250,775,  0],[15750,800,  0],[16250,825,  0],[16750,850,  0],
+    [17250,875,  0],[17750,900,  0],[18250,925,  0],[18750,950,  0],[19250,975,  0],
+    [19750,1000, 0],
+    [20250,1000, 50],[20750,1000, 50],[21250,1000, 75],[21750,1000,100],[22250,1000,125],
+    [22750,1000,150],[23250,1000,175],[23750,1000,200],[24250,1000,225],[24750,1000,250],
+    [25250,1000,275],[25750,1000,300],[26250,1000,325],[26750,1000,350],[27250,1000,375],
+    [27750,1000,400],[28250,1000,425],[28750,1000,450],[29250,1000,475],[29750,1000,500],
+    [30250,1000,525],[30750,1000,550],[31250,1000,575],[31750,1000,600],[32250,1000,625],
+    [32750,1000,650],[33250,1000,675],[33750,1000,700],[34250,1000,725],[34750,1000,750],
+];
+
 function computeSSS(monthlySalary) {
-    // 2025 SSS Table: [range_start, ee_regular, ee_wisp] — 5% EE, MPF from 15000+
-    const t = [
-        [0,25,0],[500,50,0],[1000,75,0],[1500,100,0],[2000,125,0],[2500,150,0],
-        [3000,175,0],[3500,200,0],[4000,225,0],[4500,250,0],[5000,275,0],[5500,300,0],
-        [6000,325,0],[6500,350,0],[7000,375,0],[7500,400,0],[8000,425,0],[8500,450,0],
-        [9000,475,0],[9500,500,0],[10000,525,0],[10500,550,0],[11000,575,0],[11500,600,0],
-        [12000,625,0],[12500,650,0],[13000,675,0],[13500,700,0],[14000,725,0],[14500,750,0],
-        [15000,750,25],[15500,750,25],[16000,750,50],[16500,750,75],[17000,750,100],[17500,750,125],
-        [18000,750,150],[18500,750,175],[19000,750,200],[19500,750,225],[20000,750,250],[20500,750,275],
-        [21000,750,300],[21500,750,325],[22000,750,350],[22500,750,375],[23000,750,400],[23500,750,425],
-        [24000,750,450],[24500,750,475],[25000,750,500],[25500,750,525],[26000,750,550],[26500,750,575],
-        [27000,750,600],[27500,750,625],[28000,750,650],[28500,750,675],[29000,750,700],[29500,750,725],
-        [30000,750,750],[30500,750,775],[31000,750,800],[31500,750,825],[32000,750,850],[32500,750,875],
-        [33000,750,900],[33500,750,925],[34000,750,950],[34500,750,975],[35000,750,1000]
-    ];
+    // Prefer the live DB-backed table (bundled into getSettings() as sss_brackets)
+    // so edits made in Payroll Settings actually change real payroll math.
+    const dbBrackets = window._payrollSettings?.sss_brackets;
+    const t = (Array.isArray(dbBrackets) && dbBrackets.length)
+        ? dbBrackets.map(b => [parseFloat(b.range_start) || 0, parseFloat(b.ee_regular) || 0, parseFloat(b.ee_wisp) || 0])
+        : SSS_FALLBACK_TABLE;
     let row = t[t.length - 1];
     for (let i = t.length - 1; i >= 0; i--) { if (monthlySalary >= t[i][0]) { row = t[i]; break; } }
     return { regular: row[1], wisp: row[2], total: row[1] + row[2] };
@@ -2614,6 +2840,9 @@ function updateContributions(monthlySalary) {
 
     const phicRate = (parseFloat(window._payrollSettings?.phic_rate) || 0.05) / 2;
     const phicCap  = parseFloat(window._payrollSettings?.phic_cap)  || 100000;
+    // No minimum base — verified against the client's live Payroll Register formula
+    // (IF(salary<=100000, salary*5%/2, 100000*2.5%)), which applies the straight
+    // percentage with no floor for low earners.
     const phic = Math.min(monthlySalary, phicCap) * phicRate;
 
     const hdmfMax  = parseFloat(window._payrollSettings?.hdmf_max)  || 200;
@@ -2894,12 +3123,18 @@ async function syncToRegister() {
     await fetchAndSetPriorHalfWT();
 
     // For 2nd half: now that prior_gross is available, update SSS using total monthly compensation.
-    // grossComp = 1st half + 2nd half total gross = basis for SSS MSC per BIR circular.
     const _srPeriodType = document.getElementById('payslipPeriodType')?.value;
     if (_srPeriodType === 'second_half') {
-        const _srPriorGross = safeParseFloat(document.getElementById('edit_priorGrossTotal')?.value);
+        const _srPriorGross  = safeParseFloat(document.getElementById('edit_priorGrossTotal')?.value);
         if (_srPriorGross > 0) {
-            const _srSSSComp = computeSSS(_srPriorGross + grossComp);
+            // Use normalised gross: base earnings + |salary adj| + 1st-half de minimis.
+            const _srRawSalAdj   = safeParseFloat(document.getElementById('salaryAdjustment')?.value);
+            const _srPriorDeMin  = safeParseFloat(document.getElementById('edit_priorDeMin')?.value);
+            const _srBaseEarnings = semiMonthly + overtime + nd + holPay - absAmt;
+            const _srGrossForSSS  = _srPriorDeMin > 0
+                ? (_srBaseEarnings + Math.abs(_srRawSalAdj) + _srPriorDeMin)
+                : grossComp;
+            const _srSSSComp = computeSSS(_srPriorGross + _srGrossForSSS);
             ['sssEE', 'sssTotal', 'edit_sss'].forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.value = _srSSSComp.total.toFixed(2);
@@ -2958,7 +3193,7 @@ async function syncToRegister() {
             else if (taxable <= 33333)  { lo =  16667; fixedTax =     937.50; rate = 0.20; }
             else if (taxable <= 83333)  { lo =  33333; fixedTax =    4270.70; rate = 0.25; }
             else if (taxable <= 333333) { lo =  83333; fixedTax =   16770.70; rate = 0.30; }
-            else                        { lo = 333333; fixedTax =   91770.70; rate = 0.35; }
+            else                        { lo = 333333; fixedTax =   91770.00; rate = 0.35; }
         } else {
             if      (taxable <= 20833)  { lo =      0; fixedTax =          0; rate = 0;    }
             else if (taxable <= 33333)  { lo =  20833; fixedTax =          0; rate = 0.15; }
@@ -3136,14 +3371,22 @@ function getComputedPayslipValues() {
     grossPay = Math.round(grossPay * 100) / 100;  // centavo-round to absorb float64 accumulation
 
     let sssDed         = safeParseFloat(document.getElementById('sssEE')?.value);
-    // For 2nd half: recompute SSS using total monthly compensation (prior gross + current gross)
-    // so the MSC matches BIR/SSS circular rules. Guard on grossPay > 0 prevents running before
-    // raw-sheet fields are populated (gross=0 would incorrectly reset SSS to the minimum).
+    // For 2nd half: recompute SSS using total monthly compensation per BIR/SSS circular.
+    // Guard on grossPay > 0 prevents running before raw-sheet fields are populated.
     const _gcPeriodType = document.getElementById('payslipPeriodType')?.value;
     if (_gcPeriodType === 'second_half' && grossPay > 0) {
-        const _gcPriorGross = safeParseFloat(document.getElementById('edit_priorGrossTotal')?.value);
+        const _gcPriorGross  = safeParseFloat(document.getElementById('edit_priorGrossTotal')?.value);
         if (_gcPriorGross > 0) {
-            const _gcSSSComp = computeSSS(_gcPriorGross + grossPay);
+            // grossForSSS: use base earnings (basic+OT) + |salary adj| + 1st-half de minimis.
+            // Salary deductions (negative adj) don't reduce the MSC; the 2nd-half payslip may
+            // display the full monthly de minimis so we normalise with the 1st-half semi-monthly amount.
+            const _gcSalAdj    = safeParseFloat(document.getElementById('salaryAdjustment')?.value);
+            const _gcPriorDeMin= safeParseFloat(document.getElementById('edit_priorDeMin')?.value);
+            const _gcHolidayPay= safeParseFloat(document.getElementById('holidayPay')?.value);
+            const _gcGrossForSSS = _gcPriorDeMin > 0
+                ? (netBasicPay + totalOvertime + _gcHolidayPay + Math.abs(_gcSalAdj) + _gcPriorDeMin)
+                : grossPay;
+            const _gcSSSComp = computeSSS(_gcPriorGross + _gcGrossForSSS);
             sssDed = _gcSSSComp.total;
             const _gcSSSEl = document.getElementById('sssEE');
             if (_gcSSSEl) _gcSSSEl.value = _gcSSSComp.total.toFixed(2);
@@ -3161,13 +3404,19 @@ function getComputedPayslipValues() {
     const _wtBase = Math.max(0, netBasicPay + totalOvertime + taxableOther);
     // withholdingTax is signed: positive = deduction, negative = refund (2nd-half over-withheld).
     let withholdingTax = updateWithholdingTax(_wtBase);
-    let sssLoan        = safeParseFloat(document.getElementById('sssSalaryLoan')?.value);
-    let calamityLoan   = safeParseFloat(document.getElementById('sssCalamityLoan')?.value);
-    let hdmfLoan       = safeParseFloat(document.getElementById('hdmfLoan')?.value);
-    let salaryAdvance  = safeParseFloat(document.getElementById('advSalary')?.value);
-    let calAdv         = safeParseFloat(document.getElementById('advCalamity')?.value);
+    let sssLoan          = safeParseFloat(document.getElementById('sssSalaryLoan')?.value);
+    let calamityLoan     = safeParseFloat(document.getElementById('sssCalamityLoan')?.value);
+    let hdmfLoan         = safeParseFloat(document.getElementById('hdmfLoan')?.value);
+    let hdmfMplLoan      = safeParseFloat(document.getElementById('hdmfMplLoan')?.value);
+    let hdmfCalamityLoan = safeParseFloat(document.getElementById('hdmfCalamityLoan')?.value);
+    let salaryAdvance    = safeParseFloat(document.getElementById('advSalary')?.value);
+    let cashAdvance      = safeParseFloat(document.getElementById('advCash')?.value);
+    let emergencyAdvance = safeParseFloat(document.getElementById('advEmergency')?.value);
+    let calAdv           = safeParseFloat(document.getElementById('advCalamity')?.value);
     // Negative WTH = refund: subtract negative (i.e. add back the refund) from deductions.
-    let totalDeductions = sssDed + phicDed + hdmfDed + Math.max(0, withholdingTax) + sssLoan + calamityLoan + hdmfLoan + salaryAdvance + calAdv;
+    let totalDeductions = sssDed + phicDed + hdmfDed + Math.max(0, withholdingTax)
+        + sssLoan + calamityLoan + hdmfLoan + hdmfMplLoan + hdmfCalamityLoan
+        + salaryAdvance + cashAdvance + emergencyAdvance + calAdv;
     let netPay = grossPay - totalDeductions + Math.max(0, -withholdingTax);
 
     let empName = document.getElementById('empName')?.value || '';
@@ -3193,7 +3442,8 @@ function getComputedPayslipValues() {
         totalOvertime,
         vlCashConversion, salAdjNonTax, salNonTaxAdj, taxableOther, nonTaxable,
         grossPay, sssDed, phicDed, hdmfDed, withholdingTax,
-        sssLoan, calamityLoan, hdmfLoan, salaryAdvance, calAdv, totalDeductions, netPay,
+        sssLoan, calamityLoan, hdmfLoan, hdmfMplLoan, hdmfCalamityLoan,
+        salaryAdvance, cashAdvance, emergencyAdvance, calAdv, totalDeductions, netPay,
         formatStart: formatDate(pStart), formatEnd: formatDate(pEnd)
     };
 }
@@ -3432,7 +3682,7 @@ function semiMonthlyBracket(t) {
     else if (t <= 33333)  return   937.50 + (t -  16667) * 0.20;
     else if (t <= 83333)  return  4270.70 + (t -  33333) * 0.25;
     else if (t <= 333333) return 16770.70 + (t -  83333) * 0.30;
-    else                  return 91770.70 + (t - 333333) * 0.35;
+    else                  return 91770.00 + (t - 333333) * 0.35;
 }
 
 // Called whenever the period type or period start changes.
@@ -3444,6 +3694,8 @@ function fetchAndSetPriorHalfWT() { return new Promise(resolve => {
     const empId       = document.getElementById('selectedEmployeeId')?.value;
     const pgEl        = document.getElementById('edit_priorGross');
     const pwEl        = document.getElementById('edit_priorWT');
+    const pgTotalEl   = document.getElementById('edit_priorGrossTotal');
+    const pdmEl       = document.getElementById('edit_priorDeMin');
     const statusEl    = document.getElementById('priorHalfStatus');
     const priorFields = document.getElementById('priorHalfFields');
 
@@ -3456,7 +3708,12 @@ function fetchAndSetPriorHalfWT() { return new Promise(resolve => {
         statusEl.style.background = bg;
         statusEl.style.border = '1px solid ' + color;
     };
-    const clearPriorFields = () => { if (pgEl) pgEl.value = '0.00'; if (pwEl) pwEl.value = '0.00'; };
+    const clearPriorFields = () => {
+        if (pgEl)      pgEl.value      = '0.00';
+        if (pwEl)      pwEl.value      = '0.00';
+        if (pgTotalEl) pgTotalEl.value = '0';
+        if (pdmEl)     pdmEl.value     = '0';
+    };
 
     // Show prior-period inputs only for 2nd half (needed for cumulative WT)
     if (priorFields) priorFields.style.display = (periodType === 'second_half') ? '' : 'none';
@@ -3522,15 +3779,14 @@ function fetchAndSetPriorHalfWT() { return new Promise(resolve => {
         priorEnd   = salaryYm + '-15';   // PHP will attempt configured fallbacks first
     }
 
-    const pgTotalEl = document.getElementById('edit_priorGrossTotal');
-
     const cached = sessionStorage.getItem(key);
     if (cached) {
         try {
             const c = JSON.parse(cached);
-            if (pgEl) pgEl.value = parseFloat(c.net_taxable).toFixed(2);
-            if (pwEl) pwEl.value = parseFloat(c.wt).toFixed(2);
-            if (pgTotalEl) pgTotalEl.value = parseFloat(c.prior_gross || 0).toFixed(2);
+            if (pgEl)     pgEl.value     = parseFloat(c.net_taxable).toFixed(2);
+            if (pwEl)     pwEl.value     = parseFloat(c.wt).toFixed(2);
+            if (pgTotalEl) pgTotalEl.value = parseFloat(c.prior_gross      || 0).toFixed(2);
+            if (pdmEl)    pdmEl.value    = parseFloat(c.prior_de_minimis  || 0).toFixed(2);
             showStatus(`✓ 1st-half data loaded (${priorStart} to ${priorEnd}): Net Taxable = ${parseFloat(c.net_taxable).toFixed(2)}, WT = ${parseFloat(c.wt).toFixed(2)}`, '#155724', '#d4edda');
             recalcTotals();
             resolve();
@@ -3544,13 +3800,20 @@ function fetchAndSetPriorHalfWT() { return new Promise(resolve => {
         .then(r => r.json())
         .then(data => {
             if (data.found) {
-                if (pgEl) pgEl.value = parseFloat(data.net_taxable).toFixed(2);
-                if (pwEl) pwEl.value = parseFloat(data.wt).toFixed(2);
-                if (pgTotalEl) pgTotalEl.value = parseFloat(data.prior_gross || 0).toFixed(2);
-                sessionStorage.setItem(key, JSON.stringify({ net_taxable: data.net_taxable, wt: data.wt, prior_gross: data.prior_gross || 0 }));
+                if (pgEl)     pgEl.value     = parseFloat(data.net_taxable).toFixed(2);
+                if (pwEl)     pwEl.value     = parseFloat(data.wt).toFixed(2);
+                if (pgTotalEl) pgTotalEl.value = parseFloat(data.prior_gross      || 0).toFixed(2);
+                if (pdmEl)    pdmEl.value    = parseFloat(data.prior_de_minimis  || 0).toFixed(2);
+                sessionStorage.setItem(key, JSON.stringify({
+                    net_taxable:      data.net_taxable,
+                    wt:               data.wt,
+                    prior_gross:      data.prior_gross      || 0,
+                    prior_de_minimis: data.prior_de_minimis || 0,
+                }));
                 showStatus(`✓ 1st-half data loaded from saved record (${priorStart} to ${priorEnd}): Net Taxable = ${parseFloat(data.net_taxable).toFixed(2)}, WT = ${parseFloat(data.wt).toFixed(2)}`, '#155724', '#d4edda');
             } else {
                 if (pgTotalEl) pgTotalEl.value = '0';
+                if (pdmEl)     pdmEl.value     = '0';
                 // Estimate from basic pay so 2nd half WT is not computed against zero prior
                 const basicPay = safeParseFloat(document.getElementById('edit_basicPay')?.value)
                                || safeParseFloat(document.getElementById('semiMonthlySalary')?.value);
@@ -3636,16 +3899,22 @@ function recalcTotals() {
     // WT base = taxable earnings only (VL Cash is non-taxable, excluded)
     const wtBase = netBasicPay + totalOt + taxableSum;
 
-    // For 2nd half: recompute SSS using total monthly compensation (1st half + 2nd half gross)
-    // so the MSC matches BIR rules (SSS Circular: MSC = total monthly compensation, not base salary).
-    // This aligns with the Excel register which uses AY = prior_gross + current_gross for SSS lookup.
-    // Guard on gross > 0: when called from syncToRegister before edit fields are filled, gross = 0
-    // and the update is handled there instead.
+    // For 2nd half: recompute SSS using normalised monthly compensation per BIR/SSS rules.
+    // Guard on gross > 0: when called from syncToRegister before edit fields are filled,
+    // gross = 0 and the update is handled there instead.
     const _recalcPeriodType = document.getElementById('payslipPeriodType')?.value;
     if (_recalcPeriodType === 'second_half' && gross > 0) {
         const priorGrossTotal = safeParseFloat(document.getElementById('edit_priorGrossTotal')?.value);
         if (priorGrossTotal > 0) {
-            const totalMonthlyComp = priorGrossTotal + gross;
+            // Normalise: base earnings + |salary adj| + 1st-half de minimis so salary deductions
+            // don't reduce MSC and the 2nd-half "full monthly de minimis display" is normalised.
+            const _rrSalAdj    = safeParseFloat(document.getElementById('salaryAdjustment')?.value);
+            const _rrPriorDeMin= safeParseFloat(document.getElementById('edit_priorDeMin')?.value);
+            const _rrHolidayPay= safeParseFloat(document.getElementById('holidayPay')?.value);
+            const _rrGrossForSSS = _rrPriorDeMin > 0
+                ? (netBasicPay + totalOt + _rrHolidayPay + Math.abs(_rrSalAdj) + _rrPriorDeMin)
+                : gross;
+            const totalMonthlyComp = priorGrossTotal + _rrGrossForSSS;
             const _sssComp = computeSSS(totalMonthlyComp);
             ['sssEE', 'sssTotal', 'edit_sss'].forEach(id => {
                 const el = document.getElementById(id);
@@ -3676,7 +3945,13 @@ function recalcTotals() {
     // WTH is signed: negative = refund. Deductions column shows only the deduction (≥0); refund is added to net pay separately.
     const _wtaxRaw = safeParseFloat(document.getElementById('edit_wtax')?.value);
     let dedSum = Math.max(0, _wtaxRaw);
-    ['edit_sss','edit_phic','edit_hdmf','edit_sssLoan','edit_calamityLoan','edit_hdmfLoan','edit_advSalary','edit_calAdv'].forEach(id => {
+    // Loan/advance edit fields are named "edit_reg" + the Register field id
+    // (e.g. edit_regHdmfLoan) by buildPayslipTable()'s loanRows loop — not
+    // "edit_hdmfLoan" — and only exist at all when their amount is non-zero.
+    ['edit_sss','edit_phic','edit_hdmf',
+     'edit_regSssLoanSalary','edit_regSssLoanCalamity','edit_regHdmfLoan',
+     'edit_regHdmfMplLoan','edit_regHdmfCalamityLoan',
+     'edit_regAdvSalary','edit_regAdvCash','edit_regAdvEmergency','edit_calAdv'].forEach(id => {
         dedSum += safeParseFloat(document.getElementById(id)?.value);
     });
     const _wtaxRefund = Math.max(0, -_wtaxRaw);
@@ -3820,12 +4095,18 @@ function computePayslipData() {
     let hdmfDed        = safeParseFloat(document.getElementById('hdmfEE')?.value);
     // withholdingTax is signed: negative = refund (2nd-half over-withheld)
     let withholdingTax = safeParseFloat(document.getElementById('wtPayable')?.value);
-    let sssLoan        = safeParseFloat(document.getElementById('sssSalaryLoan')?.value);
-    let calamityLoan   = safeParseFloat(document.getElementById('sssCalamityLoan')?.value);
-    let hdmfLoan       = safeParseFloat(document.getElementById('hdmfLoan')?.value);
-    let salaryAdvance  = safeParseFloat(document.getElementById('advSalary')?.value);
-    let calAdv         = safeParseFloat(document.getElementById('advCalamity')?.value);
-    let totalDeductions = sssDed + phicDed + hdmfDed + Math.max(0, withholdingTax) + sssLoan + calamityLoan + hdmfLoan + salaryAdvance + calAdv;
+    let sssLoan          = safeParseFloat(document.getElementById('sssSalaryLoan')?.value);
+    let calamityLoan     = safeParseFloat(document.getElementById('sssCalamityLoan')?.value);
+    let hdmfLoan         = safeParseFloat(document.getElementById('hdmfLoan')?.value);
+    let hdmfMplLoan      = safeParseFloat(document.getElementById('hdmfMplLoan')?.value);
+    let hdmfCalamityLoan = safeParseFloat(document.getElementById('hdmfCalamityLoan')?.value);
+    let salaryAdvance    = safeParseFloat(document.getElementById('advSalary')?.value);
+    let cashAdvance      = safeParseFloat(document.getElementById('advCash')?.value);
+    let emergencyAdvance = safeParseFloat(document.getElementById('advEmergency')?.value);
+    let calAdv           = safeParseFloat(document.getElementById('advCalamity')?.value);
+    let totalDeductions = sssDed + phicDed + hdmfDed + Math.max(0, withholdingTax)
+        + sssLoan + calamityLoan + hdmfLoan + hdmfMplLoan + hdmfCalamityLoan
+        + salaryAdvance + cashAdvance + emergencyAdvance + calAdv;
     let netPay = grossPay - totalDeductions + Math.max(0, -withholdingTax);
 
     let empName = document.getElementById('empName')?.value || '';
@@ -3851,7 +4132,8 @@ function computePayslipData() {
         totalOvertime,
         vlCashConversion, salAdjNonTax, salNonTaxAdj, taxableOther, nonTaxable,
         grossPay, sssDed, phicDed, hdmfDed, withholdingTax,
-        sssLoan, calamityLoan, hdmfLoan, salaryAdvance, calAdv, totalDeductions, netPay,
+        sssLoan, calamityLoan, hdmfLoan, hdmfMplLoan, hdmfCalamityLoan,
+        salaryAdvance, cashAdvance, emergencyAdvance, calAdv, totalDeductions, netPay,
         formatStart: formatDate(pStart), formatEnd: formatDate(pEnd)
     };
 }
@@ -3972,7 +4254,11 @@ function generatePayslipHTML(d) {
                     ['SSS Salary Loan', d.sssLoan      || 0],
                     ['SSS Calamity Loan', d.calamityLoan || 0],
                     ['HDMF Loan',       d.hdmfLoan     || 0],
+                    ['HDMF Multi-Purpose Loan', d.hdmfMplLoan || 0],
+                    ['HDMF Calamity Loan', d.hdmfCalamityLoan || 0],
                     ['Salary Advance',  d.salaryAdvance|| 0],
+                    ['Cash Advance',    d.cashAdvance  || 0],
+                    ['Emergency Advance', d.emergencyAdvance || 0],
                     ['Cal. Advance',    d.calAdv       || 0],
                 ].filter(([, v]) => v > 0);
                 const maxRows = Math.max(regDeds.length, loans.length);
@@ -4037,10 +4323,19 @@ function getEditedPayslipValues() {
     const phicDed           = sp('edit_phic');
     const hdmfDed           = sp('edit_hdmf');
     const withholdingTax    = sp('edit_wtax'); // signed: negative = refund
-    const sssLoan           = sp('edit_sssLoan');
-    const calamityLoan      = sp('edit_calamityLoan');
-    const hdmfLoan          = sp('edit_hdmfLoan');
-    const salaryAdvance     = sp('edit_advSalary');
+    // These ids must match what buildPayslipTable()'s loanRows loop actually
+    // creates — "edit_reg" + the Register tab's field id (e.g. edit_regHdmfLoan,
+    // not edit_hdmfLoan) — since that's the only place these inputs get built.
+    // A field is skipped entirely (never created) when its amount is 0, so a
+    // missing element here is expected and correctly reads as 0 via sp().
+    const sssLoan           = sp('edit_regSssLoanSalary');
+    const calamityLoan      = sp('edit_regSssLoanCalamity');
+    const hdmfLoan           = sp('edit_regHdmfLoan');
+    const hdmfMplLoan        = sp('edit_regHdmfMplLoan');
+    const hdmfCalamityLoan   = sp('edit_regHdmfCalamityLoan');
+    const salaryAdvance     = sp('edit_regAdvSalary');
+    const cashAdvance        = sp('edit_regAdvCash');
+    const emergencyAdvance   = sp('edit_regAdvEmergency');
     const calAdv            = sp('edit_calAdv');
 
     const totalDeductionsFromPay = Math.min(absentAmt + undertimeAmt, basicPay);
@@ -4056,7 +4351,9 @@ function getEditedPayslipValues() {
                         + sunOt + sunOtGt10
                         + holOt + holOtGt10;
     const grossPay      = Math.round((netBasicPay + totalOvertime + taxableOther + nonTaxable + salNonTaxAdj + vlCashConversion) * 100) / 100;
-    const totalDeductions = sssDed + phicDed + hdmfDed + Math.max(0, withholdingTax) + sssLoan + calamityLoan + hdmfLoan + salaryAdvance + calAdv;
+    const totalDeductions = sssDed + phicDed + hdmfDed + Math.max(0, withholdingTax)
+        + sssLoan + calamityLoan + hdmfLoan + hdmfMplLoan + hdmfCalamityLoan
+        + salaryAdvance + cashAdvance + emergencyAdvance + calAdv;
     const netPay        = grossPay - totalDeductions + Math.max(0, -withholdingTax);
 
     const empName  = sv('payslipEmpName')  || sv('empName')     || 'Not Selected';
@@ -4081,7 +4378,8 @@ function getEditedPayslipValues() {
         totalOvertime,
         vlCashConversion, salAdjNonTax, salNonTaxAdj, taxableOther, nonTaxable,
         grossPay, sssDed, phicDed, hdmfDed, withholdingTax,
-        sssLoan, calamityLoan, hdmfLoan, salaryAdvance, calAdv, totalDeductions, netPay,
+        sssLoan, calamityLoan, hdmfLoan, hdmfMplLoan, hdmfCalamityLoan,
+        salaryAdvance, cashAdvance, emergencyAdvance, calAdv, totalDeductions, netPay,
         formatStart: formatDate(pStart), formatEnd: formatDate(pEnd)
     };
 }
@@ -4207,8 +4505,12 @@ function generateStaticPayslip() {
             sss_loan:        d.sssLoan,
             calamity_loan:   d.calamityLoan,
             hdmf_loan:       d.hdmfLoan,
+            hdmf_mpl_loan:      d.hdmfMplLoan || 0,
+            hdmf_calamity_loan: d.hdmfCalamityLoan || 0,
             sal_adv:         d.salaryAdvance,
             salary_advance:  d.salaryAdvance,
+            cash_advance:      d.cashAdvance || 0,
+            emergency_advance: d.emergencyAdvance || 0,
             cal_adv:         d.calAdv || 0,
             other_deductions: 0,
             net_pay: d.netPay,
@@ -4286,7 +4588,12 @@ async function sendPdfToEmployee() {
         withholding_tax: window.currentPayslipData.withholdingTax,
         sss_loan: safeParseFloat(document.getElementById('sssSalaryLoan')?.value),
         calamity_loan: safeParseFloat(document.getElementById('sssCalamityLoan')?.value),
+        hdmf_loan: safeParseFloat(document.getElementById('hdmfLoan')?.value),
+        hdmf_mpl_loan: safeParseFloat(document.getElementById('hdmfMplLoan')?.value),
+        hdmf_calamity_loan: safeParseFloat(document.getElementById('hdmfCalamityLoan')?.value),
         salary_advance: safeParseFloat(document.getElementById('advSalary')?.value),
+        cash_advance: safeParseFloat(document.getElementById('advCash')?.value),
+        emergency_advance: safeParseFloat(document.getElementById('advEmergency')?.value),
         other_deductions: 0,
         net_pay: window.currentPayslipData.netPay,
     };
@@ -4294,7 +4601,7 @@ async function sendPdfToEmployee() {
         const response = await fetch('<?= site_url('client_portal/payroll/sendPdf') ?>', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
+            body: JSON.stringify({ ...payload, send_method: 'individual' })
         });
         const result = await response.json();
         if (!response.ok || !result.success) {

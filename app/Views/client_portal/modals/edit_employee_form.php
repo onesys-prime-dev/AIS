@@ -304,6 +304,22 @@
 
             </div>
 
+            <div>
+                <label class="edit-form-label">
+                    Break Schedule
+                    <span class="text-xs text-gray-400 font-normal">(set each break's own duration)</span>
+                </label>
+
+                <div id="edit_break_list" class="space-y-2"></div>
+
+                <button type="button" onclick="addBreakRow('edit')"
+                    class="text-xs text-[#7b5cff] hover:underline mt-2">
+                    + Add Break
+                </button>
+
+                <input type="hidden" name="break_schedule" id="edit_break_schedule_input">
+            </div>
+
         </div>
 
     </div>

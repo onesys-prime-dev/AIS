@@ -398,8 +398,10 @@ class PayrollController extends BaseController
             $workingType = $position['working_day_type'] ?? null;
             $schedStart  = ($workingType !== 'flexible' && !empty($position['start_time']))
                            ? $position['start_time'] : null;
+            $schedEnd    = ($workingType !== 'flexible' && !empty($position['end_time']))
+                           ? $position['end_time'] : null;
 
-            $summary = $this->aggregateAttendance($attendances, $startDate, $endDate, $schedStart);
+            $summary = $this->aggregateAttendance($attendances, $startDate, $endDate, $schedStart, $schedEnd, (int) $userId);
 
             // Overlay approved leave requests to adjust absent/paid leave days
             $requestModel = new \App\Models\Client\RequestModel();
@@ -446,9 +448,44 @@ class PayrollController extends BaseController
         return sprintf('%04d-%02d-%02d', $tY, $tM, $d);
     }
 
-    private function aggregateAttendance(array $attendances, string $startDate, string $endDate, ?string $scheduledStart = null): array
+    private function aggregateAttendance(array $attendances, string $startDate, string $endDate, ?string $scheduledStart = null, ?string $scheduledEnd = null, ?int $userId = null): array
     {
         $totalWorkingDays = $this->getWorkingDaysCount($startDate, $endDate);
+
+        // Required hours per day = the employee's actual scheduled shift length,
+        // not a flat assumption. Falls back to 8 only when no schedule is on file.
+        $requiredHours = 8.0;
+        if ($scheduledStart && $scheduledEnd) {
+            $reqStart = strtotime($scheduledStart);
+            $reqEnd   = strtotime($scheduledEnd);
+            if ($reqEnd < $reqStart) $reqEnd += 86400;
+            $requiredHours = ($reqEnd - $reqStart) / 3600;
+        }
+
+        // A day only counts as "OT approved" if an actual approved overtime
+        // request covers it — not whatever approved_ot_hours happened to be
+        // frozen on the attendance row at clock-out time (same rule as the
+        // Timesheet page, so the two stay consistent with each other).
+        $approvedOtDates = [];
+        if ($userId) {
+            $otRequests = (new \App\Models\Client\RequestModel())
+                ->where('requested_by', $userId)
+                ->where('status', 'approved')
+                ->where('request_type', 'overtime')
+                ->where('start_date <=', $endDate)
+                ->groupStart()
+                    ->where('end_date >=', $startDate)
+                    ->orWhere('end_date', null)
+                ->groupEnd()
+                ->findAll();
+            foreach ($otRequests as $req) {
+                $rangeStart = max(strtotime($req['start_date']), strtotime($startDate));
+                $rangeEnd   = min(strtotime($req['end_date'] ?? $req['start_date']), strtotime($endDate));
+                for ($t = $rangeStart; $t <= $rangeEnd; $t += 86400) {
+                    $approvedOtDates[date('Y-m-d', $t)] = true;
+                }
+            }
+        }
 
         // Group records by date — employees can have multiple clock-ins per day
         $byDate = [];
@@ -475,6 +512,7 @@ class PayrollController extends BaseController
         $specHolRegHours = 0.0;
         $specHolOtHours  = 0.0;
         $specHolNsdHours = 0.0;
+        $totalBreakHours = 0.0;
 
         // Pre-load holidays for the period (handles recurring via HolidayModel)
         $holidayModel = new \App\Models\Client\HolidayModel();
@@ -494,35 +532,90 @@ class PayrollController extends BaseController
                 $tardyMinutes += (int)round((strtotime($firstIn) - strtotime($scheduledStart)) / 60);
             }
 
-            $dayHours = 0.0;
-            $dayNsd   = 0.0;
+            $dayNsd           = 0.0;
+            $dayBreak         = 0.0;
+            $dayWindowMinutes = 0.0; // time actually worked inside the scheduled window
+            $dayTotalMinutes  = 0.0; // full worked span, any time of day
+            $hasApprovedOt    = isset($approvedOtDates[$attDate]);
             foreach ($recs as $rec) {
-                $dayHours += (float)($rec['total_hours']      ?? 0);
-                $dayNsd   += (float)($rec['night_diff_hours'] ?? 0);
-            }
+                $dayBreak += (float)($rec['break_duration'] ?? 0);
 
-            $ot          = max(0, $dayHours - 8);
-            $dow         = (int)date('N', strtotime($attDate));
-            $holidayType = $getHolidayType($attDate);
+                if (empty($rec['time_in']) || empty($rec['time_out'])) continue;
+                $recDate  = date('Y-m-d', strtotime($rec['time_in']));
+                $recStart = new \DateTime($rec['time_in']);
+                $recEnd   = new \DateTime($rec['time_out']);
+                if ($recEnd < $recStart) $recEnd->modify('+1 day');
+                $spanDiff = $recEnd->diff($recStart);
+                $dayTotalMinutes += $spanDiff->h * 60 + $spanDiff->i + ($spanDiff->days * 1440);
+
+                // Regular = only the portion of this clock-in/out that falls INSIDE
+                // the scheduled window — same rule as the Timesheet page. Clocking
+                // in early/late doesn't shift the window; time outside it belongs
+                // to OT (if approved) or nowhere at all.
+                $recWindowStart = $recStart;
+                $recWindowEnd   = $recEnd;
+                if ($scheduledStart && $scheduledEnd) {
+                    $schedStartDt = new \DateTime($recDate . ' ' . $scheduledStart);
+                    $schedEndDt   = new \DateTime($recDate . ' ' . $scheduledEnd);
+                    if ($schedEndDt < $schedStartDt) $schedEndDt->modify('+1 day');
+
+                    $overlapStart = max($recStart, $schedStartDt);
+                    $overlapEnd   = min($recEnd, $schedEndDt);
+                    if ($overlapStart < $overlapEnd) {
+                        $diff = $overlapStart->diff($overlapEnd);
+                        $dayWindowMinutes += $diff->h * 60 + $diff->i;
+                    }
+                    $recWindowStart = $schedStartDt;
+                    $recWindowEnd   = $schedEndDt;
+                } else {
+                    // No schedule on file — fall back to the record's full worked span.
+                    $dayWindowMinutes += $spanDiff->h * 60 + $spanDiff->i;
+                }
+
+                // Night differential only counts for paid time: the scheduled
+                // window, or the full span if this date's overtime was approved.
+                // Unapproved excess worked at night isn't recognized as OT, so it
+                // isn't paid a night differential either (same rule as Timesheet).
+                $nsdPaidStart = $hasApprovedOt ? $recStart : max($recStart, $recWindowStart);
+                $nsdPaidEnd   = $hasApprovedOt ? $recEnd   : min($recEnd,   $recWindowEnd);
+                if ($nsdPaidStart < $nsdPaidEnd) {
+                    $dayNsd += $this->calcNightDiffHours(
+                        $nsdPaidStart->format('Y-m-d H:i:s'),
+                        $nsdPaidEnd->format('Y-m-d H:i:s')
+                    );
+                }
+            }
+            $totalBreakHours += $dayBreak;
+
+            // Breaks subtracted once per day, not per record — matches how
+            // total_hours is computed elsewhere (break deducted from the day's total).
+            $regularCapped = max(0, round($dayWindowMinutes / 60 - $dayBreak, 2));
+            // OT = time actually worked outside the scheduled window, but only
+            // paid if an approved overtime request covers this specific date —
+            // unapproved excess isn't paid as OT, and doesn't inflate Regular.
+            $dayExcessHours = max(0, round(($dayTotalMinutes - $dayBreak * 60) / 60 - $regularCapped, 2));
+            $ot             = $hasApprovedOt ? $dayExcessHours : 0.0;
+            $dow            = (int)date('N', strtotime($attDate));
+            $holidayType   = $getHolidayType($attDate);
 
             if ($holidayType === 'regular') {
-                $holRegHours += min($dayHours, 8);
+                $holRegHours += $regularCapped;
                 $holOtHours  += $ot;
                 $holNsdHours += $dayNsd;
             } elseif ($holidayType === 'special') {
-                $specHolRegHours += min($dayHours, 8);
+                $specHolRegHours += $regularCapped;
                 $specHolOtHours  += $ot;
                 $specHolNsdHours += $dayNsd;
             } elseif ($dow === 6) {
-                $satRegHours += min($dayHours, 8);
+                $satRegHours += $regularCapped;
                 $satOtHours  += $ot;
                 $satNsdHours += $dayNsd;
             } elseif ($dow === 7) {
-                $sunRegHours += min($dayHours, 8);
+                $sunRegHours += $regularCapped;
                 $sunOtHours  += $ot;
                 $sunNsdHours += $dayNsd;
             } else {
-                $regularHours    += min($dayHours, 8);
+                $regularHours    += $regularCapped;
                 $regOtHours      += $ot;
                 $workdayNsdHours += $dayNsd;
             }
@@ -542,6 +635,7 @@ class PayrollController extends BaseController
             'absent_days'        => max(0, $totalWorkingDays - $workedWeekdays),
             'regular_hours'      => round($regularHours, 2),
             'tardy_minutes'      => $tardyMinutes,
+            'break_hours'        => round($totalBreakHours, 2),
             'reg_ot_hours'       => round($regOtHours, 2),
             'workday_nsd_hours'  => round($workdayNsdHours, 2),
             'sat_reg_hours'      => round($satRegHours, 2),
@@ -732,6 +826,7 @@ class PayrollController extends BaseController
 
         $rows = $db->query("
             SELECT
+                ps.id                                               AS payslip_id,
                 CONCAT(TRIM(e.first_name),' ',TRIM(e.last_name))   AS employee_name,
                 COALESCE(ep.monthly_salary, 0)                      AS monthly_salary,
                 ps.period_start, ps.period_end,
@@ -823,7 +918,10 @@ class PayrollController extends BaseController
 
             $result[] = [
                 'no'               => $i++,
+                'payslip_id'       => (int)$row['payslip_id'],
                 'employee_name'    => $row['employee_name'],
+                'period_start'     => $row['period_start'],
+                'period_end'       => $row['period_end'],
                 'monthly_salary'   => round($monthly,       2),
                 'semi_monthly'     => round($semiMonthly,   2),
                 'year_end_gifts'   => round($yearEndGifts,  2),
@@ -856,6 +954,299 @@ class PayrollController extends BaseController
         }
 
         return $this->response->setJSON($result);
+    }
+
+    /**
+     * Same period/employee set as getRegisterRows(), but with the raw
+     * adjustable fields named exactly as savePayslipEditData() expects them
+     * (uniform_allowance, overtime_pay, etc. — not the aggregated Excel-column
+     * names getRegisterRows() uses) so the Raw Sheet tab's inline-editable
+     * cells map 1:1 onto what gets saved, with no field-name translation.
+     */
+    public function getRegisterRawSheet()
+    {
+        $month  = $this->request->getGet('month')  ?? date('Y-m');
+        $period = $this->request->getGet('period') ?? '';
+
+        $db = \Config\Database::connect();
+
+        if ($period === '1st_half' || $period === '2nd_half') {
+            $psModel = new \App\Models\Client\PayrollSettingsModel();
+            [$pStart, $pEnd] = $this->computeStatusPeriodDates($month, $period, $psModel);
+            $periodWhere = "ps.period_start = ? AND ps.period_end = ?";
+            $binds = [$pStart, $pEnd];
+        } else {
+            $periodWhere = "DATE_FORMAT(ps.period_start,'%Y-%m') = ?";
+            $binds = [$month];
+        }
+
+        $rows = $db->query("
+            SELECT
+                ps.id                                               AS payslip_id,
+                CONCAT(TRIM(e.first_name),' ',TRIM(e.last_name))   AS employee_name,
+                COALESCE(ep.monthly_salary, 0)                      AS monthly_salary,
+                ps.net_pay                                          AS db_net_pay,
+                ps.generated_data
+            FROM employee_payslips ps
+            INNER JOIN employees e   ON e.id = ps.employee_id
+            LEFT  JOIN employee_positions ep ON ep.employee_id = e.id
+            WHERE $periodWhere
+            ORDER BY e.first_name, e.last_name
+        ", $binds)->getResultArray();
+
+        $result = [];
+        foreach ($rows as $row) {
+            $d  = json_decode((string)($row['generated_data'] ?? ''), true) ?? [];
+            $gf = fn($k, $alt = null) => (float)($d[$k] ?? ($alt !== null ? (float)($d[$alt] ?? 0) : 0));
+
+            $result[] = [
+                'payslip_id'      => (int)$row['payslip_id'],
+                'employee_name'   => $row['employee_name'],
+                'monthly_salary'  => (float)$row['monthly_salary'],
+                'net_basic_pay'   => $gf('net_basic_pay'),
+                'salary_adjustment'          => $gf('salary_adjustment'),
+                'override_amount'            => $gf('override_amount'),
+                'ned_amount'                 => $gf('ned_amount'),
+                'overtime_pay'               => $gf('overtime_pay', 'total_overtime'),
+                'night_diff_pay'             => $gf('night_diff_pay') + $gf('sat_night_prem') + $gf('sun_night_prem') + $gf('hol_night_prem'),
+                'holiday_pay'                => $gf('holiday_pay'),
+                'year_end_gifts'             => $gf('year_end_gifts'),
+                'rice_subsidy'               => $gf('rice_subsidy'),
+                'uniform_allowance'          => $gf('uniform_allowance'),
+                'laundry_allowance'          => $gf('laundry_allowance'),
+                'meal_allowance'             => $gf('meal_allowance'),
+                'medical_allowance'          => $gf('medical_allowance'),
+                'salary_adjustment_non_tax'  => $gf('salary_adjustment_non_tax'),
+                'other_earnings_non_taxable' => $gf('other_earnings_non_taxable'),
+                'sss_ee'          => $gf('sss_ee'),
+                'phic_ee'         => $gf('phic_ee'),
+                'hdmf_ee'         => $gf('hdmf_ee'),
+                'withholding_tax' => $gf('withholding_tax'),
+                'sss_loan'        => $gf('sss_loan'),
+                'calamity_loan'   => $gf('calamity_loan'),
+                'hdmf_loan'       => $gf('hdmf_loan'),
+                'sal_adv'         => $gf('sal_adv', 'salary_advance'),
+                'gross_pay'       => $gf('gross_pay'),
+                'net_pay'         => $gf('net_pay') ?: (float)($row['db_net_pay'] ?? 0),
+            ];
+        }
+
+        return $this->response->setJSON($result);
+    }
+
+    // ================= REGISTER INLINE EDIT =================
+
+    public function getPayslipEditData()
+    {
+        $user = auth()->user();
+        $isAdmin = $user->inGroup('client_payroll_staff') || $user->inGroup('superadmin') || $user->inGroup('admin');
+        if (!$isAdmin) {
+            return $this->response->setStatusCode(403)->setJSON(['error' => 'Unauthorized']);
+        }
+
+        $id = (int)$this->request->getGet('id');
+        if (!$id) return $this->response->setJSON(['error' => 'Missing id']);
+
+        try {
+            $db  = \Config\Database::connect();
+            $row = $db->query("
+                SELECT ps.*, CONCAT(e.first_name,' ',e.last_name) AS employee_name,
+                       COALESCE(ep.monthly_salary, 0) AS monthly_salary
+                FROM employee_payslips ps
+                INNER JOIN employees e ON e.id = ps.employee_id
+                LEFT  JOIN employee_positions ep ON ep.employee_id = e.id
+                WHERE ps.id = ?
+            ", [$id])->getRowArray();
+
+            if (!$row) return $this->response->setJSON(['error' => 'Not found']);
+
+            $d  = json_decode((string)($row['generated_data'] ?? ''), true) ?? [];
+            $gf = fn($k, $alt = null) => (float)($d[$k] ?? ($alt !== null ? (float)($d[$alt] ?? 0) : 0));
+
+            return $this->response->setJSON([
+                'id'              => $id,
+                'employee_name'   => $row['employee_name'],
+                'period_start'    => $row['period_start'],
+                'period_end'      => $row['period_end'],
+                'monthly_salary'  => (float)$row['monthly_salary'],
+                // Income (read-only base)
+                'net_basic_pay'   => $gf('net_basic_pay'),
+                // Adjustable income
+                'salary_adjustment'       => $gf('salary_adjustment'),
+                'override_amount'         => $gf('override_amount'),
+                'ned_amount'              => $gf('ned_amount'),
+                'overtime_pay'            => $gf('overtime_pay', 'total_overtime'),
+                'night_diff_pay'          => $gf('night_diff_pay') + $gf('sat_night_prem') + $gf('sun_night_prem') + $gf('hol_night_prem'),
+                'holiday_pay'             => $gf('holiday_pay'),
+                // De minimis
+                'year_end_gifts'          => $gf('year_end_gifts'),
+                'rice_subsidy'            => $gf('rice_subsidy'),
+                'uniform_allowance'       => $gf('uniform_allowance'),
+                'laundry_allowance'       => $gf('laundry_allowance'),
+                'meal_allowance'          => $gf('meal_allowance'),
+                'medical_allowance'       => $gf('medical_allowance'),
+                'salary_adjustment_non_tax' => $gf('salary_adjustment_non_tax'),
+                'other_earnings_non_taxable' => $gf('other_earnings_non_taxable'),
+                // Government contributions
+                'sss_ee'          => $gf('sss_ee'),
+                'phic_ee'         => $gf('phic_ee'),
+                'hdmf_ee'         => $gf('hdmf_ee'),
+                // Tax (signed: negative = refund)
+                'withholding_tax' => $gf('withholding_tax'),
+                // Loans
+                'sss_loan'        => $gf('sss_loan'),
+                'calamity_loan'   => $gf('calamity_loan'),
+                'hdmf_loan'       => $gf('hdmf_loan'),
+                'sal_adv'         => $gf('sal_adv', 'salary_advance'),
+                // Stored computed values (for display reference)
+                'gross_pay'       => $gf('gross_pay'),
+                'net_pay'         => $gf('net_pay') ?: (float)($row['net_pay'] ?? 0),
+                // Audit trail
+                'edit_history'    => $d['_edit_history'] ?? [],
+            ]);
+        } catch (\Throwable $e) {
+            return $this->jsonError($e, 'Unable to load payslip data. Please try again.');
+        }
+    }
+
+    public function savePayslipEditData()
+    {
+        $user = auth()->user();
+        $isAdmin = $user->inGroup('client_payroll_staff') || $user->inGroup('superadmin') || $user->inGroup('admin');
+        if (!$isAdmin) {
+            return $this->response->setStatusCode(403)->setJSON(['error' => 'Unauthorized']);
+        }
+
+        $input = $this->request->getJSON(true) ?? [];
+        $id    = (int)($input['id'] ?? 0);
+        if (!$id) return $this->response->setJSON(['error' => 'Missing id']);
+
+        try {
+            $db  = \Config\Database::connect();
+            $row = $db->query("SELECT * FROM employee_payslips WHERE id = ?", [$id])->getRowArray();
+            if (!$row) return $this->response->setJSON(['error' => 'Not found']);
+
+            $d = json_decode((string)($row['generated_data'] ?? ''), true) ?? [];
+
+            // net_basic_pay is stored as a subtotal that already has the *original*
+            // night_diff_pay baked in (basic - absences - undertime + night diff).
+            // night_diff_pay is also exposed as its own editable field here, so before
+            // applying the incoming edits we split it back out into a "pure" basic
+            // (no night diff) — otherwise recomputing gross below would add night diff
+            // on top of a net_basic_pay that already contains it, double-counting it.
+            $pureBasicPay = (float)($d['net_basic_pay'] ?? 0) - (float)($d['night_diff_pay'] ?? 0);
+
+            // Adjustable fields (salary_adjustment allows negative values)
+            $floatFields = [
+                'salary_adjustment', 'override_amount', 'ned_amount',
+                'overtime_pay', 'night_diff_pay', 'holiday_pay',
+                'year_end_gifts', 'rice_subsidy', 'uniform_allowance', 'laundry_allowance',
+                'meal_allowance', 'medical_allowance', 'salary_adjustment_non_tax',
+                'other_earnings_non_taxable',
+                'sss_ee', 'phic_ee', 'hdmf_ee',
+                'withholding_tax',
+                'sss_loan', 'calamity_loan', 'hdmf_loan', 'sal_adv',
+            ];
+
+            // Audit: record which fields actually changed before updating
+            $changes = [];
+            foreach ($floatFields as $f) {
+                if (array_key_exists($f, $input)) {
+                    $oldVal = round((float)($d[$f] ?? 0), 4);
+                    $newVal = round((float)$input[$f], 4);
+                    if (abs($oldVal - $newVal) > 0.001) {
+                        $changes[] = [
+                            'field'     => $f,
+                            'old_value' => round($oldVal, 2),
+                            'new_value' => round($newVal, 2),
+                        ];
+                    }
+                }
+            }
+
+            // Apply new values
+            foreach ($floatFields as $f) {
+                if (array_key_exists($f, $input)) {
+                    $d[$f] = (float)$input[$f];
+                }
+            }
+
+            // Append to audit trail regardless (records every save, even no-change saves)
+            if (!isset($d['_edit_history'])) $d['_edit_history'] = [];
+            $session = \Config\Services::session();
+            $editorName = $session->get('name') ?? $session->get('email') ?? $session->get('username') ?? 'admin';
+            $d['_edit_history'][] = [
+                'timestamp'  => date('Y-m-d H:i:s'),
+                'edited_by'  => $editorName,
+                'changes'    => $changes,
+            ];
+
+            // Recompute derived values
+            $nsd       = (float)($d['night_diff_pay'] ?? 0);   // possibly just-edited value
+            $netBasic  = $pureBasicPay + $nsd;                 // rebuild the subtotal from the (possibly new) night diff
+            $d['net_basic_pay'] = round($netBasic, 2);         // keep stored subtotal in sync for future edits
+            $salAdj    = (float)($d['salary_adjustment'] ?? 0)
+                       + (float)($d['override_amount'] ?? 0)
+                       + (float)($d['ned_amount'] ?? 0);
+            $ot        = (float)($d['overtime_pay'] ?? $d['total_overtime'] ?? 0);
+            $holiday   = (float)($d['holiday_pay'] ?? 0);
+            $deMin     = (float)($d['year_end_gifts'] ?? 0)
+                       + (float)($d['rice_subsidy'] ?? 0)
+                       + (float)($d['uniform_allowance'] ?? 0)
+                       + (float)($d['laundry_allowance'] ?? 0)
+                       + (float)($d['meal_allowance'] ?? 0)
+                       + (float)($d['medical_allowance'] ?? 0)
+                       + (float)($d['salary_adjustment_non_tax'] ?? 0);
+            $otherNT   = (float)($d['other_earnings_non_taxable'] ?? 0);
+            $vlCash    = (float)($d['vl_cash_conversion'] ?? 0);
+            $nonTax    = $deMin + $otherNT + $vlCash;
+
+            $gross     = $netBasic + $ot + $salAdj + $holiday + $nonTax;
+            $grossTax  = $gross - $nonTax;
+
+            $sss       = (float)($d['sss_ee'] ?? 0);
+            $phic      = (float)($d['phic_ee'] ?? 0);
+            $hdmf      = (float)($d['hdmf_ee'] ?? 0);
+            $wt        = (float)($d['withholding_tax'] ?? 0);   // signed; negative = refund
+            $sssLoan   = (float)($d['sss_loan'] ?? 0);
+            $calamity  = (float)($d['calamity_loan'] ?? 0);
+            $hdmfLoan  = (float)($d['hdmf_loan'] ?? 0);
+            $adv       = (float)($d['sal_adv'] ?? 0);
+
+            $netTax    = $grossTax - $sss - $phic - $hdmf;
+            $netPay    = $gross - $sss - $phic - $hdmf
+                       - max(0.0, $wt) + max(0.0, -$wt)
+                       - $sssLoan - $calamity - $hdmfLoan - $adv;
+
+            $d['gross_pay']       = round($gross,   2);
+            $d['net_pay']         = round($netPay,  2);
+            $d['total_deductions'] = round(
+                $sss + $phic + $hdmf + max(0.0, $wt) + $sssLoan + $calamity + $hdmfLoan + $adv,
+                2
+            );
+
+            $db->query(
+                "UPDATE employee_payslips SET generated_data = ?, net_pay = ? WHERE id = ?",
+                [json_encode($d), round($netPay, 2), $id]
+            );
+
+            $empName = $d['employee_name'] ?? trim((string) $db->query(
+                "SELECT CONCAT(first_name,' ',last_name) AS n FROM employees WHERE id = ?",
+                [$row['employee_id']]
+            )->getRowArray()['n'] ?? '');
+            service('activityLogger')->payslipEdited(
+                $id, $empName ?: 'Unknown', $row['period_start'], $row['period_end'], $changes
+            );
+
+            return $this->response->setJSON([
+                'success'    => true,
+                'gross_pay'  => round($gross,  2),
+                'net_taxable'=> round($netTax, 2),
+                'net_pay'    => round($netPay, 2),
+            ]);
+        } catch (\Throwable $e) {
+            return $this->jsonError($e, 'Unable to save payslip changes. Please try again.');
+        }
     }
 
     // ================= EXPORT / IMPORT =================
@@ -1041,7 +1432,10 @@ class PayrollController extends BaseController
         $start = new \DateTime($timeIn);
         $end = new \DateTime($timeOut);
         $diff = $end->diff($start);
-        $hours = $diff->h + $diff->i / 60;
+        // $diff->h is only the hour COMPONENT of the interval (0-23) — for any
+        // span over 24 hours, $diff->days must be folded in too, or whole days
+        // silently vanish (a 30-hour span would otherwise report as 6 hours).
+        $hours = ($diff->days * 24) + $diff->h + $diff->i / 60;
         return max(0, $hours - $breakDuration);
     }
 
@@ -1264,6 +1658,18 @@ class PayrollController extends BaseController
         foreach ($keys as $key) {
             $settings[$key] = $settingsModel->getSetting($key);
         }
+
+        // Bundle the currently-active SSS bracket table so the client can compute
+        // SSS from the same data an admin edits in Payroll Settings, instead of a
+        // hardcoded table that Settings has no way to affect.
+        $db = \Config\Database::connect();
+        $settings['sss_brackets'] = $db->query(
+            'SELECT range_start, range_end, ee_regular, ee_wisp
+             FROM   sss_brackets
+             WHERE  is_active = 1
+             ORDER  BY range_start ASC'
+        )->getResultArray();
+
         return $this->response->setJSON($settings);
     }
 
@@ -1408,12 +1814,14 @@ class PayrollController extends BaseController
                         'sent_by' => $senderName,
                     ]);
 
+                $sendMethod = ($data['send_method'] ?? 'individual') === 'bulk' ? 'bulk' : 'individual';
                 service('activityLogger')->payslipSent(
                     $payslipRecordId,
                     $empName,
                     $data['period_start'],
                     $data['period_end'],
-                    $emailAddress
+                    $emailAddress,
+                    $sendMethod
                 );
 
                 return $this->response->setJSON(['success' => true]);
@@ -1659,15 +2067,20 @@ class PayrollController extends BaseController
 
         // prior_gross = total 1st-half gross pay (taxable + non-taxable).
         // Used by the 2nd-half SSS computation to derive the monthly MSC from total compensation.
-        $priorGross = (float)($d['gross_pay'] ?? 0);
+        $priorGross  = (float)($d['gross_pay']  ?? 0);
+        // prior_de_minimis = 1st-half de minimis amount.
+        // The 2nd-half payslip may display the full monthly de minimis for the employee's reference,
+        // so the SSS formula uses the 1st-half amount as the consistent semi-monthly basis.
+        $priorDeMin  = (float)($d['de_minimis'] ?? 0);
 
         return $this->response->setJSON([
-            'found'        => true,
-            'net_taxable'  => round($netTaxable, 2),
-            'wt'           => round($wt, 2),
-            'prior_gross'  => round($priorGross, 2),
-            'period_start' => $priorStart,
-            'period_end'   => $priorEnd,
+            'found'            => true,
+            'net_taxable'      => round($netTaxable,  2),
+            'wt'               => round($wt,          2),
+            'prior_gross'      => round($priorGross,  2),
+            'prior_de_minimis' => round($priorDeMin,  2),
+            'period_start'     => $priorStart,
+            'period_end'       => $priorEnd,
         ]);
     }
 
@@ -1759,6 +2172,138 @@ class PayrollController extends BaseController
         return view('client_portal/payroll_payslip_history', ['payslips' => $payslips]);
     }
 
+    /**
+     * Full activity timeline for one payslip — generated, every send (individual
+     * or bulk, not just the most recent), and every edit with the field-level
+     * before/after values. Pulled from the append-only activity_logs table plus
+     * the _edit_history kept inside generated_data for edits made before this
+     * endpoint existed.
+     */
+    public function getPayslipActivity($id)
+    {
+        $user = auth()->user();
+        $isAdmin = $user->inGroup('client_payroll_staff') || $user->inGroup('superadmin') || $user->inGroup('admin');
+        if (!$isAdmin) {
+            return $this->response->setStatusCode(403)->setJSON(['error' => 'Unauthorized']);
+        }
+
+        $id = (int) $id;
+        if (!$id) return $this->response->setJSON(['error' => 'Missing id']);
+
+        $db = \Config\Database::connect();
+
+        $logs = $db->table('activity_logs')
+            ->where('module', 'employee_payslips')
+            ->where('record_id', $id)
+            ->orderBy('created_at', 'ASC')
+            ->get()->getResultArray();
+
+        $timeline = [];
+        foreach ($logs as $row) {
+            $timeline[] = [
+                'source'      => 'activity_log',
+                'action'      => $row['action'],
+                'description' => $row['description'],
+                'username'    => $row['username'],
+                'old_values'  => json_decode((string) ($row['old_values'] ?? ''), true),
+                'new_values'  => json_decode((string) ($row['new_values'] ?? ''), true),
+                'created_at'  => $row['created_at'],
+            ];
+        }
+
+        // Older edits (made before payslipEdited() started logging to activity_logs)
+        // only exist in generated_data._edit_history — merge those in too.
+        $row = $db->query("SELECT generated_data FROM employee_payslips WHERE id = ?", [$id])->getRowArray();
+        $data = json_decode((string) ($row['generated_data'] ?? ''), true) ?: [];
+        foreach ($data['_edit_history'] ?? [] as $edit) {
+            // Skip if an activity_log row for this same edit already covers it
+            // (best-effort de-dupe by timestamp — new edits log to both places).
+            $already = false;
+            foreach ($timeline as $t) {
+                if ($t['action'] === 'updated' && $t['created_at'] === $edit['timestamp']) { $already = true; break; }
+            }
+            if ($already) continue;
+
+            $timeline[] = [
+                'source'      => 'edit_history',
+                'action'      => 'updated',
+                'description' => empty($edit['changes']) ? 'Payslip reviewed — no changes' : 'Payslip edited',
+                'username'    => $edit['edited_by'] ?? 'admin',
+                'old_values'  => $edit['changes'] ? array_combine(array_column($edit['changes'], 'field'), array_column($edit['changes'], 'old_value')) : null,
+                'new_values'  => $edit['changes'] ? array_combine(array_column($edit['changes'], 'field'), array_column($edit['changes'], 'new_value')) : null,
+                'created_at'  => $edit['timestamp'] ?? null,
+            ];
+        }
+
+        usort($timeline, fn($a, $b) => strcmp($a['created_at'] ?? '', $b['created_at'] ?? ''));
+
+        return $this->response->setJSON(['success' => true, 'timeline' => $timeline]);
+    }
+
+    /**
+     * System-wide audit log viewer — filterable, paginated read of activity_logs.
+     * Backs the Audit Log tab in the Payroll module.
+     */
+    public function getAuditLog()
+    {
+        $user = auth()->user();
+        $isAdmin = $user->inGroup('client_payroll_staff') || $user->inGroup('superadmin') || $user->inGroup('admin');
+        if (!$isAdmin) {
+            return $this->response->setStatusCode(403)->setJSON(['error' => 'Unauthorized']);
+        }
+
+        $model  = new \App\Models\ActivityLogModel();
+
+        $module = trim((string) ($this->request->getGet('module') ?? ''));
+        $action = trim((string) ($this->request->getGet('action') ?? ''));
+        $search = trim((string) ($this->request->getGet('search') ?? ''));
+        $from   = trim((string) ($this->request->getGet('from') ?? ''));
+        $to     = trim((string) ($this->request->getGet('to') ?? ''));
+        $page   = max(1, (int) ($this->request->getGet('page') ?? 1));
+        $perPage = 25;
+
+        if ($module !== '') {
+            $model->byModule($module);
+        }
+        if (in_array($action, ['created', 'updated', 'deleted'], true)) {
+            $model->byAction($action);
+        }
+        if ($from !== '' && $to !== '') {
+            $model->betweenDates($from . ' 00:00:00', $to . ' 23:59:59');
+        }
+        if ($search !== '') {
+            $model->groupStart()
+                ->like('description', $search)
+                ->orLike('username', $search)
+                ->groupEnd();
+        }
+
+        $total = $model->countAllResults(false);
+        $rows  = $model->orderBy('created_at', 'DESC')->findAll($perPage, ($page - 1) * $perPage);
+
+        foreach ($rows as &$row) {
+            $row['old_values'] = json_decode((string) ($row['old_values'] ?? ''), true);
+            $row['new_values'] = json_decode((string) ($row['new_values'] ?? ''), true);
+        }
+        unset($row);
+
+        $db      = \Config\Database::connect();
+        $modules = $db->table('activity_logs')
+            ->distinct()
+            ->select('module')
+            ->orderBy('module', 'ASC')
+            ->get()->getResultArray();
+
+        return $this->response->setJSON([
+            'success' => true,
+            'rows'    => $rows,
+            'total'   => (int) $total,
+            'page'    => $page,
+            'perPage' => $perPage,
+            'modules' => array_column($modules, 'module'),
+        ]);
+    }
+
     public function getPayslipData($id)
     {
         $payslipModel = new \App\Models\Client\EmployeePayslipModel();
@@ -1824,10 +2369,15 @@ class PayrollController extends BaseController
                        + (float)($data['withholding_tax'] ?? 0);
 
         $totalDeductionsDisplay = $govDeductions
-                       + (float)($data['sss_loan']        ?? 0)
-                       + (float)($data['calamity_loan']   ?? 0)
-                       + (float)($data['salary_advance']  ?? 0)
-                       + (float)($data['other_deductions'] ?? 0);
+                       + (float)($data['sss_loan']            ?? 0)
+                       + (float)($data['calamity_loan']       ?? 0)
+                       + (float)($data['hdmf_loan']            ?? 0)
+                       + (float)($data['hdmf_mpl_loan']        ?? 0)
+                       + (float)($data['hdmf_calamity_loan']   ?? 0)
+                       + (float)($data['salary_advance']       ?? ($data['sal_adv'] ?? 0))
+                       + (float)($data['cash_advance']         ?? 0)
+                       + (float)($data['emergency_advance']    ?? 0)
+                       + (float)($data['other_deductions']     ?? 0);
 
         // =========================================================
         // GOVERNMENT DEDUCTIONS
@@ -2031,11 +2581,15 @@ class PayrollController extends BaseController
         ['Withholding tax', (float)($data['withholding_tax'] ?? 0)],
     ];
     $allLoans = [
-        ['Salary Loan',    (float)($data['sss_loan']       ?? 0)],
-        ['Calamity Loan',  (float)($data['calamity_loan']  ?? 0)],
-        ['HDMF Loan',      (float)($data['hdmf_loan']      ?? 0)],
-        ['Salary Advance', (float)($data['salary_advance'] ?? 0)],
-        ['Cal. Advance',   (float)($data['cal_adv']        ?? 0)],
+        ['Salary Loan',              (float)($data['sss_loan']            ?? 0)],
+        ['Calamity Loan',            (float)($data['calamity_loan']       ?? 0)],
+        ['HDMF Loan',                (float)($data['hdmf_loan']           ?? 0)],
+        ['HDMF Multi-Purpose Loan',  (float)($data['hdmf_mpl_loan']       ?? 0)],
+        ['HDMF Calamity Loan',       (float)($data['hdmf_calamity_loan']  ?? 0)],
+        ['Salary Advance',           (float)($data['salary_advance']      ?? ($data['sal_adv'] ?? 0))],
+        ['Cash Advance',             (float)($data['cash_advance']        ?? 0)],
+        ['Emergency Advance',        (float)($data['emergency_advance']   ?? 0)],
+        ['Cal. Advance',             (float)($data['cal_adv']             ?? 0)],
     ];
     $loans = array_values(array_filter($allLoans, fn($r) => $r[1] > 0));
     $maxRows = max(count($regDeds), count($loans));
