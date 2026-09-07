@@ -1423,9 +1423,27 @@ $_defaultYearMonth = "{$_year}-{$_month}";
         <span style="float:right; cursor:pointer; font-size:24px;" onclick="closeImportModal()">&times;</span>
         <h3>Import Timesheet (CSV)</h3>
         <form id="importTimesheetForm" enctype="multipart/form-data">
-            <input type="file" name="timesheet_file" accept=".csv" required>
+            <input type="file" id="timesheetImportFile" name="timesheet_file" accept=".csv" required>
             <p class="text-xs text-gray-500 mt-2">Expected columns: employee_number, date, time_in, time_out, break_duration</p>
-            <button type="submit" style="margin-top:10px; background:#007bff; color:white; padding:6px 12px; border:none; border-radius:5px;">Upload</button>
+
+            <div id="importColumnMapping" style="display:none; margin-top:14px;">
+                <p style="font-size:13px; color:#555; margin-bottom:8px;">
+                    This file's columns don't match ours automatically — confirm which column is which below.
+                </p>
+                <div id="importColumnMappingFields" style="display:flex; flex-direction:column; gap:8px;"></div>
+            </div>
+
+            <div id="importEmployeeResolution" style="display:none; margin-top:14px;">
+                <p style="font-size:13px; color:#555; margin-bottom:8px;">
+                    These employee numbers in the file don't match anyone — pick who each one really is, or leave it to skip those rows.
+                </p>
+                <div id="importEmployeeResolutionFields" style="display:flex; flex-direction:column; gap:8px;"></div>
+            </div>
+
+            <div style="margin-top:10px; display:flex; gap:8px;">
+                <button type="button" id="importMappingBackBtn" style="display:none; background:#e9ecef; color:#333; padding:6px 12px; border:none; border-radius:5px;">Back</button>
+                <button type="submit" id="importTimesheetSubmitBtn" style="background:#007bff; color:white; padding:6px 12px; border:none; border-radius:5px;">Upload</button>
+            </div>
         </form>
     </div>
 </div>
@@ -4800,22 +4818,193 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('importTimesheetModal').style.display = 'block';
     });
     
-    document.getElementById('importTimesheetForm')?.addEventListener('submit', async function(e) {
-        e.preventDefault();
-        const formData = new FormData(this);
-        const response = await fetch('<?= site_url('client_portal/payroll/importTimesheet') ?>', {
-            method: 'POST',
-            body: formData
-        });
-        const result = await response.json();
-        if (result.success) {
-            showToast(result.message || 'Timesheet imported successfully.', 'success');
-            closeImportModal();
-            document.getElementById('importTimesheetForm').reset();
-        } else {
-            showToast('Import failed: ' + (result.error || result.message || 'Unknown error'), 'error');
+    // Timesheet import — two stages. Stage 1 asks the server to read just
+    // the header row and guess a mapping; if the file's headers already
+    // match ours exactly it imports immediately (unchanged one-click flow).
+    // Otherwise stage 2 shows the guessed mapping for the uploader to
+    // confirm or correct before anything actually gets imported.
+    (function() {
+        const form = document.getElementById('importTimesheetForm');
+        const fileInput = document.getElementById('timesheetImportFile');
+        const mappingSection = document.getElementById('importColumnMapping');
+        const mappingFieldsEl = document.getElementById('importColumnMappingFields');
+        const employeeSection = document.getElementById('importEmployeeResolution');
+        const employeeFieldsEl = document.getElementById('importEmployeeResolutionFields');
+        const submitBtn = document.getElementById('importTimesheetSubmitBtn');
+        const backBtn = document.getElementById('importMappingBackBtn');
+
+        let stage = 'select'; // 'select' | 'confirm'
+        let previewFields = [];
+
+        function resetToSelectStage() {
+            stage = 'select';
+            mappingSection.style.display = 'none';
+            mappingFieldsEl.innerHTML = '';
+            employeeSection.style.display = 'none';
+            employeeFieldsEl.innerHTML = '';
+            backBtn.style.display = 'none';
+            submitBtn.textContent = 'Upload';
+            submitBtn.disabled = false;
         }
-    });
+        backBtn?.addEventListener('click', resetToSelectStage);
+        fileInput?.addEventListener('change', resetToSelectStage);
+
+        function buildMappingUI(headers, fields, guess) {
+            mappingFieldsEl.innerHTML = fields.map(f => {
+                const opts = ['<option value="">&mdash; not in this file &mdash;</option>']
+                    .concat(headers.map(h => {
+                        const sel = (guess[f.key] === h) ? 'selected' : '';
+                        return `<option value="${escapeHtml(h)}" ${sel}>${escapeHtml(h)}</option>`;
+                    }));
+                return `
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <label style="width:150px; font-size:13px;">${escapeHtml(f.label)}${f.required ? ' *' : ''}</label>
+                        <select data-field="${f.key}" ${f.required ? 'required' : ''} style="flex:1; padding:4px; border:1px solid #ccc; border-radius:4px;">
+                            ${opts.join('')}
+                        </select>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // One row per distinct unrecognized employee_number value found in
+        // the file (not per CSV row — the same typo'd number can appear on
+        // many attendance rows), with a dropdown of every real employee and
+        // the closest fuzzy match pre-selected when there is one.
+        function buildEmployeeResolutionUI(unmatched, employees) {
+            employeeFieldsEl.innerHTML = unmatched.map(u => {
+                const rowLabel = u.count === 1 ? '1 row' : `${u.count} rows`;
+                const options = ['<option value="">&mdash; skip these rows &mdash;</option>']
+                    .concat(employees.map(e => {
+                        const sel = (u.suggested_employee_id && e.id === u.suggested_employee_id) ? 'selected' : '';
+                        return `<option value="${e.id}" ${sel}>${escapeHtml(e.label)}</option>`;
+                    }));
+                return `
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <label style="width:150px; font-size:13px;" title="As it appears in the file">"${escapeHtml(u.value)}" <span style="color:#888;">(${rowLabel})</span></label>
+                        <select data-employee-value="${escapeHtml(u.value)}" style="flex:1; padding:4px; border:1px solid #ccc; border-radius:4px;">
+                            ${options.join('')}
+                        </select>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        async function doImport(columnMap, employeeMap) {
+            const formData = new FormData(form);
+            if (columnMap) formData.set('column_map', JSON.stringify(columnMap));
+            if (employeeMap) formData.set('employee_map', JSON.stringify(employeeMap));
+
+            submitBtn.disabled = true;
+            let result;
+            try {
+                const response = await fetch('<?= site_url('client_portal/payroll/importTimesheet') ?>', {
+                    method: 'POST',
+                    body: formData
+                });
+                result = await response.json();
+            } catch (err) {
+                submitBtn.disabled = false;
+                showToast('Import failed: could not reach the server.', 'error');
+                return;
+            }
+            submitBtn.disabled = false;
+
+            if (result.success) {
+                const skippedCount = result.skipped || 0;
+                if (skippedCount > 0) {
+                    console.warn('Timesheet import — skipped rows:', result.errors);
+                    showToast(`${result.imported} row(s) imported, ${skippedCount} skipped — see browser console for details.`, 'warning');
+                } else {
+                    showToast(result.message || `${result.imported} row(s) imported successfully.`, 'success');
+                }
+                closeImportModal();
+                form.reset();
+                resetToSelectStage();
+            } else {
+                showToast('Import failed: ' + (result.error || result.message || 'Unknown error'), 'error');
+            }
+        }
+
+        form?.addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            if (stage === 'select') {
+                const formData = new FormData(form);
+                submitBtn.disabled = true;
+                let result;
+                try {
+                    const response = await fetch('<?= site_url('client_portal/payroll/previewTimesheetImport') ?>', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    result = await response.json();
+                } catch (err) {
+                    submitBtn.disabled = false;
+                    showToast('Could not read the file.', 'error');
+                    return;
+                }
+                submitBtn.disabled = false;
+
+                if (!result.success) {
+                    showToast('Import failed: ' + (result.error || 'Unknown error'), 'error');
+                    return;
+                }
+
+                if (result.exact_match) {
+                    await doImport(null, null);
+                    return;
+                }
+
+                previewFields = result.fields;
+
+                const needsColumnMapping = result.fields.some(f => result.guess[f.key] !== f.key);
+                if (needsColumnMapping) {
+                    buildMappingUI(result.headers, result.fields, result.guess);
+                    mappingSection.style.display = 'block';
+                }
+
+                const unmatched = result.unmatched_employees || [];
+                if (unmatched.length > 0) {
+                    buildEmployeeResolutionUI(unmatched, result.employees || []);
+                    employeeSection.style.display = 'block';
+                }
+
+                backBtn.style.display = 'inline-block';
+                submitBtn.textContent = 'Confirm Import';
+                stage = 'confirm';
+
+                const messages = [];
+                if (needsColumnMapping) messages.push("columns didn't match automatically");
+                if (unmatched.length > 0) messages.push(`${unmatched.length} employee number(s) not recognized`);
+                showToast(`Please confirm before importing — ${messages.join(', ')}.`, 'warning');
+                return;
+            }
+
+            // stage === 'confirm': build whatever mappings were shown and actually import.
+            const columnMap = {};
+            let missingRequired = false;
+            mappingFieldsEl.querySelectorAll('select[data-field]').forEach(sel => {
+                columnMap[sel.dataset.field] = sel.value;
+                const field = previewFields.find(f => f.key === sel.dataset.field);
+                if (field && field.required && !sel.value) missingRequired = true;
+            });
+            if (missingRequired) {
+                showToast('Please map every required column before importing.', 'error');
+                return;
+            }
+
+            const employeeMap = {};
+            employeeFieldsEl.querySelectorAll('select[data-employee-value]').forEach(sel => {
+                if (sel.value) employeeMap[sel.dataset.employeeValue] = sel.value;
+            });
+
+            await doImport(
+                Object.keys(columnMap).length ? columnMap : null,
+                Object.keys(employeeMap).length ? employeeMap : null
+            );
+        });
+    })();
     
     window.closeImportModal = function() {
         document.getElementById('importTimesheetModal').style.display = 'none';

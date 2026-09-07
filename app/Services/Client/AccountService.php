@@ -230,7 +230,12 @@ class AccountService
             return ['ok' => false, 'message' => 'Employee profile not found.'];
         }
 
-        if (! in_array($file->getClientMimeType(), ['image/jpeg', 'image/png', 'image/webp'], true)) {
+        $mime = strtolower((string) $file->getClientMimeType());
+        $ext  = strtolower((string) $file->getClientExtension());
+        $okMime = in_array($mime, ['image/jpeg', 'image/jpg', 'image/pjpeg', 'image/png', 'image/webp'], true);
+        $okExt  = in_array($ext, ['jpg', 'jpeg', 'png', 'webp'], true);
+
+        if (! $okMime && ! $okExt) {
             return ['ok' => false, 'message' => 'Only JPG, PNG, or WEBP files are allowed.'];
         }
 

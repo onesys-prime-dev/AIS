@@ -119,6 +119,7 @@ $routes->group('client_portal', ['namespace' => 'App\Controllers\Client', 'filte
     $routes->get('payroll/getPayslipEditData', 'PayrollController::getPayslipEditData');
     $routes->post('payroll/savePayslipEditData', 'PayrollController::savePayslipEditData');
     $routes->get('payroll/exportTimesheet', 'PayrollController::exportTimesheet');
+    $routes->post('payroll/previewTimesheetImport', 'PayrollController::previewTimesheetImport');
     $routes->post('payroll/importTimesheet', 'PayrollController::importTimesheet');
 
     $routes->get('payroll/loanBreakdown/(:num)/(:any)/(:any)','PayrollController::getLoanBreakdown/$1/$2/$3');
@@ -140,6 +141,7 @@ $routes->group('client_portal/payroll', ['namespace' => 'App\Controllers\Client'
     $routes->post('sendPdf', 'PayrollController::sendPdf');
     $routes->get('exportRegister', 'PayrollController::exportRegister');
     $routes->get('exportTimesheet', 'PayrollController::exportTimesheet');
+    $routes->post('previewTimesheetImport', 'PayrollController::previewTimesheetImport');
     $routes->post('importTimesheet', 'PayrollController::importTimesheet');
 
     $routes->get('getPriorHalfWT/(:num)/(:any)/(:any)', 'PayrollController::getPriorHalfWT/$1/$2/$3');

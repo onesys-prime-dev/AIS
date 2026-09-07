@@ -11,6 +11,7 @@ use App\Services\Client\PayrollComputationService;
 use App\Services\Client\AnnouncementService;
 use App\Models\Client\AttendanceModel;
 use App\Services\Client\LoanService;;
+use App\Services\Client\AttendanceComputationService;
 
 use Dompdf\Dompdf;
 use Dompdf\Options;
@@ -1380,7 +1381,135 @@ class PayrollController extends BaseController
         exit();
     }
 
-    public function importTimesheet()
+    /**
+     * The importer's own vocabulary: every field importTimesheet() reads,
+     * whether it's required, and the header spellings it'll recognize
+     * automatically without asking the uploader to map anything by hand.
+     * Shared by previewTimesheetImport() (which guesses a mapping from
+     * these) and importTimesheet() (which falls back to them when no
+     * column_map was confirmed).
+     */
+    private function timesheetImportFields(): array
+    {
+        return [
+            'employee_number' => [
+                'label'    => 'Employee Number',
+                'required' => true,
+                'aliases'  => ['empno', 'employeeno', 'employeeid', 'empid', 'idnumber', 'id'],
+            ],
+            'date' => [
+                'label'    => 'Date',
+                'required' => true,
+                'aliases'  => ['attendancedate', 'logdate', 'workdate'],
+            ],
+            'time_in' => [
+                'label'    => 'Time In',
+                'required' => true,
+                'aliases'  => ['in', 'clockin', 'timein'],
+            ],
+            'time_out' => [
+                'label'    => 'Time Out',
+                'required' => false,
+                'aliases'  => ['out', 'clockout', 'timeout'],
+            ],
+            'break_duration' => [
+                'label'    => 'Break Duration',
+                'required' => false,
+                'aliases'  => ['break', 'breakmins', 'breakminutes', 'breakhours'],
+            ],
+            'total_hours' => [
+                'label'    => 'Total Hours',
+                'required' => false,
+                'aliases'  => ['hours', 'hrs', 'totalhrs'],
+            ],
+            'night_diff_hours' => [
+                'label'    => 'Night Diff Hours',
+                'required' => false,
+                'aliases'  => ['nightdiff', 'ndhours', 'nightdifferential'],
+            ],
+        ];
+    }
+
+    private function normalizeHeaderLabel(string $s): string
+    {
+        return strtolower(preg_replace('/[^a-z0-9]/i', '', $s) ?? '');
+    }
+
+    /**
+     * Best column for one of our fields: an exact match against its name or
+     * a known alias first; failing that, whichever remaining header reads
+     * closest to it (e.g. "Employee No." isn't a listed alias but is
+     * obviously meant to be employee_number). Claims the header out of
+     * $pool so two fields can't both grab the same ambiguous column —
+     * required fields go first in timesheetImportFields()'s order, so they
+     * win any contested match.
+     */
+    private function guessColumnMatch(string $fieldKey, array $aliases, array &$pool): ?string
+    {
+        $candidates = array_unique(array_merge([$this->normalizeHeaderLabel($fieldKey)], $aliases));
+
+        foreach ($candidates as $c) {
+            if (isset($pool[$c])) {
+                $match = $pool[$c];
+                unset($pool[$c]);
+                return $match;
+            }
+        }
+
+        $bestNormalized = null;
+        $bestScore = 0.0;
+        foreach ($pool as $normalized => $original) {
+            foreach ($candidates as $c) {
+                similar_text($c, $normalized, $percent);
+                if ($percent > $bestScore) {
+                    $bestScore = $percent;
+                    $bestNormalized = $normalized;
+                }
+            }
+        }
+        if ($bestNormalized !== null && $bestScore >= 72.0) {
+            $match = $pool[$bestNormalized];
+            unset($pool[$bestNormalized]);
+            return $match;
+        }
+
+        return null;
+    }
+
+    /**
+     * Closest real employee to a CSV value that didn't match any
+     * employee_number exactly — a typo, a leading zero dropped, a different
+     * numbering scheme. Always just a suggestion the uploader confirms, so
+     * this can afford to be a little generous.
+     */
+    private function guessEmployeeMatch(string $value, array $employees): ?array
+    {
+        $normalizedValue = $this->normalizeHeaderLabel($value);
+        $best = null;
+        $bestScore = 0.0;
+        foreach ($employees as $e) {
+            similar_text($normalizedValue, $this->normalizeHeaderLabel($e['employee_number']), $percent);
+            if ($percent > $bestScore) {
+                $bestScore = $percent;
+                $best = $e;
+            }
+        }
+        if ($best === null || $bestScore < 60.0) return null;
+        return [
+            'id'    => (int) $best['id'],
+            'label' => $best['employee_number'] . ' — ' . trim($best['first_name'] . ' ' . $best['last_name']),
+        ];
+    }
+
+    /**
+     * Step 1 of importing a file whose headers or employee numbers don't
+     * already match ours exactly: read the header row and propose a
+     * best-guess column mapping, and separately flag any employee_number
+     * value found in the file with no matching employee (plus a fuzzy
+     * suggestion for each), so the uploader can confirm or correct both
+     * before anything is actually imported.
+     */
+    public function previewTimesheetImport()
     {
         $file = $this->request->getFile('timesheet_file');
         if (!$file || !$file->isValid()) {
@@ -1389,41 +1518,357 @@ class PayrollController extends BaseController
 
         $handle = fopen($file->getTempName(), 'r');
         $headers = fgetcsv($handle);
-        $successCount = 0;
+        if ($headers === false) {
+            fclose($handle);
+            return $this->response->setJSON(['success' => false, 'error' => 'File is empty.']);
+        }
+        $headers = array_map(
+            fn($h) => trim(str_replace("\xEF\xBB\xBF", '', (string) $h)),
+            $headers
+        );
+
+        $pool = [];
+        foreach ($headers as $h) {
+            $pool[$this->normalizeHeaderLabel($h)] = $h;
+        }
+
+        $fieldsOut = [];
+        $guess = [];
+        $allMatchedExactly = true;
+
+        foreach ($this->timesheetImportFields() as $key => $def) {
+            $match = $this->guessColumnMatch($key, $def['aliases'], $pool);
+            if ($match !== $key) $allMatchedExactly = false;
+            $guess[$key] = $match;
+            $fieldsOut[] = ['key' => $key, 'label' => $def['label'], 'required' => $def['required']];
+        }
+
+        // With a column mapping now guessed, scan every row's employee
+        // number against real employees — anything that doesn't match gets
+        // a fuzzy suggestion instead of silently failing at import time.
         $employeeModel = new EmployeeModel();
-        $attendanceModel = new AttendanceModel();
-        while (($row = fgetcsv($handle)) !== false) {
-            if (count($row) !== count($headers)) continue;
-            $data = array_combine($headers, $row);
-            $employee = $employeeModel->where('employee_number', $data['employee_number'])->first();
-            if (!$employee) continue;
-            $breakDur = (float)($data['break_duration'] ?? 0);
-            // time_in / time_out from our own export are full datetimes already;
-            // handle both "HH:MM:SS" and "YYYY-MM-DD HH:MM:SS" formats.
-            $rawIn  = trim($data['time_in']  ?? '');
-            $rawOut = trim($data['time_out'] ?? '');
-            $date   = trim($data['date']     ?? '');
-            $timeInDt  = (strpos($rawIn,  ' ') !== false) ? $rawIn  : "{$date} {$rawIn}";
-            $timeOutDt = $rawOut !== '' ? ((strpos($rawOut, ' ') !== false) ? $rawOut : "{$date} {$rawOut}") : null;
-            $totalHours    = isset($data['total_hours']) && $data['total_hours'] !== ''
-                           ? (float)$data['total_hours']
-                           : $this->calculateTotalHours($timeInDt, $timeOutDt, $breakDur);
-            // Use stored night_diff_hours if present in CSV; otherwise compute from timestamps
-            $nightDiffHours = isset($data['night_diff_hours']) && $data['night_diff_hours'] !== ''
-                            ? (float)$data['night_diff_hours']
-                            : (($timeInDt && $timeOutDt) ? $this->calcNightDiffHours($timeInDt, $timeOutDt) : 0);
-            $attendanceModel->insert([
-                'user_id'          => $employee['user_id'],
-                'time_in'          => $timeInDt,
-                'time_out'         => $timeOutDt,
-                'break_duration'   => $breakDur,
-                'total_hours'      => $totalHours,
-                'night_diff_hours' => round($nightDiffHours, 2),
-            ]);
-            $successCount++;
+        $allEmployees = $employeeModel->select('id, employee_number, first_name, last_name')->findAll();
+        $byNumber = [];
+        foreach ($allEmployees as $e) $byNumber[$e['employee_number']] = true;
+
+        $unmatched = [];
+        $employeeNumberHeader = $guess['employee_number'];
+        if ($employeeNumberHeader !== null) {
+            rewind($handle);
+            fgetcsv($handle); // skip the header row again
+            $seen = [];
+            while (($row = fgetcsv($handle)) !== false) {
+                if (count($row) !== count($headers)) continue;
+                $rawRow = array_combine($headers, $row);
+                $val = trim((string) ($rawRow[$employeeNumberHeader] ?? ''));
+                if ($val === '' || isset($byNumber[$val])) continue;
+                $seen[$val] = ($seen[$val] ?? 0) + 1;
+            }
+            foreach ($seen as $val => $count) {
+                $suggestion = $this->guessEmployeeMatch($val, $allEmployees);
+                $unmatched[] = [
+                    'value'                 => $val,
+                    'count'                 => $count,
+                    'suggested_employee_id' => $suggestion['id']    ?? null,
+                    'suggested_label'       => $suggestion['label'] ?? null,
+                ];
+                $allMatchedExactly = false;
+            }
         }
         fclose($handle);
-        return $this->response->setJSON(['success' => true, 'imported' => $successCount, 'message' => "{$successCount} record(s) imported successfully."]);
+
+        return $this->response->setJSON([
+            'success'             => true,
+            'headers'             => $headers,
+            'fields'              => $fieldsOut,
+            'guess'               => $guess,
+            'unmatched_employees' => $unmatched,
+            'employees'           => array_map(fn($e) => [
+                'id'    => (int) $e['id'],
+                'label' => $e['employee_number'] . ' — ' . trim($e['first_name'] . ' ' . $e['last_name']),
+            ], $allEmployees),
+            // True only when every header already matches ours exactly AND
+            // every employee number in the file is a real employee — lets
+            // the frontend skip the confirmation step entirely for a file
+            // that needs no help, same as before.
+            'exact_match' => $allMatchedExactly,
+        ]);
+    }
+
+    public function importTimesheet()
+    {
+        $file = $this->request->getFile('timesheet_file');
+        if (!$file || !$file->isValid()) {
+            return $this->response->setJSON(['success' => false, 'error' => 'Invalid file.']);
+        }
+
+        // Optional: which actual CSV header each of our fields corresponds
+        // to, e.g. {"employee_number":"Emp No","date":"Log Date",...} — sent
+        // once the uploader confirmed a mapping via previewTimesheetImport()
+        // because the file's headers didn't already match ours. Any field
+        // left unmapped falls back to its own name, exactly the original
+        // behavior for a file that needs no mapping at all.
+        $columnMap = json_decode((string) $this->request->getPost('column_map'), true);
+        if (!is_array($columnMap)) $columnMap = [];
+
+        // Optional: raw employee_number value exactly as it appears in the
+        // file => the real employee id the uploader confirmed it means,
+        // e.g. {"EMP-19": 23} — sent once previewTimesheetImport() found a
+        // value with no matching employee_number and the uploader resolved
+        // it instead of letting those rows get skipped.
+        $employeeMap = json_decode((string) $this->request->getPost('employee_map'), true);
+        if (!is_array($employeeMap)) $employeeMap = [];
+
+        $handle = fopen($file->getTempName(), 'r');
+        $headers = fgetcsv($handle);
+        if ($headers === false) {
+            fclose($handle);
+            return $this->response->setJSON(['success' => false, 'error' => 'File is empty.']);
+        }
+        // Strip a UTF-8 BOM and stray whitespace from each header — Excel
+        // commonly adds a BOM to the first column when a CSV is re-saved,
+        // which silently turned "employee_number" into a key that never
+        // matched, failing every row with "Undefined array key".
+        $headers = array_map(
+            fn($h) => trim(str_replace("\xEF\xBB\xBF", '', (string) $h)),
+            $headers
+        );
+
+        $successCount = 0;
+        $skipped = [];
+        $rowNum = 1; // header is row 1
+        $employeeModel = new EmployeeModel();
+        $attendanceModel = new AttendanceModel();
+        $computationService = new AttendanceComputationService();
+        $importFields = $this->timesheetImportFields();
+        $scheduleCache = []; // user_id => schedule row, so a 500-row file for one employee doesn't re-query it 500 times
+
+        while (($row = fgetcsv($handle)) !== false) {
+            $rowNum++;
+
+            if (count($row) !== count($headers)) {
+                $skipped[] = "Row {$rowNum}: column count doesn't match the header row.";
+                continue;
+            }
+            $rawRow = array_combine($headers, $row);
+
+            // Translate this row through the confirmed mapping — each of our
+            // fields pulled from whichever actual CSV column it was mapped
+            // to, or from a column with that exact name when unmapped.
+            $data = [];
+            foreach ($importFields as $key => $def) {
+                $sourceHeader = $columnMap[$key] ?? $key;
+                $data[$key] = $rawRow[$sourceHeader] ?? null;
+            }
+
+            $employeeNumber = trim($data['employee_number'] ?? '');
+            if ($employeeNumber === '') {
+                $skipped[] = "Row {$rowNum}: missing employee_number.";
+                continue;
+            }
+            $employee = $employeeModel->where('employee_number', $employeeNumber)->first();
+            if (!$employee && !empty($employeeMap[$employeeNumber])) {
+                // Uploader confirmed this raw value is a specific employee,
+                // via the "guide it to which employee" resolution step.
+                $employee = $employeeModel->find((int) $employeeMap[$employeeNumber]);
+            }
+            if (!$employee) {
+                $skipped[] = "Row {$rowNum}: no employee found with number \"{$employeeNumber}\".";
+                continue;
+            }
+
+            // A single malformed row (bad date, unparseable value, etc.) must
+            // not take down the whole batch — catch per row and keep going.
+            try {
+                $breakDur = (float) ($data['break_duration'] ?? 0);
+                $rawIn  = trim($data['time_in']  ?? '');
+                $rawOut = trim($data['time_out'] ?? '');
+                $date   = trim($data['date']     ?? '');
+
+                if ($rawIn === '') {
+                    throw new \RuntimeException('missing time_in.');
+                }
+
+                $timeInStr  = (strpos($rawIn,  ' ') !== false) ? $rawIn  : "{$date} {$rawIn}";
+                $timeOutStr = $rawOut !== ''
+                    ? ((strpos($rawOut, ' ') !== false) ? $rawOut : "{$date} {$rawOut}")
+                    : null;
+
+                // Our own export always writes ISO ("Y-m-d H:i:s"). If this
+                // file round-tripped through Excel first, Excel frequently
+                // re-serializes it as locale-formatted d/m/Y and drops the
+                // seconds — accept that too instead of failing the row.
+                $timeInDt  = $this->parseFlexibleDateTime($timeInStr);
+                $timeOutDt = $timeOutStr !== null ? $this->parseFlexibleDateTime($timeOutStr) : null;
+
+                $timeInSql  = $timeInDt->format('Y-m-d H:i:s');
+                $timeOutSql = $timeOutDt ? $timeOutDt->format('Y-m-d H:i:s') : null;
+
+                $totalHours    = isset($data['total_hours']) && $data['total_hours'] !== ''
+                               ? (float) $data['total_hours']
+                               : $this->calculateTotalHours($timeInSql, $timeOutSql, $breakDur);
+                // Use stored night_diff_hours if present in CSV; otherwise compute from timestamps
+                $nightDiffHours = isset($data['night_diff_hours']) && $data['night_diff_hours'] !== ''
+                                ? (float) $data['night_diff_hours']
+                                : (($timeInSql && $timeOutSql) ? $this->calcNightDiffHours($timeInSql, $timeOutSql) : 0);
+
+                // Mirror what a normal clock-in/clock-out computes, so an
+                // imported day looks the same on the Timesheet page as one
+                // the employee actually clocked — late minutes, OT/UT
+                // hours, and the "Approved/Unapproved Overtime|Undertime"
+                // remark all come from the same schedule + approved-request
+                // lookups the live clock flow uses, not just the raw
+                // time_in/time_out columns. Without this, an imported day
+                // showed up on the Timesheet with a blank Remarks column
+                // even when it was really overtime or undertime.
+                $userId = (int) $employee['user_id'];
+                if (!array_key_exists($userId, $scheduleCache)) {
+                    $scheduleCache[$userId] = $computationService->getEmployeeSchedule($userId);
+                }
+
+                $derived = $this->deriveImportedAttendanceStatus(
+                    $computationService,
+                    $userId,
+                    $scheduleCache[$userId],
+                    $timeInSql,
+                    $timeOutSql,
+                    $breakDur
+                );
+
+                $attendanceModel->insert(array_merge([
+                    'user_id'          => $userId,
+                    'time_in'          => $timeInSql,
+                    'time_out'         => $timeOutSql,
+                    'break_duration'   => $breakDur,
+                    'total_hours'      => $totalHours,
+                    'night_diff_hours' => round($nightDiffHours, 2),
+                ], $derived));
+                $successCount++;
+            } catch (\Throwable $e) {
+                $skipped[] = "Row {$rowNum}: {$e->getMessage()}";
+            }
+        }
+        fclose($handle);
+
+        $message = "{$successCount} record(s) imported successfully.";
+        if ($skipped) {
+            $message .= ' ' . count($skipped) . ' row(s) skipped — see details.';
+        }
+
+        return $this->response->setJSON([
+            'success'  => true,
+            'imported' => $successCount,
+            'skipped'  => count($skipped),
+            'errors'   => $skipped,
+            'message'  => $message,
+        ]);
+    }
+
+    /**
+     * Late minutes, scheduled start/end, approved/unapproved OT & UT hours,
+     * and the overall attendance_status for one imported row — computed the
+     * same way AttendanceController's live clock-out does (schedule lookup
+     * + AttendanceComputationService::getApprovedRequest against the
+     * shift's own date), so an imported day isn't missing the data the
+     * Timesheet page's Remarks column and late-arrival figures depend on.
+     *
+     * Unlike the live clock-out path, this rolls an overnight schedule's
+     * end time to the next day before comparing — a shift scheduled
+     * 22:00–06:00 must not read as having ended 16 hours before it started.
+     */
+    private function deriveImportedAttendanceStatus(
+        AttendanceComputationService $computationService,
+        int $userId,
+        ?array $schedule,
+        string $timeInSql,
+        ?string $timeOutSql,
+        float $breakDur
+    ): array {
+        $date = date('Y-m-d', strtotime($timeInSql));
+
+        $lateMinutes = 0;
+        if ($schedule && !empty($schedule['start_time'])) {
+            $scheduledStartToday = $date . ' ' . $schedule['start_time'];
+            if (strtotime($timeInSql) > strtotime($scheduledStartToday)) {
+                $lateMinutes = (int) floor((strtotime($timeInSql) - strtotime($scheduledStartToday)) / 60);
+            }
+        }
+
+        $approvedOt = 0.0;
+        $unapprovedOt = 0.0;
+        $approvedUt = 0.0;
+        $unapprovedUt = 0.0;
+
+        if ($schedule && !empty($schedule['start_time']) && !empty($schedule['end_time']) && $timeOutSql) {
+            $scheduledStart = $date . ' ' . $schedule['start_time'];
+            $scheduledEnd   = $date . ' ' . $schedule['end_time'];
+            if (strtotime($scheduledEnd) <= strtotime($scheduledStart)) {
+                $scheduledEnd = date('Y-m-d H:i:s', strtotime($scheduledEnd . ' +1 day'));
+            }
+            $requiredHours = (strtotime($scheduledEnd) - strtotime($scheduledStart)) / 3600;
+
+            $workedHours = max(0, (strtotime($timeOutSql) - strtotime($timeInSql)) / 3600 - $breakDur);
+            $difference  = round($workedHours - $requiredHours, 2);
+
+            if ($difference > 0) {
+                $request = $computationService->getApprovedRequest($userId, $date, 'overtime');
+                if ($request) $approvedOt = $difference; else $unapprovedOt = $difference;
+            } elseif ($difference < 0) {
+                $hours = abs($difference);
+                $request = $computationService->getApprovedRequest($userId, $date, 'undertime');
+                if ($request) $approvedUt = $hours; else $unapprovedUt = $hours;
+            }
+        }
+
+        $status = 'present';
+        if ($approvedUt > 0)       $status = 'approved_undertime';
+        elseif ($unapprovedUt > 0) $status = 'unapproved_undertime';
+        elseif ($approvedOt > 0)   $status = 'approved_overtime';
+        elseif ($unapprovedOt > 0) $status = 'unapproved_overtime';
+
+        return [
+            'late_minutes'        => $lateMinutes,
+            'scheduled_start'     => $schedule['start_time'] ?? null,
+            'scheduled_end'       => $schedule['end_time'] ?? null,
+            'approved_ot_hours'   => $approvedOt,
+            'unapproved_ot_hours' => $unapprovedOt,
+            'approved_ut_hours'   => $approvedUt,
+            'unapproved_ut_hours' => $unapprovedUt,
+            'attendance_status'   => $status,
+        ];
+    }
+
+    /**
+     * Our own export always writes ISO ("Y-m-d H:i:s" / starts "YYYY-MM-DD"),
+     * which PHP's DateTime constructor reads correctly. If the file instead
+     * has a slash-delimited date (typically because it round-tripped through
+     * Excel, which re-serializes datetimes in the local d/m/Y display format
+     * and often drops seconds), this treats it as day/month/year — never
+     * month/day/year — since that's this app's convention throughout.
+     */
+    private function parseFlexibleDateTime(string $raw): \DateTime
+    {
+        $raw = trim($raw);
+
+        if (preg_match('/^\d{4}-\d{2}-\d{2}/', $raw)) {
+            return new \DateTime($raw);
+        }
+
+        foreach (['d/m/Y H:i:s', 'd/m/Y H:i', 'd/m/Y'] as $format) {
+            $dt = \DateTime::createFromFormat($format, $raw);
+            if ($dt !== false) {
+                // createFromFormat() only sets the components present in the
+                // format string — a bare "d/m/Y" leaves the time at whatever
+                // the current clock time happens to be, unlike new DateTime()
+                // which defaults an unspecified time to midnight. Match that.
+                if ($format === 'd/m/Y') {
+                    $dt->setTime(0, 0, 0);
+                }
+                return $dt;
+            }
+        }
+
+        throw new \RuntimeException("unrecognized date/time \"{$raw}\".");
     }
 
     private function calculateTotalHours($timeIn, $timeOut, $breakDuration)
@@ -1720,6 +2165,15 @@ class PayrollController extends BaseController
             $emailAddress = $this->getUserEmail($employee['user_id']);
             if (!$emailAddress) throw new \App\Exceptions\ValidationException('Employee email not found');
 
+            // Loans-module deductions are computed here server-side, never
+            // trusted from the client — the frontend doesn't send them today,
+            // so this is a no-op (adds 0) until an employee actually has a
+            // loan installment due on this cutoff date.
+            $loanBreakdown = $this->fetchLoanScheduleBreakdown((int) $employeeId, (string) $data['period_end']);
+            $loanDeductionTotal = array_sum(array_column($loanBreakdown, 'amount'));
+            $data['loan_deductions'] = $loanBreakdown;
+            $data['net_pay'] = round(((float) ($data['net_pay'] ?? 0)) - $loanDeductionTotal, 2);
+
             $payslipModel = new \App\Models\Client\EmployeePayslipModel();
 
             // --- Step 1: Upsert DB record with generated_data FIRST ---
@@ -1855,6 +2309,16 @@ class PayrollController extends BaseController
             $employeeModel = new \App\Models\Client\EmployeeModel();
             $employee = $employeeModel->find($employeeId);
             if (!$employee) throw new \App\Exceptions\ValidationException('Employee not found');
+
+            // Loans-module deductions are computed here server-side, never
+            // trusted from the client — the frontend doesn't send them today,
+            // so this is a no-op (adds 0) until an employee actually has a
+            // loan installment due on this cutoff date.
+            $loanBreakdown = $this->fetchLoanScheduleBreakdown((int) $employeeId, (string) $periodEnd);
+            $loanDeductionTotal = array_sum(array_column($loanBreakdown, 'amount'));
+            $data['loan_deductions'] = $loanBreakdown;
+            $netPay = round(((float) $netPay) - $loanDeductionTotal, 2);
+            $data['net_pay'] = $netPay;
 
             $payslipModel = new \App\Models\Client\EmployeePayslipModel();
 
@@ -2401,6 +2865,10 @@ class PayrollController extends BaseController
             $totalLoanDeductions += (float)($loan['amount'] ?? 0);
         }
 
+        // Loans-module deductions aren't part of the manual raw-sheet fields
+        // summed above, so fold them into the printed total separately.
+        $totalDeductionsDisplay += $totalLoanDeductions;
+
         // =========================================================
         // TOTAL DEDUCTIONS
         // =========================================================
@@ -2480,26 +2948,6 @@ class PayrollController extends BaseController
         $absDays  = ($ratePerHour > 0 && $absentAmt > 0) ? (int)round($absentAmt / ($ratePerHour * 8)) : 0;
         $utHrs    = ($ratePerHour > 0 && $undertimeAmt > 0) ? (int)round($undertimeAmt / $ratePerHour) : 0;
         $rowspan  = 14; // basic section rows + OT header
-
-        $loanRowsHtml = '';
-
-        foreach (($data['loan_deductions'] ?? []) as $loan) {
-
-            $loanType = htmlspecialchars(
-                $loan['loan_type'] ?? 'Loan'
-            );
-
-            $loanAmount = $fmt(
-                $loan['amount'] ?? 0
-            );
-
-            $loanRowsHtml .= "
-                <tr>
-                    <td {$ic}>{$loanType}</td>
-                    <td {$ir}>{$loanAmount}</td>
-                </tr>
-            ";
-        }
 
         return '<!DOCTYPE html>
 <html>
@@ -2591,6 +3039,20 @@ class PayrollController extends BaseController
         ['Emergency Advance',        (float)($data['emergency_advance']   ?? 0)],
         ['Cal. Advance',             (float)($data['cal_adv']             ?? 0)],
     ];
+    // Loans-module deductions (employee_loans, via the Loans screen) — kept
+    // separate from the manual raw-sheet fields above so both sources show
+    // up on the payslip instead of the Loans-module ones being silently
+    // dropped.
+    $loanDeductionsRaw = $data['loan_deductions'] ?? [];
+    if (is_string($loanDeductionsRaw)) {
+        $loanDeductionsRaw = json_decode($loanDeductionsRaw, true) ?? [];
+    }
+    foreach ($loanDeductionsRaw as $loan) {
+        $amount = (float)($loan['amount'] ?? 0);
+        if ($amount > 0) {
+            $allLoans[] = [trim((string)($loan['loan_type'] ?? 'Loan')), $amount];
+        }
+    }
     $loans = array_values(array_filter($allLoans, fn($r) => $r[1] > 0));
     $maxRows = max(count($regDeds), count($loans));
     $loanHeader = '<th colspan="2">LOANS/ADVANCES</th>';
@@ -3294,114 +3756,129 @@ class PayrollController extends BaseController
     }
 
     // ================= LOAN BREAKDOWN =================
+
+    /**
+     * Pending Loans-module installments due on the exact cutoff date, for one
+     * employee. Shared by the public getLoanBreakdown() endpoint below and by
+     * the payslip save paths (sendPdf/savePayslipRecord), which need the same
+     * figure server-side to fold into net pay — the client never sends it.
+     *
+     * Matches due_date == $periodEnd exactly (not a range) so a payslip saved
+     * more than once for the same period always recomputes the same amount
+     * instead of accumulating — see "IMPORTANT FIX" note below.
+     */
+    private function fetchLoanScheduleBreakdown(int $employeeId, string $periodEnd): array
+    {
+        $db = \Config\Database::connect();
+
+        /*
+        |--------------------------------------------------------------------------
+        | DETERMINE CURRENT PAYROLL CUTOFF
+        |--------------------------------------------------------------------------
+        |
+        | Example:
+        | 2026-06-01 → 2026-06-15
+        | fetch ONLY June 15 deduction
+        |
+        | 2026-06-16 → 2026-06-30
+        | fetch ONLY June 30 deduction
+        |
+        */
+
+        $cutoffDate = $periodEnd;
+
+        /*
+        |--------------------------------------------------------------------------
+        | FETCH PENDING LOAN DEDUCTIONS
+        |--------------------------------------------------------------------------
+        */
+
+        $schedules = $db->table('employee_loan_schedule els')
+
+            ->select("
+                els.id,
+                els.loan_id,
+                els.amount_due,
+                els.due_date,
+                els.remaining_balance,
+                el.loan_category,
+                el.loan_type,
+                el.employee_id
+            ")
+
+            ->join(
+                'employee_loans el',
+                'el.id = els.loan_id'
+            )
+
+            ->where('el.employee_id', $employeeId)
+
+            ->where('el.loan_status', 'active')
+
+            ->where('els.schedule_status', 'pending')
+
+            /*
+            |--------------------------------------------------------------------------
+            | IMPORTANT FIX
+            |--------------------------------------------------------------------------
+            |
+            | Instead of:
+            | due_date >= periodStart
+            | due_date <= periodEnd
+            |
+            | We fetch ONLY the cutoff date.
+            |
+            */
+
+            ->where('els.due_date', $cutoffDate)
+
+            ->orderBy('els.due_date', 'ASC')
+
+            ->get()
+
+            ->getResultArray();
+
+        /*
+        |--------------------------------------------------------------------------
+        | FORMAT RESPONSE
+        |--------------------------------------------------------------------------
+        */
+
+        $breakdown = [];
+
+        foreach ($schedules as $row) {
+
+            $breakdown[] = [
+
+                'schedule_id' => (int) $row['id'],
+
+                'loan_id'     => (int) $row['loan_id'],
+
+                'loan_category' => $row['loan_category'],
+
+                'loan_type'   => $row['loan_type'],
+
+                'amount'      => (float) $row['amount_due'],
+
+                'due_date'    => $row['due_date'],
+
+                'remaining_balance' =>
+                    (float) $row['remaining_balance'],
+            ];
+        }
+
+        return $breakdown;
+    }
+
     public function getLoanBreakdown(
         int $employeeId,
         string $periodStart,
         string $periodEnd
     ) {
-
         try {
-
-            $db = \Config\Database::connect();
-
-            /*
-            |--------------------------------------------------------------------------
-            | DETERMINE CURRENT PAYROLL CUTOFF
-            |--------------------------------------------------------------------------
-            |
-            | Example:
-            | 2026-06-01 → 2026-06-15
-            | fetch ONLY June 15 deduction
-            |
-            | 2026-06-16 → 2026-06-30
-            | fetch ONLY June 30 deduction
-            |
-            */
-
-            $cutoffDate = $periodEnd;
-
-            /*
-            |--------------------------------------------------------------------------
-            | FETCH PENDING LOAN DEDUCTIONS
-            |--------------------------------------------------------------------------
-            */
-
-            $schedules = $db->table('employee_loan_schedule els')
-
-                ->select("
-                    els.id,
-                    els.loan_id,
-                    els.amount_due,
-                    els.due_date,
-                    els.remaining_balance,
-                    el.loan_category,
-                    el.loan_type,
-                    el.employee_id
-                ")
-
-                ->join(
-                    'employee_loans el',
-                    'el.id = els.loan_id'
-                )
-
-                ->where('el.employee_id', $employeeId)
-
-                ->where('el.loan_status', 'active')
-
-                ->where('els.schedule_status', 'pending')
-
-                /*
-                |--------------------------------------------------------------------------
-                | IMPORTANT FIX
-                |--------------------------------------------------------------------------
-                |
-                | Instead of:
-                | due_date >= periodStart
-                | due_date <= periodEnd
-                |
-                | We fetch ONLY the cutoff date.
-                |
-                */
-
-                ->where('els.due_date', $cutoffDate)
-
-                ->orderBy('els.due_date', 'ASC')
-
-                ->get()
-
-                ->getResultArray();
-
-            /*
-            |--------------------------------------------------------------------------
-            | FORMAT RESPONSE
-            |--------------------------------------------------------------------------
-            */
-
-            $breakdown = [];
-
-            foreach ($schedules as $row) {
-
-                $breakdown[] = [
-
-                    'schedule_id' => (int) $row['id'],
-
-                    'loan_id'     => (int) $row['loan_id'],
-
-                    'loan_category' => $row['loan_category'],
-
-                    'loan_type'   => $row['loan_type'],
-
-                    'amount'      => (float) $row['amount_due'],
-
-                    'due_date'    => $row['due_date'],
-
-                    'remaining_balance' =>
-                        (float) $row['remaining_balance'],
-                ];
-            }
-
-            return $this->response->setJSON($breakdown);
-
+            return $this->response->setJSON(
+                $this->fetchLoanScheduleBreakdown($employeeId, $periodEnd)
+            );
         } catch (\Throwable $e) {
 
             log_message(
