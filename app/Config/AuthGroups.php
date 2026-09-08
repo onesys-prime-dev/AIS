@@ -61,6 +61,14 @@ class AuthGroups extends ShieldAuthGroups
             'title'       => 'Beta User',
             'description' => 'Has access to beta-level features.',
         ],
+        'client_payroll_staff' => [
+            'title' => 'Client Payroll Staff',
+            'description' => 'Client payroll managers and payroll processors'
+        ],
+        'employee' => [
+            'title' => 'Employee',
+            'description' => 'Employees who can view payslips and payroll records'
+        ],
     ];
 
     /**
@@ -112,6 +120,16 @@ class AuthGroups extends ShieldAuthGroups
         'user' => [],
         'beta' => [
             'beta.access',
+        ],
+        'employee' => [
+            /* 'employee.view',
+            'employee.edit', */
+        ],
+        'client_payroll_staff' => [
+            /* 'employee.view',
+            'employee.edit',
+            'employee.create',
+            'employee.delete', */
         ],
     ];
 }

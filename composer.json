@@ -14,7 +14,9 @@
         "ext-intl": "*",
         "ext-mbstring": "*",
         "codeigniter4/shield": "^1.2",
+        "dompdf/dompdf": "^3.1",
         "laminas/laminas-escaper": "^2.18",
+        "phpoffice/phpspreadsheet": "^5.9",
         "psr/log": "^3.0"
     },
     "require-dev": {
