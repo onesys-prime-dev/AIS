@@ -2,7 +2,7 @@
 # Node / Tailwind
 #-------------------------
 node_modules/
-package-lock.json
+# package-lock.json
 
 #-------------------------
 # CodeIgniter
@@ -18,19 +18,19 @@ writable/uploads/*
 !writable/session/index.html
 !writable/uploads/index.html
 
-phpunit*.xml
+phpunit.xml
 .phpunit.*.cache
 
 #-------------------------
 # Composer
 #-------------------------
-vendor/
+/vendor/
 
 #-------------------------
 # Environment
 #-------------------------
 .env
-env
+# env
 
 CompreFace/
 
