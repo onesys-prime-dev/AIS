@@ -53,6 +53,7 @@ class EmployeeController extends BaseController
             MAX(employee_positions.working_days) as working_days,
             MAX(employee_positions.start_time) as start_time,
             MAX(employee_positions.end_time) as end_time,
+            MAX(employee_positions.break_schedule) as break_schedule,
             MAX(employee_positions.monthly_salary) as monthly_salary,
             MAX(employee_positions.de_minimis_benefit) as de_minimis_benefit,
             MAX(employee_positions.allowances) as allowances,

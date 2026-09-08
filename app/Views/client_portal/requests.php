@@ -246,6 +246,7 @@
 .status-badge.approved { background: #E1F5EE; color: #0F6E56; }
 .status-badge.rejected { background: #FCEBEB; color: #A32D2D; }
 .status-badge.pending  { background: #FAEEDA; color: #854F0B; }
+.status-badge.backdated { background: #EDE9FE; color: #5B21B6; font-size: 11px; padding: 2px 7px; }
 
 /* ── Page header ── */
 .page-header {
@@ -1087,6 +1088,9 @@
                                 if ($request['request_type'] === 'leave' && !empty($request['leave_category']) && $request['leave_category'] !== 'leave') {
                                     $typeLabel = ucfirst($request['leave_category']) . ' Leave';
                                 }
+                                // Filed after the fact — start_date already passed before this request existed.
+                                $isBackdated = !empty($request['start_date']) && !empty($request['created_at'])
+                                    && date('Y-m-d', strtotime($request['start_date'])) < date('Y-m-d', strtotime($request['created_at']));
                                 $noteLabel = ((string)($request['status'] ?? '') === 'pending') ? 'Message' : 'Review note';
                                 $noteText  = ((string)($request['status'] ?? '') === 'pending')
                                     ? (string)$request['reason']
@@ -1124,7 +1128,12 @@
                             <div class="request-body">
                                 <div class="request-row">
                                     <span class="label">Request type</span>
-                                    <span class="value"><?= esc($typeLabel) ?></span>
+                                    <span class="value">
+                                        <?= esc($typeLabel) ?>
+                                        <?php if ($isBackdated): ?>
+                                            <span class="status-badge backdated" title="Filed after the requested date already passed">Backdated</span>
+                                        <?php endif; ?>
+                                    </span>
                                 </div>
                                 <div class="request-row">
                                     <span class="label">Date range</span>
@@ -1421,6 +1430,24 @@ function getTypeLabel(request) {
         : (request.request_type ? request.request_type.charAt(0).toUpperCase() + request.request_type.slice(1) : 'N/A');
 }
 
+// Filed after the fact — start_date already passed before this request was created.
+function isBackdatedRequest(request) {
+    if (!request.start_date || !request.created_at) return false;
+    const start = new Date(request.start_date);
+    const filed = new Date(request.created_at);
+    if (isNaN(start.getTime()) || isNaN(filed.getTime())) return false;
+    const startDay = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+    const filedDay = new Date(filed.getFullYear(), filed.getMonth(), filed.getDate());
+    return startDay < filedDay;
+}
+
+function getTypeLabelHtml(request) {
+    const label = htmlEsc(getTypeLabel(request));
+    return isBackdatedRequest(request)
+        ? `${label} <span class="status-badge backdated" title="Filed after the requested date already passed">Backdated</span>`
+        : label;
+}
+
 // ── Tab switching ─────────────────────────────────────────────────────────────
 function switchTab(tab) {
     const isRequests = tab === 'requests';
@@ -1474,7 +1501,7 @@ function openStaffDetailModal(requestId) {
     document.getElementById('staffDetailEmpNo').textContent = 'Employee No: ' + (request.employee_number || 'N/A');
 
     // Tiles
-    document.getElementById('staffDetailType').textContent     = getTypeLabel(request);
+    document.getElementById('staffDetailType').innerHTML       = getTypeLabelHtml(request);
     const dur = Number(request.duration || 0);
     document.getElementById('staffDetailDuration').textContent = dur > 0 ? `${dur} day${dur !== 1 ? 's' : ''}` : 'N/A';
     document.getElementById('staffDetailCondition').textContent = request.approval_code ? 'Approval code' : 'Manual review';
@@ -1511,7 +1538,7 @@ function openRequestReviewModal(requestId) {
     if (!request) return;
 
     document.getElementById('reviewEmployeeName').textContent    = request.requested_by_name || 'N/A';
-    document.getElementById('reviewRequestType').textContent     = getTypeLabel(request);
+    document.getElementById('reviewRequestType').innerHTML       = getTypeLabelHtml(request);
     document.getElementById('reviewRequestDates').textContent    = formatRequestDateRange(request);
     document.getElementById('reviewRequestReason').textContent   = request.reason || '---';
     document.getElementById('reviewApprovalCondition').textContent = request.approval_code
@@ -1563,7 +1590,7 @@ function openRequestDetailModal(requestId) {
     const header = document.getElementById('requestDetailModalHeader');
     header.className = 'request-detail-modal-header ' + status;
     document.getElementById('requestDetailModalTitle').textContent = statusLabel + ' Request';
-    document.getElementById('detailRequestType').textContent       = getTypeLabel(request);
+    document.getElementById('detailRequestType').innerHTML         = getTypeLabelHtml(request);
     document.getElementById('detailDateRange').textContent         = formatRequestDateRange(request);
     document.getElementById('detailReason').textContent            = request.reason || '---';
 

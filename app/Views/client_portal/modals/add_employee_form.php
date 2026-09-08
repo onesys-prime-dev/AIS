@@ -503,6 +503,22 @@
 
                     </div>
 
+                    <div>
+                        <label class="block text-sm text-gray-600 mb-2">
+                            Break Schedule
+                            <span class="text-xs text-gray-400">(set each break's own duration — e.g. a short break and a longer lunch)</span>
+                        </label>
+
+                        <div id="add_break_list" class="space-y-2"></div>
+
+                        <button type="button" onclick="addBreakRow('add')"
+                            class="text-xs text-[#7b5cff] hover:underline mt-2">
+                            + Add Break
+                        </button>
+
+                        <input type="hidden" name="break_schedule" id="add_break_schedule_input">
+                    </div>
+
                 </div>
 
             </div>
@@ -896,6 +912,63 @@ function toggleAddScheduleTime(type) {
     const row = document.getElementById('add_schedule_time_row');
     if (row) row.style.display = (type === 'flexible') ? 'none' : '';
 }
+
+// ---- Break Schedule (each break has its own duration) ----
+function breakRowTemplate(prefix, idx, minutes) {
+    return `<div class="flex items-center gap-2" data-break-row>
+        <span class="text-xs text-gray-500 w-16 shrink-0">Break ${idx + 1}</span>
+        <input type="number" min="1" step="1" value="${minutes}"
+            class="form-input flex-1" data-break-minutes
+            oninput="syncBreakSchedule('${prefix}')" placeholder="Minutes">
+        <span class="text-xs text-gray-400 shrink-0">min</span>
+        <button type="button" onclick="removeBreakRow('${prefix}', this)"
+            class="text-red-400 hover:text-red-600 text-xs shrink-0">✕</button>
+    </div>`;
+}
+
+function addBreakRow(prefix, minutes) {
+    const list = document.getElementById(prefix + '_break_list');
+    if (!list) return;
+    const idx = list.querySelectorAll('[data-break-row]').length;
+    list.insertAdjacentHTML('beforeend', breakRowTemplate(prefix, idx, minutes || 60));
+    syncBreakSchedule(prefix);
+}
+
+function removeBreakRow(prefix, btn) {
+    const list = document.getElementById(prefix + '_break_list');
+    btn.closest('[data-break-row]').remove();
+    // Renumber labels after removal
+    list.querySelectorAll('[data-break-row]').forEach((row, i) => {
+        row.querySelector('span').textContent = `Break ${i + 1}`;
+    });
+    syncBreakSchedule(prefix);
+}
+
+function syncBreakSchedule(prefix) {
+    const list = document.getElementById(prefix + '_break_list');
+    const input = document.getElementById(prefix + '_break_schedule_input');
+    if (!list || !input) return;
+    const minutes = Array.from(list.querySelectorAll('[data-break-minutes]'))
+        .map(el => parseInt(el.value, 10) || 0)
+        .filter(v => v > 0);
+    input.value = JSON.stringify(minutes);
+}
+
+// Replace the current break list with a specific set of minutes (used when
+// populating the Edit form from an existing employee's saved break_schedule).
+function rebuildBreakRows(prefix, minutesArray) {
+    const list = document.getElementById(prefix + '_break_list');
+    if (!list) return;
+    list.innerHTML = '';
+    (minutesArray && minutesArray.length ? minutesArray : [60]).forEach(m => {
+        const idx = list.querySelectorAll('[data-break-row]').length;
+        list.insertAdjacentHTML('beforeend', breakRowTemplate(prefix, idx, m));
+    });
+    syncBreakSchedule(prefix);
+}
+
+// Seed one default break (60 min) so the list isn't empty on a fresh form
+addBreakRow('add', 60);
 
 // Form validation
 document.getElementById('employeeForm').addEventListener('submit', function(e) {

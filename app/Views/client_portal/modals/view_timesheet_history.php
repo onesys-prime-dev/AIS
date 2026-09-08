@@ -93,60 +93,106 @@
         )
         .then(res => res.json())
         .then(data => {
-            console.log(data);
             openModalById('viewHistoryDetailsModal');
-            renderHistoryDetails(data.daily || []);
+            const subtitle = document.getElementById('historyDetailsSubtitle');
+            if (subtitle) subtitle.textContent = `${formatHistoryDate(start)} – ${formatHistoryDate(end)}`;
+            renderHistoryDetails(data.daily || [], data.totals || {});
         });
     }
 
-    function renderHistoryDetails(rows)
-    {
-        const container =
-            document.getElementById(
-                'historyDetailsContainer'
-            );
+    // Same badge styling as the main timesheet table, reused here (both
+    // scripts run on the same page, so these are already defined globally
+    // by the time a user opens this modal).
+    function historyCell(value, formatted, type) {
+        return (typeof badge === 'function')
+            ? badge(value, formatted, type)
+            : (formatted ?? '—');
+    }
 
+    function renderHistoryDetails(rows, totals)
+    {
+        const container = document.getElementById('historyDetailsContainer');
         if (!container) return;
 
         if (!rows.length) {
-            container.innerHTML =
-                '<p>No records found.</p>';
-
+            container.innerHTML = `
+                <div class="flex flex-col items-center gap-2 text-gray-400 py-10">
+                    <span class="text-base font-semibold text-gray-500">No records found</span>
+                    <span class="text-sm">No attendance records for this period.</span>
+                </div>`;
             return;
         }
 
-        let html = `
-            <table class="w-full text-sm">
-                <thead class="bg-gray-100">
-                    <tr>
-                        <th class="p-3 text-left">Date</th>
-                        <th class="p-3 text-left">In</th>
-                        <th class="p-3 text-left">Out</th>
-                        <th class="p-3 text-left">Regular</th>
-                        <th class="p-3 text-left">OT</th>
-                    </tr>
-                </thead>
-                <tbody>
-        `;
+        const esc = (typeof escapeHtml === 'function') ? escapeHtml : (s => s ?? '');
+        const fmtDate = (typeof formatDate === 'function') ? formatDate : (d => d);
 
-        rows.forEach(row => {
-            html += `
-                <tr>
-                   <td class="p-3 border-b">${row.date}</td>
-                   <td class="p-3 border-b">${row.in}</td>
-                   <td class="p-3 border-b">${row.out}</td>
-                   <td class="p-3 border-b">${row.regular_hours}</td>
-                   <td class="p-3 border-b">${row.ot_hours}</td>
-                </tr>
-            `;
+        let rowsHtml = '';
+        rows.forEach((day, i) => {
+            const rowBg = i % 2 === 0 ? '' : 'bg-gray-50/60';
+            const timeIn  = day.in  && day.in  !== '-' ? esc(day.in)  : '<span class="text-gray-400">—</span>';
+            const timeOut = day.out && day.out !== '-' ? esc(day.out) : '<span class="text-gray-400">—</span>';
+            const clientCell = day.client ? `<span class="text-gray-700">${esc(day.client)}</span>` : '<span class="text-gray-300">—</span>';
+            const taskCell   = day.task_performed ? `<span class="text-gray-700">${esc(day.task_performed)}</span>` : '<span class="text-gray-300">—</span>';
+
+            rowsHtml += `
+                <tr class="border-b border-gray-100 ${rowBg}">
+                    <td class="px-4 py-3 whitespace-nowrap font-medium text-gray-700">${fmtDate(day.date)}</td>
+                    <td class="px-4 py-3 whitespace-nowrap text-gray-600">${timeIn}</td>
+                    <td class="px-4 py-3 whitespace-nowrap text-gray-600">${timeOut}</td>
+                    <td class="px-4 py-3 text-right whitespace-nowrap">${historyCell(day.regular_hours, (day.regular_hours || 0).toFixed(2), 'reg')}</td>
+                    <td class="px-4 py-3 text-right whitespace-nowrap">${historyCell(day.ot_hours, (day.ot_hours || 0).toFixed(2), 'ot')}</td>
+                    <td class="px-4 py-3 text-right whitespace-nowrap" title="Worked but not approved">${historyCell(day.unapproved_ot_hours, (day.unapproved_ot_hours || 0).toFixed(2), 'unot')}</td>
+                    <td class="px-4 py-3 text-right whitespace-nowrap">${historyCell(day.rdot_hours, (day.rdot_hours || 0).toFixed(2), 'rdot')}</td>
+                    <td class="px-4 py-3 text-right whitespace-nowrap">${historyCell(Math.round(day.tardy_minutes || 0), Math.round(day.tardy_minutes || 0), 'tardy')}</td>
+                    <td class="px-4 py-3 text-right whitespace-nowrap">${historyCell(day.undertime_hours, (day.undertime_hours || 0).toFixed(2), 'ut')}</td>
+                    <td class="px-4 py-3 text-right whitespace-nowrap">${historyCell(day.night_diff, (day.night_diff || 0).toFixed(2), 'nd')}</td>
+                    <td class="px-4 py-3 text-sm text-gray-500">${esc(day.remarks) || '<span class="text-gray-300">—</span>'}</td>
+                    <td class="px-4 py-3 text-sm">${clientCell}</td>
+                    <td class="px-4 py-3 text-sm">${taskCell}</td>
+                </tr>`;
         });
 
-        html += `
-                </tbody>
-            </table>
-        `;
+        const t = Object.assign({
+            regular_hours: 0, ot_hours: 0, rdot_hours: 0, tardy_minutes: 0,
+            night_diff: 0, unapproved_ot_hours: 0, undertime_hours: 0,
+        }, totals);
 
-        container.innerHTML = html;
+        container.innerHTML = `
+            <div class="overflow-x-auto rounded-xl border border-gray-200">
+                <table class="min-w-[1240px] w-full text-sm border-collapse">
+                    <thead>
+                        <tr class="bg-[#DCDCDC] text-[#737373] border-y border-[#C5C5C5] h-[48px]">
+                            <th class="px-4 text-left font-bold">Date</th>
+                            <th class="px-4 text-left font-bold">Time In</th>
+                            <th class="px-4 text-left font-bold">Time Out</th>
+                            <th class="px-4 text-right font-bold">Regular Hrs</th>
+                            <th class="px-4 text-right font-bold">OT Hrs</th>
+                            <th class="px-4 text-right font-bold">Unapproved OT</th>
+                            <th class="px-4 text-right font-bold">RDOT Hrs</th>
+                            <th class="px-4 text-right font-bold">Tardy (min)</th>
+                            <th class="px-4 text-right font-bold">Undertime</th>
+                            <th class="px-4 text-right font-bold">Night Diff</th>
+                            <th class="px-4 text-left font-bold">Remarks</th>
+                            <th class="px-4 text-left font-bold">Client</th>
+                            <th class="px-4 text-left font-bold">Task Performed</th>
+                        </tr>
+                    </thead>
+                    <tbody>${rowsHtml}</tbody>
+                    <tfoot>
+                        <tr class="bg-[#DCDCDC] text-[#666] border-t border-[#C5C5C5] h-[48px] font-semibold">
+                            <td colspan="3" class="px-4 text-center tracking-wide">TOTALS</td>
+                            <td class="px-4 text-right">${t.regular_hours.toFixed(2)}</td>
+                            <td class="px-4 text-right">${t.ot_hours.toFixed(2)}</td>
+                            <td class="px-4 text-right">${t.unapproved_ot_hours.toFixed(2)}</td>
+                            <td class="px-4 text-right">${t.rdot_hours.toFixed(2)}</td>
+                            <td class="px-4 text-right">${Math.round(t.tardy_minutes)}</td>
+                            <td class="px-4 text-right">${t.undertime_hours.toFixed(2)}</td>
+                            <td class="px-4 text-right">${t.night_diff.toFixed(2)}</td>
+                            <td colspan="3"></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>`;
     }
 
     (function () {

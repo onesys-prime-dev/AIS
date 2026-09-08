@@ -1,6 +1,22 @@
 <style>
+/*
+ * NOTE ON CLASS NAMES: this component keeps "modal-overlay" / "modal-close"
+ * on its markup because public/js/components/modal-handler.js's global
+ * click-delegate looks for those exact classes to know what to close. But at
+ * least 7 different files in this codebase independently define their OWN
+ * ".modal-overlay { ... }" rule (dashboard.php, view_notification.php,
+ * employee_account.php, components/modal.php, components/add_loan_modal.php,
+ * etc.) — since CSS classes are global and unscoped, whichever one of those
+ * happens to load LAST on a given page wins the cascade for any shared
+ * property, including this component's blurred ::before backdrop leaking
+ * onto a completely different modal system that never asked for it.
+ * Every selector below is therefore a COMPOUND selector requiring the
+ * "civm-" (unique, unused-elsewhere) marker class too, giving it higher
+ * specificity than any single-class ".modal-overlay" rule regardless of
+ * load order — a real fix, not just a rename that could still lose a race.
+ */
 
-.modal-overlay {
+.modal-overlay.civm-overlay {
 
     position: fixed;
 
@@ -20,13 +36,13 @@
 }
 
 /* SHOW MODAL */
-.modal-overlay.show {
+.modal-overlay.civm-overlay.show {
 
     display: flex;
 }
 
 /* DARK BLURRED BACKDROP */
-.modal-overlay::before {
+.modal-overlay.civm-overlay::before {
 
     content: '';
 
@@ -42,7 +58,7 @@
 }
 
 /* MODAL BOX */
-.default-modal-box {
+.civm-box {
 
     background: #fff;
 
@@ -60,19 +76,21 @@
 
     padding: 24px;
 
-    animation: modalPop .18s ease;
+    animation: civmModalPop .18s ease;
 
     z-index: 1;
 }
 
 /* CLOSE BUTTON */
-.default-modal-close {
+.modal-close.civm-close {
 
     position: absolute;
 
     right: 18px;
 
     top: 14px;
+
+    z-index: 10;
 
     border: none;
 
@@ -89,7 +107,7 @@
     transition: .18s ease;
 }
 
-.default-modal-close:hover {
+.modal-close.civm-close:hover {
 
     color: #111;
 
@@ -97,7 +115,7 @@
 }
 
 /* TITLE */
-.default-modal-title {
+.civm-title {
 
     font-size: 22px;
 
@@ -111,7 +129,7 @@
 }
 
 /* ANIMATION */
-@keyframes modalPop {
+@keyframes civmModalPop {
 
     from {
 
@@ -132,16 +150,16 @@
 
 
 <!-- MODAL -->
-<div id="<?= esc($id) ?>" class="modal-overlay">
+<div id="<?= esc($id) ?>" class="modal-overlay civm-overlay">
 
     <!-- MODAL BOX -->
-    <div class="default-modal-box"
+    <div class="civm-box"
          style="max-width: <?= esc($maxWidth ?? '950px') ?>;">
 
         <!-- CLOSE BUTTON -->
         <button
             type="button"
-            class="default-modal-close modal-close">
+            class="modal-close civm-close">
 
             ✕
 
@@ -150,7 +168,7 @@
         <!-- TITLE -->
         <?php if (isset($title)): ?>
 
-            <h2 class="default-modal-title">
+            <h2 class="civm-title">
 
                 <?= esc($title) ?>
 

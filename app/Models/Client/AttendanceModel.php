@@ -30,6 +30,7 @@ class AttendanceModel extends Model
         'unapproved_ut_hours',
 
         'unapproved_ut_reason',
+        'missed_clockout_reason',
         'attendance_status',
 
         'time_in_dt',

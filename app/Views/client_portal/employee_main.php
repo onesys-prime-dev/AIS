@@ -243,6 +243,7 @@ function htmlEsc(val)
                         data-working_days='${htmlEsc(p.working_days || "[]")}'
                         data-start_time="${htmlEsc(p.start_time)}"
                         data-end_time="${htmlEsc(p.end_time)}"
+                        data-break_schedule='${htmlEsc(p.break_schedule || "[]")}'
 
                         data-sss="${htmlEsc(p.sss)}"
                         data-tin="${htmlEsc(p.tin)}"
@@ -939,6 +940,13 @@ window.addEventListener('click', function(e)
         setVal('edit_start_time',        button.dataset.start_time);
         setVal('edit_end_time',          button.dataset.end_time);
         if (typeof toggleEditScheduleTime === 'function') toggleEditScheduleTime(button.dataset.working_day_type);
+
+        // Restore break schedule (falls back to a single 60-min break if unset)
+        if (typeof rebuildBreakRows === 'function') {
+            let breakMinutes = [];
+            try { breakMinutes = JSON.parse(button.dataset.break_schedule || '[]'); } catch (e) { breakMinutes = []; }
+            rebuildBreakRows('edit', Array.isArray(breakMinutes) && breakMinutes.length ? breakMinutes : [60]);
+        }
 
         // Restore working day checkboxes
         try {

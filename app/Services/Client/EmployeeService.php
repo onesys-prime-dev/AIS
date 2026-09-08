@@ -60,6 +60,7 @@ class EmployeeService
                 static fn ($day) => strtolower(trim((string) $day)),
                 (array) ($data['working_days'] ?? [])
             )));
+            $breakSchedule = $this->parseBreakSchedule($data['break_schedule'] ?? null);
 
             if ($startTime === '' || $endTime === '') {
                 throw new \Exception('Start time and end time are required.');
@@ -162,6 +163,7 @@ class EmployeeService
                 'start_time' => $startTime,
                 'end_time' => $endTime,
                 'working_days' => json_encode($workingDays),
+                'break_schedule' => json_encode($breakSchedule),
                 'monthly_salary' => isset($data['monthly_salary']) && $data['monthly_salary'] !== '' ? (float) $data['monthly_salary'] : null,
                 'de_minimis_benefit' => isset($data['de_minimis_benefit']) && $data['de_minimis_benefit'] !== '' ? (float) $data['de_minimis_benefit'] : 0,
                 'de_minimis_breakdown' => isset($data['de_minimis_breakdown']) && $data['de_minimis_breakdown'] !== '' ? $data['de_minimis_breakdown'] : null,
@@ -284,6 +286,29 @@ class EmployeeService
         }
     }
 
+    /**
+     * Parses the break_schedule form field (a JSON array of per-break minutes,
+     * e.g. "[15,60,15]") into a clean array of positive integers. Falls back to
+     * a single 60-minute break — matching the previous flat-1-hour rule — when
+     * nothing valid was submitted.
+     */
+    private function parseBreakSchedule($raw): array
+    {
+        if (is_string($raw) && $raw !== '') {
+            $decoded = json_decode($raw, true);
+            if (is_array($decoded)) {
+                $minutes = array_values(array_filter(
+                    array_map('intval', $decoded),
+                    static fn ($m) => $m > 0
+                ));
+                if ($minutes !== []) {
+                    return $minutes;
+                }
+            }
+        }
+        return [60];
+    }
+
     private function generateEmployeeNumber()
     {
         $year = date('Y');
@@ -381,6 +406,10 @@ class EmployeeService
                 if ($workingDays !== []) {
                     $scheduleData['working_days'] = json_encode($workingDays);
                 }
+            }
+
+            if (isset($data['break_schedule']) && trim((string) $data['break_schedule']) !== '') {
+                $scheduleData['break_schedule'] = json_encode($this->parseBreakSchedule($data['break_schedule']));
             }
 
             /*

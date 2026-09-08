@@ -21,7 +21,16 @@
         });
         const result = await response.json();
         if (result.success) {
-            showToast('Timesheet imported successfully.', 'success');
+            const skippedCount = result.skipped || 0;
+            if (skippedCount > 0) {
+                console.warn('Timesheet import — skipped rows:', result.errors);
+                showToast(
+                    `${result.imported} row(s) imported, ${skippedCount} skipped — see browser console for details.`,
+                    'warning'
+                );
+            } else {
+                showToast(`${result.imported} row(s) imported successfully.`, 'success');
+            }
             // Close modal (if using a modal)
             const modal = document.getElementById('importTimesheetModal');
             if (modal) modal.style.display = 'none';

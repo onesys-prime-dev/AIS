@@ -10,7 +10,10 @@
         'rdot_hours' => 0,
         'tardy_minutes' => 0,
         'night_diff' => 0,
+        'unapproved_ot_hours' => 0,
+        'undertime_hours' => 0,
     ];
+    $isPayrollAdmin = $isPayrollAdmin ?? false;
 ?>
 
 <div class="h-full flex flex-col min-h-0 overflow-hidden px-8 pb-8">
@@ -32,9 +35,20 @@
             <button type="button"
                 data-modal-open="viewTimesheetHistoryModal"
                 onclick="openModalById('viewTimesheetHistoryModal')"
-                class="bg-[#FFFFFF] hover:bg-[#f3f4f6] px-3 py-3 rounded-lg shadow hover:shadow-[0_6px_12px_rgba(0,0,0,0.2)] flex items-center gap-2 transition hover:translate-y-[-2px]">
+                class="bg-[#FFFFFF] hover:bg-[#f3f4f6] px-3 py-3 rounded-lg shadow hover:shadow-[0_6px_12px_rgba(0,0,0,0.2)] flex items-center gap-2 transition hover:translate-y-[-2px] text-gray-700 text-sm font-medium">
                 <img src="<?= base_url('icons/alarms.png'); ?>" class="w-7 h-7" alt="History">
+                Past Timesheets
             </button>
+
+            <?php if ($isPayrollAdmin): ?>
+            <button type="button"
+                data-modal-open="viewEmployeeTimesheetModal"
+                onclick="openModalById('viewEmployeeTimesheetModal')"
+                class="bg-[#FFFFFF] hover:bg-[#f3f4f6] px-3 py-3 rounded-lg shadow hover:shadow-[0_6px_12px_rgba(0,0,0,0.2)] flex items-center gap-2 transition hover:translate-y-[-2px] text-gray-700 text-sm font-medium">
+                <img src="<?= base_url('icons/activity.png'); ?>" class="w-7 h-7" alt="Review Employee Timesheets">
+                Review Employee Timesheets
+            </button>
+            <?php endif; ?>
 
             <button type="button"
                 data-modal-open="viewPayslipModal"
@@ -87,8 +101,10 @@
                     <col class="w-[100px]">
                     <col class="w-[110px]">
                     <col class="w-[90px]">
+                    <col class="w-[110px]">
                     <col class="w-[100px]">
                     <col class="w-[110px]">
+                    <col class="w-[100px]">
                     <col class="w-[110px]">
                     <col class="w-[150px]">
                     <col class="w-[130px]">
@@ -105,8 +121,10 @@
 
                         <th class="px-4 text-right font-bold">Regular Hrs</th>
                         <th class="px-4 text-right font-bold">OT Hrs</th>
+                        <th class="px-4 text-right font-bold" title="Worked but not approved — not counted toward Regular or OT">Unapproved OT</th>
                         <th class="px-4 text-right font-bold">RDOT Hrs</th>
                         <th class="px-4 text-right font-bold">Tardy (min)</th>
+                        <th class="px-4 text-right font-bold" title="Time missed within the scheduled window (late arrival, early leave, etc.)">Undertime</th>
                         <th class="px-4 text-right font-bold">Night Diff</th>
 
                         <th class="px-4 text-left font-bold">Remarks</th>
@@ -138,8 +156,10 @@
                         <col class="w-[100px]">
                         <col class="w-[110px]">
                         <col class="w-[90px]">
+                        <col class="w-[110px]">
                         <col class="w-[100px]">
                         <col class="w-[110px]">
+                        <col class="w-[100px]">
                         <col class="w-[110px]">
                         <col class="w-[150px]">
                         <col class="w-[130px]">
@@ -164,8 +184,10 @@
                     <col class="w-[100px]">
                     <col class="w-[110px]">
                     <col class="w-[90px]">
+                    <col class="w-[110px]">
                     <col class="w-[100px]">
                     <col class="w-[110px]">
+                    <col class="w-[100px]">
                     <col class="w-[110px]">
                     <col class="w-[150px]">
                     <col class="w-[130px]">
@@ -198,6 +220,11 @@
                             <span id="totalOt">0.00</span>
                         </td>
 
+                        <!-- UNAPPROVED OT -->
+                        <td class="px-4 text-right">
+                            <span id="totalUnapprovedOt">0.00</span>
+                        </td>
+
                         <!-- RDOT -->
                         <td class="px-4 text-right">
                             <span id="totalRdot">0.00</span>
@@ -206,6 +233,11 @@
                         <!-- TARDY -->
                         <td class="px-4 text-right">
                             <span id="totalTardy">0</span>
+                        </td>
+
+                        <!-- UNDERTIME -->
+                        <td class="px-4 text-right">
+                            <span id="totalUndertime">0.00</span>
                         </td>
 
                         <!-- NIGHT DIFF -->
@@ -267,35 +299,48 @@
         ]);
     ?>
 
+    <!-- Review Employee Timesheets Modal (client_payroll_staff / admin only) -->
+    <?php if ($isPayrollAdmin): ?>
+    <?php
+        $content = view('client_portal/modals/view_employee_timesheet_review');
+        echo view('components/view_modal', [
+            'id'       => 'viewEmployeeTimesheetModal',
+            'title'    => 'Review Employee Timesheets',
+            'maxWidth' => '1320px',
+            'content'  => $content,
+        ]);
+    ?>
+    <?php endif; ?>
+
     <!-- View Timesheet Details Modal -->
     <?php
-        $content = '<div id="historyDetailsContainer"></div>';
+        $content = '<p id="historyDetailsSubtitle" class="text-sm text-gray-500 -mt-3 mb-4"></p>'
+                 . '<div id="historyDetailsContainer"></div>';
         echo view('components/view_modal', [
             'id' => 'viewHistoryDetailsModal',
             'title' => 'Timesheet Details',
+            'maxWidth' => '1320px',
             'content' => $content,
         ]);
     ?>
 
-    <!-- Task Log Modal -->
+    <!-- Task Log Modal — chrome matches the Dashboard's Task Log modal
+         (rgba(0,0,0,.45) backdrop, no blur, 14px radius, modalPop animation)
+         for a consistent look between the two entry points. -->
     <div id="taskLogModal"
         class="fixed inset-0 z-[9999] hidden items-center justify-center">
 
-        <!-- DARK BLURRED BACKDROP -->
-        <div class="absolute inset-0" style="
-        background: rgba(0, 0, 0, 0.78);
-        backdrop-filter: blur(7px);
-        -webkit-backdrop-filter: blur(7px);
-     "></div>
+        <!-- BACKDROP -->
+        <div class="absolute inset-0" style="background: rgba(0, 0, 0, 0.45);"></div>
 
         <!-- MODAL -->
-        <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden animate-[fadeIn_.2s_ease-out]">
+        <div class="relative bg-white w-full mx-4 flex flex-col overflow-hidden" style="max-width:640px;max-height:85vh;border-radius:14px;box-shadow:0 25px 50px rgba(0,0,0,0.25);animation:tlModalPop 0.2s ease;">
 
             <!-- HEADER -->
-            <div class="flex justify-between items-center px-6 py-4 border-b border-gray-100">
+            <div class="flex justify-between items-center px-5 py-4 border-b border-gray-200 flex-shrink-0">
                 <div>
-                    <h3 class="text-lg font-bold text-gray-800">
-                        Edit Task Log
+                    <h3 class="text-xl font-bold text-gray-800">
+                        Task Log
                     </h3>
 
                     <p id="task_att_date"
@@ -303,65 +348,153 @@
                     </p>
                 </div>
 
-                <button onclick="closeTaskLogModal()"
-                        class="text-gray-400 hover:text-gray-600 transition text-2xl leading-none">
+                <button onclick="closeTaskLogModal()" class="tl-modal-close">
                     &times;
                 </button>
             </div>
 
-            <!-- BODY -->
-            <div class="px-6 py-5 space-y-4">
+            <!-- BODY (scrollable) -->
+            <div class="px-5 py-4 overflow-y-auto">
 
-                <!-- CLIENT -->
-                <div>
-                    <label class="block text-xs font-semibold text-gray-500 mb-1">
-                        Client
-                    </label>
-
-                    <input
-                        type="text"
-                        id="task_att_client"
-                        placeholder="e.g. Acme Corp"
-                        class="w-full bg-gray-50 rounded-lg px-3 py-2.5 text-sm text-gray-700 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-purple-400 transition">
+                <!-- TIMELINE -->
+                <div class="mb-4">
+                    <div class="flex items-center justify-between" style="margin-bottom:6px;">
+                        <label class="text-xs font-semibold text-gray-500">Your Clocked-In Time</label>
+                        <span id="tl_window_label" class="text-xs text-gray-400"></span>
+                    </div>
+                    <div id="tl_timeline" class="relative w-full bg-gray-100 rounded-lg overflow-hidden border border-gray-200" style="height:32px;cursor:pointer;"></div>
+                    <p class="text-[11px] text-gray-400 mt-1">Colored blocks are already-logged tasks — click a free (empty) spot to start a new one there.</p>
                 </div>
 
-                <!-- TASK -->
-                <div>
-                    <label class="block text-xs font-semibold text-gray-500 mb-1">
-                        Task Performed
-                    </label>
-
-                    <textarea
-                        id="task_att_text"
-                        rows="4"
-                        placeholder="Describe the tasks you performed…"
-                        class="w-full bg-gray-50 rounded-lg px-3 py-2.5 text-sm text-gray-700 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-purple-400 resize-none transition"></textarea>
+                <!-- TASK LIST -->
+                <div class="mb-4">
+                    <label class="text-xs font-semibold text-gray-500 block" style="margin-bottom:6px;">Logged Tasks</label>
+                    <div id="tl_task_list"></div>
+                    <p id="tl_empty_msg" class="text-xs text-gray-400 text-center py-3 hidden">No tasks logged yet for this session.</p>
                 </div>
 
-                <input type="hidden" id="task_att_id">
+                <!-- ADD/EDIT FORM -->
+                <div class="border-t border-gray-100" style="padding-top:12px;">
+                    <div class="flex items-center justify-between" style="margin-bottom:6px;">
+                        <label id="tl_form_title" class="text-xs font-semibold text-gray-700">Add a Task</label>
+                        <button type="button" id="tl_cancel_edit_btn" onclick="cancelTaskEdit()" class="hidden text-xs text-purple-600 hover:text-purple-700 font-semibold">Cancel edit</button>
+                    </div>
+
+                    <div class="grid grid-cols-2 mb-2" style="gap:10px;">
+                        <div>
+                            <label class="block text-[11px] text-gray-400 mb-0.5">Start Time</label>
+                            <input type="hidden" id="task_start_time">
+                            <div class="tl-time-row">
+                                <select id="task_start_hour" class="tl-time-select"></select>
+                                <span class="tl-time-colon">:</span>
+                                <select id="task_start_minute" class="tl-time-select"></select>
+                                <select id="task_start_ampm" class="tl-time-select tl-time-ampm"></select>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-[11px] text-gray-400 mb-0.5">End Time</label>
+                            <input type="hidden" id="task_end_time">
+                            <div class="tl-time-row">
+                                <select id="task_end_hour" class="tl-time-select"></select>
+                                <span class="tl-time-colon">:</span>
+                                <select id="task_end_minute" class="tl-time-select"></select>
+                                <select id="task_end_ampm" class="tl-time-select tl-time-ampm"></select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center justify-between" style="margin-bottom:10px;">
+                        <div class="flex" style="gap:6px;">
+                            <button type="button" onclick="applyDurationPreset(15)" class="tl-duration-chip">15m</button>
+                            <button type="button" onclick="applyDurationPreset(30)" class="tl-duration-chip">30m</button>
+                            <button type="button" onclick="applyDurationPreset(60)" class="tl-duration-chip">1h</button>
+                            <button type="button" onclick="applyDurationPreset(120)" class="tl-duration-chip">2h</button>
+                        </div>
+                        <span id="tl_duration_label" class="text-[11px] font-semibold text-gray-500"></span>
+                    </div>
+
+                    <label class="block text-[11px] text-gray-400 mb-0.5">Client</label>
+                    <input type="text" id="task_att_client" placeholder="e.g. Acme Corp" class="tl-field mb-2">
+
+                    <label class="block text-[11px] text-gray-400 mb-0.5">Task Performed</label>
+                    <textarea id="task_att_text" rows="2" placeholder="Describe the task…" class="tl-field resize-none"></textarea>
+
+                    <p id="tl_form_error" class="text-xs text-red-600 hidden" style="margin-top:6px;"></p>
+
+                    <input type="hidden" id="task_att_id">
+                    <input type="hidden" id="task_editing_id" value="">
+                </div>
             </div>
 
             <!-- FOOTER -->
-            <div class="flex justify-end gap-3 px-6 py-4 bg-gray-50 border-t border-gray-100">
+            <div class="flex justify-end px-5 border-t border-gray-200 flex-shrink-0" style="padding-top:14px;padding-bottom:14px;gap:10px;">
 
                 <button
                     type="button"
                     onclick="closeTaskLogModal()"
-                    class="px-4 py-2 text-sm rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-100 transition">
-                    Cancel
+                    class="tl-cancel-btn">
+                    Close
                 </button>
 
                 <button
                     type="button"
-                    onclick="saveTaskLog()"
-                    class="px-5 py-2 text-sm rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-semibold shadow-md hover:shadow-lg transition">
-                    Save
+                    id="tl_save_btn"
+                    onclick="saveTask()"
+                    class="tl-submit-btn">
+                    Add Task
                 </button>
 
             </div>
 
         </div>
     </div>
+
+    <style>
+        @keyframes tlModalPop{ from{ transform:scale(0.95); opacity:0; } to{ transform:scale(1); opacity:1; } }
+
+        .tl-field{
+            width:100%; padding:8px 10px; font-size:14px; color:#374151;
+            background:#f9fafb; border:1px solid #e5e7eb; border-radius:8px;
+            outline:none; transition:border-color .15s;
+        }
+        .tl-field:focus{ border-color:#a78bfa; box-shadow:0 0 0 2px rgba(167,139,250,0.35); }
+
+        .tl-modal-close{
+            border:none; background:transparent; cursor:pointer;
+            font-size:24px; line-height:1; color:#111827; padding:0;
+        }
+
+        .tl-cancel-btn{
+            border:none; background:#e5e7eb; color:#111827;
+            padding:8px 14px; border-radius:6px; font-size:14px; font-weight:500;
+            cursor:pointer; transition:all 0.2s ease;
+        }
+        .tl-cancel-btn:hover{ background:#d1d5db; transform:translateY(-2px); }
+
+        .tl-submit-btn{
+            border:none; background:#8b5cf6; color:#fff;
+            padding:8px 16px; border-radius:6px; font-size:14px; font-weight:600;
+            cursor:pointer; transition:all 0.2s ease;
+        }
+        .tl-submit-btn:hover{ background:#7c3aed; transform:translateY(-2px); box-shadow:0 4px 12px rgba(139,92,246,0.3); }
+
+        .tl-duration-chip{
+            border:1px solid #e5e7eb; background:#f9fafb; color:#4b5563;
+            padding:3px 10px; border-radius:999px; font-size:11px; font-weight:600;
+            cursor:pointer; transition:.15s ease;
+        }
+        .tl-duration-chip:hover{ background:#ede9fe; border-color:#c4b5fd; color:#6d28d9; }
+
+        .tl-time-row{ display:flex; align-items:center; gap:4px; }
+        .tl-time-select{
+            flex:1; min-width:0; padding:8px 4px; font-size:13px; color:#374151;
+            background:#f9fafb; border:1px solid #e5e7eb; border-radius:8px;
+            outline:none; text-align:center; transition:border-color .15s;
+        }
+        .tl-time-select:focus{ border-color:#a78bfa; box-shadow:0 0 0 2px rgba(167,139,250,0.35); }
+        .tl-time-select.tl-time-ampm{ flex:0 0 58px; }
+        .tl-time-colon{ color:#9ca3af; font-weight:700; font-size:13px; }
+    </style>
 <?= $this->endSection() ?>
 
 <?= $this->section('scripts') ?>
@@ -371,7 +504,9 @@
 <script>
 const DAILY_DATA = <?= json_encode($dailyTimesheet) ?>;
 const TOTALS = <?= json_encode($totals) ?>;
-const UPDATE_TASK_LOG_URL = "<?= site_url('client_portal/timesheet/update-task-log') ?>";
+const TASKS_BASE_URL  = "<?= site_url('client_portal/timesheet/tasks') ?>";
+const UPDATE_TASK_URL = "<?= site_url('client_portal/timesheet/tasks/edit') ?>";
+const DELETE_TASK_URL = "<?= site_url('client_portal/timesheet/tasks/delete') ?>";
 
 let currentData = [...DAILY_DATA];
 
@@ -394,9 +529,11 @@ function badge(value, formatted, type) {
         tardy: 'bg-yellow-100 text-yellow-700',
         nd:    'bg-purple-100 text-purple-700',
         reg:   'text-gray-800 font-medium',
+        unot:  'bg-red-100 text-red-700',
+        ut:    'bg-orange-100 text-orange-700',
     };
     const cls = styles[type] || 'text-gray-800';
-    const pill = ['ot','rdot','tardy','nd'].includes(type);
+    const pill = ['ot','rdot','tardy','nd','unot','ut'].includes(type);
     return pill
         ? `<span class="inline-block ${cls} px-2 py-0.5 rounded-full text-xs font-semibold">${formatted}</span>`
         : `<span class="${cls}">${formatted}</span>`;
@@ -407,7 +544,7 @@ function renderTable() {
     if (!tbody) return;
     if (currentData.length === 0) {
         tbody.innerHTML = `
-            <tr><td colspan="12" class="px-6 py-12 text-center">
+            <tr><td colspan="14" class="px-6 py-12 text-center">
                 <div class="flex flex-col items-center gap-2 text-gray-400">
                     <svg class="w-10 h-10 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
@@ -424,13 +561,12 @@ function renderTable() {
         const rowBg = i % 2 === 0 ? '' : 'bg-gray-50/60';
         const timeInDisplay  = day.in  && day.in  !== '-' ? escapeHtml(day.in)  : '<span class="text-gray-400">—</span>';
         const timeOutDisplay = day.out && day.out !== '-' ? escapeHtml(day.out) : '<span class="text-gray-400">—</span>';
-        const safeTask   = (day.task_performed || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-        const safeClient = (day.client || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+        const dayTasks = day.tasks || [];
         const clientCell = day.client
             ? `<span class="text-gray-700">${escapeHtml(day.client)}</span>`
             : `<span class="text-gray-300">—</span>`;
-        const taskCell = day.task_performed
-            ? `<span class="text-gray-700">${escapeHtml(day.task_performed)}</span>`
+        const taskCell = dayTasks.length
+            ? `<span class="text-gray-700">${escapeHtml(dayTasks[0].task_performed)}</span>${dayTasks.length > 1 ? `<span class="ml-1 text-[10px] font-semibold text-purple-500 cursor-pointer hover:underline" onclick="openTaskLogModal(${day.attendance_id}, '${day.date}')">+${dayTasks.length - 1} more</span>` : ''}`
             : `<span class="text-gray-300">—</span>`;
         html += `
             <tr class="border-b border-gray-100 hover:bg-purple-50/40 transition-colors ${rowBg}">
@@ -439,15 +575,17 @@ function renderTable() {
                 <td class="px-4 py-3 whitespace-nowrap text-gray-600">${timeOutDisplay}</td>
                 <td class="px-4 py-3 text-right whitespace-nowrap">${badge(day.regular_hours, day.regular_hours.toFixed(2), 'reg')}</td>
                 <td class="px-4 py-3 text-right whitespace-nowrap">${badge(day.ot_hours, day.ot_hours.toFixed(2), 'ot')}</td>
+                <td class="px-4 py-3 text-right whitespace-nowrap" title="Worked but not approved — not counted toward Regular or OT">${badge(day.unapproved_ot_hours, day.unapproved_ot_hours.toFixed(2), 'unot')}</td>
                 <td class="px-4 py-3 text-right whitespace-nowrap">${badge(day.rdot_hours, day.rdot_hours.toFixed(2), 'rdot')}</td>
                 <td class="px-4 py-3 text-right whitespace-nowrap">${badge(Math.round(day.tardy_minutes), Math.round(day.tardy_minutes), 'tardy')}</td>
+                <td class="px-4 py-3 text-right whitespace-nowrap" title="Time missed within the scheduled window">${badge(day.undertime_hours, day.undertime_hours.toFixed(2), 'ut')}</td>
                 <td class="px-4 py-3 text-right whitespace-nowrap">${badge(day.night_diff, day.night_diff.toFixed(2), 'nd')}</td>
                 <td class="px-4 py-3 text-sm text-gray-500" title="${escapeHtml(day.remarks)}">${escapeHtml(day.remarks) || '<span class="text-gray-300">—</span>'}</td>
                 <td class="px-4 py-3 text-sm" title="${escapeHtml(day.client)}">${clientCell}</td>
                 <td class="px-4 py-3 text-sm" title="${escapeHtml(day.task_performed)}">${taskCell}</td>
                 <td class="px-4 py-3 text-center whitespace-nowrap">
                     <div class="cursor-pointer w-7 h-7 hover:scale-110 transition inline-block"
-                         onclick="openTaskLogModal(${day.attendance_id}, '${day.date}', '${safeTask}', '${safeClient}')">
+                         onclick="openTaskLogModal(${day.attendance_id}, '${day.date}')">
                         <img src="<?= base_url('icons/edit.png') ?>" class="w-7 h-7" alt="Edit">
                     </div>
                 </td>
@@ -456,61 +594,32 @@ function renderTable() {
     });
     tbody.innerHTML = html;
 
-    document.getElementById('totalRegular').innerText = TOTALS.regular_hours.toFixed(2);
-    document.getElementById('totalOt').innerText = TOTALS.ot_hours.toFixed(2);
-    document.getElementById('totalRdot').innerText = TOTALS.rdot_hours.toFixed(2);
-    document.getElementById('totalTardy').innerText = Math.round(TOTALS.tardy_minutes);
-    document.getElementById('totalNightDiff').innerText = TOTALS.night_diff.toFixed(2);
+    // Recompute from the currently filtered/sorted rows, not the server-rendered
+    // full-period TOTALS — otherwise the footer stays stuck showing every record's
+    // totals even after searching or filtering down to a subset.
+    const shown = currentData.reduce((acc, day) => {
+        acc.regular_hours       += day.regular_hours || 0;
+        acc.ot_hours            += day.ot_hours || 0;
+        acc.rdot_hours          += day.rdot_hours || 0;
+        acc.tardy_minutes       += day.tardy_minutes || 0;
+        acc.night_diff          += day.night_diff || 0;
+        acc.unapproved_ot_hours += day.unapproved_ot_hours || 0;
+        acc.undertime_hours     += day.undertime_hours || 0;
+        return acc;
+    }, { regular_hours: 0, ot_hours: 0, rdot_hours: 0, tardy_minutes: 0, night_diff: 0, unapproved_ot_hours: 0, undertime_hours: 0 });
+
+    document.getElementById('totalRegular').innerText = shown.regular_hours.toFixed(2);
+    document.getElementById('totalOt').innerText = shown.ot_hours.toFixed(2);
+    document.getElementById('totalUnapprovedOt').innerText = shown.unapproved_ot_hours.toFixed(2);
+    document.getElementById('totalRdot').innerText = shown.rdot_hours.toFixed(2);
+    document.getElementById('totalTardy').innerText = Math.round(shown.tardy_minutes);
+    document.getElementById('totalUndertime').innerText = shown.undertime_hours.toFixed(2);
+    document.getElementById('totalNightDiff').innerText = shown.night_diff.toFixed(2);
 }
 
-function openTaskLogModal(attendanceId, date, currentTask, currentClient) {
-
-    document.getElementById('task_att_id').value = attendanceId;
-
-    document.getElementById('task_att_date').textContent = date;
-
-    document.getElementById('task_att_text').value =
-        currentTask || '';
-
-    document.getElementById('task_att_client').value =
-        currentClient || '';
-
-    const modal = document.getElementById('taskLogModal');
-
-    modal.classList.remove('hidden');
-
-    modal.classList.add('flex');
-
-    document.body.classList.add('overflow-hidden');
-}
-
-function closeTaskLogModal() {
-
-    const modal = document.getElementById('taskLogModal');
-
-    modal.classList.remove('flex');
-
-    modal.classList.add('hidden');
-
-    document.body.classList.remove('overflow-hidden');
-}
-
-function saveTaskLog() {
-    const id     = document.getElementById('task_att_id').value;
-    const text   = document.getElementById('task_att_text').value.trim();
-    const client = document.getElementById('task_att_client').value.trim();
-    fetch(UPDATE_TASK_LOG_URL + '/' + id, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ task_performed: text, client: client })
-    })
-    .then(res => res.json())
-    .then(data => {
-        if (data.success) location.reload();
-        else showToast('Update failed: ' + (data.message || 'Unknown error'), 'error');
-    })
-    .catch(err => { console.error(err); showToast('Network error. Please try again.', 'error'); });
-}
+// Task Log modal logic (timeline, task list, add/edit form) lives in the
+// shared public/js/components/task-log.js, included below — reused as-is
+// by the Dashboard's "Log Task" button.
 
 function filterAndSort() {
     const searchTerm = document.getElementById('searchInput').value.toLowerCase();
@@ -544,4 +653,5 @@ document.getElementById('departmentFilter')?.addEventListener('change', filterAn
 
 renderTable();
 </script>
+<script src="<?= base_url('js/components/task-log.js') ?>"></script>
 <?= $this->endSection() ?>

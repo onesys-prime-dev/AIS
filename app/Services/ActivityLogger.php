@@ -426,13 +426,42 @@ class ActivityLogger
         );
     }
 
-    public function payslipSent(int $payslipId, string $employeeName, string $periodStart, string $periodEnd, string $emailAddress): bool
+    /**
+     * @param string $sendMethod 'individual' (single Send button) or 'bulk' (Bulk Send mode)
+     */
+    public function payslipSent(int $payslipId, string $employeeName, string $periodStart, string $periodEnd, string $emailAddress, string $sendMethod = 'individual'): bool
     {
+        $methodLabel = $sendMethod === 'bulk' ? 'bulk send' : 'individual send';
+
         return $this->updated('employee_payslips',
-            "Payslip sent to {$employeeName} ({$periodStart} – {$periodEnd})",
+            "Payslip sent to {$employeeName} ({$periodStart} – {$periodEnd}) via {$methodLabel}",
             $payslipId,
             ['sent_at' => null],
-            ['sent_at' => date('Y-m-d H:i:s'), 'sent_to' => $emailAddress]
+            ['sent_at' => date('Y-m-d H:i:s'), 'sent_to' => $emailAddress, 'send_method' => $sendMethod]
+        );
+    }
+
+    /**
+     * A payslip's amounts were changed via the Payroll Register's Manual Edit modal.
+     * $changes is the same field-diff array savePayslipEditData() already builds:
+     * [['field' => ..., 'old_value' => ..., 'new_value' => ...], ...]
+     */
+    public function payslipEdited(int $payslipId, string $employeeName, string $periodStart, string $periodEnd, array $changes): bool
+    {
+        if (empty($changes)) {
+            return $this->log('updated', 'employee_payslips',
+                "Payslip reviewed for {$employeeName} ({$periodStart} – {$periodEnd}) — no changes",
+                $payslipId, null, null
+            );
+        }
+
+        $fields  = implode(', ', array_column($changes, 'field'));
+        $oldVals = array_combine(array_column($changes, 'field'), array_column($changes, 'old_value'));
+        $newVals = array_combine(array_column($changes, 'field'), array_column($changes, 'new_value'));
+
+        return $this->updated('employee_payslips',
+            "Payslip edited for {$employeeName} ({$periodStart} – {$periodEnd}): {$fields}",
+            $payslipId, $oldVals, $newVals
         );
     }
 

@@ -12,7 +12,7 @@ class EmployeePositionModel extends Model
     protected $useAutoIncrement = true;
     protected $allowedFields = [
         'employee_id', 'department', 'position', 'employment_type',
-        'start_time', 'end_time', 'working_day_type', 'working_days',
+        'start_time', 'end_time', 'working_day_type', 'working_days', 'break_schedule',
         'monthly_salary', 'de_minimis_benefit', 'de_minimis_breakdown', 'allowances',
     ];
 }

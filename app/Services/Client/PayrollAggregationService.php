@@ -101,6 +101,13 @@ class PayrollAggregationService
             $regularWorkHours = min($worked, 8);
             $otHours = max(0, $worked - 8);
 
+            // Excess hours only get paid as OT if there's an approved overtime
+            // request covering that date — otherwise they're not credited (e.g. a
+            // missed clock-out that inflates total_hours, or unapproved late work).
+            if (! $this->hasApprovedOvertimeRequest($userId, $attDate)) {
+                $otHours = 0;
+            }
+
             $dayOfWeek = date('N', strtotime($attDate));
             $isRestDay = ($dayOfWeek == 7);
             $isHoliday = $this->isHoliday($attDate);
@@ -198,6 +205,22 @@ class PayrollAggregationService
                 'request_overtime_hours'=> $requestOtHours,
             ]);
         }
+    }
+
+    private function hasApprovedOvertimeRequest(int $userId, string $date): bool
+    {
+        $row = $this->requestModel
+            ->where('requested_by', $userId)
+            ->where('request_type', 'overtime')
+            ->where('status', 'approved')
+            ->where('start_date <=', $date)
+            ->groupStart()
+                ->where('end_date >=', $date)
+                ->orWhere('end_date', null)
+            ->groupEnd()
+            ->first();
+
+        return $row !== null;
     }
 
     private function calculateTardyMinutes(?string $timeIn, ?string $schedStart): int

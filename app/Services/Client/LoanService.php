@@ -271,7 +271,11 @@ class LoanService
         ], true);
 
         if (!$loanId) {
-            dd($this->loanModel->errors());
+            $db->transRollback();
+            throw new \Exception(
+                'Failed to create loan: ' .
+                implode(', ', $this->loanModel->errors() ?: ['Unknown error.'])
+            );
         }
 
         /*
@@ -702,8 +706,6 @@ class LoanService
                 ];
             }
         }
-
-        dd($breakdown);
 
         return $breakdown;
     }

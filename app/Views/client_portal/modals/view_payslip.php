@@ -34,7 +34,7 @@
                 </div>
 
                 <div class="payslip-brand">
-                    <h3>ECOVIS Eintax Philippines</h3>
+                    <h3>ECOVIS Fintax Philippines</h3>
                     <p>
                         Unit 1802, The Peak Tower, Salcedo Village, 107 L.P. Leviste Street, Makati City, 1227 Metro Manila
                     </p>
@@ -62,14 +62,14 @@
 </div>
 
 <style>
-    #viewPayslipModal .default-modal-box {
+    #viewPayslipModal .civm-box {
         max-width: 1080px;
         padding: 22px;
         border-radius: 16px;
     }
 
-    #viewPayslipModal .default-modal-box > .default-modal-close,
-    #viewPayslipModal .default-modal-box > .default-modal-title {
+    #viewPayslipModal .civm-box > .civm-close,
+    #viewPayslipModal .civm-box > .civm-title {
         display: none;
     }
 
@@ -406,9 +406,13 @@ function renderPayslipHtml(d) {
     const loanDed =
         n(d.sss_loan) +
         n(d.calamity_loan) +
+        n(d.hdmf_loan) +
+        n(d.hdmf_mpl_loan) +
+        n(d.hdmf_calamity_loan) +
         n(d.salary_loan) +
-        n(d.emergency_loan) +
-        n(d.cash_advance);
+        n(d.salary_advance || d.sal_adv) +
+        n(d.cash_advance) +
+        n(d.emergency_advance || d.emergency_loan);
     const totalDed = govDed + loanDed;
 
     return `
@@ -502,6 +506,30 @@ function renderPayslipHtml(d) {
                             </td>
                         </tr>` : ''}
 
+                        ${n(d.hdmf_loan) > 0 ? `
+                        <tr>
+                            <td style="border:none;padding:2px 4px;">HDMF Loan</td>
+                            <td style="border:none;padding:2px 4px;text-align:right;">
+                                ${fmt(d.hdmf_loan)}
+                            </td>
+                        </tr>` : ''}
+
+                        ${n(d.hdmf_mpl_loan) > 0 ? `
+                        <tr>
+                            <td style="border:none;padding:2px 4px;">HDMF Multi-Purpose Loan</td>
+                            <td style="border:none;padding:2px 4px;text-align:right;">
+                                ${fmt(d.hdmf_mpl_loan)}
+                            </td>
+                        </tr>` : ''}
+
+                        ${n(d.hdmf_calamity_loan) > 0 ? `
+                        <tr>
+                            <td style="border:none;padding:2px 4px;">HDMF Calamity Loan</td>
+                            <td style="border:none;padding:2px 4px;text-align:right;">
+                                ${fmt(d.hdmf_calamity_loan)}
+                            </td>
+                        </tr>` : ''}
+
                         ${n(d.salary_loan) > 0 ? `
                         <tr>
                             <td style="border:none;padding:2px 4px;">Salary Loan</td>
@@ -510,11 +538,11 @@ function renderPayslipHtml(d) {
                             </td>
                         </tr>` : ''}
 
-                        ${n(d.emergency_loan) > 0 ? `
+                        ${n(d.salary_advance || d.sal_adv) > 0 ? `
                         <tr>
-                            <td style="border:none;padding:2px 4px;">Emergency Loan</td>
+                            <td style="border:none;padding:2px 4px;">Salary Advance</td>
                             <td style="border:none;padding:2px 4px;text-align:right;">
-                                ${fmt(d.emergency_loan)}
+                                ${fmt(d.salary_advance || d.sal_adv)}
                             </td>
                         </tr>` : ''}
 
@@ -523,6 +551,14 @@ function renderPayslipHtml(d) {
                             <td style="border:none;padding:2px 4px;">Cash Advance</td>
                             <td style="border:none;padding:2px 4px;text-align:right;">
                                 ${fmt(d.cash_advance)}
+                            </td>
+                        </tr>` : ''}
+
+                        ${n(d.emergency_advance || d.emergency_loan) > 0 ? `
+                        <tr>
+                            <td style="border:none;padding:2px 4px;">Emergency Advance</td>
+                            <td style="border:none;padding:2px 4px;text-align:right;">
+                                ${fmt(d.emergency_advance || d.emergency_loan)}
                             </td>
                         </tr>` : ''}
                     </table>

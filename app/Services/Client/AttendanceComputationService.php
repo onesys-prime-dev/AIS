@@ -264,7 +264,6 @@ class AttendanceComputationService{
         string $actualOut
     ): array
     {
-        $date = date('Y-m-d');
         $schedule = $this->getEmployeeSchedule($userId);
 
         if (! $schedule) {
@@ -282,13 +281,15 @@ class AttendanceComputationService{
 
         /*
         |--------------------------------------------------------------------------
-        | Get today's attendance
+        | Get the currently open attendance record (still clocked in). Looked up by
+        | "still open", not "started today" — a shift that started yesterday and is
+        | only being clocked out now (missed clock-out) must still resolve here.
         |--------------------------------------------------------------------------
         */
 
         $attendance = $this->attendanceModel
             ->where('user_id', $userId)
-            ->where('DATE(time_in)', $date)
+            ->where('time_out', null)
             ->orderBy('id', 'DESC')
             ->first();
 
@@ -304,6 +305,11 @@ class AttendanceComputationService{
                 ],
             ];
         }
+
+        // Use the shift's own date (from time_in), not today's date, so the
+        // scheduled start/end and approved-request lookup line up with the shift
+        // that's actually being clocked out of, even across a midnight rollover.
+        $date = date('Y-m-d', strtotime($attendance['time_in']));
 
         /*
         |--------------------------------------------------------------------------

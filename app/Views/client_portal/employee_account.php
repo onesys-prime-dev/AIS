@@ -14,6 +14,8 @@
     $hireDateLabel = ! empty($employment['hire_date']) ? date('F j, Y', strtotime((string) $employment['hire_date'])) : '-';
     $auditLabel = ! empty($audit['updated_at']) ? date('F j, Y g:i A', strtotime((string) $audit['updated_at'])) : '-';
     $middleInitial = ! empty($identity['middle_name']) ? strtoupper(substr(trim((string) $identity['middle_name']), 0, 1)) . '.' : '';
+    $avatarInitials = strtoupper(substr(trim((string) ($identity['first_name'] ?? '')), 0, 1) . substr(trim((string) ($identity['last_name'] ?? '')), 0, 1));
+    if ($avatarInitials === '') { $avatarInitials = 'U'; }
 ?>
 
 <!-- ACCOUNT PAGE -->
@@ -33,6 +35,15 @@
 
             <div class="about-content">
 
+                <div class="about-avatar-wrap" onclick="document.getElementById('profile_photo').click()" role="button" tabindex="0" aria-label="Change profile photo" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();document.getElementById('profile_photo').click();}">
+                    <?php if (! empty($identity['photo_url'])): ?>
+                        <div class="about-avatar" id="aboutAvatarPreview" style="background-image:url('<?= esc((string) $identity['photo_url'], 'attr') ?>');"></div>
+                    <?php else: ?>
+                        <div class="about-avatar about-avatar-initials" id="aboutAvatarPreview"><?= esc($avatarInitials) ?></div>
+                    <?php endif; ?>
+                    <div class="about-avatar-edit-badge">&#9998;</div>
+                </div>
+
                 <div class="about-info">
                     <div class="name"><?= esc($identity['last_name'] ?? '') ?>, <?= esc($identity['first_name'] ?? '') ?> <?= esc($identity['middle_name'] ?? '') ?></div>
                     <div class="joined">Joined in <?= esc($joinedLabel) ?></div>
@@ -41,6 +52,7 @@
                         <?= csrf_field() ?>
                         <input id="profile_photo" type="file" name="profile_photo" accept=".jpg,.jpeg,.png,.webp" class="photo-input" hidden>
                         <button type="button" class="photo-link-btn" onclick="document.getElementById('profile_photo').click()">Update photo</button>
+                        <span id="photoUploadError" class="photo-upload-error hidden"></span>
                     </form>
                 </div>
             </div>
@@ -666,6 +678,66 @@
         height:80px;
         border-radius:50%;
         background:#e5e7eb;
+        background-size:cover;
+        background-position:center;
+        flex-shrink:0;
+    }
+
+    .about-avatar-initials{
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        font-size:24px;
+        font-weight:600;
+        color:#6b7280;
+    }
+
+    .about-avatar-wrap{
+        position:relative;
+        width:80px;
+        height:80px;
+        flex-shrink:0;
+        cursor:pointer;
+        border-radius:50%;
+        transition:opacity 0.15s ease;
+    }
+
+    .about-avatar-wrap:hover{
+        opacity:0.85;
+    }
+
+    .about-avatar-wrap:focus-visible{
+        outline:2px solid #1f8dbd;
+        outline-offset:2px;
+    }
+
+    .about-avatar-edit-badge{
+        position:absolute;
+        bottom:0;
+        right:0;
+        width:26px;
+        height:26px;
+        border-radius:50%;
+        background:#1f8dbd;
+        color:#fff;
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        font-size:13px;
+        border:2px solid #fff;
+        pointer-events:none;
+    }
+
+    .photo-upload-error{
+        display:block;
+        font-size:12px;
+        color:#dc2626;
+        margin-top:4px;
+        width:100%;
+    }
+
+    .photo-upload-error.hidden{
+        display:none;
     }
 
     .about-info{
@@ -914,30 +986,67 @@
         dragListenersBound: false
     };
 
+    const PHOTO_MAX_BYTES = 2 * 1024 * 1024;
+    const PHOTO_ALLOWED_TYPES = ['image/jpeg', 'image/jpg', 'image/pjpeg', 'image/png', 'image/webp'];
+    const PHOTO_ALLOWED_EXT = ['jpg', 'jpeg', 'png', 'webp'];
+
+    function isPhotoFileAllowed(file) {
+        const mimeOk = PHOTO_ALLOWED_TYPES.includes((file.type || '').toLowerCase());
+        const ext = (file.name.split('.').pop() || '').toLowerCase();
+        const extOk = PHOTO_ALLOWED_EXT.includes(ext);
+        return mimeOk || extOk;
+    }
+
+    function showPhotoError(message) {
+        const errEl = document.getElementById('photoUploadError');
+        if (!errEl) return;
+        errEl.textContent = message;
+        errEl.classList.remove('hidden');
+    }
+
+    function clearPhotoError() {
+        const errEl = document.getElementById('photoUploadError');
+        if (!errEl) return;
+        errEl.textContent = '';
+        errEl.classList.add('hidden');
+    }
+
     // Handle file input change
     document.getElementById('profile_photo').addEventListener('change', function(e) {
         const file = e.target.files[0];
-        if (file) {
-            editorState.originalFile = file;
-            const reader = new FileReader();
-            reader.onload = function(event) {
-                const img = new Image();
-                img.onload = function() {
-                    editorState.image = img;
-                    editorState.zoom = 1;
-                    editorState.rotate = 0;
-                    editorState.offsetX = 0;
-                    editorState.offsetY = 0;
-                    document.getElementById('zoomSlider').value = '1';
-                    document.getElementById('zoomValue').textContent = '100%';
-                    document.getElementById('rotateValue').textContent = '0°';
-                    updatePreview();
-                    openPhotoModal();
-                };
-                img.src = event.target.result;
-            };
-            reader.readAsDataURL(file);
+        clearPhotoError();
+        if (!file) return;
+
+        if (!isPhotoFileAllowed(file)) {
+            showPhotoError('Only JPG, PNG, or WEBP files are allowed.');
+            e.target.value = '';
+            return;
         }
+        if (file.size > PHOTO_MAX_BYTES) {
+            showPhotoError('Image must be 2MB or below.');
+            e.target.value = '';
+            return;
+        }
+
+        editorState.originalFile = file;
+        const reader = new FileReader();
+        reader.onload = function(event) {
+            const img = new Image();
+            img.onload = function() {
+                editorState.image = img;
+                editorState.zoom = 1;
+                editorState.rotate = 0;
+                editorState.offsetX = 0;
+                editorState.offsetY = 0;
+                document.getElementById('zoomSlider').value = '1';
+                document.getElementById('zoomValue').textContent = '100%';
+                document.getElementById('rotateValue').textContent = '0°';
+                updatePreview();
+                openPhotoModal();
+            };
+            img.src = event.target.result;
+        };
+        reader.readAsDataURL(file);
     });
 
     function openPhotoModal() {
@@ -1007,6 +1116,18 @@
         updatePreview();
     }
 
+    function panBy(dx, dy) {
+        editorState.offsetX += dx / editorState.zoom;
+        editorState.offsetY += dy / editorState.zoom;
+        updatePreview();
+    }
+
+    function pinchDistance(touches) {
+        const dx = touches[0].clientX - touches[1].clientX;
+        const dy = touches[0].clientY - touches[1].clientY;
+        return Math.hypot(dx, dy);
+    }
+
     function setupCanvasDragListener() {
         if (editorState.dragListenersBound) {
             return;
@@ -1014,7 +1135,10 @@
 
         editorState.dragListenersBound = true;
         const canvas = document.getElementById('photoCanvas');
-        
+        const zoomSlider = document.getElementById('zoomSlider');
+        let pinchStartDist = 0;
+        let pinchStartZoom = 1;
+
         canvas.addEventListener('mousedown', (e) => {
             editorState.isDragging = true;
             editorState.dragStartX = e.clientX;
@@ -1023,29 +1147,68 @@
 
         document.addEventListener('mousemove', (e) => {
             if (editorState.isDragging && editorState.image) {
-                const dx = (e.clientX - editorState.dragStartX) / editorState.zoom;
-                const dy = (e.clientY - editorState.dragStartY) / editorState.zoom;
-                editorState.offsetX += dx;
-                editorState.offsetY += dy;
+                panBy(e.clientX - editorState.dragStartX, e.clientY - editorState.dragStartY);
                 editorState.dragStartX = e.clientX;
                 editorState.dragStartY = e.clientY;
-                updatePreview();
             }
         });
 
         document.addEventListener('mouseup', () => {
             editorState.isDragging = false;
         });
+
+        // Touch: one finger drags, two fingers pinch-zoom.
+        canvas.addEventListener('touchstart', (e) => {
+            if (!editorState.image) return;
+            if (e.touches.length === 1) {
+                editorState.isDragging = true;
+                editorState.dragStartX = e.touches[0].clientX;
+                editorState.dragStartY = e.touches[0].clientY;
+            } else if (e.touches.length === 2) {
+                editorState.isDragging = false;
+                pinchStartDist = pinchDistance(e.touches);
+                pinchStartZoom = editorState.zoom;
+            }
+        }, { passive: true });
+
+        canvas.addEventListener('touchmove', (e) => {
+            if (!editorState.image) return;
+            if (e.touches.length === 1 && editorState.isDragging) {
+                e.preventDefault();
+                panBy(e.touches[0].clientX - editorState.dragStartX, e.touches[0].clientY - editorState.dragStartY);
+                editorState.dragStartX = e.touches[0].clientX;
+                editorState.dragStartY = e.touches[0].clientY;
+            } else if (e.touches.length === 2 && pinchStartDist > 0) {
+                e.preventDefault();
+                const min = parseFloat(zoomSlider.min) || 1;
+                const max = parseFloat(zoomSlider.max) || 3;
+                const ratio = pinchDistance(e.touches) / pinchStartDist;
+                const newZoom = Math.min(max, Math.max(min, pinchStartZoom * ratio));
+                editorState.zoom = newZoom;
+                zoomSlider.value = newZoom.toFixed(1);
+                updatePreview();
+            }
+        }, { passive: false });
+
+        canvas.addEventListener('touchend', () => {
+            editorState.isDragging = false;
+            pinchStartDist = 0;
+        });
     }
 
     function confirmPhotoEdit() {
+        const confirmBtn = document.querySelector('#photoEditorModal .btn-primary');
+        if (confirmBtn) {
+            confirmBtn.disabled = true;
+            confirmBtn.textContent = 'Uploading…';
+        }
         const canvas = document.getElementById('photoCanvas');
         canvas.toBlob((blob) => {
             const dataTransfer = new DataTransfer();
             const file = new File([blob], editorState.originalFile.name, { type: 'image/png' });
             dataTransfer.items.add(file);
             document.getElementById('profile_photo').files = dataTransfer.files;
-            
+
             // Submit the form
             document.getElementById('photoUploadForm').submit();
             closePhotoModal();
