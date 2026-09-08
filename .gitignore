@@ -8,6 +8,8 @@ public/css/main.css
 #-------------------------
 # CodeIgniter
 #-------------------------
+vendor/
+
 writable/cache/*
 writable/debugbar/*
 writable/logs/*
