@@ -496,9 +496,11 @@ class PayrollController extends BaseController
             $byDate[$attDate][] = $att;
         }
 
+        $computationService = new AttendanceComputationService();
         $workedDays      = count($byDate);
         $regularHours    = 0.0;
         $tardyMinutes    = 0;
+        $undertimeHours  = 0.0;
         $regOtHours      = 0.0;
         $workdayNsdHours = 0.0;
         $satRegHours     = 0.0;
@@ -528,57 +530,73 @@ class PayrollController extends BaseController
 
         foreach ($byDate as $attDate => $recs) {
             usort($recs, fn($a, $b) => strcmp($a['time_in'], $b['time_in']));
-            $firstIn = date('H:i:s', strtotime($recs[0]['time_in']));
-            if ($scheduledStart && $firstIn > $scheduledStart) {
-                $tardyMinutes += (int)round((strtotime($firstIn) - strtotime($scheduledStart)) / 60);
+
+            // Each record uses its OWN saved schedule (schedule_snapshot as of
+            // clock-in), falling back to the employee's current schedule only when
+            // a record has no snapshot — same rule AttendanceWindow::schedule()
+            // applies for the Timesheet page. Previously this whole function used
+            // only the employee's *current* schedule for every record regardless
+            // of when it happened, so an employee whose schedule was edited
+            // mid-cutoff would have old shifts silently recomputed against the new
+            // schedule here while the Timesheet page kept using the old one.
+            $daySchedule = \App\Libraries\AttendanceWindow::schedule(
+                $recs[0],
+                ['start_time' => $scheduledStart, 'end_time' => $scheduledEnd]
+            );
+            $dayScheduledStart = $daySchedule['start_time'] ?? null;
+            $dayScheduledEnd   = $daySchedule['end_time'] ?? null;
+            $dayRequiredHours  = $requiredHours;
+            if ($dayScheduledStart && $dayScheduledEnd) {
+                $reqStart = strtotime($dayScheduledStart);
+                $reqEnd   = strtotime($dayScheduledEnd);
+                if ($reqEnd < $reqStart) $reqEnd += 86400;
+                $dayRequiredHours = ($reqEnd - $reqStart) / 3600;
             }
+
+            // Same shared formula as Timesheet/live clock-in/import — full
+            // datetimes rather than bare time-of-day strings, which previously
+            // couldn't correctly compare an overnight shift's actual arrival
+            // against its scheduled start across the midnight boundary.
+            $firstRecDate = date('Y-m-d', strtotime($recs[0]['time_in']));
+            $dayWindowStart = $dayScheduledStart ? new \DateTime($firstRecDate . ' ' . $dayScheduledStart) : null;
+            $tardyMinutes += AttendanceComputationService::lateMinutes(new \DateTime($recs[0]['time_in']), $dayWindowStart);
 
             $dayNsd           = 0.0;
             $dayBreak         = 0.0;
-            $dayWindowMinutes = 0.0; // time actually worked inside the scheduled window
-            $dayTotalMinutes  = 0.0; // full worked span, any time of day
+            $dayRegularHours  = 0.0;
+            $dayExcessHours   = 0.0;
             $hasApprovedOt    = isset($approvedOtDates[$attDate]);
             foreach ($recs as $rec) {
                 $dayBreak += (float)($rec['break_duration'] ?? 0);
 
                 if (empty($rec['time_in']) || empty($rec['time_out'])) continue;
                 $recDate  = date('Y-m-d', strtotime($rec['time_in']));
-                $recStart = new \DateTime($rec['time_in']);
-                $recEnd   = new \DateTime($rec['time_out']);
-                if ($recEnd < $recStart) $recEnd->modify('+1 day');
-                $spanDiff = $recEnd->diff($recStart);
-                $dayTotalMinutes += $spanDiff->h * 60 + $spanDiff->i + ($spanDiff->days * 1440);
+                $recSchedule = \App\Libraries\AttendanceWindow::schedule(
+                    $rec,
+                    ['start_time' => $scheduledStart, 'end_time' => $scheduledEnd]
+                );
 
-                // Regular = only the portion of this clock-in/out that falls INSIDE
-                // the scheduled window — same rule as the Timesheet page. Clocking
-                // in early/late doesn't shift the window; time outside it belongs
-                // to OT (if approved) or nowhere at all.
-                $recWindowStart = $recStart;
-                $recWindowEnd   = $recEnd;
-                if ($scheduledStart && $scheduledEnd) {
-                    $schedStartDt = new \DateTime($recDate . ' ' . $scheduledStart);
-                    $schedEndDt   = new \DateTime($recDate . ' ' . $scheduledEnd);
-                    if ($schedEndDt < $schedStartDt) $schedEndDt->modify('+1 day');
-
-                    $overlapStart = max($recStart, $schedStartDt);
-                    $overlapEnd   = min($recEnd, $schedEndDt);
-                    if ($overlapStart < $overlapEnd) {
-                        $diff = $overlapStart->diff($overlapEnd);
-                        $dayWindowMinutes += $diff->h * 60 + $diff->i;
-                    }
-                    $recWindowStart = $schedStartDt;
-                    $recWindowEnd   = $schedEndDt;
-                } else {
-                    // No schedule on file — fall back to the record's full worked span.
-                    $dayWindowMinutes += $spanDiff->h * 60 + $spanDiff->i;
-                }
+                // Regular/excess math is shared with the Timesheet page (and, via
+                // analyzeClockOut(), live clock-out and import) through
+                // AttendanceComputationService::splitShiftWindow(), so all of them
+                // produce matching numbers for the same shift.
+                $split = $computationService->splitShiftWindow(
+                    $rec['time_in'],
+                    $rec['time_out'],
+                    (float) ($rec['break_duration'] ?? 0),
+                    $recSchedule['start_time'] ?? null,
+                    $recSchedule['end_time'] ?? null,
+                    $recDate
+                );
+                $dayRegularHours += $split['regular_hours'];
+                $dayExcessHours  += $split['excess_hours'];
 
                 // Night differential only counts for paid time: the scheduled
                 // window, or the full span if this date's overtime was approved.
                 // Unapproved excess worked at night isn't recognized as OT, so it
                 // isn't paid a night differential either (same rule as Timesheet).
-                $nsdPaidStart = $hasApprovedOt ? $recStart : max($recStart, $recWindowStart);
-                $nsdPaidEnd   = $hasApprovedOt ? $recEnd   : min($recEnd,   $recWindowEnd);
+                $nsdPaidStart = $hasApprovedOt ? $split['span_start'] : max($split['span_start'], $split['window_start'] ?? $split['span_start']);
+                $nsdPaidEnd   = $hasApprovedOt ? $split['span_end']   : min($split['span_end'],   $split['window_end']   ?? $split['span_end']);
                 if ($nsdPaidStart < $nsdPaidEnd) {
                     $dayNsd += $this->calcNightDiffHours(
                         $nsdPaidStart->format('Y-m-d H:i:s'),
@@ -588,14 +606,19 @@ class PayrollController extends BaseController
             }
             $totalBreakHours += $dayBreak;
 
-            // Breaks subtracted once per day, not per record — matches how
-            // total_hours is computed elsewhere (break deducted from the day's total).
-            $regularCapped = max(0, round($dayWindowMinutes / 60 - $dayBreak, 2));
+            // Break deduction now happens per record (inside splitShiftWindow), not
+            // once against the day's total, matching how the Timesheet page and
+            // live clock-out apply it.
+            $regularCapped = round($dayRegularHours, 2);
             // OT = time actually worked outside the scheduled window, but only
             // paid if an approved overtime request covers this specific date —
             // unapproved excess isn't paid as OT, and doesn't inflate Regular.
-            $dayExcessHours = max(0, round(($dayTotalMinutes - $dayBreak * 60) / 60 - $regularCapped, 2));
+            $dayExcessHours = round($dayExcessHours, 2);
             $ot             = $hasApprovedOt ? $dayExcessHours : 0.0;
+            // Undertime = shortfall against the scheduled window itself, tracked
+            // by the Timesheet page but previously invisible to payroll entirely.
+            $dayUndertime   = ($dayScheduledStart && $dayScheduledEnd) ? max(0, round($dayRequiredHours - $regularCapped, 2)) : 0.0;
+            $undertimeHours += $dayUndertime;
             $dow            = (int)date('N', strtotime($attDate));
             $holidayType   = $getHolidayType($attDate);
 
@@ -636,6 +659,10 @@ class PayrollController extends BaseController
             'absent_days'        => max(0, $totalWorkingDays - $workedWeekdays),
             'regular_hours'      => round($regularHours, 2),
             'tardy_minutes'      => $tardyMinutes,
+            // Previously not surfaced here at all, even though the Timesheet page
+            // has always tracked it for the same shifts — added so payroll has
+            // visibility into it too, matching Phase 4's "matching results" goal.
+            'undertime_hours'    => round($undertimeHours, 2),
             'break_hours'        => round($totalBreakHours, 2),
             'reg_ot_hours'       => round($regOtHours, 2),
             'workday_nsd_hours'  => round($workdayNsdHours, 2),

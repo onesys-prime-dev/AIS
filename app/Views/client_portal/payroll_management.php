@@ -2458,11 +2458,16 @@ async function fillEmployeeData(employeeId, silent = false) {
     if (absentAmount > semiMonthlyPay) absentAmount = semiMonthlyPay;
     document.getElementById('absentPhp').value = absentAmount.toFixed(2);
     
-    const tardyHours  = summary.tardy_minutes / 60;
+    // undertime_hours already covers late arrival AND early departure together
+    // (it's the shortfall against the whole scheduled window, not just the start),
+    // so this replaces the old tardy-only figure rather than adding to it —
+    // summing the two would double-count the late-arrival portion. Falls back to
+    // tardy-only if an older cached summary response doesn't carry the field yet.
+    const undertimeHours = summary.undertime_hours ?? (summary.tardy_minutes / 60);
     const hourlyRate  = parseFloat(document.getElementById('hourlyRate').value) || 0;
     const otHourlyRate = parseFloat(document.getElementById('otHourlyRate').value) || hourlyRate;
-    const undertimeAmount = tardyHours * hourlyRate;
-    document.getElementById('utHours').value = tardyHours.toFixed(2);
+    const undertimeAmount = undertimeHours * hourlyRate;
+    document.getElementById('utHours').value = undertimeHours.toFixed(2);
     document.getElementById('utPhp').value   = undertimeAmount.toFixed(2);
     
     const s_rates      = window._payrollSettings || {};

@@ -15,6 +15,7 @@ class TimesheetsService
     protected AttendanceModel $attendanceModel;
     protected RequestModel $requestModel;
     protected EmployeePositionModel $employeePositionModel;
+    protected AttendanceComputationService $computationService;
 
     public function __construct()
     {
@@ -22,6 +23,7 @@ class TimesheetsService
         $this->attendanceModel = new AttendanceModel();
         $this->requestModel    = new RequestModel();
         $this->employeePositionModel = new EmployeePositionModel();
+        $this->computationService = new AttendanceComputationService();
     }
 
     // ---------- Existing methods ----------
@@ -447,46 +449,23 @@ class TimesheetsService
                 // dropped that date whenever the time-out's clock time happened to
                 // fall later in the day than the clock-in's, undercounting a
                 // multi-day gap as a same-day few-minute session.
-                $start = new DateTime($att['time_in']);
-                $end   = new DateTime($att['time_out']);
-
-                $breakMinutes = (float)($att['break_duration'] ?? 0) * 60;
-
-                // Regular Hours = only the portion of the shift that falls INSIDE the
-                // scheduled window (e.g. 08:00-17:00) — not total time worked.
-                // Clocking in late doesn't "shift" the window forward, and time
-                // worked past the scheduled end isn't regular just because the
-                // employee is still short of a full day's total.
-                $schedStart = null;
-                $schedEnd   = null;
-                if ($hasSchedule) {
-                    $schedStart = new DateTime($date . ' ' . $scheduledStart);
-                    $schedEnd   = new DateTime($date . ' ' . $scheduledEnd);
-                    if ($schedEnd < $schedStart) $schedEnd->modify('+1 day');
-
-                    $overlapStart = max($start, $schedStart);
-                    $overlapEnd   = min($end, $schedEnd);
-                    $windowMinutes = 0;
-                    if ($overlapStart < $overlapEnd) {
-                        $diff = $overlapStart->diff($overlapEnd);
-                        $windowMinutes = $diff->h * 60 + $diff->i + $diff->days * 1440;
-                    }
-                } else {
-                    // No schedule on file — fall back to full worked span.
-                    $diff = $end->diff($start);
-                    $windowMinutes = $diff->h * 60 + $diff->i + $diff->days * 1440;
-                }
-                $regularMinutes = max(0, $windowMinutes - $breakMinutes);
-                $regularHours   = round($regularMinutes / 60, 2);
-
-                // Excess = time actually worked OUTSIDE the scheduled window
-                // (before start or after end). Only counted as OT if an approved
-                // overtime request actually covers this date — otherwise it's
-                // surfaced separately as unapproved and excluded from paid totals.
-                $totalSpanDiff    = $end->diff($start);
-                $totalWorkedMins  = $totalSpanDiff->h * 60 + $totalSpanDiff->i + ($totalSpanDiff->days * 1440);
-                $totalWorkedHours = max(0, ($totalWorkedMins - $breakMinutes) / 60);
-                $excessHours      = max(0, round($totalWorkedHours - $regularHours, 2));
+                //
+                // The actual regular/excess-hours math is shared with Payroll
+                // aggregation (and, via analyzeClockOut(), live clock-out and
+                // import) through AttendanceComputationService::splitShiftWindow(),
+                // so all of those produce matching numbers for the same shift.
+                $split = $this->computationService->splitShiftWindow(
+                    $att['time_in'],
+                    $att['time_out'],
+                    (float) ($att['break_duration'] ?? 0),
+                    $scheduledStart,
+                    $scheduledEnd,
+                    $date
+                );
+                $start = $split['span_start'];
+                $end   = $split['span_end'];
+                $regularHours = $split['regular_hours'];
+                $excessHours  = $split['excess_hours'];
                 if ($hasApprovedOt) {
                     $otHours = $excessHours;
                 } else {
@@ -501,9 +480,7 @@ class TimesheetsService
                 }
 
                 // Tardy uses the shift's own scheduled start.
-                if ($hasSchedule && $start > $schedStart) {
-                    $tardyMinutes = (int) round(($start->getTimestamp() - $schedStart->getTimestamp()) / 60);
-                }
+                $tardyMinutes = AttendanceComputationService::lateMinutes($start, $split['window_start']);
 
                 // Night Differential — only counted for the portion of the shift
                 // that's actually paid (the scheduled window, plus any OT hours
@@ -513,8 +490,8 @@ class TimesheetsService
                     $paidStart = $start;
                     $paidEnd   = $end;
                 } else {
-                    $paidStart = max($start, $schedStart);
-                    $paidEnd   = min($end, $schedEnd);
+                    $paidStart = max($start, $split['window_start']);
+                    $paidEnd   = min($end, $split['window_end']);
                 }
                 $nightDiff = $this->computeNightDiffRange($paidStart, $paidEnd, $date, $nightStart, $nightEnd);
             }

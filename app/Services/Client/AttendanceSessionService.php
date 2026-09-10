@@ -88,7 +88,7 @@ final class AttendanceSessionService
                 'break_duration' => 0, 'state_version' => 0, 'scheduled_start' => $schedule['start_time'] ?? null,
                 'scheduled_end' => $schedule['end_time'] ?? null, 'attendance_status' => 'present'];
             [$start] = AttendanceWindow::bounds($row);
-            $row['late_minutes'] = $start ? max(0, (int) floor((AttendanceWindow::dateTime($now)->getTimestamp() - $start->getTimestamp()) / 60)) : 0;
+            $row['late_minutes'] = AttendanceComputationService::lateMinutes(AttendanceWindow::dateTime($now), $start);
             if (!$this->db->table('attendance')->insert($row)) throw new RuntimeException('Clock-in could not be saved.');
             $row['id'] = (int) $this->db->insertID();
             if (!(($this->audit)('Clocked in', $row['id'], [], $row))) throw new RuntimeException('Clock-in audit could not be saved.');
@@ -155,7 +155,11 @@ final class AttendanceSessionService
             $status = $ut['approved_ut'] > 0 ? 'approved_undertime' : ($ut['unapproved_ut'] > 0 ? 'unapproved_undertime' : ($ot['approved_ot'] > 0 ? 'approved_overtime' : ($ot['unapproved_ot'] > 0 ? 'unapproved_overtime' : 'present')));
             $changes += ['time_out' => $now, 'time_out_dt' => $now,
                 'total_hours' => AttendanceWindow::elapsedHours($row['time_in'], $now, (float) ($effective['break_duration'] ?? 0)),
-                'night_diff_hours' => AttendanceWindow::nightHours($row['time_in'], $now),
+                // Paid-window-restricted (not the full worked span) so this matches
+                // what the Timesheet page and Payroll aggregation compute for the
+                // same shift — unapproved late-night hours outside the schedule
+                // aren't credited here either.
+                'night_diff_hours' => $analysis['night_diff_hours'],
                 'approved_ot_hours' => $ot['approved_ot'], 'unapproved_ot_hours' => $ot['unapproved_ot'],
                 'approved_ut_hours' => $ut['approved_ut'], 'unapproved_ut_hours' => $ut['unapproved_ut'],
                 'unapproved_ut_reason' => $ut['unapproved_ut'] > 0 ? $utReason : null,

@@ -199,8 +199,12 @@ final class TimesheetImportService
                     'breaks_taken'=>0,'break_log'=>null,'state_version'=>0,'scheduled_start'=>$schedule['start_time']??null,'scheduled_end'=>$schedule['end_time']??null,
                     'total_hours'=>AttendanceWindow::elapsedHours($timeIn,$timeOut,$breakHours),'night_diff_hours'=>AttendanceWindow::nightHours($timeIn,$timeOut)];
                 if($record['total_hours']>999.99||$record['night_diff_hours']>999.99||$breakHours>999.99)throw new DomainException('Attendance span exceeds supported limits.');
-                [$start]=AttendanceWindow::bounds($record);$record['late_minutes']=$start?max(0,(int)floor(($in->getTimestamp()-$start->getTimestamp())/60)):0;
+                [$start]=AttendanceWindow::bounds($record);$record['late_minutes']=AttendanceComputationService::lateMinutes($in,$start);
                 $analysis=(new AttendanceComputationService())->analyzeClockOut($uid,$timeOut,$record);$ot=$analysis['overtime'];$ut=$analysis['undertime'];
+                // Paid-window-restricted (not the full worked span, which the line
+                // above set as a placeholder for the sanity-limit check only) — same
+                // rule live clock-out, Timesheet, and Payroll all use.
+                $record['night_diff_hours']=$analysis['night_diff_hours'];
                 $record+=['approved_ot_hours'=>$ot['approved_ot'],'unapproved_ot_hours'=>$ot['unapproved_ot'],'approved_ut_hours'=>$ut['approved_ut'],'unapproved_ut_hours'=>$ut['unapproved_ut'],
                     'attendance_status'=>$ut['approved_ut']>0?'approved_undertime':($ut['unapproved_ut']>0?'unapproved_undertime':($ot['approved_ot']>0?'approved_overtime':($ot['unapproved_ot']>0?'unapproved_overtime':'present')))];
                 $view=array_replace($view,['time_in'=>$timeIn,'time_out'=>$timeOut,'shift_date'=>$shift,'break_hours'=>$breakHours,'total_hours'=>$record['total_hours']]);
