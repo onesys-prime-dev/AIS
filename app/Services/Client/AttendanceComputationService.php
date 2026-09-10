@@ -259,159 +259,25 @@ class AttendanceComputationService{
         return $result;
     }
     
-    public function analyzeClockOut(
-        int $userId,
-        string $actualOut
-    ): array
+    public function analyzeClockOut(int $userId, string $actualOut, ?array $attendance = null): array
     {
-        $schedule = $this->getEmployeeSchedule($userId);
-
-        if (! $schedule) {
-            return [
-                'overtime' => [
-                    'approved_ot'   => 0,
-                    'unapproved_ot' => 0,
-                ],
-                'undertime' => [
-                    'approved_ut'   => 0,
-                    'unapproved_ut' => 0,
-                ],
-            ];
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | Get the currently open attendance record (still clocked in). Looked up by
-        | "still open", not "started today" — a shift that started yesterday and is
-        | only being clocked out now (missed clock-out) must still resolve here.
-        |--------------------------------------------------------------------------
-        */
-
-        $attendance = $this->attendanceModel
-            ->where('user_id', $userId)
-            ->where('time_out', null)
-            ->orderBy('id', 'DESC')
-            ->first();
-
-        if (! $attendance) {
-            return [
-                'overtime' => [
-                    'approved_ot'   => 0,
-                    'unapproved_ot' => 0,
-                ],
-                'undertime' => [
-                    'approved_ut'   => 0,
-                    'unapproved_ut' => 0,
-                ],
-            ];
-        }
-
-        // Use the shift's own date (from time_in), not today's date, so the
-        // scheduled start/end and approved-request lookup line up with the shift
-        // that's actually being clocked out of, even across a midnight rollover.
-        $date = date('Y-m-d', strtotime($attendance['time_in']));
-
-        /*
-        |--------------------------------------------------------------------------
-        | Required working hours
-        |--------------------------------------------------------------------------
-        */
-
-        $scheduledStart = $date . ' ' . $schedule['start_time'];
-        $scheduledEnd = $date . ' ' . $schedule['end_time'];
-        $requiredHours = (strtotime($scheduledEnd) - strtotime($scheduledStart)) / 3600;
-
-        /*
-        |--------------------------------------------------------------------------
-        | Actual rendered hours
-        |--------------------------------------------------------------------------
-        */
-
-        $workedHours =
-            (
-                strtotime($actualOut)
-                -
-                strtotime($attendance['time_in'])
-            ) / 3600;
-
-        $workedHours -=
-            (float) ($attendance['break_duration'] ?? 0);
-
-        $workedHours = max(0, $workedHours);
-
-        /*
-        |--------------------------------------------------------------------------
-        | Difference
-        |--------------------------------------------------------------------------
-        */
-
-        $difference =
-            round(
-                $workedHours - $requiredHours,
-                2
-            );
-
-        $approvedOT = 0;
-        $unapprovedOT = 0;
-        $approvedUT = 0;
-        $unapprovedUT = 0;
-
-        /*
-        |--------------------------------------------------------------------------
-        | OVERTIME
-        |--------------------------------------------------------------------------
-        */
-
+        $result = ['overtime' => ['approved_ot' => 0, 'unapproved_ot' => 0], 'undertime' => ['approved_ut' => 0, 'unapproved_ut' => 0]];
+        $attendance ??= $this->attendanceModel->where('user_id', $userId)->where('time_out', null)->orderBy('id', 'ASC')->first();
+        if (!$attendance || (int) $attendance['user_id'] !== $userId) return $result;
+        [$start, $end] = \App\Libraries\AttendanceWindow::bounds($attendance, $this->getEmployeeSchedule($userId));
+        if (!$start || !$end) return $result;
+        $date = $attendance['shift_date'] ?? substr($attendance['time_in'], 0, 10);
+        $requiredHours = ($end->getTimestamp() - $start->getTimestamp()) / 3600;
+        $workedHours = \App\Libraries\AttendanceWindow::elapsedHours($attendance['time_in'], $actualOut, (float) ($attendance['break_duration'] ?? 0));
+        // Preserve the existing OT/UT classification policy; this phase corrects the timestamps and shift reference.
+        $difference = round($workedHours - $requiredHours, 2);
         if ($difference > 0) {
-
-            $request =
-                $this->getApprovedRequest(
-                    $userId,
-                    $date,
-                    'overtime'
-                );
-
-            if ($request) {
-                $approvedOT = $difference;
-            } else {
-                $unapprovedOT = $difference;
-            }
+            $approved = $this->getApprovedRequest($userId, $date, 'overtime');
+            $result['overtime'][$approved ? 'approved_ot' : 'unapproved_ot'] = $difference;
+        } elseif ($difference < 0) {
+            $approved = $this->getApprovedRequest($userId, $date, 'undertime');
+            $result['undertime'][$approved ? 'approved_ut' : 'unapproved_ut'] = abs($difference);
         }
-
-        /*
-        |--------------------------------------------------------------------------
-        | UNDERTIME
-        |--------------------------------------------------------------------------
-        */
-
-        if ($difference < 0) {
-
-            $hours =
-                abs($difference);
-
-            $request =
-                $this->getApprovedRequest(
-                    $userId,
-                    $date,
-                    'undertime'
-                );
-
-            if ($request) {
-                $approvedUT = $hours;
-            } else {
-                $unapprovedUT = $hours;
-            }
-        }
-
-        return [
-            'overtime' => [
-                'approved_ot'   => $approvedOT,
-                'unapproved_ot' => $unapprovedOT,
-            ],
-            'undertime' => [
-                'approved_ut'   => $approvedUT,
-                'unapproved_ut' => $unapprovedUT,
-            ],
-        ];
+        return $result;
     }
 }

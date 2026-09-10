@@ -10,6 +10,7 @@ class AttendanceModel extends Model
     protected $primaryKey = 'id';
     protected $allowedFields = [
         'user_id',
+        'shift_date', 'schedule_snapshot', 'break_log', 'state_version', 'breaks_taken',
         'date',
         'time_in',
         'break_start',

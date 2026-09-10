@@ -16,7 +16,7 @@ class EmployeeController extends BaseController
     {
         $user = auth()->user();
 
-        if (! $user || ! $user->inGroup('client_payroll_staff')) {
+        if (! $user || ! \App\Libraries\PortalAccess::can('employees', $user)) {
             throw PageNotFoundException::forPageNotFound();
         }
     }
@@ -192,6 +192,10 @@ class EmployeeController extends BaseController
         |--------------------------------------------------------------------------
         */
 
+        $employees = array_map([\App\Libraries\PortalAccess::class, 'hideCompensation'], $employees);
+        if (!\App\Libraries\PortalAccess::can('loans')) {
+            return view('client_portal/employee_main', ['employees' => $employees, 'loans' => [], 'settings' => [], 'currentUserId' => (int) $currentUser->id]);
+        }
         $loanModel = new LoanModel();
 
         $loans = $loanModel
@@ -329,7 +333,7 @@ class EmployeeController extends BaseController
         $service = new EmployeeService();
 
         try {
-            $postData = $this->request->getPost();
+            $postData = \App\Libraries\PortalAccess::employeeInput($this->request->getPost());
             
             // Controller-level validation - fail fast before service processing
             $email = trim((string) ($postData['email'] ?? ''));
@@ -368,7 +372,7 @@ class EmployeeController extends BaseController
 
         $service = new EmployeeService();
         try {
-            $service->updateEmployee($id, $this->request->getPost());
+            $service->updateEmployee($id, \App\Libraries\PortalAccess::employeeInput($this->request->getPost(), (int) $id));
             return redirect()->back()
                 ->with('success', 'Employee updated successfully');
         } catch (\Throwable $e) {
@@ -422,7 +426,7 @@ class EmployeeController extends BaseController
             $employee['emergency_leave'] = $leaveBalanceModel->getTypeEntitlement((int) $employee['id'], 'emergency', $year);
         }
 
-        return $this->response->setJSON($employee);
+        return $this->response->setJSON($employee ? \App\Libraries\PortalAccess::hideCompensation($employee) : null);
     }
 
     public function importEmployees()
@@ -613,6 +617,7 @@ class EmployeeController extends BaseController
         */
 
         foreach ($employees as $employee) {
+            $employee = \App\Libraries\PortalAccess::hideCompensation($employee);
 
             /*
             |--------------------------------------------------------------------------
@@ -714,15 +719,15 @@ class EmployeeController extends BaseController
                 $employee['bank_address'],
                 $employee['account_number'],
                 $employee['swift_code'],
-                $employee['monthly_salary'],
-                $employee['de_minimis_benefit'],
+                $employee['monthly_salary'] ?? '',
+                $employee['de_minimis_benefit'] ?? '',
                 $allocations['rice_subsidy'] ?? '',
                 $allocations['uniform_allowance'] ?? '',
                 $allocations['laundry_allowance'] ?? '',
                 $allocations['medical_allowance'] ?? '',
                 $otherCompTotal,
                 $otherCompSummary,
-                $employee['allowances'],
+                $employee['allowances'] ?? '',
                 $leaveBalanceModel->getTypeEntitlement((int) $employee['id'], 'vacation',  $currentYear),
                 $leaveBalanceModel->getTypeEntitlement((int) $employee['id'], 'sick',      $currentYear),
                 $leaveBalanceModel->getTypeEntitlement((int) $employee['id'], 'emergency', $currentYear),

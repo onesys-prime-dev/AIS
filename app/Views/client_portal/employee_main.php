@@ -6,7 +6,7 @@
 
     <div class="tabs">
         <button type="button" class="tab active" data-tab="employee-management">Employee Management</button>
-        <button type="button" class="tab" data-tab="loan-management">Loan Management</button>
+        <?php if (\App\Libraries\PortalAccess::can('loans')): ?><button type="button" class="tab" data-tab="loan-management">Loan Management</button><?php endif; ?>
     </div>
 
     <div class="tab-panel h-full min-h-0 overflow-visible px-8 pb-8"
@@ -16,7 +16,7 @@
     </div>
 
     <div class="tab-panel h-full min-h-0 overflow-visible px-8 pb-8" data-panel="loan-management" style="display:none;">
-        <?= view('client_portal/employee_loan') ?>
+        <?php if (\App\Libraries\PortalAccess::can('loans')): ?><?= view('client_portal/employee_loan') ?><?php endif; ?>
     </div>
 
 
@@ -58,6 +58,7 @@
     ?>
 
     <?php
+    if (\App\Libraries\PortalAccess::can('loans')) {
     $content = view('client_portal/modals/loan_settings');
 
     echo view('components/loan_settings_modal', [
@@ -97,6 +98,7 @@
         'title' => 'Loan Details',
         'content' => $content
     ]);
+    }
     ?>
 
 <?= $this->endSection() ?>
@@ -110,6 +112,13 @@
 
 <script>
 
+<?php if (!\App\Libraries\PortalAccess::can('compensation')): ?>
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('[name=monthly_salary], [name=de_minimis_benefit], [name=de_minimis_breakdown], [name=allowances]').forEach(el => { el.disabled = true; el.value = ''; });
+    document.getElementById('importEmployeesBtn')?.remove();
+    document.querySelectorAll('input[type=file][name=file]').forEach(el => el.disabled = true);
+});
+<?php endif; ?>
 const EMPLOYEES = <?= json_encode($employees) ?>;
 const LOANS = <?= json_encode($loans ?? []) ?>;
 const CURRENT_USER_ID = <?= (int) ($currentUserId ?? 0) ?>;

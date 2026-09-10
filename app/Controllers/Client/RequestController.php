@@ -31,9 +31,9 @@ class RequestController extends BaseController
             return redirect()->to('/login');
         }
  
-        if ($user->inGroup('client_payroll_staff')) {
+        if (\App\Libraries\PortalAccess::reviewsRequests($user)) {
  
-            $data['requests'] = $this->requestModel
+            $data['requests'] = \App\Libraries\PortalAccess::scopeRequests($this->requestModel)
                 ->select("requests.*, employees.employee_number, ea.photo_path,
                     COALESCE(NULLIF(CONCAT(employees.last_name, ', ', employees.first_name, CASE WHEN employees.middle_name IS NOT NULL AND TRIM(employees.middle_name) != '' THEN CONCAT(' ', UPPER(LEFT(TRIM(employees.middle_name), 1)), '.') ELSE '' END), ''), users.username) as requested_by_name")
                 ->join('users', 'users.id = requests.requested_by', 'left')
@@ -43,7 +43,7 @@ class RequestController extends BaseController
                 ->findAll();
  
             // Approval codes with generator + consumer names
-            $data['approvalCodes'] = $this->approvalCodeModel
+            $data['approvalCodes'] = \App\Libraries\PortalAccess::can('request_codes') ? $this->approvalCodeModel
                 ->select("
                     approval_codes.*,
                     COALESCE(NULLIF(CONCAT(ge.last_name, ', ', ge.first_name), ', '), gu.username) AS generated_by_name,
@@ -54,11 +54,11 @@ class RequestController extends BaseController
                 ->join('users      AS uu', 'uu.id      = approval_codes.used_by',      'left')
                 ->join('employees  AS ue', 'ue.user_id = approval_codes.used_by',      'left')
                 ->orderBy('approval_codes.created_at', 'DESC')
-                ->findAll();
+                ->findAll() : [];
  
         } else {
  
-            $data['requests'] = $this->requestModel
+            $data['requests'] = \App\Libraries\PortalAccess::scopeRequests($this->requestModel)
                 ->select("requests.*, employees.employee_number,
                     COALESCE(NULLIF(CONCAT(employees.last_name, ', ', employees.first_name, CASE WHEN employees.middle_name IS NOT NULL AND TRIM(employees.middle_name) != '' THEN CONCAT(' ', UPPER(LEFT(TRIM(employees.middle_name), 1)), '.') ELSE '' END), ''), users.username) as requested_by_name")
                 ->join('users', 'users.id = requests.requested_by', 'left')
@@ -90,7 +90,7 @@ class RequestController extends BaseController
         }
 
         // Only payroll staff can approve/reject
-        if (!$user->inGroup('client_payroll_staff')) {
+        if (!\App\Libraries\PortalAccess::canReviewRequest((int) $id, $user)) {
             return redirect()->back()->with('error', 'Unauthorized action.');
         }
 
@@ -168,7 +168,7 @@ class RequestController extends BaseController
             return $this->response->setJSON(['success' => false, 'message' => 'Unauthenticated.'])->setStatusCode(401);
         }
 
-        if (! $user->inGroup('client_payroll_staff')) {
+        if (! \App\Libraries\PortalAccess::can('request_codes', $user)) {
             return $this->response->setJSON(['success' => false, 'message' => 'Unauthorized.'])->setStatusCode(403);
         }
 

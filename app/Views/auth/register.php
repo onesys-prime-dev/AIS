@@ -43,7 +43,13 @@
 
                         <select name="role" class="form-control" required>
                             <option value="employee">Employee</option>
-                            <option value="client_payroll_staff">Client Payroll Staff</option>
+                            <?php if (\App\Libraries\PortalAccess::can('roles')): ?>
+<option value="client_payroll_staff">Client Payroll Staff</option>
+<option value="hr_admin">Hr Admin</option>
+<option value="team_head">Team Head</option>
+<option value="admin">Admin</option>
+<option value="superadmin">Superadmin</option>
+<?php endif; ?>
                         </select>
                     </div>
 
