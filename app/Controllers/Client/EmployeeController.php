@@ -429,60 +429,113 @@ class EmployeeController extends BaseController
         return $this->response->setJSON($employee ? \App\Libraries\PortalAccess::hideCompensation($employee) : null);
     }
 
+    /**
+     * Maps one CSV row (keyed by the same headers exportEmployees() writes) to the
+     * shape EmployeeService::createEmployee() expects. Each imported row goes
+     * through the same account/position/government-ID/leave creation as the "Add
+     * Employee" modal — this importer used to insert a bare `employees` row with
+     * no linked user account, position, or compensation, which silently produced
+     * employees who couldn't log in, clock in, or be paid.
+     */
+    private function mapImportRow(array $row, string $tempPassword): array
+    {
+        $get = static fn (string $key) => trim((string) ($row[$key] ?? ''));
+        return [
+            'email'              => $get('Email'),
+            'password'           => $tempPassword,
+            'first_name'         => $get('First Name'),
+            'middle_name'        => $get('Middle Name'),
+            'last_name'          => $get('Last Name'),
+            'dob'                => $get('Birthdate') ?: null,
+            'gender'             => $get('Gender') ?: null,
+            'civil_status'       => $get('Civil Status') ?: null,
+            'sss'                => $get('SSS') ?: null,
+            'tin'                => $get('TIN') ?: null,
+            'pagibig'            => $get('Pagibig') ?: null,
+            'philhealth'         => $get('PhilHealth') ?: null,
+            'department'         => $get('Department') ?: null,
+            'position'           => $get('Position') ?: null,
+            'employment_type'    => $get('Employment Type') ?: null,
+            'working_day_type'   => $get('Working Day Type') ?: 'full_weekdays',
+            'working_days'       => array_values(array_filter(array_map('trim', explode(',', $get('Working Days'))))),
+            'start_time'         => $get('Start Time'),
+            'end_time'           => $get('End Time'),
+            'monthly_salary'     => $get('Basic Salary'),
+            'de_minimis_benefit' => $get('De Minimis Benefit'),
+            'allowances'         => $get('Allowances'),
+            'mobile_number'      => $get('Contact No.') ?: null,
+            'address'            => $get('Address') ?: null,
+            'bank'               => $get('Bank') ?: null,
+            'bank_address'       => $get('Bank Address') ?: null,
+            'account_number'     => $get('Account Number') ?: null,
+            'swift_code'         => $get('Swift Code') ?: null,
+            'vacation_leave'     => $get('Vacation Leave'),
+            'sick_leave'         => $get('Sick Leave'),
+            'emergency_leave'    => $get('Emergency Leave'),
+        ];
+    }
+
     public function importEmployees()
     {
         $this->ensurePayrollStaff();
 
         try {
-
             $file = $this->request->getFile('file');
 
             if (! $file || ! $file->isValid()) {
-
-                return $this->response->setJSON([
-                    'success' => false,
-                    'message' => 'Invalid file.'
-                ]);
+                return $this->response->setJSON(['success' => false, 'message' => 'Invalid file.']);
             }
 
             $handle = fopen($file->getTempName(), 'r');
 
             if (! $handle) {
-
-                return $this->response->setJSON([
-                    'success' => false,
-                    'message' => 'Unable to read file.'
-                ]);
+                return $this->response->setJSON(['success' => false, 'message' => 'Unable to read file.']);
             }
 
             $header = fgetcsv($handle);
+            if (! $header) {
+                fclose($handle);
+                return $this->response->setJSON(['success' => false, 'message' => 'The file has no header row.']);
+            }
+            if (! in_array('Email', $header, true)) {
+                fclose($handle);
+                return $this->response->setJSON(['success' => false, 'message' => 'The file needs an "Email" column — use the exported template as a starting point.']);
+            }
 
-            $employeeModel = new EmployeeModel();
-            $imported = 0;
+            $service = new EmployeeService();
+            $imported = [];
+            $errors = [];
+            $rowNumber = 1;
 
             while (($row = fgetcsv($handle)) !== false) {
-
-                if (count($row) !== count($header)) continue;
+                $rowNumber++;
+                if (count($row) !== count($header)) {
+                    $errors[] = "Row {$rowNumber}: column count doesn't match the header row.";
+                    continue;
+                }
                 $data = array_combine($header, $row);
+                if (trim((string) ($data['Email'] ?? '')) === '') continue; // blank trailing row
 
-                // Use header-based mapping so the file round-trips with exportEmployees.
-                $employeeModel->insert([
-                    'employee_number' => $data['Employee Number'] ?? ($data['employee_number'] ?? ''),
-                    'first_name'      => $data['First Name']      ?? ($data['first_name']      ?? ''),
-                    'middle_name'     => $data['Middle Name']     ?? ($data['middle_name']     ?? ''),
-                    'last_name'       => $data['Last Name']       ?? ($data['last_name']       ?? ''),
-                    'birthdate'       => !empty($data['Birthdate'] ?? $data['birthdate'] ?? '')
-                                            ? ($data['Birthdate'] ?? $data['birthdate'])
-                                            : null,
-                ]);
-                $imported++;
+                // A random temporary password per row — the admin communicates it
+                // (or resets it) to the employee, who should change it on first login.
+                $tempPassword = bin2hex(random_bytes(6));
+
+                try {
+                    $mapped = \App\Libraries\PortalAccess::employeeInput($this->mapImportRow($data, $tempPassword));
+                    $service->createEmployee($mapped);
+                    $imported[] = ['row' => $rowNumber, 'email' => $mapped['email'], 'temp_password' => $tempPassword];
+                } catch (\Throwable $e) {
+                    $errors[] = "Row {$rowNumber} ({$data['Email']}): " . $this->safeErrorMessage($e, 'Could not be imported.');
+                }
             }
 
             fclose($handle);
 
             return $this->response->setJSON([
-                'success' => true,
-                'message' => "{$imported} employee(s) imported successfully.",
+                'success'  => true,
+                'message'  => count($imported) . ' employee(s) imported; ' . count($errors) . ' skipped.',
+                'imported' => $imported,
+                'errors'   => $errors,
             ]);
 
         } catch (\Throwable $e) {

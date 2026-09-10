@@ -82,7 +82,6 @@ $routes->group('client_portal', ['filter' => 'auth'], function($routes){
 $routes->group('', ['filter' => 'auth'], function($routes) {
     $routes->post('client_portal/time-in', 'Client\AttendanceController::timeIn');
     $routes->post('client_portal/time-out/(:num)', 'Client\AttendanceController::timeOut/$1');
-    $routes->get('client_portal/toggle-break/(:num)', 'Client\AttendanceController::toggleBreak/$1');
     $routes->post('client_portal/toggle-break/(:num)', 'Client\AttendanceController::toggleBreak/$1');
     $routes->get('client_portal/requests/new', 'Client\RequestController::create');
     $routes->post('client_portal/requests/store', 'Client\RequestController::store');

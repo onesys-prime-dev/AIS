@@ -133,7 +133,12 @@ final class AttendanceSessionService
                 // Retrying cannot move an already recorded clock-out, but the caller
                 // (e.g. a resubmitted request after a lost response) still needs to
                 // know whether it was late, so the missed-clockout prompt isn't lost.
-                [, $end] = AttendanceWindow::bounds($row, $this->currentSchedule($userId));
+                // No need for currentSchedule() here (and no risk of it throwing if
+                // the employee profile is ever missing by the time of a retry): any
+                // row that can reach this branch was written by clockIn() or the
+                // importer, both of which always save a schedule_snapshot, which
+                // AttendanceWindow::schedule() always prefers over the $current arg.
+                [, $end] = AttendanceWindow::bounds($row);
                 $shiftEndDate = $end ? $end->format('Y-m-d') : substr($row['time_in'], 0, 10);
                 $row['missed_clockout'] = substr($row['time_out'], 0, 10) > $shiftEndDate;
                 return $row;

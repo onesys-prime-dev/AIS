@@ -1288,7 +1288,7 @@ document.addEventListener('DOMContentLoaded', function () {
             <div class="buttons">
                 <!-- functioning break button -->
                 <?php if ($currentAttendance): ?>
-                <form method="post" action="<?= site_url('client_portal/toggle-break/'.$currentAttendance['id']) ?>">
+                <form method="post" action="<?= site_url('client_portal/toggle-break/'.$currentAttendance['id']) ?>" onsubmit="this.querySelectorAll('button').forEach(b=>b.disabled=true)">
                     <input type="hidden" name="attendance_token" value="<?= esc($attendanceToken) ?>">
                     <input type="hidden" name="state_version" value="<?= (int) ($currentAttendance['state_version'] ?? 0) ?>">
                     <input type="hidden" name="break_action" value="<?= empty($currentAttendance['break_start']) ? 'start' : 'end' ?>">
@@ -1308,7 +1308,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 <?php if (!$currentAttendance): ?>
                 <form
                     action="<?= site_url('client_portal/time-in') ?>"
-                    method="post">
+                    method="post"
+                    onsubmit="this.querySelectorAll('button').forEach(b=>b.disabled=true)">
                     <input type="hidden" name="attendance_token" value="<?= esc($attendanceToken) ?>">
 
                     <?= csrf_field() ?>
@@ -2548,6 +2549,21 @@ document.addEventListener('DOMContentLoaded', function () {
     updateDisplay();
     if (breakBtn) breakBtn.disabled = true;
 
+    // Every path that finalizes a clock-out (direct, after the undertime modal,
+    // after the missed-clockout modal) funnels through here so a fast double
+    // click/tap can only ever submit the form once — the server already tolerates
+    // a repeat submission safely, but this avoids the redundant round trip and
+    // any confusing "changed in another request" flash on a genuine double-click.
+    let clockOutSubmitting = false;
+    function submitClockOutForm()
+    {
+        if (clockOutSubmitting) return;
+        clockOutSubmitting = true;
+        const form = document.getElementById('clockOutForm');
+        form.querySelectorAll('button').forEach(btn => btn.disabled = true);
+        form.submit();
+    }
+
     function handleClockOut()
     {
         // Clocking out on a later calendar day than the shift started means this
@@ -2579,11 +2595,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         if (!scheduledEnd)
         {
-            document
-                .getElementById(
-                    'clockOutForm'
-                )
-                .submit();
+            submitClockOutForm();
 
             return;
         }
@@ -2632,11 +2644,7 @@ document.addEventListener('DOMContentLoaded', function () {
             return;
         }
 
-        document
-            .getElementById(
-                'clockOutForm'
-            )
-            .submit();
+        submitClockOutForm();
     }
 
     function proceedClockOut()
@@ -2668,11 +2676,7 @@ document.addEventListener('DOMContentLoaded', function () {
             'unapproved_ut_reason'
         ).value = reason;
 
-        document
-            .getElementById(
-                'clockOutForm'
-            )
-            .submit();
+        submitClockOutForm();
     }
 
     function closeUndertimeModal()
@@ -2710,11 +2714,7 @@ document.addEventListener('DOMContentLoaded', function () {
             'missed_clockout_reason'
         ).value = reason;
 
-        document
-            .getElementById(
-                'clockOutForm'
-            )
-            .submit();
+        submitClockOutForm();
     }
 
     function closeMissedClockoutModal()

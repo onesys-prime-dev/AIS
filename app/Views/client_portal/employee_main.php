@@ -1155,7 +1155,19 @@ document.getElementById('employeeImportInput')?.addEventListener('change', async
         const result = await res.json();
         if (result.success) {
             showToast(result.message || 'Employees imported successfully.', 'success');
-            setTimeout(() => window.location.reload(), 1200);
+            // Temporary passwords are generated per row and shown only here —
+            // there is no other record of them, so this must be read before reloading.
+            const lines = [];
+            if (result.imported?.length) {
+                lines.push('Temporary passwords (share with each employee, who should change it on first login):');
+                result.imported.forEach(r => lines.push(`  ${r.email}: ${r.temp_password}`));
+            }
+            if (result.errors?.length) {
+                lines.push('', 'Rows not imported:');
+                result.errors.forEach(e => lines.push(`  ${e}`));
+            }
+            if (lines.length) alert(lines.join('\n'));
+            setTimeout(() => window.location.reload(), lines.length ? 0 : 1200);
         } else {
             showToast('Import failed: ' + (result.message || 'Unknown error'), 'error');
         }
