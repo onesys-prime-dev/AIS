@@ -390,8 +390,8 @@ class PayrollController extends BaseController
             $attendanceModel = new AttendanceModel();
             $attendances = $attendanceModel
                 ->where('user_id', $userId)
-                ->where('DATE(time_in) >=', $startDate)
-                ->where('DATE(time_in) <=', $endDate)
+                ->where('COALESCE(shift_date, DATE(time_in)) >=', $startDate)
+                ->where('COALESCE(shift_date, DATE(time_in)) <=', $endDate)
                 ->findAll();
 
             $posModel    = new \App\Models\Client\EmployeePositionModel();
@@ -492,13 +492,15 @@ class PayrollController extends BaseController
         $byDate = [];
         foreach ($attendances as $att) {
             if (empty($att['time_in']) || empty($att['time_out'])) continue;
-            $attDate = date('Y-m-d', strtotime($att['time_in']));
+            $attDate = $att['shift_date'] ?? date('Y-m-d', strtotime($att['time_in']));
             $byDate[$attDate][] = $att;
         }
 
+        $computationService = new AttendanceComputationService();
         $workedDays      = count($byDate);
         $regularHours    = 0.0;
         $tardyMinutes    = 0;
+        $undertimeHours  = 0.0;
         $regOtHours      = 0.0;
         $workdayNsdHours = 0.0;
         $satRegHours     = 0.0;
@@ -528,57 +530,73 @@ class PayrollController extends BaseController
 
         foreach ($byDate as $attDate => $recs) {
             usort($recs, fn($a, $b) => strcmp($a['time_in'], $b['time_in']));
-            $firstIn = date('H:i:s', strtotime($recs[0]['time_in']));
-            if ($scheduledStart && $firstIn > $scheduledStart) {
-                $tardyMinutes += (int)round((strtotime($firstIn) - strtotime($scheduledStart)) / 60);
+
+            // Each record uses its OWN saved schedule (schedule_snapshot as of
+            // clock-in), falling back to the employee's current schedule only when
+            // a record has no snapshot — same rule AttendanceWindow::schedule()
+            // applies for the Timesheet page. Previously this whole function used
+            // only the employee's *current* schedule for every record regardless
+            // of when it happened, so an employee whose schedule was edited
+            // mid-cutoff would have old shifts silently recomputed against the new
+            // schedule here while the Timesheet page kept using the old one.
+            $daySchedule = \App\Libraries\AttendanceWindow::schedule(
+                $recs[0],
+                ['start_time' => $scheduledStart, 'end_time' => $scheduledEnd]
+            );
+            $dayScheduledStart = $daySchedule['start_time'] ?? null;
+            $dayScheduledEnd   = $daySchedule['end_time'] ?? null;
+            $dayRequiredHours  = $requiredHours;
+            if ($dayScheduledStart && $dayScheduledEnd) {
+                $reqStart = strtotime($dayScheduledStart);
+                $reqEnd   = strtotime($dayScheduledEnd);
+                if ($reqEnd < $reqStart) $reqEnd += 86400;
+                $dayRequiredHours = ($reqEnd - $reqStart) / 3600;
             }
+
+            // Same shared formula as Timesheet/live clock-in/import — full
+            // datetimes rather than bare time-of-day strings, which previously
+            // couldn't correctly compare an overnight shift's actual arrival
+            // against its scheduled start across the midnight boundary.
+            $firstRecDate = date('Y-m-d', strtotime($recs[0]['time_in']));
+            $dayWindowStart = $dayScheduledStart ? new \DateTime($firstRecDate . ' ' . $dayScheduledStart) : null;
+            $tardyMinutes += AttendanceComputationService::lateMinutes(new \DateTime($recs[0]['time_in']), $dayWindowStart);
 
             $dayNsd           = 0.0;
             $dayBreak         = 0.0;
-            $dayWindowMinutes = 0.0; // time actually worked inside the scheduled window
-            $dayTotalMinutes  = 0.0; // full worked span, any time of day
+            $dayRegularHours  = 0.0;
+            $dayExcessHours   = 0.0;
             $hasApprovedOt    = isset($approvedOtDates[$attDate]);
             foreach ($recs as $rec) {
                 $dayBreak += (float)($rec['break_duration'] ?? 0);
 
                 if (empty($rec['time_in']) || empty($rec['time_out'])) continue;
                 $recDate  = date('Y-m-d', strtotime($rec['time_in']));
-                $recStart = new \DateTime($rec['time_in']);
-                $recEnd   = new \DateTime($rec['time_out']);
-                if ($recEnd < $recStart) $recEnd->modify('+1 day');
-                $spanDiff = $recEnd->diff($recStart);
-                $dayTotalMinutes += $spanDiff->h * 60 + $spanDiff->i + ($spanDiff->days * 1440);
+                $recSchedule = \App\Libraries\AttendanceWindow::schedule(
+                    $rec,
+                    ['start_time' => $scheduledStart, 'end_time' => $scheduledEnd]
+                );
 
-                // Regular = only the portion of this clock-in/out that falls INSIDE
-                // the scheduled window — same rule as the Timesheet page. Clocking
-                // in early/late doesn't shift the window; time outside it belongs
-                // to OT (if approved) or nowhere at all.
-                $recWindowStart = $recStart;
-                $recWindowEnd   = $recEnd;
-                if ($scheduledStart && $scheduledEnd) {
-                    $schedStartDt = new \DateTime($recDate . ' ' . $scheduledStart);
-                    $schedEndDt   = new \DateTime($recDate . ' ' . $scheduledEnd);
-                    if ($schedEndDt < $schedStartDt) $schedEndDt->modify('+1 day');
-
-                    $overlapStart = max($recStart, $schedStartDt);
-                    $overlapEnd   = min($recEnd, $schedEndDt);
-                    if ($overlapStart < $overlapEnd) {
-                        $diff = $overlapStart->diff($overlapEnd);
-                        $dayWindowMinutes += $diff->h * 60 + $diff->i;
-                    }
-                    $recWindowStart = $schedStartDt;
-                    $recWindowEnd   = $schedEndDt;
-                } else {
-                    // No schedule on file — fall back to the record's full worked span.
-                    $dayWindowMinutes += $spanDiff->h * 60 + $spanDiff->i;
-                }
+                // Regular/excess math is shared with the Timesheet page (and, via
+                // analyzeClockOut(), live clock-out and import) through
+                // AttendanceComputationService::splitShiftWindow(), so all of them
+                // produce matching numbers for the same shift.
+                $split = $computationService->splitShiftWindow(
+                    $rec['time_in'],
+                    $rec['time_out'],
+                    (float) ($rec['break_duration'] ?? 0),
+                    $recSchedule['start_time'] ?? null,
+                    $recSchedule['end_time'] ?? null,
+                    $recDate
+                );
+                $dayRegularHours += $split['regular_hours'];
+                $dayExcessHours  += $split['excess_hours'];
 
                 // Night differential only counts for paid time: the scheduled
                 // window, or the full span if this date's overtime was approved.
                 // Unapproved excess worked at night isn't recognized as OT, so it
                 // isn't paid a night differential either (same rule as Timesheet).
-                $nsdPaidStart = $hasApprovedOt ? $recStart : max($recStart, $recWindowStart);
-                $nsdPaidEnd   = $hasApprovedOt ? $recEnd   : min($recEnd,   $recWindowEnd);
+                $nsdPaidStart = $hasApprovedOt ? $split['span_start'] : max($split['span_start'], $split['window_start'] ?? $split['span_start']);
+                $nsdPaidEnd   = $hasApprovedOt ? $split['span_end']   : min($split['span_end'],   $split['window_end']   ?? $split['span_end']);
                 if ($nsdPaidStart < $nsdPaidEnd) {
                     $dayNsd += $this->calcNightDiffHours(
                         $nsdPaidStart->format('Y-m-d H:i:s'),
@@ -588,14 +606,19 @@ class PayrollController extends BaseController
             }
             $totalBreakHours += $dayBreak;
 
-            // Breaks subtracted once per day, not per record — matches how
-            // total_hours is computed elsewhere (break deducted from the day's total).
-            $regularCapped = max(0, round($dayWindowMinutes / 60 - $dayBreak, 2));
+            // Break deduction now happens per record (inside splitShiftWindow), not
+            // once against the day's total, matching how the Timesheet page and
+            // live clock-out apply it.
+            $regularCapped = round($dayRegularHours, 2);
             // OT = time actually worked outside the scheduled window, but only
             // paid if an approved overtime request covers this specific date —
             // unapproved excess isn't paid as OT, and doesn't inflate Regular.
-            $dayExcessHours = max(0, round(($dayTotalMinutes - $dayBreak * 60) / 60 - $regularCapped, 2));
+            $dayExcessHours = round($dayExcessHours, 2);
             $ot             = $hasApprovedOt ? $dayExcessHours : 0.0;
+            // Undertime = shortfall against the scheduled window itself, tracked
+            // by the Timesheet page but previously invisible to payroll entirely.
+            $dayUndertime   = ($dayScheduledStart && $dayScheduledEnd) ? max(0, round($dayRequiredHours - $regularCapped, 2)) : 0.0;
+            $undertimeHours += $dayUndertime;
             $dow            = (int)date('N', strtotime($attDate));
             $holidayType   = $getHolidayType($attDate);
 
@@ -636,6 +659,10 @@ class PayrollController extends BaseController
             'absent_days'        => max(0, $totalWorkingDays - $workedWeekdays),
             'regular_hours'      => round($regularHours, 2),
             'tardy_minutes'      => $tardyMinutes,
+            // Previously not surfaced here at all, even though the Timesheet page
+            // has always tracked it for the same shifts — added so payroll has
+            // visibility into it too, matching Phase 4's "matching results" goal.
+            'undertime_hours'    => round($undertimeHours, 2),
             'break_hours'        => round($totalBreakHours, 2),
             'reg_ot_hours'       => round($regOtHours, 2),
             'workday_nsd_hours'  => round($workdayNsdHours, 2),
@@ -1040,7 +1067,7 @@ class PayrollController extends BaseController
     public function getPayslipEditData()
     {
         $user = auth()->user();
-        $isAdmin = $user->inGroup('client_payroll_staff') || $user->inGroup('superadmin') || $user->inGroup('admin');
+        $isAdmin = \App\Libraries\PortalAccess::can('payroll', $user);
         if (!$isAdmin) {
             return $this->response->setStatusCode(403)->setJSON(['error' => 'Unauthorized']);
         }
@@ -1113,7 +1140,7 @@ class PayrollController extends BaseController
     public function savePayslipEditData()
     {
         $user = auth()->user();
-        $isAdmin = $user->inGroup('client_payroll_staff') || $user->inGroup('superadmin') || $user->inGroup('admin');
+        $isAdmin = \App\Libraries\PortalAccess::can('payroll', $user);
         if (!$isAdmin) {
             return $this->response->setStatusCode(403)->setJSON(['error' => 'Unauthorized']);
         }
@@ -1352,538 +1379,120 @@ class PayrollController extends BaseController
             return $this->response->setStatusCode(404)->setJSON(['error' => 'Employee not found']);
         }
 
-        $attendanceModel = new AttendanceModel();
-        $records = $attendanceModel
-            ->select('DATE(time_in) as date, time_in, time_out, break_duration, total_hours, night_diff_hours')
-            ->where('user_id', $employee['user_id'])
-            ->where('DATE(time_in) >=', $startDate)
-            ->where('DATE(time_in) <=', $endDate)
-            ->orderBy('time_in', 'ASC')
-            ->findAll();
-
-        $filename = "timesheet_{$employee['employee_number']}_{$startDate}_to_{$endDate}.csv";
-        header('Content-Type: text/csv');
-        header('Content-Disposition: attachment; filename="' . $filename . '"');
-        $output = fopen('php://output', 'w');
-        fputcsv($output, ['employee_number', 'date', 'time_in', 'time_out', 'break_duration', 'total_hours', 'night_diff_hours']);
-        foreach ($records as $row) {
-            fputcsv($output, [
-                $employee['employee_number'],
-                $row['date'],
-                $row['time_in'],
-                $row['time_out'],
-                $row['break_duration'],
-                $row['total_hours'],
-                $row['night_diff_hours'] ?? 0,
-            ]);
+        foreach ([$startDate, $endDate] as $date) {
+            $parsed=\DateTimeImmutable::createFromFormat('!Y-m-d',(string)$date);
+            if(!$parsed||$parsed->format('Y-m-d')!==$date)return $this->response->setStatusCode(400)->setJSON(['error'=>'Invalid cutoff date']);
         }
-        fclose($output);
-        exit();
-    }
+        if($startDate>$endDate)return $this->response->setStatusCode(400)->setJSON(['error'=>'Invalid cutoff range']);
 
-    /**
-     * The importer's own vocabulary: every field importTimesheet() reads,
-     * whether it's required, and the header spellings it'll recognize
-     * automatically without asking the uploader to map anything by hand.
-     * Shared by previewTimesheetImport() (which guesses a mapping from
-     * these) and importTimesheet() (which falls back to them when no
-     * column_map was confirmed).
-     */
-    private function timesheetImportFields(): array
-    {
-        return [
-            'employee_number' => [
-                'label'    => 'Employee Number',
-                'required' => true,
-                'aliases'  => ['empno', 'employeeno', 'employeeid', 'empid', 'idnumber', 'id'],
-            ],
-            'date' => [
-                'label'    => 'Date',
-                'required' => true,
-                'aliases'  => ['attendancedate', 'logdate', 'workdate'],
-            ],
-            'time_in' => [
-                'label'    => 'Time In',
-                'required' => true,
-                'aliases'  => ['in', 'clockin', 'timein'],
-            ],
-            'time_out' => [
-                'label'    => 'Time Out',
-                'required' => false,
-                'aliases'  => ['out', 'clockout', 'timeout'],
-            ],
-            'break_duration' => [
-                'label'    => 'Break Duration',
-                'required' => false,
-                'aliases'  => ['break', 'breakmins', 'breakminutes', 'breakhours'],
-            ],
-            'total_hours' => [
-                'label'    => 'Total Hours',
-                'required' => false,
-                'aliases'  => ['hours', 'hrs', 'totalhrs'],
-            ],
-            'night_diff_hours' => [
-                'label'    => 'Night Diff Hours',
-                'required' => false,
-                'aliases'  => ['nightdiff', 'ndhours', 'nightdifferential'],
-            ],
-        ];
-    }
-
-    private function normalizeHeaderLabel(string $s): string
-    {
-        return strtolower(preg_replace('/[^a-z0-9]/i', '', $s) ?? '');
-    }
-
-    /**
-     * Best column for one of our fields: an exact match against its name or
-     * a known alias first; failing that, whichever remaining header reads
-     * closest to it (e.g. "Employee No." isn't a listed alias but is
-     * obviously meant to be employee_number). Claims the header out of
-     * $pool so two fields can't both grab the same ambiguous column —
-     * required fields go first in timesheetImportFields()'s order, so they
-     * win any contested match.
-     */
-    private function guessColumnMatch(string $fieldKey, array $aliases, array &$pool): ?string
-    {
-        $candidates = array_unique(array_merge([$this->normalizeHeaderLabel($fieldKey)], $aliases));
-
-        foreach ($candidates as $c) {
-            if (isset($pool[$c])) {
-                $match = $pool[$c];
-                unset($pool[$c]);
-                return $match;
-            }
-        }
-
-        $bestNormalized = null;
-        $bestScore = 0.0;
-        foreach ($pool as $normalized => $original) {
-            foreach ($candidates as $c) {
-                similar_text($c, $normalized, $percent);
-                if ($percent > $bestScore) {
-                    $bestScore = $percent;
-                    $bestNormalized = $normalized;
+        // Read the same calculations as the system timesheet and payroll screen.
+        // Exporting never recalculates or saves payroll transactions.
+        $detailed=(new \App\Services\Client\TimesheetsService())->getDetailedTimesheet((int)$employee['user_id'],$startDate,$endDate);
+        $summaryResponse=$this->getAttendanceSummary((int)$employeeId,$startDate,$endDate);
+        if($summaryResponse->getStatusCode()!==200)return $summaryResponse;
+        $summary=json_decode($summaryResponse->getJSON(),true,512,JSON_THROW_ON_ERROR);
+        $book=new \PhpOffice\PhpSpreadsheet\Spreadsheet();
+        try {
+            $sheet=$book->getActiveSheet()->setTitle('Timesheet');
+            $headers=['employee_number','date','time_in','time_out','break_duration','Regular Hours','OT Hours','Unapproved OT Hours','RDOT Hours','Tardy Minutes','Undertime Hours','Night Diff','Remarks','Client','Task Performed'];
+            $sheet->fromArray($headers,null,'A1');
+            $ids=array_column($detailed['daily'],'attendance_id');$breaks=[];
+            if($ids)foreach((new AttendanceModel())->select('id,break_duration')->whereIn('id',$ids)->findAll() as $row)$breaks[$row['id']]=(float)$row['break_duration'];
+            $line=2;
+            foreach($detailed['daily'] as $row){
+                $cells=[$employee['employee_number'],$row['date'],$row['time_in_datetime']??'',$row['time_out_datetime']??'',$breaks[$row['attendance_id']]??0];
+                foreach(['regular_hours','ot_hours','unapproved_ot_hours','rdot_hours','tardy_minutes','undertime_hours','night_diff','remarks','client','task_performed'] as $key)$cells[]=$row[$key]??'';
+                foreach($cells as $index=>$value){
+                    $type=is_int($value)||is_float($value)?\PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_NUMERIC:\PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING;
+                    $sheet->setCellValueExplicit([$index+1,$line],$value,$type);
                 }
+                $line++;
             }
-        }
-        if ($bestNormalized !== null && $bestScore >= 72.0) {
-            $match = $pool[$bestNormalized];
-            unset($pool[$bestNormalized]);
-            return $match;
-        }
-
-        return null;
+            $sheet->freezePane('A2');$sheet->setAutoFilter('A1:O'.max(1,$line-1));
+            $totals=$book->createSheet()->setTitle('Timesheet Totals');
+            $totals->fromArray([['System timesheet totals','Value'],['Employee',$employee['employee_number']],['Cutoff start',$startDate],['Cutoff end',$endDate]]);
+            $line=5;foreach($detailed['totals'] as $key=>$value)$totals->fromArray([$key,$value],null,'A'.$line++,true);
+            $payroll=$book->createSheet()->setTitle('Payroll Summary');
+            $payroll->fromArray([['Payroll attendance summary','Value'],['Employee',$employee['employee_number']],['Cutoff start',$startDate],['Cutoff end',$endDate],['Source','Same attendance summary used by Payroll Management'],['Scope','Attendance inputs; excludes unsaved manual payroll adjustments']]);
+            foreach([$totals,$payroll] as $tab)$tab->setCellValueExplicit('B2',$employee['employee_number'],\PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
+            $line=7;foreach($summary as $key=>$value)if(is_scalar($value)||$value===null)$payroll->fromArray([$key,$value],null,'A'.$line++,true);
+            foreach($book->getAllSheets() as $tab){
+                $tab->getStyle('1:1')->getFont()->setBold(true);
+                foreach($tab->getColumnIterator() as $column)$tab->getColumnDimension($column->getColumnIndex())->setAutoSize(true);
+            }
+            $book->setActiveSheetIndex(0);
+            ob_start();
+            try{(new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($book))->save('php://output');$content=ob_get_contents();}finally{ob_end_clean();}
+            $slug=preg_replace('/[^A-Za-z0-9_-]/','_',$employee['employee_number']);
+            return $this->response->download("timesheet_{$slug}_{$startDate}_to_{$endDate}.xlsx",$content)->setContentType('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        } finally {$book->disconnectWorksheets();}
     }
 
-    /**
-     * Closest real employee to a CSV value that didn't match any
-     * employee_number exactly — a typo, a leading zero dropped, a different
-     * numbering scheme. Always just a suggestion the uploader confirms, so
-     * this can afford to be a little generous.
-     */
-    private function guessEmployeeMatch(string $value, array $employees): ?array
+    /** Decodes one of the import form's JSON-encoded column/employee mapping fields. */
+    private function importMap(string $key): array
     {
-        $normalizedValue = $this->normalizeHeaderLabel($value);
-        $best = null;
-        $bestScore = 0.0;
-        foreach ($employees as $e) {
-            similar_text($normalizedValue, $this->normalizeHeaderLabel($e['employee_number']), $percent);
-            if ($percent > $bestScore) {
-                $bestScore = $percent;
-                $best = $e;
-            }
-        }
-        if ($best === null || $bestScore < 60.0) return null;
-        return [
-            'id'    => (int) $best['id'],
-            'label' => $best['employee_number'] . ' — ' . trim($best['first_name'] . ' ' . $best['last_name']),
-        ];
+        $raw=$this->request->getPost($key);
+        if($raw===null||$raw==='')return [];
+        if(!is_string($raw))throw new \DomainException('Invalid import mapping.');
+        $map=json_decode($raw,true);
+        if(!is_array($map)||json_last_error()!==JSON_ERROR_NONE)throw new \DomainException('Invalid import mapping.');
+        foreach($map as $value)if(!is_scalar($value))throw new \DomainException('Invalid import mapping value.');
+        ksort($map);
+        return $map;
     }
 
-    /**
-     * Step 1 of importing a file whose headers or employee numbers don't
-     * already match ours exactly: read the header row and propose a
-     * best-guess column mapping, and separately flag any employee_number
-     * value found in the file with no matching employee (plus a fuzzy
-     * suggestion for each), so the uploader can confirm or correct both
-     * before anything is actually imported.
-     */
     public function previewTimesheetImport()
     {
-        $file = $this->request->getFile('timesheet_file');
-        if (!$file || !$file->isValid()) {
-            return $this->response->setJSON(['success' => false, 'error' => 'Invalid file.']);
-        }
-
-        $handle = fopen($file->getTempName(), 'r');
-        $headers = fgetcsv($handle);
-        if ($headers === false) {
-            fclose($handle);
-            return $this->response->setJSON(['success' => false, 'error' => 'File is empty.']);
-        }
-        $headers = array_map(
-            fn($h) => trim(str_replace("\xEF\xBB\xBF", '', (string) $h)),
-            $headers
-        );
-
-        $pool = [];
-        foreach ($headers as $h) {
-            $pool[$this->normalizeHeaderLabel($h)] = $h;
-        }
-
-        $fieldsOut = [];
-        $guess = [];
-        $allMatchedExactly = true;
-
-        foreach ($this->timesheetImportFields() as $key => $def) {
-            $match = $this->guessColumnMatch($key, $def['aliases'], $pool);
-            if ($match !== $key) $allMatchedExactly = false;
-            $guess[$key] = $match;
-            $fieldsOut[] = ['key' => $key, 'label' => $def['label'], 'required' => $def['required']];
-        }
-
-        // With a column mapping now guessed, scan every row's employee
-        // number against real employees — anything that doesn't match gets
-        // a fuzzy suggestion instead of silently failing at import time.
-        $employeeModel = new EmployeeModel();
-        $allEmployees = $employeeModel->select('id, employee_number, first_name, last_name')->findAll();
-        $byNumber = [];
-        foreach ($allEmployees as $e) $byNumber[$e['employee_number']] = true;
-
-        $unmatched = [];
-        $employeeNumberHeader = $guess['employee_number'];
-        if ($employeeNumberHeader !== null) {
-            rewind($handle);
-            fgetcsv($handle); // skip the header row again
-            $seen = [];
-            while (($row = fgetcsv($handle)) !== false) {
-                if (count($row) !== count($headers)) continue;
-                $rawRow = array_combine($headers, $row);
-                $val = trim((string) ($rawRow[$employeeNumberHeader] ?? ''));
-                if ($val === '' || isset($byNumber[$val])) continue;
-                $seen[$val] = ($seen[$val] ?? 0) + 1;
+        session()->remove('timesheet_import_preview');
+        try {
+            $file=$this->request->getFile('timesheet_file');
+            if(!$file||!$file->isValid())throw new \DomainException('Choose a valid CSV or XLSX file.');
+            $columns=$this->importMap('column_map');$employees=$this->importMap('employee_map');
+            $order=(string)($this->request->getPost('date_order')??'dmy');
+            $unit=(string)($this->request->getPost('break_unit')??'auto');
+            $periodStart=$this->request->getPost('period_start');$periodEnd=$this->request->getPost('period_end');
+            $periodStart=($periodStart===null||$periodStart==='')?null:(string)$periodStart;
+            $periodEnd=($periodEnd===null||$periodEnd==='')?null:(string)$periodEnd;
+            $extension=strtolower(pathinfo($file->getClientName(),PATHINFO_EXTENSION));
+            $plan=(new \App\Services\Client\TimesheetImportService())->preview($file->getTempName(),$extension,$columns,$employees,$order,$unit,$periodStart,$periodEnd);
+            if($plan['can_import']) {
+                $token=bin2hex(random_bytes(32));
+                session()->set('timesheet_import_preview',['token'=>$token,'user_id'=>(int)auth()->id(),'created'=>time(),
+                    'columns'=>$plan['column_map'],'employees'=>$employees,'order'=>$order,'unit'=>$unit,'extension'=>$extension,
+                    'period_start'=>$periodStart,'period_end'=>$periodEnd,
+                    'file_hash'=>$plan['file_hash'],'hash'=>$plan['plan_hash']]);
+                $plan['preview_token']=$token;
             }
-            foreach ($seen as $val => $count) {
-                $suggestion = $this->guessEmployeeMatch($val, $allEmployees);
-                $unmatched[] = [
-                    'value'                 => $val,
-                    'count'                 => $count,
-                    'suggested_employee_id' => $suggestion['id']    ?? null,
-                    'suggested_label'       => $suggestion['label'] ?? null,
-                ];
-                $allMatchedExactly = false;
-            }
+            unset($plan['records'],$plan['plan_hash'],$plan['file_hash']);
+            return $this->response->setJSON($plan);
+        } catch(\DomainException $e) {
+            return $this->response->setStatusCode(422)->setJSON(['success'=>false,'error'=>$e->getMessage()]);
+        } catch(\Throwable $e) {
+            log_message('error','Timesheet preview failed: {message}',['message'=>$e->getMessage()]);
+            return $this->response->setStatusCode(500)->setJSON(['success'=>false,'error'=>'Unable to preview this file. Check its format and try again.']);
         }
-        fclose($handle);
-
-        return $this->response->setJSON([
-            'success'             => true,
-            'headers'             => $headers,
-            'fields'              => $fieldsOut,
-            'guess'               => $guess,
-            'unmatched_employees' => $unmatched,
-            'employees'           => array_map(fn($e) => [
-                'id'    => (int) $e['id'],
-                'label' => $e['employee_number'] . ' — ' . trim($e['first_name'] . ' ' . $e['last_name']),
-            ], $allEmployees),
-            // True only when every header already matches ours exactly AND
-            // every employee number in the file is a real employee — lets
-            // the frontend skip the confirmation step entirely for a file
-            // that needs no help, same as before.
-            'exact_match' => $allMatchedExactly,
-        ]);
     }
 
     public function importTimesheet()
     {
-        $file = $this->request->getFile('timesheet_file');
-        if (!$file || !$file->isValid()) {
-            return $this->response->setJSON(['success' => false, 'error' => 'Invalid file.']);
+        try {
+            $token=$this->request->getPost('preview_token');
+            $plan=session()->get('timesheet_import_preview');
+            if(!is_string($token)||!is_array($plan)||!hash_equals($plan['token'],$token)||$plan['user_id']!==(int)auth()->id()||time()-$plan['created']>900)
+                throw new \DomainException('Preview the file before importing. Previews expire after 15 minutes.');
+            $file=$this->request->getFile('timesheet_file');
+            if(!$file||!$file->isValid()||!hash_equals($plan['file_hash'],hash_file('sha256',$file->getTempName())))
+                throw new \DomainException('The file changed. Preview it again.');
+            $result=(new \App\Services\Client\TimesheetImportService())->commit($file->getTempName(),$plan['extension'],$plan['columns'],$plan['employees'],$plan['order'],$plan['unit'],$plan['hash'],$plan['period_start']??null,$plan['period_end']??null);
+            session()->remove('timesheet_import_preview');
+            return $this->response->setJSON($result);
+        } catch(\DomainException $e) {
+            return $this->response->setStatusCode(409)->setJSON(['success'=>false,'error'=>$e->getMessage()]);
+        } catch(\Throwable $e) {
+            log_message('error','Timesheet import failed: {message}',['message'=>$e->getMessage()]);
+            return $this->response->setStatusCode(500)->setJSON(['success'=>false,'error'=>'Import failed; no rows were saved. Preview again before retrying.']);
         }
-
-        // Optional: which actual CSV header each of our fields corresponds
-        // to, e.g. {"employee_number":"Emp No","date":"Log Date",...} — sent
-        // once the uploader confirmed a mapping via previewTimesheetImport()
-        // because the file's headers didn't already match ours. Any field
-        // left unmapped falls back to its own name, exactly the original
-        // behavior for a file that needs no mapping at all.
-        $columnMap = json_decode((string) $this->request->getPost('column_map'), true);
-        if (!is_array($columnMap)) $columnMap = [];
-
-        // Optional: raw employee_number value exactly as it appears in the
-        // file => the real employee id the uploader confirmed it means,
-        // e.g. {"EMP-19": 23} — sent once previewTimesheetImport() found a
-        // value with no matching employee_number and the uploader resolved
-        // it instead of letting those rows get skipped.
-        $employeeMap = json_decode((string) $this->request->getPost('employee_map'), true);
-        if (!is_array($employeeMap)) $employeeMap = [];
-
-        $handle = fopen($file->getTempName(), 'r');
-        $headers = fgetcsv($handle);
-        if ($headers === false) {
-            fclose($handle);
-            return $this->response->setJSON(['success' => false, 'error' => 'File is empty.']);
-        }
-        // Strip a UTF-8 BOM and stray whitespace from each header — Excel
-        // commonly adds a BOM to the first column when a CSV is re-saved,
-        // which silently turned "employee_number" into a key that never
-        // matched, failing every row with "Undefined array key".
-        $headers = array_map(
-            fn($h) => trim(str_replace("\xEF\xBB\xBF", '', (string) $h)),
-            $headers
-        );
-
-        $successCount = 0;
-        $skipped = [];
-        $rowNum = 1; // header is row 1
-        $employeeModel = new EmployeeModel();
-        $attendanceModel = new AttendanceModel();
-        $computationService = new AttendanceComputationService();
-        $importFields = $this->timesheetImportFields();
-        $scheduleCache = []; // user_id => schedule row, so a 500-row file for one employee doesn't re-query it 500 times
-
-        while (($row = fgetcsv($handle)) !== false) {
-            $rowNum++;
-
-            if (count($row) !== count($headers)) {
-                $skipped[] = "Row {$rowNum}: column count doesn't match the header row.";
-                continue;
-            }
-            $rawRow = array_combine($headers, $row);
-
-            // Translate this row through the confirmed mapping — each of our
-            // fields pulled from whichever actual CSV column it was mapped
-            // to, or from a column with that exact name when unmapped.
-            $data = [];
-            foreach ($importFields as $key => $def) {
-                $sourceHeader = $columnMap[$key] ?? $key;
-                $data[$key] = $rawRow[$sourceHeader] ?? null;
-            }
-
-            $employeeNumber = trim($data['employee_number'] ?? '');
-            if ($employeeNumber === '') {
-                $skipped[] = "Row {$rowNum}: missing employee_number.";
-                continue;
-            }
-            $employee = $employeeModel->where('employee_number', $employeeNumber)->first();
-            if (!$employee && !empty($employeeMap[$employeeNumber])) {
-                // Uploader confirmed this raw value is a specific employee,
-                // via the "guide it to which employee" resolution step.
-                $employee = $employeeModel->find((int) $employeeMap[$employeeNumber]);
-            }
-            if (!$employee) {
-                $skipped[] = "Row {$rowNum}: no employee found with number \"{$employeeNumber}\".";
-                continue;
-            }
-
-            // A single malformed row (bad date, unparseable value, etc.) must
-            // not take down the whole batch — catch per row and keep going.
-            try {
-                $breakDur = (float) ($data['break_duration'] ?? 0);
-                $rawIn  = trim($data['time_in']  ?? '');
-                $rawOut = trim($data['time_out'] ?? '');
-                $date   = trim($data['date']     ?? '');
-
-                if ($rawIn === '') {
-                    throw new \RuntimeException('missing time_in.');
-                }
-
-                $timeInStr  = (strpos($rawIn,  ' ') !== false) ? $rawIn  : "{$date} {$rawIn}";
-                $timeOutStr = $rawOut !== ''
-                    ? ((strpos($rawOut, ' ') !== false) ? $rawOut : "{$date} {$rawOut}")
-                    : null;
-
-                // Our own export always writes ISO ("Y-m-d H:i:s"). If this
-                // file round-tripped through Excel first, Excel frequently
-                // re-serializes it as locale-formatted d/m/Y and drops the
-                // seconds — accept that too instead of failing the row.
-                $timeInDt  = $this->parseFlexibleDateTime($timeInStr);
-                $timeOutDt = $timeOutStr !== null ? $this->parseFlexibleDateTime($timeOutStr) : null;
-
-                $timeInSql  = $timeInDt->format('Y-m-d H:i:s');
-                $timeOutSql = $timeOutDt ? $timeOutDt->format('Y-m-d H:i:s') : null;
-
-                $totalHours    = isset($data['total_hours']) && $data['total_hours'] !== ''
-                               ? (float) $data['total_hours']
-                               : $this->calculateTotalHours($timeInSql, $timeOutSql, $breakDur);
-                // Use stored night_diff_hours if present in CSV; otherwise compute from timestamps
-                $nightDiffHours = isset($data['night_diff_hours']) && $data['night_diff_hours'] !== ''
-                                ? (float) $data['night_diff_hours']
-                                : (($timeInSql && $timeOutSql) ? $this->calcNightDiffHours($timeInSql, $timeOutSql) : 0);
-
-                // Mirror what a normal clock-in/clock-out computes, so an
-                // imported day looks the same on the Timesheet page as one
-                // the employee actually clocked — late minutes, OT/UT
-                // hours, and the "Approved/Unapproved Overtime|Undertime"
-                // remark all come from the same schedule + approved-request
-                // lookups the live clock flow uses, not just the raw
-                // time_in/time_out columns. Without this, an imported day
-                // showed up on the Timesheet with a blank Remarks column
-                // even when it was really overtime or undertime.
-                $userId = (int) $employee['user_id'];
-                if (!array_key_exists($userId, $scheduleCache)) {
-                    $scheduleCache[$userId] = $computationService->getEmployeeSchedule($userId);
-                }
-
-                $derived = $this->deriveImportedAttendanceStatus(
-                    $computationService,
-                    $userId,
-                    $scheduleCache[$userId],
-                    $timeInSql,
-                    $timeOutSql,
-                    $breakDur
-                );
-
-                $attendanceModel->insert(array_merge([
-                    'user_id'          => $userId,
-                    'time_in'          => $timeInSql,
-                    'time_out'         => $timeOutSql,
-                    'break_duration'   => $breakDur,
-                    'total_hours'      => $totalHours,
-                    'night_diff_hours' => round($nightDiffHours, 2),
-                ], $derived));
-                $successCount++;
-            } catch (\Throwable $e) {
-                $skipped[] = "Row {$rowNum}: {$e->getMessage()}";
-            }
-        }
-        fclose($handle);
-
-        $message = "{$successCount} record(s) imported successfully.";
-        if ($skipped) {
-            $message .= ' ' . count($skipped) . ' row(s) skipped — see details.';
-        }
-
-        return $this->response->setJSON([
-            'success'  => true,
-            'imported' => $successCount,
-            'skipped'  => count($skipped),
-            'errors'   => $skipped,
-            'message'  => $message,
-        ]);
     }
-
-    /**
-     * Late minutes, scheduled start/end, approved/unapproved OT & UT hours,
-     * and the overall attendance_status for one imported row — computed the
-     * same way AttendanceController's live clock-out does (schedule lookup
-     * + AttendanceComputationService::getApprovedRequest against the
-     * shift's own date), so an imported day isn't missing the data the
-     * Timesheet page's Remarks column and late-arrival figures depend on.
-     *
-     * Unlike the live clock-out path, this rolls an overnight schedule's
-     * end time to the next day before comparing — a shift scheduled
-     * 22:00–06:00 must not read as having ended 16 hours before it started.
-     */
-    private function deriveImportedAttendanceStatus(
-        AttendanceComputationService $computationService,
-        int $userId,
-        ?array $schedule,
-        string $timeInSql,
-        ?string $timeOutSql,
-        float $breakDur
-    ): array {
-        $date = date('Y-m-d', strtotime($timeInSql));
-
-        $lateMinutes = 0;
-        if ($schedule && !empty($schedule['start_time'])) {
-            $scheduledStartToday = $date . ' ' . $schedule['start_time'];
-            if (strtotime($timeInSql) > strtotime($scheduledStartToday)) {
-                $lateMinutes = (int) floor((strtotime($timeInSql) - strtotime($scheduledStartToday)) / 60);
-            }
-        }
-
-        $approvedOt = 0.0;
-        $unapprovedOt = 0.0;
-        $approvedUt = 0.0;
-        $unapprovedUt = 0.0;
-
-        if ($schedule && !empty($schedule['start_time']) && !empty($schedule['end_time']) && $timeOutSql) {
-            $scheduledStart = $date . ' ' . $schedule['start_time'];
-            $scheduledEnd   = $date . ' ' . $schedule['end_time'];
-            if (strtotime($scheduledEnd) <= strtotime($scheduledStart)) {
-                $scheduledEnd = date('Y-m-d H:i:s', strtotime($scheduledEnd . ' +1 day'));
-            }
-            $requiredHours = (strtotime($scheduledEnd) - strtotime($scheduledStart)) / 3600;
-
-            $workedHours = max(0, (strtotime($timeOutSql) - strtotime($timeInSql)) / 3600 - $breakDur);
-            $difference  = round($workedHours - $requiredHours, 2);
-
-            if ($difference > 0) {
-                $request = $computationService->getApprovedRequest($userId, $date, 'overtime');
-                if ($request) $approvedOt = $difference; else $unapprovedOt = $difference;
-            } elseif ($difference < 0) {
-                $hours = abs($difference);
-                $request = $computationService->getApprovedRequest($userId, $date, 'undertime');
-                if ($request) $approvedUt = $hours; else $unapprovedUt = $hours;
-            }
-        }
-
-        $status = 'present';
-        if ($approvedUt > 0)       $status = 'approved_undertime';
-        elseif ($unapprovedUt > 0) $status = 'unapproved_undertime';
-        elseif ($approvedOt > 0)   $status = 'approved_overtime';
-        elseif ($unapprovedOt > 0) $status = 'unapproved_overtime';
-
-        return [
-            'late_minutes'        => $lateMinutes,
-            'scheduled_start'     => $schedule['start_time'] ?? null,
-            'scheduled_end'       => $schedule['end_time'] ?? null,
-            'approved_ot_hours'   => $approvedOt,
-            'unapproved_ot_hours' => $unapprovedOt,
-            'approved_ut_hours'   => $approvedUt,
-            'unapproved_ut_hours' => $unapprovedUt,
-            'attendance_status'   => $status,
-        ];
-    }
-
-    /**
-     * Our own export always writes ISO ("Y-m-d H:i:s" / starts "YYYY-MM-DD"),
-     * which PHP's DateTime constructor reads correctly. If the file instead
-     * has a slash-delimited date (typically because it round-tripped through
-     * Excel, which re-serializes datetimes in the local d/m/Y display format
-     * and often drops seconds), this treats it as day/month/year — never
-     * month/day/year — since that's this app's convention throughout.
-     */
-    private function parseFlexibleDateTime(string $raw): \DateTime
-    {
-        $raw = trim($raw);
-
-        if (preg_match('/^\d{4}-\d{2}-\d{2}/', $raw)) {
-            return new \DateTime($raw);
-        }
-
-        foreach (['d/m/Y H:i:s', 'd/m/Y H:i', 'd/m/Y'] as $format) {
-            $dt = \DateTime::createFromFormat($format, $raw);
-            if ($dt !== false) {
-                // createFromFormat() only sets the components present in the
-                // format string — a bare "d/m/Y" leaves the time at whatever
-                // the current clock time happens to be, unlike new DateTime()
-                // which defaults an unspecified time to midnight. Match that.
-                if ($format === 'd/m/Y') {
-                    $dt->setTime(0, 0, 0);
-                }
-                return $dt;
-            }
-        }
-
-        throw new \RuntimeException("unrecognized date/time \"{$raw}\".");
-    }
-
-    private function calculateTotalHours($timeIn, $timeOut, $breakDuration)
-    {
-        if (!$timeIn || !$timeOut) return 0;
-        $start = new \DateTime($timeIn);
-        $end = new \DateTime($timeOut);
-        $diff = $end->diff($start);
-        // $diff->h is only the hour COMPONENT of the interval (0-23) — for any
-        // span over 24 hours, $diff->days must be folded in too, or whole days
-        // silently vanish (a 30-hour span would otherwise report as 6 hours).
-        $hours = ($diff->days * 24) + $diff->h + $diff->i / 60;
-        return max(0, $hours - $breakDuration);
-    }
-
     private function calcNightDiffHours(string $timeIn, string $timeOut): float
     {
         $start   = new \DateTime($timeIn);
@@ -2577,9 +2186,7 @@ class PayrollController extends BaseController
         $employeeModel = new \App\Models\Client\EmployeeModel();
         $employee = (array) $employeeModel->find($payslip['employee_id']);
         $isOwner = ($employee && (string)$employee['user_id'] === (string)$user->id);
-        $isAdmin = $user->inGroup('client_payroll_staff')
-                || $user->inGroup('superadmin')
-                || $user->inGroup('admin');
+        $isAdmin = \App\Libraries\PortalAccess::can('payroll', $user);
 
         if (!$isOwner && !$isAdmin) {
             return $this->response->setStatusCode(403)->setBody('Unauthorized');
@@ -2652,7 +2259,7 @@ class PayrollController extends BaseController
     public function getPayslipActivity($id)
     {
         $user = auth()->user();
-        $isAdmin = $user->inGroup('client_payroll_staff') || $user->inGroup('superadmin') || $user->inGroup('admin');
+        $isAdmin = \App\Libraries\PortalAccess::can('payroll', $user);
         if (!$isAdmin) {
             return $this->response->setStatusCode(403)->setJSON(['error' => 'Unauthorized']);
         }
@@ -2717,7 +2324,7 @@ class PayrollController extends BaseController
     public function getAuditLog()
     {
         $user = auth()->user();
-        $isAdmin = $user->inGroup('client_payroll_staff') || $user->inGroup('superadmin') || $user->inGroup('admin');
+        $isAdmin = \App\Libraries\PortalAccess::can('payroll', $user);
         if (!$isAdmin) {
             return $this->response->setStatusCode(403)->setJSON(['error' => 'Unauthorized']);
         }
@@ -2786,7 +2393,7 @@ class PayrollController extends BaseController
         $employeeModel = new \App\Models\Client\EmployeeModel();
         $employee = (array) $employeeModel->find($payslip['employee_id']);
         $isOwner = ($employee && (string)$employee['user_id'] === (string)$user->id);
-        $isAdmin = $user->inGroup('client_payroll_staff') || $user->inGroup('superadmin') || $user->inGroup('admin');
+        $isAdmin = \App\Libraries\PortalAccess::can('payroll', $user);
 
         if (!$isOwner && !$isAdmin) {
             return $this->response->setStatusCode(403)->setJSON(['error' => 'Unauthorized']);

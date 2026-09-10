@@ -63,7 +63,7 @@ class ClientRegisterController extends ShieldRegister
             $user->addGroup($role);
         }
 
-        if ($user && in_array($role, ['employee', 'client_payroll_staff'], true)) {
+        if ($user && in_array($role, ['employee', 'client_payroll_staff', 'hr_admin', 'team_head', 'admin', 'superadmin'], true)) {
             try {
                 (new EmployeeService())->createEmployeeProfileForExistingUser((int) $user->id, $role, [
                     'username' => $username,
@@ -118,7 +118,7 @@ class ClientRegisterController extends ShieldRegister
         return [
             'role' => [
                 'label' => 'Role',
-                'rules' => 'required|in_list[employee,client_payroll_staff]',
+                'rules' => \App\Libraries\PortalAccess::can('roles') ? 'required|in_list[employee,client_payroll_staff,hr_admin,team_head,admin,superadmin]' : 'required|in_list[employee]',
             ],
             'first_name' => [
                 'label' => 'First Name',

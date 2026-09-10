@@ -293,6 +293,171 @@ class LeaveBalanceModel extends Model
     }
 
     // =========================================================================
+    // Year-boundary-aware deduction & refund
+    //
+    // Balances are stored one row per calendar year. A request spanning a year
+    // boundary (e.g. Dec 28 - Jan 3) previously charged its whole duration
+    // against the start date's year alone, even though part of it falls under
+    // the new year's fresh entitlement. These split each day of the request
+    // into its own calendar year before touching any balance row.
+    // =========================================================================
+
+    /**
+     * Splits a request's stored `duration` across the calendar years its date
+     * range touches, e.g. 2026-12-28..2027-01-03 (7 days) -> [2026 => 4, 2027 => 3].
+     *
+     * `duration` — not the calendar span — is authoritative for how many days
+     * are charged, because that same column is what payroll pays out
+     * (PayrollController::getAttendanceSummary()). Deriving the quantity from
+     * the dates instead would let the balance and the payslip disagree whenever
+     * the two differ: a legacy row with a NULL end_date but duration > 1, or a
+     * fractional half-day duration. So the days-per-year ratio comes from the
+     * dates, but the total always adds back up to exactly `duration`, with the
+     * final year absorbing any rounding remainder.
+     *
+     * @return array<int,float> year => days charged to that year
+     */
+    private function splitDurationByYear(string $startDate, string $endDate, float $duration): array
+    {
+        $start = new \DateTime($startDate);
+        $end   = new \DateTime($endDate !== '' ? $endDate : $startDate);
+        if ($end < $start) $end = clone $start;
+
+        $calendarDays = [];
+        $cursor = clone $start;
+        while ($cursor <= $end) {
+            $y = (int) $cursor->format('Y');
+            $calendarDays[$y] = ($calendarDays[$y] ?? 0) + 1;
+            $cursor->modify('+1 day');
+        }
+
+        $totalCalendarDays = array_sum($calendarDays);
+        if ($totalCalendarDays <= 0) {
+            return [(int) $start->format('Y') => $duration];
+        }
+
+        // Single year (the overwhelmingly common case): charge it all there,
+        // exactly as before, with no scaling arithmetic in the way.
+        if (count($calendarDays) === 1) {
+            return [array_key_first($calendarDays) => $duration];
+        }
+
+        $split     = [];
+        $allocated = 0.0;
+        $years     = array_keys($calendarDays);
+        $lastYear  = end($years);
+
+        foreach ($calendarDays as $year => $days) {
+            if ($year === $lastYear) {
+                // Absorbs the remainder so the parts sum to exactly $duration.
+                $split[$year] = round($duration - $allocated, 2);
+                continue;
+            }
+            $share = round($duration * ($days / $totalCalendarDays), 2);
+            $split[$year] = $share;
+            $allocated += $share;
+        }
+
+        return $split;
+    }
+
+    /**
+     * Checks whether an employee has enough remaining balance for a request,
+     * across every calendar year it touches, WITHOUT writing anything — no
+     * deduction, and no balance rows created as a side effect (this runs
+     * before the caller's transaction opens). A year with no row yet is
+     * treated as a full default entitlement, which is what getOrCreate()
+     * would materialise at deduction time anyway.
+     */
+    public function checkSufficientBalance(int $userId, string $leaveType, string $startDate, string $endDate, float $duration): array
+    {
+        $employeeId = $this->resolveEmployeeId($userId);
+        if ($employeeId === null) {
+            return ['sufficient' => true, 'shortfalls' => []];
+        }
+
+        $shortfalls = [];
+        foreach ($this->splitDurationByYear($startDate, $endDate, $duration) as $year => $days) {
+            if ($days <= 0) continue;
+
+            $row       = $this->getBalance($employeeId, $leaveType, $year);
+            $remaining = $row !== null ? (float) $row['remaining'] : (float) self::DEFAULT_ENTITLEMENT;
+
+            if ($remaining < $days) {
+                $shortfalls[] = "{$days} day(s) needed in {$year}, only {$remaining} remaining";
+            }
+        }
+        return ['sufficient' => $shortfalls === [], 'shortfalls' => $shortfalls];
+    }
+
+    /**
+     * Deducts a request's duration from the employee's balance, split across
+     * every calendar year its date range touches.
+     *
+     * Each year is deducted with a single conditional UPDATE gated on
+     * `remaining >= days`, so the balance can't be overdrawn even if two
+     * approvals for the same employee are processed at the same instant:
+     * checkSufficientBalance() runs before the caller's transaction opens, so
+     * on its own it leaves a window where both could pass. Returns false if any
+     * year's deduction didn't apply, which means the balance was consumed in
+     * between — the caller should roll back rather than approve. A plain
+     * read-modify-write with a max(0, …) floor would instead silently
+     * under-deduct and hide the overdraw.
+     */
+    public function deductAcrossYears(int $userId, string $leaveType, string $startDate, string $endDate, float $duration): bool
+    {
+        $employeeId = $this->resolveEmployeeId($userId);
+        if ($employeeId === null) return true;
+
+        foreach ($this->splitDurationByYear($startDate, $endDate, $duration) as $year => $days) {
+            if ($days <= 0) continue;
+
+            $row = $this->getOrCreate($employeeId, $leaveType, $year);
+
+            // Raw builder rather than Model::update(): the conditional
+            // `remaining >= ?` guard plus the self-referential `used + n`
+            // arithmetic can't be expressed through the Model's data-array
+            // update path (which also rejects an empty dataset outright).
+            // The unescaped fragments are float-cast numerics, not input.
+            $this->db->table($this->table)
+                 ->where('id', $row['id'])
+                 ->where('remaining >=', $days)
+                 ->set('used', 'used + ' . (float) $days, false)
+                 ->set('remaining', 'remaining - ' . (float) $days, false)
+                 ->set($this->updatedField, date('Y-m-d H:i:s'))
+                 ->update();
+
+            if ($this->db->affectedRows() < 1) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Refunds a previously-deducted request's duration, split exactly the same
+     * way deductAcrossYears() charged it — used when an approved leave request
+     * is rejected/cancelled after the fact.
+     */
+    public function refundAcrossYears(int $userId, string $leaveType, string $startDate, string $endDate, float $duration): void
+    {
+        $employeeId = $this->resolveEmployeeId($userId);
+        if ($employeeId === null) return;
+
+        foreach ($this->splitDurationByYear($startDate, $endDate, $duration) as $year => $days) {
+            if ($days <= 0) continue;
+
+            $row = $this->getBalance($employeeId, $leaveType, $year);
+            if ($row === null) continue;
+
+            $newUsed      = max(0.0, (float) $row['used'] - $days);
+            $newRemaining = min((float) $row['total_entitlement'], (float) $row['remaining'] + $days);
+            $this->update($row['id'], ['used' => $newUsed, 'remaining' => $newRemaining]);
+        }
+    }
+
+    // =========================================================================
     // Private helpers
     // =========================================================================
 

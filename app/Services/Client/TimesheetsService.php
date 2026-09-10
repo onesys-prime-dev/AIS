@@ -15,6 +15,7 @@ class TimesheetsService
     protected AttendanceModel $attendanceModel;
     protected RequestModel $requestModel;
     protected EmployeePositionModel $employeePositionModel;
+    protected AttendanceComputationService $computationService;
 
     public function __construct()
     {
@@ -22,6 +23,7 @@ class TimesheetsService
         $this->attendanceModel = new AttendanceModel();
         $this->requestModel    = new RequestModel();
         $this->employeePositionModel = new EmployeePositionModel();
+        $this->computationService = new AttendanceComputationService();
     }
 
     // ---------- Existing methods ----------
@@ -48,8 +50,8 @@ class TimesheetsService
         $period = $this->resolveCutoffByDate($now);
 
         return $this->baseListByUserIdBuilder($userId)
-            ->where('DATE(attendance.time_in) >=', $period['start'])
-            ->where('DATE(attendance.time_in) <=', $period['end'])
+            ->where('COALESCE(attendance.shift_date, DATE(attendance.time_in)) >=', $period['start'])
+            ->where('COALESCE(attendance.shift_date, DATE(attendance.time_in)) <=', $period['end'])
             ->orderBy('attendance.time_in', 'DESC')
             ->orderBy('tasks.start_time', 'ASC')
             ->findAll();
@@ -325,8 +327,8 @@ class TimesheetsService
     {
         $attendances = $this->attendanceModel
             ->where('user_id', $userId)
-            ->where('DATE(time_in) >=', $startDate)
-            ->where('DATE(time_in) <=', $endDate)
+            ->where('COALESCE(shift_date, DATE(time_in)) >=', $startDate)
+            ->where('COALESCE(shift_date, DATE(time_in)) <=', $endDate)
             ->orderBy('time_in', 'ASC')
             ->findAll();
 
@@ -366,9 +368,7 @@ class TimesheetsService
         $nightStart     = '22:00:00';
         $nightEnd       = '06:00:00';
 
-        // Required hours per the current schedule — recomputed here (not read from
-        // any stored per-record value) so a schedule change in Employee Management
-        // is reflected immediately, for every date in range, not just future ones.
+        // Legacy fallback only. Each attendance row below resolves its own saved schedule.
         $requiredHours = 0;
         if ($scheduledStart && $scheduledEnd) {
             $reqStart = strtotime($scheduledStart);
@@ -407,19 +407,30 @@ class TimesheetsService
 
         foreach ($attendances as $att) {
             // Derive date and time components from the datetime columns
-            $date    = $att['time_in'] ? date('Y-m-d', strtotime($att['time_in'])) : null;
+            $date    = $att['shift_date'] ?? ($att['time_in'] ? date('Y-m-d', strtotime($att['time_in'])) : null);
+            try {
+                $recordSchedule = \App\Libraries\AttendanceWindow::schedule($att, $schedule);
+                $scheduledStart = $recordSchedule['start_time'] ?? null;
+                $scheduledEnd = $recordSchedule['end_time'] ?? null;
+                [$windowStart, $windowEnd] = \App\Libraries\AttendanceWindow::bounds($att, $schedule);
+            } catch (\InvalidArgumentException $e) {
+                // A legacy/malformed schedule (e.g. an out-of-range break_schedule
+                // value saved before validation existed) on one row must not abort
+                // the whole timesheet — fall back to "no schedule" for this row,
+                // same as an attendance record that never had a schedule on file.
+                $scheduledStart = null;
+                $scheduledEnd = null;
+                $windowStart = null;
+                $windowEnd = null;
+            }
+            $requiredHours = $windowStart && $windowEnd ? ($windowEnd->getTimestamp() - $windowStart->getTimestamp()) / 3600 : 0;
             $timeIn  = $att['time_in']  ? date('H:i:s', strtotime($att['time_in']))  : null;
             $timeOut = $att['time_out'] ? date('H:i:s', strtotime($att['time_out'])) : null;
 
             if (!$date) continue;
 
-            // Everything below is recomputed fresh from the CURRENT schedule
-            // (fetched once above) rather than trusting the late_minutes /
-            // approved_ot_hours / unapproved_ot_hours / night_diff_hours columns
-            // stored on the attendance row — those are frozen at whatever schedule
-            // was in effect at clock-in/out time, so a schedule change made later
-            // in Employee Management would otherwise never show up for existing
-            // records.
+            // Recompute the display from this attendance's saved schedule and current
+            // approved requests. New schedule edits apply to future clock-ins.
             $regularHours      = 0;
             $otHours           = 0;
             $unapprovedOtHours = 0;
@@ -438,46 +449,23 @@ class TimesheetsService
                 // dropped that date whenever the time-out's clock time happened to
                 // fall later in the day than the clock-in's, undercounting a
                 // multi-day gap as a same-day few-minute session.
-                $start = new DateTime($att['time_in']);
-                $end   = new DateTime($att['time_out']);
-
-                $breakMinutes = (float)($att['break_duration'] ?? 0) * 60;
-
-                // Regular Hours = only the portion of the shift that falls INSIDE the
-                // scheduled window (e.g. 08:00-17:00) — not total time worked.
-                // Clocking in late doesn't "shift" the window forward, and time
-                // worked past the scheduled end isn't regular just because the
-                // employee is still short of a full day's total.
-                $schedStart = null;
-                $schedEnd   = null;
-                if ($hasSchedule) {
-                    $schedStart = new DateTime($date . ' ' . $scheduledStart);
-                    $schedEnd   = new DateTime($date . ' ' . $scheduledEnd);
-                    if ($schedEnd < $schedStart) $schedEnd->modify('+1 day');
-
-                    $overlapStart = max($start, $schedStart);
-                    $overlapEnd   = min($end, $schedEnd);
-                    $windowMinutes = 0;
-                    if ($overlapStart < $overlapEnd) {
-                        $diff = $overlapStart->diff($overlapEnd);
-                        $windowMinutes = $diff->h * 60 + $diff->i;
-                    }
-                } else {
-                    // No schedule on file — fall back to full worked span.
-                    $diff = $end->diff($start);
-                    $windowMinutes = $diff->h * 60 + $diff->i;
-                }
-                $regularMinutes = max(0, $windowMinutes - $breakMinutes);
-                $regularHours   = round($regularMinutes / 60, 2);
-
-                // Excess = time actually worked OUTSIDE the scheduled window
-                // (before start or after end). Only counted as OT if an approved
-                // overtime request actually covers this date — otherwise it's
-                // surfaced separately as unapproved and excluded from paid totals.
-                $totalSpanDiff    = $end->diff($start);
-                $totalWorkedMins  = $totalSpanDiff->h * 60 + $totalSpanDiff->i + ($totalSpanDiff->days * 1440);
-                $totalWorkedHours = max(0, ($totalWorkedMins - $breakMinutes) / 60);
-                $excessHours      = max(0, round($totalWorkedHours - $regularHours, 2));
+                //
+                // The actual regular/excess-hours math is shared with Payroll
+                // aggregation (and, via analyzeClockOut(), live clock-out and
+                // import) through AttendanceComputationService::splitShiftWindow(),
+                // so all of those produce matching numbers for the same shift.
+                $split = $this->computationService->splitShiftWindow(
+                    $att['time_in'],
+                    $att['time_out'],
+                    (float) ($att['break_duration'] ?? 0),
+                    $scheduledStart,
+                    $scheduledEnd,
+                    $date
+                );
+                $start = $split['span_start'];
+                $end   = $split['span_end'];
+                $regularHours = $split['regular_hours'];
+                $excessHours  = $split['excess_hours'];
                 if ($hasApprovedOt) {
                     $otHours = $excessHours;
                 } else {
@@ -491,11 +479,8 @@ class TimesheetsService
                     $undertimeHours = max(0, round($requiredHours - $regularHours, 2));
                 }
 
-                // Tardy = current schedule's start time vs. actual clock-in, not
-                // whatever schedule happened to be on file when they clocked in.
-                if ($hasSchedule && $start > $schedStart) {
-                    $tardyMinutes = (int) round(($start->getTimestamp() - $schedStart->getTimestamp()) / 60);
-                }
+                // Tardy uses the shift's own scheduled start.
+                $tardyMinutes = AttendanceComputationService::lateMinutes($start, $split['window_start']);
 
                 // Night Differential — only counted for the portion of the shift
                 // that's actually paid (the scheduled window, plus any OT hours
@@ -505,8 +490,8 @@ class TimesheetsService
                     $paidStart = $start;
                     $paidEnd   = $end;
                 } else {
-                    $paidStart = $schedStart;
-                    $paidEnd   = $schedEnd;
+                    $paidStart = max($start, $split['window_start']);
+                    $paidEnd   = min($end, $split['window_end']);
                 }
                 $nightDiff = $this->computeNightDiffRange($paidStart, $paidEnd, $date, $nightStart, $nightEnd);
             }
@@ -544,6 +529,9 @@ class TimesheetsService
 
             $dailyRecords[] = [
                 'attendance_id'       => $att['id'],
+                'time_in_datetime'    => $att['time_in'],
+                'time_out_datetime'   => $att['time_out'],
+                'state_version'       => (int) ($att['state_version'] ?? 0),
                 'date'                => $date,
                 'in'                  => $timeIn ? date('h:i A', strtotime($timeIn)) : '-',
                 'out'                 => $timeOut ? date('h:i A', strtotime($timeOut)) : '-',
@@ -585,16 +573,7 @@ class TimesheetsService
     {
         if ($start >= $end) return 0.0;
 
-        $nightStartDt = new DateTime("$date $nightStart");
-        $nightEndDt   = new DateTime("$date $nightEnd");
-        if ($nightEndDt < $nightStartDt) $nightEndDt->modify('+1 day');
-
-        $overlapStart = max($start, $nightStartDt);
-        $overlapEnd   = min($end, $nightEndDt);
-        if ($overlapStart >= $overlapEnd) return 0.0;
-
-        $diff = $overlapStart->diff($overlapEnd);
-        return round(($diff->h * 60 + $diff->i) / 60, 2);
+        return \App\Libraries\AttendanceWindow::nightHours($start->format('Y-m-d H:i:s'), $end->format('Y-m-d H:i:s'));
     }
 
     private function getRemarksForDay(
@@ -620,7 +599,7 @@ class TimesheetsService
 
         $attendance = $this->attendanceModel
             ->where('user_id', $userId)
-            ->where('DATE(time_in)', $date)
+            ->where('COALESCE(shift_date, DATE(time_in))', $date)
             ->first();
 
         if ($attendance)
@@ -656,7 +635,7 @@ class TimesheetsService
     private function baseListByUserIdBuilder(int $userId): TasksModel
     {
         return $this->tasksModel
-            ->select('DATE(attendance.time_in) AS date, tasks.start_time, tasks.end_time, employee_positions.department, tasks.task_performed, tasks.id, tasks.user_id, tasks.attendance_id')
+            ->select('COALESCE(attendance.shift_date, DATE(attendance.time_in)) AS date, tasks.start_time, tasks.end_time, employee_positions.department, tasks.task_performed, tasks.id, tasks.user_id, tasks.attendance_id')
             ->join('attendance', 'attendance.id = tasks.attendance_id')
             ->join('employees', 'employees.user_id = tasks.user_id')
             ->join('employee_positions', 'employee_positions.employee_id = employees.id')

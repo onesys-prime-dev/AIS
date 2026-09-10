@@ -70,8 +70,8 @@ class PayrollAggregationService
     {
         $attendances = $this->attendanceModel
             ->where('user_id', $userId)
-            ->where('DATE(time_in) >=', $start)
-            ->where('DATE(time_in) <=', $end)
+            ->where('COALESCE(shift_date, DATE(time_in)) >=', $start)
+            ->where('COALESCE(shift_date, DATE(time_in)) <=', $end)
             ->findAll();
 
         $attendedDates = [];
@@ -92,8 +92,8 @@ class PayrollAggregationService
                 continue;
             }
 
-            // Derive date from time_in datetime
-            $attDate = date('Y-m-d', strtotime($att['time_in']));
+            // Prefer the saved shift_date (overnight-aware) over the raw time_in date
+            $attDate = $att['shift_date'] ?? date('Y-m-d', strtotime($att['time_in']));
             $attendedDates[] = $attDate;
             
             $worked = (float) $att['total_hours'];

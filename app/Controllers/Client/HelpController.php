@@ -22,7 +22,7 @@ class HelpController extends BaseController
             return redirect()->to('/login');
         }
 
-        $isPayrollStaff = $user->inGroup('client_payroll_staff');
+        $isPayrollStaff = \App\Libraries\PortalAccess::can('help', $user);
 
         return view('client_portal/help', [
             'helpRequests' => $isPayrollStaff
@@ -124,7 +124,7 @@ class HelpController extends BaseController
             return redirect()->to('/login');
         }
 
-        if (! $user->inGroup('client_payroll_staff')) {
+        if (! \App\Libraries\PortalAccess::can('help', $user)) {
             return redirect()->back()->withInput()->with('error', 'Only payroll staff can update help requests.');
         }
 

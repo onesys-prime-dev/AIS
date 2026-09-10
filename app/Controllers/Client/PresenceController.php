@@ -49,6 +49,10 @@ class PresenceController extends BaseController
 
         $statuses = $this->presenceModel->getAllPresenceStatuses();
 
+        if (!\App\Libraries\PortalAccess::can('employees')) {
+            $ids = db_connect()->table('employees')->select('id')->whereIn('user_id', [(int) $user->id, ...\App\Libraries\PortalAccess::teamUserIds($user)])->get()->getResultArray();
+            $statuses = array_intersect_key($statuses, array_flip(array_column($ids, 'id')));
+        }
         return $this->response->setJSON($statuses);
     }
 }

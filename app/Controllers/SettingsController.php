@@ -46,7 +46,7 @@ class SettingsController extends BaseController
             'title'         => 'Customization',
             'branding'      => $branding,
             'logoUrl'       => ! empty($branding['logo_path']) ? base_url((string) $branding['logo_path']) : null,
-            'canManageLogo' => auth()->user()->inGroup('client_payroll_staff'),
+            'canManageLogo' => \App\Libraries\PortalAccess::can('branding'),
         ];
 
         return view('settings/customization', $data);
@@ -88,7 +88,7 @@ class SettingsController extends BaseController
         }
 
         // --- Logo upload: only for client_payroll_staff ---
-        if (auth()->user()->inGroup('client_payroll_staff')) {
+        if (\App\Libraries\PortalAccess::can('branding')) {
             $logoFile = $this->request->getFile('company_logo');
 
             if ($logoFile && $logoFile->isValid() && ! $logoFile->hasMoved()) {

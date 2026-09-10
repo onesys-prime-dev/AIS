@@ -629,9 +629,9 @@ document.getElementById('editEmployeeForm').addEventListener('submit', function(
     const startTime = document.getElementById('edit_start_time').value;
     const endTime = document.getElementById('edit_end_time').value;
 
-    if (startTime && endTime && startTime >= endTime) {
+    if (startTime && endTime && startTime === endTime) {
         e.preventDefault();
-        showToast('End Time must be later than Start Time.', 'warning');
+        showToast('Start and end must differ. An earlier end means the following day.', 'warning');
         return;
     }
 

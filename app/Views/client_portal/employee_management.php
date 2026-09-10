@@ -16,6 +16,7 @@
         <!-- ACTION BUTTONS -->
         <div class="flex items-center gap-3">
             <!-- IMPORT -->
+            <?php if (\App\Libraries\PortalAccess::can('compensation')): ?>
             <div>
                 <input type="file" id="employeeImportInput" accept=".xlsx,.xls,.csv" class="hidden">
                 <button type="button" onclick="document.getElementById('employeeImportInput').click()"
@@ -35,6 +36,7 @@
             </div>
 
             <!-- EXPORT -->
+            <?php endif; ?>
             <button type="button" id="exportEmployeesBtn" class="bg-[#9764F6] hover:bg-[#8a58e0] text-white px-4 py-3 rounded-lg shadow-sm flex items-center gap-2">
                 <svg xmlns="http://www.w3.org/2000/svg"
                     class="w-5 h-5"

@@ -23,7 +23,7 @@ class AnnouncementController extends BaseController
             return redirect()->to('/login');
         }
 
-        if (! $user->inGroup('client_payroll_staff')) {
+        if (! \App\Libraries\PortalAccess::can('announcements', $user)) {
             return redirect()->back()->withInput()->with('error', 'Only payroll staff can publish announcements.');
         }
 
@@ -260,7 +260,7 @@ class AnnouncementController extends BaseController
             return redirect()->to('/login');
         }
 
-        if (! $user->inGroup('client_payroll_staff')) {
+        if (! \App\Libraries\PortalAccess::can('announcements', $user)) {
             return redirect()->back()->with('error', 'Only payroll staff can delete announcements.');
         }
 

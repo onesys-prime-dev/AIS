@@ -34,7 +34,7 @@ class AnnouncementService
     {
         $now            = date('Y-m-d H:i:s');
         $userId         = (int) $user->id;
-        $isPayrollStaff = $user->inGroup('client_payroll_staff');
+        $isPayrollStaff = \App\Libraries\PortalAccess::can('announcements', $user);
         $userDepartment = $this->getDepartmentByUserId($userId);
 
         $builder = $this->announcementModel
@@ -239,7 +239,7 @@ class AnnouncementService
     {
         $publishedIds = array_map('intval', array_column($this->applyVisibilityScope($user, false)->findAll(), 'id'));
 
-        if (! $user->inGroup('client_payroll_staff')) {
+        if (! \App\Libraries\PortalAccess::can('announcements', $user)) {
             return array_values(array_unique($publishedIds));
         }
 
