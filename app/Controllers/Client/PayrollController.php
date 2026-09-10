@@ -2041,6 +2041,12 @@ class PayrollController extends BaseController
 
     public function saveSettings()
     {
+        $user = auth()->user();
+        $isAdmin = $user->inGroup('client_payroll_staff') || $user->inGroup('superadmin') || $user->inGroup('admin');
+        if (!$isAdmin) {
+            return redirect()->back()->with('error', 'Unauthorized.');
+        }
+
         $settingsModel = new PayrollSettingsModel();
         $data = $this->request->getPost();
 

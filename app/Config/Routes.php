@@ -37,7 +37,10 @@ $routes->group('client_portal', ['filter' => 'auth'], function($routes){
     $routes->get ('employees/export'        ,'Client\EmployeeController::exportEmployees');
 
     // -- Loans --
-    $routes->get ('loans'                           , 'Client\LoanController::loanView');
+    // Note: no standalone 'loans' index route — the Loans tab is rendered
+    // directly via employee_main.php -> employee_loan.php; a route here
+    // previously pointed at LoanController::loanView(), a method that was
+    // never implemented (nothing in the UI links to this URL).
     $routes->post('loans/addLoan'                   , 'Client\LoanController::newLoan');
     $routes->get ('loans/loanEmployees'             , 'Client\LoanController::getLoanEmployees');
     $routes->get ('loans/getLoans'                  , 'Client\LoanController::getLoans');
@@ -90,6 +93,7 @@ $routes->group('', ['filter' => 'auth'], function($routes) {
     $routes->post('client_portal/request-notifications/viewed', 'Client\RequestNotificationController::viewed');
     $routes->post('client_portal/request-notifications/dismiss', 'Client\RequestNotificationController::dismiss');
     $routes->post('client_portal/announcements/store', 'Client\AnnouncementController::store');
+    $routes->get('client_portal/announcements/download/(:num)', 'Client\AnnouncementController::download/$1');
     $routes->post('client_portal/announcements/viewed', 'Client\AnnouncementController::viewed');
     $routes->post('client_portal/announcements/dismiss', 'Client\AnnouncementController::dismiss');
     $routes->post('client_portal/announcements/delete/(:num)', 'Client\AnnouncementController::delete/$1');

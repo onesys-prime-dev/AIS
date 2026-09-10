@@ -74,6 +74,50 @@ class AnnouncementService
         return $builder->groupEnd();
     }
 
+    /**
+     * Authorization check for a single announcement (e.g. before serving an
+     * attachment download) — same audience/department/expiry rules as
+     * applyVisibilityScope(), but without the dismissal exclusion, since
+     * dismissing an announcement from the notification feed shouldn't revoke
+     * access to a file the user was legitimately allowed to see.
+     */
+    public function canUserAccessAnnouncement(int $announcementId, object $user): bool
+    {
+        $announcement = $this->announcementModel->find($announcementId);
+        if (! $announcement) {
+            return false;
+        }
+
+        $isPayrollStaff = $user->inGroup('client_payroll_staff')
+            || $user->inGroup('superadmin')
+            || $user->inGroup('admin');
+
+        // Payroll staff/admins manage all announcements, published or not.
+        if ($isPayrollStaff) {
+            return true;
+        }
+
+        $now = date('Y-m-d H:i:s');
+        if (($announcement['publish_at'] ?? null) > $now) {
+            return false;
+        }
+        if (! empty($announcement['expires_at']) && $announcement['expires_at'] < $now) {
+            return false;
+        }
+
+        $audience = (string) ($announcement['audience'] ?? 'all');
+        if ($audience === 'all') {
+            return true;
+        }
+        if ($audience === 'department') {
+            $userDepartment = $this->getDepartmentByUserId((int) $user->id);
+            return $userDepartment !== null && $userDepartment === $announcement['department'];
+        }
+
+        // 'payroll' audience: already returned true above for payroll staff.
+        return false;
+    }
+
     public function createAnnouncement(int $createdBy, array $data)
     {
         $this->announcementModel->insert([
@@ -161,6 +205,12 @@ class AnnouncementService
         }
 
         return $grouped;
+    }
+
+    public function getAttachmentById(int $attachmentId): ?array
+    {
+        $row = $this->attachmentModel->find($attachmentId);
+        return $row ?: null;
     }
 
     public function getVisibleAnnouncementsForUser(object $user, int $limit = 15): array
