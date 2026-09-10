@@ -749,9 +749,9 @@ class PayrollController extends BaseController
                 'withholding_tax' =>
                     (float) ($computed['withholding_tax'] ?? 0),
 
-                'loan_deductions' =>
-                    json_encode($computed['loan_deductions'] ?? []),
-
+                // payroll_transactions has no column for an itemized loan
+                // breakdown; the loan total is already folded into
+                // total_deductions/net_pay below via PayrollComputationService.
                 'other_deductions' =>
                     (float) ($computed['other_deductions'] ?? 0),
 
