@@ -57,7 +57,7 @@
         <div class="card">
             <h3>Company Logo</h3>
 
-            <div class="upload-box">
+            <div class="upload-box" id="logoDropzone">
                 <div class="upload-inner">
                     <div class="logo-circle" id="logoPreview" style="<?= !empty($logoUrl) ? 'background-image:url(\'' . esc($logoUrl, 'attr') . '\');' : '' ?>">
                         <?= empty($logoUrl) ? 'Logo' : '' ?>
@@ -160,6 +160,12 @@ h1 {
     border-radius: 16px;
     padding: 40px 20px;
     text-align: center;
+    transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.upload-box.is-dragover {
+    border-color: #8b5cf6;
+    background: #f5f3ff;
 }
 
 .logo-circle {
@@ -742,6 +748,46 @@ logoInput?.addEventListener('change', function () {
         logoPreview.textContent = '';
     };
     reader.readAsDataURL(file);
+});
+
+// DRAG AND DROP — the dropzone only ever showed the text; it never had
+// listeners wired up, so dropping a file silently did nothing.
+const logoDropzone = $('logoDropzone');
+const ACCEPTED_LOGO_TYPES = ['image/png', 'image/jpeg', 'image/svg+xml'];
+
+['dragenter', 'dragover'].forEach((eventName) => {
+    logoDropzone?.addEventListener(eventName, (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        logoDropzone.classList.add('is-dragover');
+    });
+});
+
+['dragleave', 'dragend'].forEach((eventName) => {
+    logoDropzone?.addEventListener(eventName, (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        logoDropzone.classList.remove('is-dragover');
+    });
+});
+
+logoDropzone?.addEventListener('drop', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    logoDropzone.classList.remove('is-dragover');
+
+    const file = event.dataTransfer?.files?.[0];
+    if (!file || !logoInput) return;
+
+    if (!ACCEPTED_LOGO_TYPES.includes(file.type)) {
+        window.showToast?.('Logo must be PNG, JPG, or SVG.', 'error');
+        return;
+    }
+
+    const dataTransfer = new DataTransfer();
+    dataTransfer.items.add(file);
+    logoInput.files = dataTransfer.files;
+    logoInput.dispatchEvent(new Event('change', { bubbles: true }));
 });
 </script>
 
