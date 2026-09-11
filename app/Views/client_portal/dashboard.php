@@ -179,8 +179,17 @@ $currentAttendance = $currentAttendance ?? null;
         margin-top:12px;
     }
 
-    .buttons form{
+    /* Only the Clock In/Out form should stretch to fill the row — its button
+       is width:100% so it uses that space. The break-toggle form wraps just a
+       fixed 48px icon button, so if it also stretched (the old plain "form"
+       selector matched both), it left a dead gap before the task-log icon:
+       the form's box grew but the button inside stayed small and left-aligned. */
+    .buttons form.clock-form{
         flex:1;
+        margin:0;
+    }
+    .buttons form.break-form{
+        flex:0 0 auto;
         margin:0;
     }
 
@@ -1288,7 +1297,7 @@ document.addEventListener('DOMContentLoaded', function () {
             <div class="buttons">
                 <!-- functioning break button -->
                 <?php if ($currentAttendance): ?>
-                <form method="post" action="<?= site_url('client_portal/toggle-break/'.$currentAttendance['id']) ?>" onsubmit="this.querySelectorAll('button').forEach(b=>b.disabled=true)">
+                <form method="post" class="break-form" action="<?= site_url('client_portal/toggle-break/'.$currentAttendance['id']) ?>" onsubmit="this.querySelectorAll('button').forEach(b=>b.disabled=true)">
                     <input type="hidden" name="attendance_token" value="<?= esc($attendanceToken) ?>">
                     <input type="hidden" name="state_version" value="<?= (int) ($currentAttendance['state_version'] ?? 0) ?>">
                     <input type="hidden" name="break_action" value="<?= empty($currentAttendance['break_start']) ? 'start' : 'end' ?>">
@@ -1309,6 +1318,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 <form
                     action="<?= site_url('client_portal/time-in') ?>"
                     method="post"
+                    class="clock-form"
                     onsubmit="this.querySelectorAll('button').forEach(b=>b.disabled=true)">
                     <input type="hidden" name="attendance_token" value="<?= esc($attendanceToken) ?>">
 
@@ -1322,7 +1332,8 @@ document.addEventListener('DOMContentLoaded', function () {
                <form
                     id="clockOutForm"
                     action="<?= site_url('client_portal/time-out/'.$currentAttendance['id']) ?>"
-                    method="post">
+                    method="post"
+                    class="clock-form">
                     <input type="hidden" name="attendance_token" value="<?= esc($attendanceToken) ?>">
                     <input type="hidden" name="state_version" value="<?= (int) ($currentAttendance['state_version'] ?? 0) ?>">
 
