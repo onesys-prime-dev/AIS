@@ -36,6 +36,27 @@ class ClientAuthController extends LoginController
      */
     public function loginAction(): RedirectResponse
     {
+        $throttler = service('throttler');
+
+        $ipKey = 'login-ip-' . hash('sha256', $this->request->getIPAddress());
+        if (! $throttler->check($ipKey, 5, 900)) { // 5 attempts per 15mins
+            return redirect()->route('login')
+                ->withInput()
+                ->with('error', 'Too many login attempts. Please try again in a few minutes.');
+        }
+
+        $identifier = strtolower(trim((string) $this->request->getPost('email')));
+
+        if ($identifier !== '') {
+            $emailKey = 'login-email-' . hash('sha256', $identifier);
+
+            if (! $throttler->check($emailKey, 5, 900)) { // 5 attempts per 15min.
+                return redirect()->route('login')
+                    ->withInput()
+                    ->with('error', 'Too many login attempts. Please try again in a few minutes.');
+            }
+        }
+
         $response = parent::loginAction();
 
         if (! auth()->loggedIn()) {
