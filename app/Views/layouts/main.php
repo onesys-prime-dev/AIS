@@ -5,7 +5,18 @@
     <meta name="csrf-token" content="<?= csrf_hash() ?>">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= esc($title ?? 'Dashboard') ?> | Your Company</title>
-    
+
+    <?php
+        // The favicon follows the company's uploaded logo (Settings > Customization)
+        // so branding stays consistent between the sidebar and the browser tab;
+        // falls back to the static default when no logo has been uploaded yet.
+        $faviconUrl = ! empty($activeCompanyBranding['logo_url'] ?? null)
+            ? $activeCompanyBranding['logo_url']
+            : base_url('favicon.ico');
+        $faviconType = (string) ($activeCompanyBranding['logo_mime_type'] ?? '');
+    ?>
+    <link rel="icon" href="<?= esc($faviconUrl, 'attr') ?>"<?= $faviconType !== '' ? ' type="' . esc($faviconType, 'attr') . '"' : '' ?>>
+
     <?php
         $mainCssVer = is_file(FCPATH . 'css/main.css') ? filemtime(FCPATH . 'css/main.css') : time();
         $toastCssVer = is_file(FCPATH . 'css/toast.css') ? filemtime(FCPATH . 'css/toast.css') : time();
@@ -20,7 +31,7 @@
     <?= $this->renderSection('styles') ?>
 </head>
 
-<body class="bg-[#E7E3E3] min-h-screen font-sans antialiased scroll-smooth">
+<body class="min-h-screen font-sans antialiased scroll-smooth" style="background: var(--bg-color, #E7E3E3);">
 
 <div class="flex h-screen overflow-hidden">
 

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites>
+  <testsuite name="C:\xampp\htdocs\AIS\phpunit.xml.dist" tests="1" assertions="1" errors="0" failures="0" skipped="0" time="0.189311">
+    <testsuite name="App" tests="1" assertions="1" errors="0" failures="0" skipped="0" time="0.189311">
+      <testsuite name="CustomizationHtmlDumpTest" file="C:\xampp\htdocs\AIS\tests\session\CustomizationHtmlDumpTest.php" tests="1" assertions="1" errors="0" failures="0" skipped="0" time="0.189311">
+        <testcase name="testDumpCustomizationHtml" file="C:\xampp\htdocs\AIS\tests\session\CustomizationHtmlDumpTest.php" line="13" class="CustomizationHtmlDumpTest" classname="CustomizationHtmlDumpTest" assertions="1" time="0.189311"/>
+      </testsuite>
+    </testsuite>
+  </testsuite>
+</testsuites>
