@@ -211,7 +211,17 @@ class AnnouncementController extends BaseController
 
         $downloadName = (string) ($attachment['original_name'] ?? basename($fullPath));
 
-        return $this->response->download($fullPath, null)->setFileName($downloadName);
+        $response = $this->response->download($fullPath, null, true)->setFileName($downloadName);
+
+        // The attachment preview modal loads this same URL in an <iframe>/<img>;
+        // the default attachment disposition makes browsers refuse to render it
+        // inline and the preview just shows blank, so let the caller ask for
+        // an inline disposition instead of forcing a save-as download.
+        if ($this->request->getGet('view') === '1') {
+            $response->inline();
+        }
+
+        return $response;
     }
 
     public function viewed()

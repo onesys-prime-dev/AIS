@@ -106,6 +106,10 @@ function formatAttachmentSize(bytes) {
     return `${(kilobytes / 1024).toFixed(1)} MB`;
 }
 
+function getAttachmentPreviewIconSvg() {
+    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>';
+}
+
 function getAttachmentIconSvg(kind) {
     if (kind === 'image') {
         return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2" ry="2"/><circle cx="9" cy="10" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>';
@@ -143,6 +147,10 @@ window.closeAttachmentPreviewModal = function () {
         modal.style.display = 'none';
     }
 };
+
+function withInlineViewParam(url) {
+    return url + (url.indexOf('?') === -1 ? '?' : '&') + 'view=1';
+}
 
 function showAttachmentPreviewError(stage, downloadNode) {
     stage.innerHTML = `
@@ -203,11 +211,11 @@ window.openAttachmentPreviewModal = function (attachment) {
                 const img = document.createElement('img');
                 img.onerror = function () { showAttachmentPreviewError(stage, downloadNode); };
                 img.alt = fileName;
-                img.src = fileUrl;
+                img.src = withInlineViewParam(fileUrl);
                 stage.appendChild(img);
             } else if (kind === 'pdf') {
                 const iframe = document.createElement('iframe');
-                iframe.src = fileUrl;
+                iframe.src = withInlineViewParam(fileUrl);
                 iframe.title = fileName;
                 iframe.loading = 'lazy';
                 iframe.referrerPolicy = 'no-referrer';
@@ -418,7 +426,7 @@ window.openNotificationModal = function (el) {
                     openBtn.className = `attachment-open-btn attachment-kind-${kind}`;
                     openBtn.setAttribute('aria-label', `Preview ${name}`);
                     openBtn.title = `Preview ${name}`;
-                    openBtn.innerHTML = getAttachmentIconSvg(kind);
+                    openBtn.innerHTML = getAttachmentPreviewIconSvg();
                     openBtn.addEventListener('click', function () {
                         window.openAttachmentPreviewModal({
                             url: fp,
