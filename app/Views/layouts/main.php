@@ -9,11 +9,12 @@
     <?php
         $mainCssVer = is_file(FCPATH . 'css/main.css') ? filemtime(FCPATH . 'css/main.css') : time();
         $toastCssVer = is_file(FCPATH . 'css/toast.css') ? filemtime(FCPATH . 'css/toast.css') : time();
+        $styleCssVer = is_file(FCPATH . 'css/style.css') ? filemtime(FCPATH . 'css/style.css') : time();
     ?>
     <link href="<?= base_url('css/main.css') ?>?v=<?= $mainCssVer ?>" rel="stylesheet">
     <link href="<?= base_url('css/scrollBar.css') ?>" rel="stylesheet">
     <link href="<?= base_url('css/tailwind.css') ?>" rel="stylesheet">
-    <link href="<?= base_url('css/style.css') ?>" rel="stylesheet">
+    <link href="<?= base_url('css/style.css') ?>?v=<?= $styleCssVer ?>" rel="stylesheet">
     <link href="<?= base_url('css/toast.css') ?>?v=<?= $toastCssVer ?>" rel="stylesheet">
 
     <?= $this->renderSection('styles') ?>

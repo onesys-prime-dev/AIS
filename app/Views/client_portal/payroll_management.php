@@ -4577,6 +4577,14 @@ async function sendPdfToEmployee() {
         showToast('Please select an employee first.', 'warning');
         return;
     }
+    // sendPdf() isn't guarded against a retried request sending a second
+    // email — the other two send buttons on this page already disable
+    // themselves for the duration of the request; this one didn't. A
+    // deliberate resend is still possible afterward (button re-enables), this
+    // only blocks an accidental double-click/slow-network double-submit.
+    const sendBtn = document.getElementById('sendPdfBtn');
+    if (sendBtn) { if (sendBtn.disabled) return; sendBtn.disabled = true; }
+    const restoreSendBtn = () => { if (sendBtn) sendBtn.disabled = false; };
     const payload = {
         employee_id: employeeId,
         period_start: window.currentPayslipData.periodStart,
@@ -4649,6 +4657,8 @@ async function sendPdfToEmployee() {
     } catch (error) {
         console.error('Send PDF error:', error);
         showToast('Network error — could not reach server. Check console for details.', 'error');
+    } finally {
+        restoreSendBtn();
     }
 }
 

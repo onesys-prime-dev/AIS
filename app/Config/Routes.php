@@ -80,6 +80,7 @@ $routes->group('client_portal', ['filter' => 'auth'], function($routes){
 
     // -- Help / support tickets -- 
     $routes->get ('help'              , 'Client\HelpController::index');
+    $routes->get ('help/search-index' , 'Client\HelpController::searchIndex');
     $routes->post('help/store'        , 'Client\HelpController::store');
     $routes->post('help/update/(:num)', 'Client\HelpController::update/$1');
 });
