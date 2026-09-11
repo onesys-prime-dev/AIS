@@ -1,0 +1,3 @@
+Bg Color Debug
+ [x] Dashboard background color rendering
+

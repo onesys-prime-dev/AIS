@@ -30,7 +30,7 @@
     <?= $this->renderSection('styles') ?>
 </head>
 
-<body class="bg-[#E7E3E3] min-h-screen font-sans antialiased scroll-smooth">
+<body class="min-h-screen font-sans antialiased scroll-smooth" style="background: var(--bg-color, #E7E3E3);">
 
 <div class="flex h-screen overflow-hidden">
 

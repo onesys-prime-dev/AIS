@@ -8,7 +8,6 @@ $currentAttendance = $currentAttendance ?? null;
 
 <style>
     body{
-        background:#f3f4f6;
         font-family:Segoe UI, Arial, sans-serif;
         margin:0;
     }
