@@ -108,7 +108,7 @@ final class PortalAccess
         if (preg_match('~^client_portal/announcements/(?:store|delete/[0-9]+)$~', $path)) return 'announcements';
         if (preg_match('~^client_portal/help/(?:update/[0-9]+)$~', $path)) return 'help';
         if (preg_match('~^settings/(?:customization(?:/save)?|face-recognition(?:/(?:enroll|status))?)$~', $path)) return 'self';
-        if (preg_match('~^client_portal/(?:dashboard|profile(?:/(?:photo|identity|contact|username|emergency|password|payslip-password(?:/reset)?))?|presence/(?:heartbeat|statuses)|help(?:/store)?|company-logo|time-in|time-out/[0-9]+|toggle-break/[0-9]+|requests(?:/(?:new|store|lookup-code))?|request-notifications/(?:viewed|dismiss)|announcements/(?:viewed|dismiss)|tasks/(?:submit|saved)|timesheets/daily-log|timesheet(?:/(?:history-details|export-history|tasks/[0-9]+(?:/create)?|tasks/(?:edit|delete)/[0-9]+|update-attendance/[0-9]+))?)$~', $path)) return 'self';
+        if (preg_match('~^client_portal/(?:dashboard|profile(?:/(?:photo|identity|contact|username|emergency|password|payslip-password(?:/reset)?))?|presence/(?:heartbeat|statuses)|help(?:/store)?|company-logo|time-in|time-out/[0-9]+|toggle-break/[0-9]+|requests(?:/(?:new|store|lookup-code))?|request-notifications/(?:viewed|dismiss)|announcements/(?:viewed|dismiss|download/[0-9]+)|tasks/(?:submit|saved)|timesheets/daily-log|timesheet(?:/(?:history-details|export-history|tasks/[0-9]+(?:/create)?|tasks/(?:edit|delete)/[0-9]+|update-attendance/[0-9]+))?)$~', $path)) return 'self';
         return 'deny';
     }
 }
