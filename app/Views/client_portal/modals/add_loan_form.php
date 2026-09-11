@@ -121,17 +121,47 @@
                     class="w-full border rounded-lg px-3 py-2">
             </div>
 
-            <!-- START DATE -->
+            <!-- EFFECTIVE DATE -->
             <div class="mb-6">
                 <label class="block text-sm font-medium text-gray-700 mb-1">
-                    Start Date
+                    Effective Date
                 </label>
+
+                <div class="flex gap-4 mb-2">
+                    <label class="flex items-center gap-2 text-sm text-gray-700">
+                        <input
+                            type="radio"
+                            name="effective_date_mode"
+                            id="effective_mode_next_cutoff"
+                            value="next_cutoff"
+                            checked>
+                        Next Cutoff
+                    </label>
+                    <label class="flex items-center gap-2 text-sm text-gray-700">
+                        <input
+                            type="radio"
+                            name="effective_date_mode"
+                            id="effective_mode_custom"
+                            value="custom">
+                        Custom Date
+                    </label>
+                </div>
+
+                <!-- NEXT CUTOFF PREVIEW -->
+                <div id="nextCutoffPreview" class="border rounded-lg px-3 py-2 bg-gray-100 text-sm text-gray-700">
+                    Resolving next cutoff date...
+                </div>
+
+                <!-- CUSTOM DATE PICKER -->
                 <input
                     type="date"
-                    name="start_date"
-                    id="start_date"
-                    required
-                    class="w-full border rounded-lg px-3 py-2">
+                    id="custom_start_date"
+                    class="w-full border rounded-lg px-3 py-2 hidden">
+
+                <p id="deductionDatePreview" class="text-xs text-gray-500 mt-1"></p>
+
+                <!-- ACTUAL VALUE SUBMITTED — always the resolved cutoff date -->
+                <input type="hidden" name="start_date" id="start_date" required>
             </div>
 
             <!-- HIDDEN COMPUTED FIELDS -->
@@ -683,6 +713,8 @@
 
         applyLoanSettings();
 
+        await refreshEffectiveDate();
+
     })();
 
     let LOAN_SETTINGS = [];
@@ -769,7 +801,105 @@
 
         installmentInput.value =
             setting.max_installments || 1;
+
+        refreshEffectiveDate();
     }
+
+    /*
+    |--------------------------------------------------------------------------
+    | EFFECTIVE DATE (NEXT CUTOFF / CUSTOM)
+    |--------------------------------------------------------------------------
+    |
+    | Whichever mode is picked, the actual value submitted as start_date is
+    | always the real payroll cutoff end date resolved server-side from
+    | payroll_settings — never the raw date the user sees.
+    */
+
+    async function resolveCutoffDate(dateStr)
+    {
+        const frequency =
+            document.getElementById('deduction_frequency_hidden')?.value
+            || 'Semi-Monthly';
+
+        const params = new URLSearchParams({ frequency });
+        if (dateStr) params.set('date', dateStr);
+
+        const res = await fetch(
+            "<?= site_url('client_portal/loans/resolveCutoffDate') ?>?" + params.toString()
+        );
+
+        if (!res.ok) {
+            throw new Error('Failed to resolve cutoff date: ' + res.status);
+        }
+
+        const data = await res.json();
+
+        if (!data.success) {
+            throw new Error(data.message || 'Unable to resolve cutoff date.');
+        }
+
+        return data.resolved_date;
+    }
+
+    async function refreshEffectiveDate()
+    {
+        const mode = document.querySelector(
+            'input[name="effective_date_mode"]:checked'
+        )?.value || 'next_cutoff';
+
+        const startDateInput = document.getElementById('start_date');
+        const nextCutoffPreview = document.getElementById('nextCutoffPreview');
+        const customDateInput = document.getElementById('custom_start_date');
+        const deductionPreview = document.getElementById('deductionDatePreview');
+
+        if (mode === 'custom' && !customDateInput.value) {
+            deductionPreview.textContent = '';
+            startDateInput.value = '';
+            return;
+        }
+
+        try {
+            const resolved = await resolveCutoffDate(
+                mode === 'custom' ? customDateInput.value : null
+            );
+
+            startDateInput.value = resolved;
+
+            if (mode === 'next_cutoff') {
+                nextCutoffPreview.textContent =
+                    'Next cutoff: ' + resolved;
+            } else {
+                deductionPreview.textContent =
+                    'Deduction will be scheduled on: ' + resolved;
+            }
+        } catch (err) {
+            console.error('resolveCutoffDate error:', err);
+
+            if (mode === 'next_cutoff') {
+                nextCutoffPreview.textContent = 'Unable to resolve next cutoff date.';
+            } else {
+                deductionPreview.textContent = 'Unable to resolve cutoff date for this date.';
+            }
+        }
+    }
+
+    document.getElementById('effective_mode_next_cutoff')
+        ?.addEventListener('change', () => {
+            document.getElementById('nextCutoffPreview').classList.remove('hidden');
+            document.getElementById('custom_start_date').classList.add('hidden');
+            document.getElementById('deductionDatePreview').textContent = '';
+            refreshEffectiveDate();
+        });
+
+    document.getElementById('effective_mode_custom')
+        ?.addEventListener('change', () => {
+            document.getElementById('nextCutoffPreview').classList.add('hidden');
+            document.getElementById('custom_start_date').classList.remove('hidden');
+            refreshEffectiveDate();
+        });
+
+    document.getElementById('custom_start_date')
+        ?.addEventListener('change', refreshEffectiveDate);
 
     function formatCurrency(value)
     {

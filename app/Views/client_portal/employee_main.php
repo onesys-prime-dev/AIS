@@ -652,12 +652,14 @@ function loanRowTemplate(loan)
 
             <div class="p-4">
                 <span class="
-                    px-3 py-1 rounded-full text-xs font-semibold
+                    capitalize px-3 py-1 whitespace-nowrap rounded-full text-xs font-semibold
                     ${loan.loan_status === 'active'
                         ? 'bg-green-100 text-green-700'
-                        : 'bg-red-100 text-red-700'}
+                        : loan.loan_status === 'active_ongoing'
+                            ? 'bg-blue-100 text-blue-700'
+                            : 'bg-red-100 text-red-700'}
                 ">
-                    ${loan.loan_status || '—'}
+                    ${(loan.loan_status || '—').replace(/_/g, ' ')}
                 </span>
             </div>
 
@@ -1032,16 +1034,34 @@ window.addEventListener('click', function(e)
             document.getElementById('edit_loan_id').value = loan.id || '';
             document.getElementById('edit_loan_employee').value = loan.employee_name || '';
             document.getElementById('edit_loan_type').value = loan.loan_type || '';
-            document.getElementById('edit_start_date').value = loan.start_date || '';
             document.getElementById('edit_installment_count').value = loan.installment_count || '';
             document.getElementById('edit_deduction_per_payroll').value = loan.deduction_per_payroll || '';
-            
+            document.getElementById('edit_deduction_frequency_hidden').value = loan.deduction_frequency || 'Semi-Monthly';
+
+            // Effective date defaults to "Custom Date" prefilled with the
+            // loan's current start_date; switching modes/dates re-resolves
+            // it against payroll_settings via refreshEditEffectiveDate().
+            document.getElementById('edit_effective_mode_custom').checked = true;
+            document.getElementById('edit_effective_mode_next_cutoff').checked = false;
+            document.getElementById('editNextCutoffPreview').classList.add('hidden');
+            const customDateInput = document.getElementById('edit_custom_start_date');
+            customDateInput.classList.remove('hidden');
+            customDateInput.value = loan.start_date || '';
+            document.getElementById('edit_start_date').value = loan.start_date || '';
+            if (typeof refreshEditEffectiveDate === 'function') {
+                refreshEditEffectiveDate();
+            }
+
             // Fix: Use a select or hidden input for status
             const statusSelect = document.getElementById('edit_loan_status_display');
             if (statusSelect) {
                 statusSelect.value = loan.loan_status || 'active';
             }
-            
+
+            if (typeof applyLoanStatusRules === 'function') {
+                applyLoanStatusRules(loan.loan_status);
+            }
+
             document.getElementById('editLoanForm').action = `${LOAN_UPDATE_URL}/${loan.id}`;
             openModalById('editLoanModal');
         }
@@ -1126,14 +1146,46 @@ createCrudTable({
     tableId: "loanTable",
     data: LOANS,
     renderRow: loanRowTemplate,
-    search: (item, q) =>
-        `
-        ${item.employee_name}
-        ${item.loan_type}
-        ${item.loan_status}
-        `
-        .toLowerCase()
-        .includes(q)
+    filters: ({ item, query, values }) => {
+
+        const matchesSearch = !query || `
+            ${item.employee_name}
+            ${item.loan_type}
+            ${item.loan_status}
+            `
+            .toLowerCase()
+            .includes(query);
+
+        const matchesStatus =
+            !values.status ||
+            (item.loan_status || '').toLowerCase() === values.status;
+
+        const matchesCategory =
+            !values.loan_category ||
+            (item.loan_category || '').toLowerCase() === values.loan_category;
+
+        const matchesType =
+            !values.loan_type ||
+            (item.loan_type || '').toLowerCase() === values.loan_type;
+
+        return matchesSearch && matchesStatus && matchesCategory && matchesType;
+    },
+    sort: ({ a, b, sortBy, sortOrder }) => {
+
+        let left, right;
+
+        if (sortBy === 'remaining_balance') {
+            left = Number(a.remaining_balance || 0);
+            right = Number(b.remaining_balance || 0);
+        } else {
+            left = String(a[sortBy] ?? '').toLowerCase();
+            right = String(b[sortBy] ?? '').toLowerCase();
+        }
+
+        if (left < right) return sortOrder === 'asc' ? -1 : 1;
+        if (left > right) return sortOrder === 'asc' ? 1 : -1;
+        return 0;
+    }
 });
 
 // ========== EMPLOYEE IMPORT / EXPORT ==========

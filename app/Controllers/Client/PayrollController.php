@@ -808,14 +808,9 @@ class PayrollController extends BaseController
 
             $txId = $txModel->getInsertID();
 
-            $loanService = new \App\Services\Client\LoanService();
-
-            $loanService->markInstallmentPaid(
-                (int) $employeeId,
-                $start,
-                $end,
-                $txId
-            );
+            // Loan installments are locked/marked paid only once the payslip is
+            // actually sent to the employee (see sendPdf()), not on this preview
+            // computation — this endpoint fires on every "Generate Payslip" click.
 
             return $this->response->setJSON([
 
@@ -831,6 +826,35 @@ class PayrollController extends BaseController
 
             return $this->jsonError($e, 'Unable to compute payroll. Please check the inputs and try again.');
         }
+    }
+
+    /**
+     * Marks any 'active' loan that has a pending installment due on this
+     * payroll's period_end as 'active_ongoing', locking it from further
+     * edits now that this cutoff's deduction has been saved. Must run
+     * before markInstallmentPaid() flips the schedule row to 'paid'.
+     */
+    private function markLoansActiveOngoing(int $employeeId, string $periodEnd): void
+    {
+        $db = \Config\Database::connect();
+
+        $loanIds = $db->table('employee_loan_schedule els')
+            ->select('el.id')
+            ->join('employee_loans el', 'el.id = els.loan_id')
+            ->where('el.employee_id', $employeeId)
+            ->where('el.loan_status', 'active')
+            ->where('els.schedule_status', 'pending')
+            ->where('els.due_date', $periodEnd)
+            ->get()
+            ->getResultArray();
+
+        if (!$loanIds) {
+            return;
+        }
+
+        $db->table('employee_loans')
+            ->whereIn('id', array_column($loanIds, 'id'))
+            ->update(['loan_status' => 'active_ongoing']);
     }
 
     // ================= PAYROLL REGISTER (JSON for view) =================
@@ -1882,6 +1906,21 @@ class PayrollController extends BaseController
                         'sent_at' => date('Y-m-d H:i:s'),
                         'sent_by' => $senderName,
                     ]);
+
+                // Only now — the payslip has actually been emailed to the
+                // employee — do we lock the loan and consume the installment.
+                // Locking on Generate/Save instead would create a permanent
+                // payment record for a payslip that might never be sent.
+                // payroll_id references employee_payslips (this flow has no
+                // payroll_transactions row) so payments stay traceable to the
+                // payslip that generated them.
+                $this->markLoansActiveOngoing((int) $employeeId, (string) $data['period_end']);
+                (new \App\Services\Client\LoanService())->markInstallmentPaid(
+                    (int) $employeeId,
+                    (string) $data['period_start'],
+                    (string) $data['period_end'],
+                    (int) $payslipRecordId
+                );
 
                 $sendMethod = ($data['send_method'] ?? 'individual') === 'bulk' ? 'bulk' : 'individual';
                 service('activityLogger')->payslipSent(
@@ -3437,7 +3476,7 @@ class PayrollController extends BaseController
 
             ->where('el.employee_id', $employeeId)
 
-            ->where('el.loan_status', 'active')
+            ->whereIn('el.loan_status', ['active', 'active_ongoing'])
 
             ->where('els.schedule_status', 'pending')
 

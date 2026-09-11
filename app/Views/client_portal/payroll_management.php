@@ -36,6 +36,20 @@ $_defaultYearMonth = "{$_year}-{$_month}";
 <style>
     body{ font-family: 'Segoe UI', Arial, sans-serif; background: #f0f2f5; }
 
+    /* Inline button spinner (e.g. Send Payslip while waiting on the server) */
+    .btn-spinner{
+        display:inline-block;
+        width:14px;
+        height:14px;
+        border:2px solid rgba(255,255,255,0.5);
+        border-top-color:#fff;
+        border-radius:50%;
+        animation:btn-spin 0.7s linear infinite;
+        vertical-align:middle;
+        margin-right:6px;
+    }
+    @keyframes btn-spin{ to{ transform:rotate(360deg); } }
+
     /* Tabs */
     .sub-tab{
         padding:12px 0;
@@ -1415,7 +1429,7 @@ $_defaultYearMonth = "{$_year}-{$_month}";
         </div>
         <div id="staticPayslipContent"></div>
         <div class="modal-footer">
-            <button class="send-pdf-btn" id="sendPdfBtn">Send Payslip to Employee</button>
+            <button class="send-pdf-btn" id="sendPdfBtn"><span id="sendPdfBtnSpinner" class="btn-spinner" style="display:none;"></span><span id="sendPdfBtnText">Send Payslip to Employee</span></button>
         </div>
     </div>
 </div>
@@ -4633,6 +4647,15 @@ async function sendPdfToEmployee() {
         other_deductions: 0,
         net_pay: window.currentPayslipData.netPay,
     };
+
+    const sendBtn     = document.getElementById('sendPdfBtn');
+    const sendSpinner = document.getElementById('sendPdfBtnSpinner');
+    const sendBtnText = document.getElementById('sendPdfBtnText');
+
+    sendBtn.disabled = true;
+    sendSpinner.style.display = 'inline-block';
+    sendBtnText.textContent = 'Sending...';
+
     try {
         const response = await fetch('<?= site_url('client_portal/payroll/sendPdf') ?>', {
             method: 'POST',
@@ -4649,6 +4672,10 @@ async function sendPdfToEmployee() {
     } catch (error) {
         console.error('Send PDF error:', error);
         showToast('Network error — could not reach server. Check console for details.', 'error');
+    } finally {
+        sendBtn.disabled = false;
+        sendSpinner.style.display = 'none';
+        sendBtnText.textContent = 'Send Payslip to Employee';
     }
 }
 

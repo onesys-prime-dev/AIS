@@ -18,9 +18,18 @@ window.createCrudTable = function ({
     const filterToggle = container.querySelector('.crud-filter-toggle');
     const filterDropdown = container.querySelector('.crud-filter-dropdown');
 
-    const filterStatus = container.querySelector('[data-filter="status"]');
-    const filterDepartment = container.querySelector('[data-filter="department"]');
-    const filterEmploymentType = container.querySelector('[data-filter="employment_type"]');
+    // Generic filter fields: every [data-filter] select in the dropdown
+    // except sort_by/sort_order, keyed by its data-filter value. This lets
+    // each crud_table instance (employees, loans, ...) define its own
+    // filter set via PHP without any changes needed here.
+    const filterEls = {};
+    if (filterDropdown) {
+        filterDropdown.querySelectorAll('[data-filter]').forEach(el => {
+            const key = el.dataset.filter;
+            if (key === 'sort_by' || key === 'sort_order') return;
+            filterEls[key] = el;
+        });
+    }
 
     const filterSortBy = container.querySelector('[data-filter="sort_by"]');
     const filterSortOrder = container.querySelector('[data-filter="sort_order"]');
@@ -71,13 +80,13 @@ window.createCrudTable = function ({
     }
 
 
-    if (filterDepartment) {
-        addUniqueOptions(filterDepartment, rowData.map(e => e.department));
-    }
-
-    if (filterEmploymentType) {
-        addUniqueOptions(filterEmploymentType, rowData.map(e => e.employment_type));
-    }
+    // Auto-populate any filter select marked data-filter-autofill="1" with
+    // the unique values found in that field across the current row data.
+    Object.entries(filterEls).forEach(([key, el]) => {
+        if (el.dataset.filterAutofill !== undefined) {
+            addUniqueOptions(el, rowData.map(r => r[key]));
+        }
+    });
 
 
      // APPLY FILTERS  
@@ -85,9 +94,16 @@ window.createCrudTable = function ({
 
         const q = (searchInput?.value || '').toLowerCase().trim();
 
-        const status = (filterStatus?.value || '').toLowerCase();
-        const department = (filterDepartment?.value || '').toLowerCase();
-        const employmentType = (filterEmploymentType?.value || '').toLowerCase();
+        // Generic map of every filter field's current (lowercased) value,
+        // keyed by its data-filter name — e.g. values.status, values.loan_category.
+        const values = {};
+        Object.entries(filterEls).forEach(([key, el]) => {
+            values[key] = (el.value || '').toLowerCase();
+        });
+
+        const status = values.status || '';
+        const department = values.department || '';
+        const employmentType = values.employment_type || '';
 
         const sortBy = filterSortBy?.value || 'name';
         const sortOrder = filterSortOrder?.value || 'asc';
@@ -102,6 +118,7 @@ window.createCrudTable = function ({
                     status,
                     department,
                     employmentType,
+                    values,
                     sortBy,
                     sortOrder,
                 });
@@ -213,17 +230,9 @@ window.createCrudTable = function ({
         searchInput.addEventListener('input', applyFilters);
     }
 
-    if (filterStatus) {
-        filterStatus.addEventListener('change', applyFilters);
-    }
-
-    if (filterDepartment) {
-        filterDepartment.addEventListener('change', applyFilters);
-    }
-
-    if (filterEmploymentType) {
-        filterEmploymentType.addEventListener('change', applyFilters);
-    }
+    Object.values(filterEls).forEach(el => {
+        el.addEventListener('change', applyFilters);
+    });
 
     if (filterSortBy) {
         filterSortBy.addEventListener('change', applyFilters);
@@ -239,9 +248,7 @@ window.createCrudTable = function ({
 
         clearFiltersBtn.addEventListener('click', () => {
 
-            if (filterStatus) filterStatus.value = '';
-            if (filterDepartment) filterDepartment.value = '';
-            if (filterEmploymentType) filterEmploymentType.value = '';
+            Object.values(filterEls).forEach(el => { el.value = ''; });
 
             if (filterSortBy) {
                 if ([...filterSortBy.options].some(opt => opt.value === 'name')) {

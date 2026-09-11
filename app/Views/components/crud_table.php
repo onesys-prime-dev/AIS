@@ -42,33 +42,55 @@
     </div>
 
 
+    <?php
+    // Default to the employee filter set for backward compatibility with
+    // any crud_table caller that doesn't pass its own $filters/$sortOptions.
+    $filters = $filters ?? [
+        [
+            'key' => 'status',
+            'label' => 'Status',
+            'options' => [
+                ['value' => '', 'label' => 'All'],
+                ['value' => 'active', 'label' => 'Active'],
+                ['value' => 'inactive', 'label' => 'Inactive'],
+            ],
+        ],
+        [
+            'key' => 'department',
+            'label' => 'Department',
+            'autofill' => true,
+        ],
+        [
+            'key' => 'employment_type',
+            'label' => 'Employment Type',
+            'autofill' => true,
+        ],
+    ];
+
+    $sortOptions = $sortOptions ?? [
+        ['value' => 'name', 'label' => 'Name'],
+        ['value' => 'status', 'label' => 'Status'],
+        ['value' => 'department', 'label' => 'Department'],
+        ['value' => 'employment_type', 'label' => 'Employment Type'],
+    ];
+    ?>
+
     <!-- FILTER DROPDOWN -->
     <div class="crud-filter-dropdown hidden absolute right-5 top-[70px] bg-white border border-gray-300 shadow-lg rounded-lg p-4 w-[300px] z-50 space-y-3">
-        <!-- STATUS -->
-        <div>
-            <label class="text-xs text-gray-500">Status</label>
-            <select data-filter="status" class="w-full border rounded-lg p-2 text-sm">
-                <option value="">All</option>
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-            </select>
-        </div>
 
-        <!-- DEPARTMENT -->
+        <?php foreach ($filters as $filter): ?>
         <div>
-            <label class="text-xs text-gray-500">Department</label>
-                <select data-filter="department" class="w-full border rounded-lg p-2 text-sm">
-                <option value="">All</option>
+            <label class="text-xs text-gray-500"><?= esc($filter['label']) ?></label>
+            <select
+                data-filter="<?= esc($filter['key']) ?>"
+                <?= !empty($filter['autofill']) ? 'data-filter-autofill="1"' : '' ?>
+                class="w-full border rounded-lg p-2 text-sm">
+                <?php foreach ($filter['options'] ?? [['value' => '', 'label' => 'All']] as $opt): ?>
+                <option value="<?= esc($opt['value']) ?>"><?= esc($opt['label']) ?></option>
+                <?php endforeach; ?>
             </select>
         </div>
-
-        <!-- EMPLOYMENT TYPE -->
-        <div>
-            <label class="text-xs text-gray-500">Employment Type</label>
-            <select data-filter="employment_type" class="w-full border rounded-lg p-2 text-sm">
-                <option value="">All</option>
-            </select>
-        </div>
+        <?php endforeach; ?>
 
         <hr>
 
@@ -76,10 +98,9 @@
         <div>
             <label class="text-xs text-gray-500">Sort By</label>
             <select data-filter="sort_by" class="w-full border rounded-lg p-2 text-sm">
-                <option value="name">Name</option>
-                <option value="status">Status</option>
-                <option value="department">Department</option>
-                <option value="employment_type">Employment Type</option>
+                <?php foreach ($sortOptions as $opt): ?>
+                <option value="<?= esc($opt['value']) ?>"><?= esc($opt['label']) ?></option>
+                <?php endforeach; ?>
             </select>
         </div>
 

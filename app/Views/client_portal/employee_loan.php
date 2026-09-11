@@ -56,7 +56,42 @@
             'Next Deduction',
             'Status',
             'Action'
-        ]
+        ],
+        'filters' => [
+            [
+                'key' => 'status',
+                'label' => 'Status',
+                'options' => [
+                    ['value' => '', 'label' => 'All'],
+                    ['value' => 'active', 'label' => 'Active'],
+                    ['value' => 'active_ongoing', 'label' => 'Active Ongoing'],
+                    ['value' => 'completed', 'label' => 'Completed'],
+                    ['value' => 'cancelled', 'label' => 'Cancelled'],
+                ],
+            ],
+            [
+                'key' => 'loan_category',
+                'label' => 'Loan Category',
+                'options' => [
+                    ['value' => '', 'label' => 'All'],
+                    ['value' => 'MP2 Savings Program', 'label' => 'MP2 Savings Program'],
+                    ['value' => 'SSS', 'label' => 'SSS Loans'],
+                    ['value' => 'ADVANCE', 'label' => 'Advances'],
+                ],
+            ],
+            [
+                'key' => 'loan_type',
+                'label' => 'Loan Type',
+                'autofill' => true,
+            ],
+        ],
+        'sortOptions' => [
+            ['value' => 'employee_name', 'label' => 'Employee Name'],
+            ['value' => 'loan_status', 'label' => 'Status'],
+            ['value' => 'loan_type', 'label' => 'Loan Type'],
+            ['value' => 'remaining_balance', 'label' => 'Remaining Balance'],
+            ['value' => 'start_date', 'label' => 'Next Deduction'],
+        ],
     ]) ?>
 
 </div>

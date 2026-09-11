@@ -46,13 +46,14 @@ $routes->group('client_portal', ['filter' => 'auth'], function($routes){
     $routes->get ('loans/loanEmployees'             , 'Client\LoanController::getLoanEmployees');
     $routes->get ('loans/getLoans'                  , 'Client\LoanController::getLoans');
     $routes->get ('loans/viewSchedule/(:num)'       , 'Client\LoanController::viewSchedule/$1');
-    $routes->get ('loans/cancel/(:num)'             , 'Client\LoanController::cancelLoan/$1');
-    $routes->get ('loans/complete/(:num)'           , 'Client\LoanController::completeLoan/$1');
+    $routes->post ('loans/cancel/(:num)'             , 'Client\LoanController::cancelLoan/$1');
+    $routes->post ('loans/complete/(:num)'           , 'Client\LoanController::completeLoan/$1');
     $routes->post('loans/update/(:num)'             , 'Client\LoanController::updateLoan/$1');
     $routes->get ('loans/settings'                  , 'Client\LoanController::getLoanSettings');
     $routes->post('loans/settings/save'             , 'Client\LoanController::saveLoanSettings');
     $routes->get ('loans/payments/(:num)'           , 'Client\LoanController::getLoanPayments/$1');
     $routes->get ('loans/getEmployeeLoanInfo/(:num)', 'Client\LoanController::getEmployeeLoanInfo/$1');
+    $routes->get ('loans/resolveCutoffDate'         , 'Client\LoanController::resolveCutoffDate');
 
     $routes->get('timesheets/daily-log', 'Client\TimesheetController::dailyTimeLog');
     $routes->get('timesheet/history-details', 'Client\TimesheetController::historyDetails');

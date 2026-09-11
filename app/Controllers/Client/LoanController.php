@@ -144,6 +144,45 @@ class LoanController extends BaseController
 
     /*
     |--------------------------------------------------------------------------
+    | RESOLVE CUTOFF DATE
+    |--------------------------------------------------------------------------
+    |
+    | Given a target date (defaults to today) and a deduction frequency,
+    | returns the actual payroll cutoff end date (per payroll_settings) that
+    | the deduction would land on. Used by the Add Loan form to preview both
+    | "Next Cutoff" (pass no date) and "Custom Date" (pass the picked date)
+    | choices before submitting.
+    */
+
+    public function resolveCutoffDate()
+    {
+        try {
+            $dateParam = $this->request->getGet('date');
+            $frequency = $this->request->getGet('frequency') ?? 'Semi-Monthly';
+
+            $from = ($dateParam && preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateParam))
+                ? new \DateTime($dateParam)
+                : new \DateTime();
+
+            $resolved = $this->loanService->resolveCutoffEndDate(
+                $from,
+                $frequency === 'Monthly'
+            );
+
+            return $this->response->setJSON([
+                'success' => true,
+                'resolved_date' => $resolved,
+            ]);
+        } catch (\Throwable $e) {
+            return $this->response->setStatusCode(500)->setJSON([
+                'success' => false,
+                'message' => $this->safeErrorMessage($e, 'Unable to resolve cutoff date.'),
+            ]);
+        }
+    }
+
+    /*
+    |--------------------------------------------------------------------------
     | CREATE NEW LOAN
     |--------------------------------------------------------------------------
     */
