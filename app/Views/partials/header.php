@@ -29,11 +29,13 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
                         }
                     }
                 ?>
+                <span id="headerNotifBadgeSlot">
                 <?php if ($unreadNotifCount > 0): ?>
                     <span class="header-notif-badge">
                 <?= $unreadNotifCount ?>
                     </span>
                 <?php endif; ?>
+                </span>
             </button>
 
             <!-- BELL DROPDOWN -->
@@ -48,7 +50,7 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
 
                 <div class="header-notif-section-label">Today</div>
 
-                <div class="header-notif-list notif-scroll-hide">
+                <div id="headerNotifList" class="header-notif-list notif-scroll-hide">
                         <?php if (!empty($notifications)): ?>
                             <?php foreach($notifications as $n): ?>
                                 <?php

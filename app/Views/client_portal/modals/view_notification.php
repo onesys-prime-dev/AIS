@@ -270,6 +270,7 @@
         transition:background .15s, transform .15s;
     }
     .attachment-preview-download:hover { background:#dc2626; transform:translateY(-1px) }
+    .attachment-preview-download.is-disabled { background:#d1d5db; color:#6b7280; pointer-events:none; cursor:not-allowed; transform:none }
     .attachment-preview-download svg { width:18px; height:18px; flex-shrink:0 }
 
     /* ============================================================
