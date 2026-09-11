@@ -17,6 +17,12 @@ $routes->post('register', 'Auth\ClientRegisterController::registerAction');
 $routes->get ('face-verify', 'Auth\FaceAuthController::index', ['filter' => 'auth']);
 $routes->post('face-verify', 'Auth\FaceAuthController::verify', ['filter' => 'auth']);
 
+$routes->get ('forgot-password', 'Auth\PasswordResetController::forgotPassword', ['as' => 'forgot-password']);
+$routes->post('forgot-password', 'Auth\PasswordResetController::sendResetLink' , ['as' => 'forgot-password']);
+$routes->get ('reset-password/(:any)', 'Auth\PasswordResetController::resetPassword/$1', ['as' => 'reset-password']);
+$routes->post('reset-password/(:any)', 'Auth\PasswordResetController::updatePassword/$1');    
+
+
 service('auth')->routes($routes, ['except' => ['register', 'login', 'logout']]);
 
 $routes->get('/', function() {
