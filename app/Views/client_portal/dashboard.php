@@ -7,14 +7,14 @@ $currentAttendance = $currentAttendance ?? null;
 ?>
 
 <style>
-    body{
-        background:#f3f4f6;
-        font-family:Segoe UI, Arial, sans-serif;
-        margin:0;
+    body {
+        background: #f3f4f6;
+        font-family: Segoe UI, Arial, sans-serif;
+        margin: 0;
     }
 
     /* CENTER CONTENT WIDTH */
-    .dashboard{
+    .dashboard {
         display: flex;
         flex-direction: column;
         align-items: stretch;
@@ -28,14 +28,14 @@ $currentAttendance = $currentAttendance ?? null;
 
     /* LIMIT CONTENT WIDTH */
     .header,
-    .dashboard-main{
-        width:100%;
-        max-width:none;
-        height:auto;
+    .dashboard-main {
+        width: 100%;
+        max-width: none;
+        height: auto;
     }
 
     /* HEADER */
-    .header{
+    .header {
         display: flex;
         justify-content: space-between;
         align-items: center;
@@ -44,14 +44,14 @@ $currentAttendance = $currentAttendance ?? null;
     }
 
     /* TITLE */
-    .header h1{
-        font-size:clamp(20px, 2.5vw, 28px);
-        font-weight:700;
-        margin:0;
+    .header h1 {
+        font-size: clamp(20px, 2.5vw, 28px);
+        font-weight: 700;
+        margin: 0;
     }
 
     /* BUTTON */
-    .request-btn{
+    .request-btn {
         background: #ef4444;
         color: white;
         padding: 10px 18px;
@@ -59,21 +59,21 @@ $currentAttendance = $currentAttendance ?? null;
         border: none;
         cursor: pointer;
         font-weight: 600;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
         display: inline-flex;
         align-items: center;
         gap: 8px;
         transition: all 0.2s ease;
     }
 
-    .request-btn:hover{
+    .request-btn:hover {
         background: #dc2626;
         transform: translateY(-2px);
         box-shadow: 0 6px 12px rgba(239, 68, 68, 0.3);
     }
 
     /* MAIN LAYOUT */
-    .dashboard-main{
+    .dashboard-main {
         display: grid;
         grid-template-columns: minmax(0, 1fr) clamp(400px, 34vw, 500px);
         align-items: stretch;
@@ -84,7 +84,7 @@ $currentAttendance = $currentAttendance ?? null;
     }
 
     /* CLOCK CARD */
-    .clock-card{
+    .clock-card {
         min-width: 0;
         max-width: none;
         background: white;
@@ -92,14 +92,14 @@ $currentAttendance = $currentAttendance ?? null;
         flex-direction: column;
         border-radius: 16px;
         padding: 20px;
-        box-shadow: 0 6px 18px rgba(0,0,0,0.1);
+        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.1);
         border: 1px solid #e5e7eb;
         justify-content: flex-start;
-        height:100%;
+        height: 100%;
     }
 
     /* TITLE */
-    .clock-title{
+    .clock-title {
         text-align: center;
         color: #ef4444;
         font-weight: 700;
@@ -108,62 +108,62 @@ $currentAttendance = $currentAttendance ?? null;
     }
 
     /* INNER BOX */
-    .clock-inner{
-        display:flex;
-        flex-direction:column;
-        justify-content:center;
-        align-items:center;
-        background:#e5e7eb;
-        border-radius:12px;
-        padding:25px;
-        margin-bottom:10px;
-        text-align:center;
-        flex:1;
-        min-height:320px;
+    .clock-inner {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        background: #e5e7eb;
+        border-radius: 12px;
+        padding: 25px;
+        margin-bottom: 10px;
+        text-align: center;
+        flex: 1;
+        min-height: 320px;
     }
 
     /* STATUS */
-    .status{
+    .status {
         font-size: 18px;
-        color:#6b7280;
-        font-weight:500;
+        color: #6b7280;
+        font-weight: 500;
         padding: 18px;
     }
 
-    .status span{
-        background:#bbf7d0;
-        color:#065f46;
-        padding:4px 12px;
-        border-radius:20px;
-        font-size:13px;
+    .status span {
+        background: #bbf7d0;
+        color: #065f46;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 13px;
     }
 
     /* CLOCK */
-    .clock{
-        width:clamp(180px, 25vw, 240px);
-        height:clamp(180px, 25vw, 240px);
-        position:relative;
-        display:flex;
-        align-items:center;
-        justify-content:center;
+    .clock {
+        width: clamp(180px, 25vw, 240px);
+        height: clamp(180px, 25vw, 240px);
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
         padding: 20px;
     }
 
-    .clock svg{
-        position:absolute;
-        width:100%;
-        height:100%;
-        transform:rotate(-90deg);
+    .clock svg {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        transform: rotate(-90deg);
     }
 
-    .shift-time{
-        position:absolute;
-        font-size:clamp(28px, 4vw, 40px);
-        font-weight:700;
+    .shift-time {
+        position: absolute;
+        font-size: clamp(28px, 4vw, 40px);
+        font-weight: 700;
     }
 
     /* DATE */
-    .date{
+    .date {
         font-size: 18px;
         color: #4b5563;
         font-weight: 500;
@@ -171,12 +171,12 @@ $currentAttendance = $currentAttendance ?? null;
     }
 
     /* BUTTONS */
-    .buttons{
-        display:flex;
-        gap:12px;
-        align-items:center;
-        width:100%;
-        margin-top:12px;
+    .buttons {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        width: 100%;
+        margin-top: 12px;
     }
 
     /* Only the Clock In/Out form should stretch to fill the row — its button
@@ -184,230 +184,232 @@ $currentAttendance = $currentAttendance ?? null;
        fixed 48px icon button, so if it also stretched (the old plain "form"
        selector matched both), it left a dead gap before the task-log icon:
        the form's box grew but the button inside stayed small and left-aligned. */
-    .buttons form.clock-form{
-        flex:1;
-        margin:0;
-    }
-    .buttons form.break-form{
-        flex:0 0 auto;
-        margin:0;
+    .buttons form.clock-form {
+        flex: 1;
+        margin: 0;
     }
 
-    .clockout{
-        width:100%;
-        height:48px;
-        background:#ef4444;
-        border:none;
-        color:white;
-        border-radius:12px;
-        font-weight:600;
-        cursor:pointer;
-        box-shadow:0 2px 6px rgba(0,0,0,0.15);
-        display:block;
-        transition:all 0.2s ease;
+    .buttons form.break-form {
+        flex: 0 0 auto;
+        margin: 0;
     }
 
-    .clockout:hover{
-        background:#dc2626;
-        transform:translateY(-2px);
-        box-shadow:0 6px 12px rgba(239, 68, 68, 0.3);
+    .clockout {
+        width: 100%;
+        height: 48px;
+        background: #ef4444;
+        border: none;
+        color: white;
+        border-radius: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+        display: block;
+        transition: all 0.2s ease;
+    }
+
+    .clockout:hover {
+        background: #dc2626;
+        transform: translateY(-2px);
+        box-shadow: 0 6px 12px rgba(239, 68, 68, 0.3);
     }
 
     /* ICON BUTTON */
-    .icon-btn{
-        width:48px;
-        height:48px;
-        min-width:48px;
-        border:none;
-        border-radius:12px;
-        background:#f3f4f6;
-        background-repeat:no-repeat;
-        background-position:center;
-        background-size:22px;
-        cursor:pointer;
-        display:flex;
-        align-items:center;
-        justify-content:center;
-        transition:all 0.2s ease;
+    .icon-btn {
+        width: 48px;
+        height: 48px;
+        min-width: 48px;
+        border: none;
+        border-radius: 12px;
+        background: #f3f4f6;
+        background-repeat: no-repeat;
+        background-position: center;
+        background-size: 22px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s ease;
     }
 
-    .icon-btn:hover{
-        background-color:#e5e7eb;
-        transform:scale(1.08);
+    .icon-btn:hover {
+        background-color: #e5e7eb;
+        transform: scale(1.08);
     }
 
     /* ICONS */
-    .coffee{
-        background-image:url("<?= base_url('icons/coffee.png') ?>");
+    .coffee {
+        background-image: url("<?= base_url('icons/coffee.png') ?>");
     }
 
-    .idcard{
-        background-image:url("<?= base_url('icons/add_notes.png') ?>");
+    .idcard {
+        background-image: url("<?= base_url('icons/add_notes.png') ?>");
     }
 
-    .on-break{
-        background-color:#fb923c !important;
+    .on-break {
+        background-color: #fb923c !important;
     }
 
 
     /* NOTIFICATIONS */
-    .notifications{
-        width:100%;
-        max-width:none;
+    .notifications {
+        width: 100%;
+        max-width: none;
         background: linear-gradient(180deg, #ffffff 0%, #fcfcfe 100%);
-        border-radius:18px;
-        box-shadow:0 14px 30px rgba(17, 24, 39, 0.10);
-        border:1px solid #ececec;
-        display:flex;
-        flex-direction:column;
-        overflow:hidden;
-        max-height:none;
-        height:100%;
-        min-height:0;
+        border-radius: 18px;
+        box-shadow: 0 14px 30px rgba(17, 24, 39, 0.10);
+        border: 1px solid #ececec;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        max-height: none;
+        height: 100%;
+        min-height: 0;
     }
 
-    .notifications-divider{
-        border:0;
-        border-top:1px solid #e5e7eb;
+    .notifications-divider {
+        border: 0;
+        border-top: 1px solid #e5e7eb;
     }
 
     /* NOTIFICATION TITLE */
-    .notifications-title{
-        color:#232323;
-        font-size:24px;
-        font-weight:700;
-        letter-spacing:-0.015em;
+    .notifications-title {
+        color: #232323;
+        font-size: 24px;
+        font-weight: 700;
+        letter-spacing: -0.015em;
     }
 
-    .notifications-top{
-        display:flex;
-        align-items:center;
-        justify-content:space-between;
+    .notifications-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
         margin: 20px 20px 14px;
     }
 
-    .notifications-clear{
-        border:none;
-        background:transparent;
-        color:#4b5563;
-        font-size:12px;
-        font-weight:600;
-        cursor:pointer;
-        padding:6px 8px;
-        border-radius:8px;
-        display:flex;
-        align-items:center;
-        gap:4px;
+    .notifications-clear {
+        border: none;
+        background: transparent;
+        color: #4b5563;
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        padding: 6px 8px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        gap: 4px;
     }
 
-    .notifications-clear .dot{
-        width:25px;
-        height:25px;
+    .notifications-clear .dot {
+        width: 25px;
+        height: 25px;
     }
 
-    .notifications-clear:hover{
-        color:#1f2937;
-        background:#f3f4f6;
+    .notifications-clear:hover {
+        color: #1f2937;
+        background: #f3f4f6;
     }
 
-    .notifications-tabs{
-        display:flex;
-        align-items:center;
-        gap:10px;
+    .notifications-tabs {
+        display: flex;
+        align-items: center;
+        gap: 10px;
         margin: 12px 20px 15px;
     }
 
-    .notifications-tab{
-        border:1px solid transparent;
-        background:#f3f4f6;
-        font-size:12px;
-        font-weight:600;
-        color:#4b5563;
-        border-radius:999px;
-        padding:8px 13px;
-        cursor:pointer;
-        display:flex;
-        align-items:center;
-        gap:7px;
-        transition:all 0.2s ease;
+    .notifications-tab {
+        border: 1px solid transparent;
+        background: #f3f4f6;
+        font-size: 12px;
+        font-weight: 600;
+        color: #4b5563;
+        border-radius: 999px;
+        padding: 8px 13px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        transition: all 0.2s ease;
     }
 
-    .notifications-tab:hover{
-        background:#ede9fe;
-        color:#1f2937;
+    .notifications-tab:hover {
+        background: #ede9fe;
+        color: #1f2937;
     }
 
-    .notifications-tab.active{
-        background:#EBE5FF;
-        color:#1f2937;
-        border-color:rgba(126, 35, 253, 0.25);
-        box-shadow:0 2px 8px rgba(126, 35, 253, 0.14);
+    .notifications-tab.active {
+        background: #EBE5FF;
+        color: #1f2937;
+        border-color: rgba(126, 35, 253, 0.25);
+        box-shadow: 0 2px 8px rgba(126, 35, 253, 0.14);
     }
 
-    .notifications-badge{
-        background:#7E23FD;
-        color:#fff;
-        font-size:11px;
-        font-weight:700;
-        border-radius:999px;
-        padding:2px 8px;
-        line-height:1.4;
+    .notifications-badge {
+        background: #7E23FD;
+        color: #fff;
+        font-size: 11px;
+        font-weight: 700;
+        border-radius: 999px;
+        padding: 2px 8px;
+        line-height: 1.4;
     }
 
-    .notifications-divider-title{
-        display:flex;
-        align-items:center;
-        gap:8px;
-        font-size:11px;
-        font-weight:700;
-        color:#6b7280;
-        margin:10px 0 10px;
-        text-transform:uppercase;
-        letter-spacing:0.06em;
+    .notifications-divider-title {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 11px;
+        font-weight: 700;
+        color: #6b7280;
+        margin: 10px 0 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
     }
 
-    .notifications-section{
-        display:flex;
-        flex-direction:column;
-        gap:10px;
+    .notifications-section {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
     }
 
-    .notifications-divider-title::after{
-        content:'';
-        flex:1;
-        height:1px;
-        background:#dedede;
+    .notifications-divider-title::after {
+        content: '';
+        flex: 1;
+        height: 1px;
+        background: #dedede;
     }
 
-    .notifications-empty{
-        font-size:12px;
-        color:#7d7d7d;
-        margin:10px 0 14px;
+    .notifications-empty {
+        font-size: 12px;
+        color: #7d7d7d;
+        margin: 10px 0 14px;
         text-align: center;
         min-height: 100%;
-        display:flex;
-        align-items:center;
-        justify-content:center;
+        display: flex;
+        align-items: center;
+        justify-content: center;
     }
 
-    .notif-meta{
-        margin-top:6px;
-        font-size:11px;
-        color:#6b7280;
+    .notif-meta {
+        margin-top: 6px;
+        font-size: 11px;
+        color: #6b7280;
     }
 
-    .notifications-group{
-        display:none;
+    .notifications-group {
+        display: none;
         padding: 0 18px 16px 20px;
-        overflow-y:auto;
-        flex:1;
-        margin-bottom:14px; /* keep list content away from card bottom edge */
-        min-height:0;
-        box-sizing:border-box;
-        scrollbar-gutter:stable;
+        overflow-y: auto;
+        flex: 1;
+        margin-bottom: 14px;
+        /* keep list content away from card bottom edge */
+        min-height: 0;
+        box-sizing: border-box;
+        scrollbar-gutter: stable;
     }
 
-    .notifications-group.active{
+    .notifications-group.active {
         display: block;
     }
 
@@ -418,207 +420,207 @@ $currentAttendance = $currentAttendance ?? null;
     } */
 
     /* NOTIFICATION ITEM */
-    .notif{
-        position:relative;
-        display:flex;
-        align-items:flex-start;
-        gap:12px;
-        padding:16px 18px 12px 18px;
+    .notif {
+        position: relative;
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        padding: 16px 18px 12px 18px;
         min-height: 110px;
-        background:#ffffff;
-        border-radius:14px;
-        cursor:pointer;
-        border:1px solid transparent;   
-        box-shadow:0 6px 14px rgba(15, 23, 42, 0.09);
-        transition:background-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+        background: #ffffff;
+        border-radius: 14px;
+        cursor: pointer;
+        border: 1px solid transparent;
+        box-shadow: 0 6px 14px rgba(15, 23, 42, 0.09);
+        transition: background-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
     }
 
-    .notif:hover{
-        background:#f6f2ff;
-        transform:translateY(-2px);
-        border-color:rgba(126, 35, 253, 0.2);
-        box-shadow:0 12px 22px rgba(126, 35, 253, 0.20);
+    .notif:hover {
+        background: #f6f2ff;
+        transform: translateY(-2px);
+        border-color: rgba(126, 35, 253, 0.2);
+        box-shadow: 0 12px 22px rgba(126, 35, 253, 0.20);
     }
 
-    .notif::before{
-        content:'';
-        position:absolute;
-        left:8px;
-        top:18px;
-        width:8px;
-        height:8px;
-        border-radius:50%;
-        background:#7E23FD;
-        transition:transform 0.2s ease, box-shadow 0.2s ease;
+    .notif::before {
+        content: '';
+        position: absolute;
+        left: 8px;
+        top: 18px;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #7E23FD;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
     }
 
-    .notif:hover::before{
-        transform:scale(1.2);
-        box-shadow:0 0 0 4px rgba(126, 35, 253, 0.15);
+    .notif:hover::before {
+        transform: scale(1.2);
+        box-shadow: 0 0 0 4px rgba(126, 35, 253, 0.15);
     }
 
-    .notif:hover::after{
-        transform:translateY(-50%) translateX(2px);
-        opacity:1;
+    .notif:hover::after {
+        transform: translateY(-50%) translateX(2px);
+        opacity: 1;
     }
 
-    .notif.notif-viewed::before{
-        display:none;
+    .notif.notif-viewed::before {
+        display: none;
     }
 
-    .notif-avatar{
-        width:40px;
-        height:40px;
-        border-radius:12px;
-        display:flex;
-        align-items:center;
-        justify-content:center;
-        background:linear-gradient(135deg, #7E23FD, #a855f7);
-        color:#fff;
-        font-weight:700;
-        font-size:12px;
-        letter-spacing:0.02em;
-        flex-shrink:0;
+    .notif-avatar {
+        width: 40px;
+        height: 40px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(135deg, #7E23FD, #a855f7);
+        color: #fff;
+        font-weight: 700;
+        font-size: 12px;
+        letter-spacing: 0.02em;
+        flex-shrink: 0;
     }
 
-    .notif-content{
-        flex:1;
-        min-width:0;
-        padding-top:1px;
+    .notif-content {
+        flex: 1;
+        min-width: 0;
+        padding-top: 1px;
     }
 
-    .notif-title-row{
-        display:flex;
-        align-items:flex-start;
-        justify-content:space-between;
-        gap:12px;
+    .notif-title-row {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
     }
 
-    .notif-time{
-        font-size:12px;
-        color:#6b7280;
-        font-weight:500;
+    .notif-time {
+        font-size: 12px;
+        color: #6b7280;
+        font-weight: 500;
         white-space: nowrap;
-        flex-shrink:0;
-        margin-top:1px;
+        flex-shrink: 0;
+        margin-top: 1px;
     }
 
-    .notif-tags{
-        display:flex;
-        align-items:center;
-        gap:6px;
-        margin-top:8px;
+    .notif-tags {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-top: 8px;
     }
 
-    .notif-pill{
-        display:inline-flex;
-        align-items:center;
-        border-radius:999px;
-        padding:2px 8px;
-        font-size:10px;
-        font-weight:700;
-        letter-spacing:0.03em;
-        text-transform:uppercase;
-        background:#efe7ff;
-        color:#5b21b6;
+    .notif-pill {
+        display: inline-flex;
+        align-items: center;
+        border-radius: 999px;
+        padding: 2px 8px;
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+        background: #efe7ff;
+        color: #5b21b6;
     }
 
-    .notif-pill.priority-normal{
-        background:#dbeafe;
-        color:#1e40af;
+    .notif-pill.priority-normal {
+        background: #dbeafe;
+        color: #1e40af;
     }
 
-    .notif-pill.priority-high{
-        background:#fed7aa;
-        color:#b45309;
+    .notif-pill.priority-high {
+        background: #fed7aa;
+        color: #b45309;
     }
 
-    .notif-pill.priority-urgent{
-        background:#fecaca;
-        color:#991b1b;
+    .notif-pill.priority-urgent {
+        background: #fecaca;
+        color: #991b1b;
     }
 
-    .notif-pill.muted{
-        background:#f3f4f6;
-        color:#4b5563;
+    .notif-pill.muted {
+        background: #f3f4f6;
+        color: #4b5563;
     }
 
-    .notif-thumb{
-        width:58px;
-        height:58px;
-        border-radius:14px;
-        background:linear-gradient(140deg, #f4d03f, #16a085);
-        position:relative;
-        overflow:hidden;
-        flex-shrink:0;
+    .notif-thumb {
+        width: 58px;
+        height: 58px;
+        border-radius: 14px;
+        background: linear-gradient(140deg, #f4d03f, #16a085);
+        position: relative;
+        overflow: hidden;
+        flex-shrink: 0;
     }
 
-    .notif-thumb::after{
-        content:'+';
-        position:absolute;
-        right:4px;
-        bottom:4px;
-        width:18px;
-        height:18px;
-        border-radius:50%;
-        background:#ef4444;
-        color:#fff;
-        font-size:12px;
-        color:white;
-        display:flex;
-        align-items:center;
-        justify-content:center;
-        font-weight:700;
+    .notif-thumb::after {
+        content: '+';
+        position: absolute;
+        right: 4px;
+        bottom: 4px;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background: #ef4444;
+        color: #fff;
+        font-size: 12px;
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
     }
 
-    .notif-title{
-        font-weight:700;
-        font-size:16px;
-        color:#262626;
-        line-height:1.35;
+    .notif-title {
+        font-weight: 700;
+        font-size: 16px;
+        color: #262626;
+        line-height: 1.35;
     }
 
-    .notif-desc{
-        font-size:14px;
-        color:#6b7280;
-        margin-top:6px;
-        line-height:1.5;
-        display:-webkit-box;
-        -webkit-line-clamp:1;
-        -webkit-box-orient:vertical;
-        overflow:hidden;
-        text-overflow:ellipsis;
+    .notif-desc {
+        font-size: 14px;
+        color: #6b7280;
+        margin-top: 6px;
+        line-height: 1.5;
+        display: -webkit-box;
+        -webkit-line-clamp: 1;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
 
     /* MODAL */
-    .modal-overlay{
-        position:fixed;
-        top:0;
-        left:0;
-        width:100%;
-        height:100%;
-        background:rgba(0,0,0,0.45);
-        display:none;
-        align-items:center;
-        justify-content:center;
-        z-index:9999;
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.45);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
     }
 
-    .modal{
-        background:white;
-        width:100%;
-        max-width:460px;
-        max-height:85vh;
-        display:flex;
-        flex-direction:column;
-        overflow:hidden;
-        border-radius:14px;
-        box-shadow:0 25px 50px rgba(0,0,0,0.25);
-        animation:modalPop 0.2s ease;
+    .modal {
+        background: white;
+        width: 100%;
+        max-width: 460px;
+        max-height: 85vh;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        border-radius: 14px;
+        box-shadow: 0 25px 50px rgba(0, 0, 0, 0.25);
+        animation: modalPop 0.2s ease;
     }
 
-    #taskLogModal .modal{
-        max-width:640px;
+    #taskLogModal .modal {
+        max-width: 640px;
     }
 
     #viewNotificationsModal .modal {
@@ -660,268 +662,318 @@ $currentAttendance = $currentAttendance ?? null;
         word-break: break-word;
     }
 
-    .modal-header{
-        display:flex;
-        justify-content:space-between;
-        align-items:center;
+    .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
         font-size: 20px;
         font-weight: 700;
-        padding:16px 20px;
-        margin-bottom:0;
-        flex-shrink:0;
-        border-bottom:1px solid #e5e7eb;
+        padding: 16px 20px;
+        margin-bottom: 0;
+        flex-shrink: 0;
+        border-bottom: 1px solid #e5e7eb;
     }
 
     .modal input,
     .modal select,
-    .modal textarea{
-        width:100%;
-        padding:10px;
-        border:1px solid #d1d5db;
-        border-radius:8px;
+    .modal textarea {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #d1d5db;
+        border-radius: 8px;
         margin-top: 5px;
-        margin-bottom:10px;
+        margin-bottom: 10px;
     }
 
-    .modal textarea{
-        height:80px;
-        resize:none;
+    .modal textarea {
+        height: 80px;
+        resize: none;
     }
 
-    .modal-footer{
-        display:flex;
-        justify-content:flex-end;
-        gap:10px;
-        flex-shrink:0;
-        padding:14px 20px;
-        border-top:1px solid #e5e7eb;
+    .modal-footer {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        flex-shrink: 0;
+        padding: 14px 20px;
+        border-top: 1px solid #e5e7eb;
     }
 
-    .cancel-btn{
-        border:none;
-        background:#e5e7eb;
-        padding:8px 14px;
-        border-radius:6px;
-        cursor:pointer;
-        transition:all 0.2s ease;
+    .cancel-btn {
+        border: none;
+        background: #e5e7eb;
+        padding: 8px 14px;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.2s ease;
     }
 
-    .cancel-btn:hover{
-        background:#d1d5db;
-        transform:translateY(-2px);
+    .cancel-btn:hover {
+        background: #d1d5db;
+        transform: translateY(-2px);
     }
 
-    .submit-btn{
-        background:#8b5cf6;
-        color:white;
-        border:none;
-        padding:8px 16px;
-        border-radius:6px;
-        cursor:pointer;
-        transition:all 0.2s ease;
+    .submit-btn {
+        background: #8b5cf6;
+        color: white;
+        border: none;
+        padding: 8px 16px;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.2s ease;
     }
 
-    .submit-btn:hover{
-        background:#7c3aed;
-        transform:translateY(-2px);
-        box-shadow:0 4px 12px rgba(139, 92, 246, 0.3);
+    .submit-btn:hover {
+        background: #7c3aed;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
     }
 
-    .button-holder{
-        display:flex;
-        align-items:center;
+    .button-holder {
+        display: flex;
+        align-items: center;
         gap: 10px;
     }
 
-    .btn-icon{
-        width:26px;
-        height:26px;
-        object-fit:contain;
+    .btn-icon {
+        width: 26px;
+        height: 26px;
+        object-fit: contain;
     }
 
     /* ANNOUNCEMENT MODAL (OWN STYLES) */
-    .announcement-modal{
-        max-width:920px;
-        width:min(92vw, 920px);
-        max-height:90vh;
-        padding:0;
-        overflow:hidden;
-        border-radius:16px;
+    .announcement-modal {
+        max-width: 920px;
+        width: min(92vw, 920px);
+        max-height: 90vh;
+        padding: 0;
+        overflow: hidden;
+        border-radius: 16px;
     }
 
-    .announcement-form{
-        display:flex;
-        flex-direction:column;
-        max-height:90vh;
+    .announcement-form {
+        display: flex;
+        flex-direction: column;
+        max-height: 90vh;
     }
 
-    .modal-body{
-        flex:1;
-        min-height:0;
+    .modal-body {
+        flex: 1;
+        min-height: 0;
         padding: 16px 20px;
-        overflow-y:auto;
+        overflow-y: auto;
     }
 
-    .announcement-grid{
-        display:grid;
-        grid-template-columns:1fr 1fr;
+    .announcement-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
         gap: 0px 15px;
     }
 
-    .announcement-field{
-        display:flex;
-        flex-direction:column;
+    .announcement-field {
+        display: flex;
+        flex-direction: column;
     }
 
-    .announcement-field.full-span{
-        grid-column:1 / -1;
+    .announcement-field.full-span {
+        grid-column: 1 / -1;
     }
 
-    .modal-body label{
-        font-size:15px;
-        color:#374151;
-        font-weight:600;
+    .modal-body label {
+        font-size: 15px;
+        color: #374151;
+        font-weight: 600;
     }
 
     .announcement-field input,
     .announcement-field select,
-    .announcement-field textarea{
-        width:100%;
-        border:1px solid #d1d5db;
-        border-radius:8px;
+    .announcement-field textarea {
+        width: 100%;
+        border: 1px solid #d1d5db;
+        border-radius: 8px;
     }
 
-    .announcement-field textarea{
-        resize:vertical;
+    .announcement-field textarea {
+        resize: vertical;
         min-height: 82px;
     }
 
-    .announcement-counter{
-        text-align:right;
-        font-size:12px;
+    .announcement-counter {
+        text-align: right;
+        font-size: 12px;
         padding: 0;
-        color:#6b7280;
+        color: #6b7280;
     }
 
     /* Attachments list for announcement modal */
-    .announcement-attachments-list{
-        margin-top:8px;
-        display:flex;
-        gap:8px;
-        flex-wrap:wrap;
+    .announcement-attachments-list {
+        margin-top: 8px;
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
     }
-    .attachment-item{
-        display:flex;
-        flex-direction:column;
-        align-items:center;
-        gap:6px;
-        width:110px;
+
+    .attachment-item {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 6px;
+        width: 110px;
     }
-    .attachment-preview{
-        width:110px;
-        height:80px;
-        border-radius:8px;
-        background:#f8fafc;
-        border:1px solid #e5e7eb;
-        display:flex;
-        align-items:center;
-        justify-content:center;
-        overflow:hidden;
-        text-align:center;
-        padding:6px;
+
+    .attachment-preview {
+        width: 110px;
+        height: 80px;
+        border-radius: 8px;
+        background: #f8fafc;
+        border: 1px solid #e5e7eb;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        text-align: center;
+        padding: 6px;
     }
-    .attachment-preview img{
-        max-width:100%;
-        max-height:100%;
-        object-fit:cover;
+
+    .attachment-preview img {
+        max-width: 100%;
+        max-height: 100%;
+        object-fit: cover;
     }
 
     /* file input + attach button */
-    .file-input-wrapper{
-        display:flex;
-        align-items:center;
-        gap:8px;
-    }
-    .file-upload-button{
-        display:inline-flex;
-        align-items:center;
-        justify-content:center;
-        width:36px;
-        height:36px;
-        border-radius:8px;
-        background:#eef2ff;
-        border:1px solid #e5e7eb;
-        cursor:pointer;
-    }
-    .file-upload-button:hover{ background:#e0e7ff; }
-    .file-input-hidden{ /* keep native input but hide default UI */
-        opacity:0;
-        position:relative;
-        width:1px;
-        height:1px;
-        overflow:hidden;
-    }
-    .announcement-attachments-name{
-        font-size:13px;
-        color:#6b7280;
+    .file-input-wrapper {
+        display: flex;
+        align-items: center;
+        gap: 8px;
     }
 
-    .announcement-check{
-        display:flex;
-        align-items:center;
-        gap:8px;
-        font-size:13px;
-        color:#4b5563;
+    .file-upload-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 36px;
+        height: 36px;
+        border-radius: 8px;
+        background: #eef2ff;
+        border: 1px solid #e5e7eb;
+        cursor: pointer;
     }
 
-    .announcement-check input{
-        width:auto;
-        margin:0;
-        padding:0;
-        border:none;
-        border-radius:0;
+    .file-upload-button:hover {
+        background: #e0e7ff;
     }
 
-    .checkbox-container{
-        display:flex;
-        align-items:center;
-        gap:8px;
-        font-size:13px;
-        color:#4b5563;
+    .file-input-hidden {
+        /* keep native input but hide default UI */
+        opacity: 0;
+        position: relative;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+    }
+
+    .announcement-attachments-name {
+        font-size: 13px;
+        color: #6b7280;
+    }
+
+    .announcement-check {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        color: #4b5563;
+    }
+
+    .announcement-check input {
+        width: auto;
+        margin: 0;
+        padding: 0;
+        border: none;
+        border-radius: 0;
+    }
+
+    .checkbox-container {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        color: #4b5563;
         padding: 10px 0px;
     }
 
-    .checkbox-container input[type="checkbox"]{
-        width:15px;
-        height:15px;
-        cursor:pointer;
-        margin:0;
-        padding:0;
-        accent-color:#8b5cf6;
+    .checkbox-container input[type="checkbox"] {
+        width: 15px;
+        height: 15px;
+        cursor: pointer;
+        margin: 0;
+        padding: 0;
+        accent-color: #8b5cf6;
     }
 
-    .tl-duration-chip{
-        border:1px solid #e5e7eb; background:#f9fafb; color:#4b5563;
-        padding:3px 10px; border-radius:999px; font-size:11px; font-weight:600;
-        cursor:pointer; transition:.15s ease;
+    .tl-duration-chip {
+        border: 1px solid #e5e7eb;
+        background: #f9fafb;
+        color: #4b5563;
+        padding: 3px 10px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: .15s ease;
     }
-    .tl-duration-chip:hover{ background:#ede9fe; border-color:#c4b5fd; color:#6d28d9; }
+
+    .tl-duration-chip:hover {
+        background: #ede9fe;
+        border-color: #c4b5fd;
+        color: #6d28d9;
+    }
 
     /* Compound selectors (.modal .tl-time-select) so this reliably beats the
        generic ".modal select { width:100%; ... }" rule above regardless of
        load order — see the civm-* fix in components/view_modal.php for the
        same pattern applied to a different collision. */
-    .modal .tl-time-row{ display:flex; align-items:center; gap:4px; margin-top:5px; margin-bottom:10px; }
-    .modal .tl-time-select{
-        flex:1; min-width:0; width:auto; margin:0; padding:8px 4px;
-        border:1px solid #d1d5db; border-radius:8px; text-align:center; font-size:13px;
+    .modal .tl-time-row {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        margin-top: 5px;
+        margin-bottom: 10px;
     }
-    .modal .tl-time-select.tl-time-ampm{ flex:0 0 58px; }
-    .modal .tl-time-colon{ color:#9ca3af; font-weight:700; font-size:13px; }
 
-    @keyframes modalPop{
-        from{ transform:scale(0.95); opacity:0; }
-        to{ transform:scale(1); opacity:1; }
+    .modal .tl-time-select {
+        flex: 1;
+        min-width: 0;
+        width: auto;
+        margin: 0;
+        padding: 8px 4px;
+        border: 1px solid #d1d5db;
+        border-radius: 8px;
+        text-align: center;
+        font-size: 13px;
+    }
+
+    .modal .tl-time-select.tl-time-ampm {
+        flex: 0 0 58px;
+    }
+
+    .modal .tl-time-colon {
+        color: #9ca3af;
+        font-weight: 700;
+        font-size: 13px;
+    }
+
+    @keyframes modalPop {
+        from {
+            transform: scale(0.95);
+            opacity: 0;
+        }
+
+        to {
+            transform: scale(1);
+            opacity: 1;
+        }
     }
 
     /* MOBILE */
@@ -949,11 +1001,13 @@ $currentAttendance = $currentAttendance ?? null;
         height: 22px;
         flex-shrink: 0;
     }
+
     .req-toggle-switch input {
         opacity: 0;
         width: 0;
         height: 0;
     }
+
     .req-toggle-track {
         position: absolute;
         inset: 0;
@@ -962,6 +1016,7 @@ $currentAttendance = $currentAttendance ?? null;
         cursor: pointer;
         transition: background 0.2s;
     }
+
     .req-toggle-track::before {
         content: '';
         position: absolute;
@@ -972,12 +1027,14 @@ $currentAttendance = $currentAttendance ?? null;
         background: #fff;
         border-radius: 50%;
         transition: transform 0.2s;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
     }
-    .req-toggle-switch input:checked + .req-toggle-track {
+
+    .req-toggle-switch input:checked+.req-toggle-track {
         background: #ef4444;
     }
-    .req-toggle-switch input:checked + .req-toggle-track::before {
+
+    .req-toggle-switch input:checked+.req-toggle-track::before {
         transform: translateX(16px);
     }
 
@@ -1031,8 +1088,15 @@ $currentAttendance = $currentAttendance ?? null;
         flex-shrink: 0;
     }
 
-    .attach-dropzone .icon-wrap svg { width: 20px; height: 20px; }
-    .attach-dropzone .copy { line-height: 1.35; }
+    .attach-dropzone .icon-wrap svg {
+        width: 20px;
+        height: 20px;
+    }
+
+    .attach-dropzone .copy {
+        line-height: 1.35;
+    }
+
     .attach-dropzone .copy .primary {
         font-size: 14px;
         font-weight: 600;
@@ -1050,8 +1114,10 @@ $currentAttendance = $currentAttendance ?? null;
         margin-top: 2px;
     }
 
-    .attach-dropzone input[type="file"] { display: none; }
-    
+    .attach-dropzone input[type="file"] {
+        display: none;
+    }
+
     /* File list */
     .attach-list {
         margin: 5px 0 4px 0;
@@ -1092,10 +1158,21 @@ $currentAttendance = $currentAttendance ?? null;
         justify-content: center;
     }
 
-    .attach-row .file-icon.pdf { background: #fee2e2; color: #dc2626; }
-    .attach-row .file-icon.doc { background: #dbeafe; color: #2563eb; }
-    .attach-row .file-icon svg { width: 18px; height: 18px; }
-    
+    .attach-row .file-icon.pdf {
+        background: #fee2e2;
+        color: #dc2626;
+    }
+
+    .attach-row .file-icon.doc {
+        background: #dbeafe;
+        color: #2563eb;
+    }
+
+    .attach-row .file-icon svg {
+        width: 18px;
+        height: 18px;
+    }
+
     .attach-row .meta {
         flex: 1;
         min-width: 0;
@@ -1136,40 +1213,43 @@ $currentAttendance = $currentAttendance ?? null;
         color: #dc2626;
     }
 
-    .attach-row .remove-btn svg { width: 15px; height: 15px; }
-    
+    .attach-row .remove-btn svg {
+        width: 15px;
+        height: 15px;
+    }
+
     .attach-empty-hint {
         font-size: 12px;
         color: #9ca3af;
         margin-top: 6px;
     }
 
-    @media (max-width: 900px){
-        .dashboard-main{
-            grid-template-columns:1fr;
-            flex:none;
+    @media (max-width: 900px) {
+        .dashboard-main {
+            grid-template-columns: 1fr;
+            flex: none;
         }
 
-        .notifications{
-            width:100%;
-            height:auto;
+        .notifications {
+            width: 100%;
+            height: auto;
         }
 
-        .clock-card{
-            width:100%;
-            height:auto;
+        .clock-card {
+            width: 100%;
+            height: auto;
         }
 
-        .announcement-grid{
-            grid-template-columns:1fr;
+        .announcement-grid {
+            grid-template-columns: 1fr;
         }
 
-        .notif{
-            padding:13px 36px 13px 16px;
+        .notif {
+            padding: 13px 36px 13px 16px;
         }
 
-        .notif-time{
-            font-size:10px;
+        .notif-time {
+            font-size: 10px;
         }
 
         .view-notification-meta {
@@ -1179,48 +1259,48 @@ $currentAttendance = $currentAttendance ?? null;
 </style>
 
 <script>
-document.addEventListener('DOMContentLoaded', function () {
-    ['toast-success', 'toast-error'].forEach(function (toastId) {
-        const toast = document.getElementById(toastId);
-        if (!toast) {
-            return;
-        }
+    document.addEventListener('DOMContentLoaded', function() {
+        ['toast-success', 'toast-error'].forEach(function(toastId) {
+            const toast = document.getElementById(toastId);
+            if (!toast) {
+                return;
+            }
 
-        setTimeout(function () {
-            toast.classList.remove('opacity-0', 'scale-95');
-        }, 100);
+            setTimeout(function() {
+                toast.classList.remove('opacity-0', 'scale-95');
+            }, 100);
 
-        setTimeout(function () {
-            toast.classList.add('opacity-0', 'scale-95');
-        }, 3000);
+            setTimeout(function() {
+                toast.classList.add('opacity-0', 'scale-95');
+            }, 3000);
 
-        setTimeout(function () {
-            toast.remove();
-        }, 3500);
+            setTimeout(function() {
+                toast.remove();
+            }, 3500);
+        });
     });
-});
 </script>
 
 <div class="dashboard">
 
-        <div class="header">
-            <div class="p-2">
-                <h1>Employee Dashboard</h1>
-            </div>
-            <div class="button-holder">
-                <?php if (\App\Libraries\PortalAccess::reviewsRequests($user)): ?>
+    <div class="header">
+        <div class="p-2">
+            <h1>Employee Dashboard</h1>
+        </div>
+        <div class="button-holder">
+            <?php if (\App\Libraries\PortalAccess::reviewsRequests($user)): ?>
                 <button onclick="openAnnouncementForm()" class="request-btn">
                     <img src="<?= base_url('icons/announcement.png') ?>" alt="Announcement" class="btn-icon">
                     <span>Announcement</span>
                 </button>
-                <?php endif; ?>
-                <button onclick="openRequestForm()" class="request-btn">
-                    <img src="<?= base_url('icons/Requests.png') ?>" alt="Request" class="btn-icon">
-                    <span>Request Form</span>
-                </button>
-            </div>
+            <?php endif; ?>
+            <button onclick="openRequestForm()" class="request-btn">
+                <img src="<?= base_url('icons/Requests.png') ?>" alt="Request" class="btn-icon">
+                <span>Request Form</span>
+            </button>
         </div>
-        
+    </div>
+
     <div class="dashboard-main">
 
         <div class="clock-card">
@@ -1233,16 +1313,16 @@ document.addEventListener('DOMContentLoaded', function () {
 
                 <div class="status">
                     Status :
-                        <span id="statusBadge">
-                            <?= $currentAttendance ? 'Clocked In' : 'Clocked Out' ?>
-                        </span>
+                    <span id="statusBadge">
+                        <?= $currentAttendance ? 'Clocked In' : 'Clocked Out' ?>
+                    </span>
                 </div>
 
                 <div class="clock">
                     <svg viewBox="0 0 200 200" width="100%" height="100%">
-                        <circle cx="100" cy="100" r="90" stroke="#d1d5db" stroke-width="12" fill="none"/>
-                        <circle id="progressRing" cx="100" cy="100" r="90" stroke="#84cc16" stroke-width="12" fill="none" stroke-linecap="round"/>
-                        <circle id="progressDot" cx="100" cy="10" r="6" fill="white" stroke="#FFFEFE" stroke-width="4"/>
+                        <circle cx="100" cy="100" r="90" stroke="#d1d5db" stroke-width="12" fill="none" />
+                        <circle id="progressRing" cx="100" cy="100" r="90" stroke="#84cc16" stroke-width="12" fill="none" stroke-linecap="round" />
+                        <circle id="progressDot" cx="100" cy="10" r="6" fill="white" stroke="#FFFEFE" stroke-width="4" />
                     </svg>
                     <div id="shiftTime" class="shift-time">8:00</div>
                 </div>
@@ -1280,12 +1360,12 @@ document.addEventListener('DOMContentLoaded', function () {
                 if ($hasApprovedUT) {
                     $approvedRequest =
                         model(\App\Models\Client\RequestModel::class)
-                            ->where('requested_by', $user->id)
-                            ->where('request_type', 'undertime')
-                            ->where('status', 'approved')
-                            ->where('start_date <=', date('Y-m-d'))
-                            ->where('end_date >=', date('Y-m-d'))
-                            ->first();
+                        ->where('requested_by', $user->id)
+                        ->where('request_type', 'undertime')
+                        ->where('status', 'approved')
+                        ->where('start_date <=', date('Y-m-d'))
+                        ->where('end_date >=', date('Y-m-d'))
+                        ->first();
 
                     $approvedUTReason =
                         $approvedRequest['reason']
@@ -1297,223 +1377,223 @@ document.addEventListener('DOMContentLoaded', function () {
             <div class="buttons">
                 <!-- functioning break button -->
                 <?php if ($currentAttendance): ?>
-                <form method="post" class="break-form" action="<?= site_url('client_portal/toggle-break/'.$currentAttendance['id']) ?>" onsubmit="this.querySelectorAll('button').forEach(b=>b.disabled=true)">
-                    <input type="hidden" name="attendance_token" value="<?= esc($attendanceToken) ?>">
-                    <input type="hidden" name="state_version" value="<?= (int) ($currentAttendance['state_version'] ?? 0) ?>">
-                    <input type="hidden" name="break_action" value="<?= empty($currentAttendance['break_start']) ? 'start' : 'end' ?>">
-                    <button type="submit" aria-label="<?= empty($currentAttendance['break_start']) ? 'Start break' : 'End break' ?>"
-                    class="icon-btn coffee <?= $currentAttendance['break_start'] ? 'on-break' : '' ?>">
-                        <span></span><span></span><span></span>
-                    </button>
-                </form>
+                    <form method="post" class="break-form" action="<?= site_url('client_portal/toggle-break/' . $currentAttendance['id']) ?>" onsubmit="this.querySelectorAll('button').forEach(b=>b.disabled=true)">
+                        <input type="hidden" name="attendance_token" value="<?= esc($attendanceToken) ?>">
+                        <input type="hidden" name="state_version" value="<?= (int) ($currentAttendance['state_version'] ?? 0) ?>">
+                        <input type="hidden" name="break_action" value="<?= empty($currentAttendance['break_start']) ? 'start' : 'end' ?>">
+                        <button type="submit" aria-label="<?= empty($currentAttendance['break_start']) ? 'Start break' : 'End break' ?>"
+                            class="icon-btn coffee <?= $currentAttendance['break_start'] ? 'on-break' : '' ?>">
+                            <span></span><span></span><span></span>
+                        </button>
+                    </form>
 
-                    <?php endif; ?>
+                <?php endif; ?>
 
                 <button onclick="openTaskLog()" class="icon-btn idcard">
-                <span></span><span></span>
+                    <span></span><span></span>
                 </button>
 
                 <!--functioning toggle clock -->
                 <?php if (!$currentAttendance): ?>
-                <form
-                    action="<?= site_url('client_portal/time-in') ?>"
-                    method="post"
-                    class="clock-form"
-                    onsubmit="this.querySelectorAll('button').forEach(b=>b.disabled=true)">
-                    <input type="hidden" name="attendance_token" value="<?= esc($attendanceToken) ?>">
+                    <form
+                        action="<?= site_url('client_portal/time-in') ?>"
+                        method="post"
+                        class="clock-form"
+                        onsubmit="this.querySelectorAll('button').forEach(b=>b.disabled=true)">
+                        <input type="hidden" name="attendance_token" value="<?= esc($attendanceToken) ?>">
 
-                    <?= csrf_field() ?>
+                        <?= csrf_field() ?>
 
-                    <button type="submit" class="clockout">
-                        Clock In
-                    </button>
-                </form>
+                        <button type="submit" class="clockout">
+                            Clock In
+                        </button>
+                    </form>
                 <?php else: ?>
-               <form
-                    id="clockOutForm"
-                    action="<?= site_url('client_portal/time-out/'.$currentAttendance['id']) ?>"
-                    method="post"
-                    class="clock-form">
-                    <input type="hidden" name="attendance_token" value="<?= esc($attendanceToken) ?>">
-                    <input type="hidden" name="state_version" value="<?= (int) ($currentAttendance['state_version'] ?? 0) ?>">
+                    <form
+                        id="clockOutForm"
+                        action="<?= site_url('client_portal/time-out/' . $currentAttendance['id']) ?>"
+                        method="post"
+                        class="clock-form">
+                        <input type="hidden" name="attendance_token" value="<?= esc($attendanceToken) ?>">
+                        <input type="hidden" name="state_version" value="<?= (int) ($currentAttendance['state_version'] ?? 0) ?>">
 
-                    <?= csrf_field() ?>
+                        <?= csrf_field() ?>
 
-                    <input
-                        type="hidden"
-                        name="unapproved_ut_reason"
-                        id="unapproved_ut_reason">
+                        <input
+                            type="hidden"
+                            name="unapproved_ut_reason"
+                            id="unapproved_ut_reason">
 
-                    <input
-                        type="hidden"
-                        name="missed_clockout_reason"
-                        id="missed_clockout_reason">
+                        <input
+                            type="hidden"
+                            name="missed_clockout_reason"
+                            id="missed_clockout_reason">
 
-                    <button
-                        type="button"
-                        class="clockout"
-                        onclick="handleClockOut()">
+                        <button
+                            type="button"
+                            class="clockout"
+                            onclick="handleClockOut()">
 
-                        Clock Out
-                    </button>
-                </form>
+                            Clock Out
+                        </button>
+                    </form>
                 <?php endif; ?>
             </div>
 
         </div>
 
         <?php
-            $publishedItems = $publishedNotifications ?? [];
-            $unpublishedItems = $unpublishedNotifications ?? [];
+        $publishedItems = $publishedNotifications ?? [];
+        $unpublishedItems = $unpublishedNotifications ?? [];
 
-            $groupNotificationsByPeriod = static function (array $items): array {
-                $today = new DateTimeImmutable('today');
+        $groupNotificationsByPeriod = static function (array $items): array {
+            $today = new DateTimeImmutable('today');
 
-                $buckets = [
-                    'today' => [],
-                    'older' => [],
-                ];
+            $buckets = [
+                'today' => [],
+                'older' => [],
+            ];
 
-                foreach ($items as $item) {
-                    $stamp = strtotime((string) ($item['publish_at'] ?? ''));
-                    $date = $stamp ? (new DateTimeImmutable())->setTimestamp($stamp) : $today;
+            foreach ($items as $item) {
+                $stamp = strtotime((string) ($item['publish_at'] ?? ''));
+                $date = $stamp ? (new DateTimeImmutable())->setTimestamp($stamp) : $today;
 
-                    if ($date->format('Y-m-d') === $today->format('Y-m-d')) {
-                        $buckets['today'][] = $item;
-                        continue;
-                    }
-
-                    $buckets['older'][] = $item;
+                if ($date->format('Y-m-d') === $today->format('Y-m-d')) {
+                    $buckets['today'][] = $item;
+                    continue;
                 }
 
-                return [
-                    'today' => [
-                        'title' => 'Today',
-                        'items' => $buckets['today'],
-                    ],
-                    'older' => [
-                        'title' => 'Older',
-                        'items' => $buckets['older'],
-                    ],
-                ];
-            };
+                $buckets['older'][] = $item;
+            }
 
-            $timeAgo = static function (string $dateTime): string {
-                $stamp = strtotime($dateTime);
-                if (! $stamp) {
-                    return 'just now';
+            return [
+                'today' => [
+                    'title' => 'Today',
+                    'items' => $buckets['today'],
+                ],
+                'older' => [
+                    'title' => 'Older',
+                    'items' => $buckets['older'],
+                ],
+            ];
+        };
+
+        $timeAgo = static function (string $dateTime): string {
+            $stamp = strtotime($dateTime);
+            if (! $stamp) {
+                return 'just now';
+            }
+
+            $diff = time() - $stamp;
+            if ($diff < 60) {
+                return $diff . 'sec ago';
+            }
+            if ($diff < 3600) {
+                return floor($diff / 60) . 'min ago';
+            }
+            if ($diff < 86400) {
+                return floor($diff / 3600) . 'hr ago';
+            }
+            if ($diff < 604800) {
+                return floor($diff / 86400) . 'd ago';
+            }
+
+            return floor($diff / 604800) . 'w ago';
+        };
+
+        $initials = static function (string $title): string {
+            $clean = trim($title);
+            if ($clean === '') {
+                return 'AN';
+            }
+
+            $parts = preg_split('/\s+/', $clean) ?: [];
+            $letters = '';
+
+            foreach ($parts as $part) {
+                if ($part !== '') {
+                    $letters .= strtoupper(substr($part, 0, 1));
                 }
-
-                $diff = time() - $stamp;
-                if ($diff < 60) {
-                    return $diff . 'sec ago';
+                if (strlen($letters) >= 2) {
+                    break;
                 }
-                if ($diff < 3600) {
-                    return floor($diff / 60) . 'min ago';
-                }
-                if ($diff < 86400) {
-                    return floor($diff / 3600) . 'hr ago';
-                }
-                if ($diff < 604800) {
-                    return floor($diff / 86400) . 'd ago';
-                }
+            }
 
-                return floor($diff / 604800) . 'w ago';
-            };
+            return str_pad(substr($letters, 0, 2), 2, 'N');
+        };
 
-            $initials = static function (string $title): string {
-                $clean = trim($title);
-                if ($clean === '') {
-                    return 'AN';
-                }
+        $renderNotificationItem = static function (array $n, callable $initials, callable $timeAgo, bool $showMeta = false): void {
+            $notification = notification_data($n);
+        ?>
+            <div
+                class="notif <?= ! empty($n['is_viewed']) ? 'notif-viewed' : '' ?>"
+                role="button"
+                tabindex="0"
+                data-id="<?= esc((string) $notification['id'], 'attr') ?>"
+                data-title="<?= esc($notification['title'], 'attr') ?>"
 
-                $parts = preg_split('/\s+/', $clean) ?: [];
-                $letters = '';
-
-                foreach ($parts as $part) {
-                    if ($part !== '') {
-                        $letters .= strtoupper(substr($part, 0, 1));
-                    }
-                    if (strlen($letters) >= 2) {
-                        break;
-                    }
-                }
-
-                return str_pad(substr($letters, 0, 2), 2, 'N');
-            };
-
-            $renderNotificationItem = static function (array $n, callable $initials, callable $timeAgo, bool $showMeta = false): void {
-                $notification = notification_data($n);
-                ?>
-                <div
-                    class="notif <?= ! empty($n['is_viewed']) ? 'notif-viewed' : '' ?>"
-                    role="button"
-                    tabindex="0"
-                    data-id="<?= esc((string) $notification['id'], 'attr') ?>"
-                    data-title="<?= esc($notification['title'], 'attr') ?>"
-                    
-                    data-details="<?= esc($notification['details'], 'attr') ?>"
-                    data-publish="<?= esc($notification['published_at'] !== '' ? date('M d, Y h:i A', strtotime($notification['published_at'])) : 'N/A', 'attr') ?>"
-                    data-category="<?= esc($notification['category'], 'attr') ?>"
-                    data-priority="<?= esc(ucfirst($notification['priority']), 'attr') ?>"
-                    data-audience="<?= esc(ucfirst($notification['audience']), 'attr') ?>"
-                    data-status="<?= esc($notification['status'], 'attr') ?>"
-                    data-source="<?= esc($notification['source'], 'attr') ?>"
-                    data-request-id="<?= esc((string) $notification['request_id'], 'attr') ?>"
-                    data-actor-name="<?= esc($notification['actor_name'], 'attr') ?>"
-                    data-actor-position="<?= esc($notification['actor_position'], 'attr') ?>"
-                    data-author-name="<?= esc($notification['author_name'], 'attr') ?>"
-                    data-author-photo="<?= esc($notification['author_photo'], 'attr') ?>"
-                    data-requester-name="<?= esc($notification['requester_name'], 'attr') ?>"
-                    data-requester-department="<?= esc($notification['requester_department'], 'attr') ?>"
-                    data-requester-photo="<?= esc($notification['requester_photo'], 'attr') ?>"
-                    data-request-type="<?= esc($notification['request_type'], 'attr') ?>"
-                    data-attachments="<?= esc(json_encode($notification['attachments'] ?? []), 'attr') ?>"
-                    onclick="openNotificationModal(this)"
-                    onkeydown="handleNotificationKey(event, this)">
-                    <div class="notif-avatar"><?= esc((string) $initials((string) ($n['requester_name'] ?? $notification['title'] ?? ''))) ?></div>
-                    <div class="notif-content">
-                        <div class="notif-title-row">
-                            <div class="notif-title"><?= esc($notification['title']) ?></div>
-                            <div class="notif-time"><?= esc((string) $timeAgo((string) ($notification['published_at'] ?? ''))) ?></div>
-                        </div>
-                        <div class="notif-desc"><?= esc(mb_strimwidth($notification['details'], 0, 80, '...')) ?></div>
-                        <div class="notif-tags">
-                            <span class="notif-pill priority-<?= strtolower($notification['priority']) ?>"><?= esc(ucfirst($notification['priority'])) ?></span>
-                            <span class="notif-pill muted"><?= esc(ucfirst($notification['category'])) ?></span>
-                        </div>
-                        <?php if ($showMeta): ?>
-                        <div class="notif-meta">Publish on <?= esc(date('M d, Y h:i A', strtotime((string) ($notification['published_at'] ?? 'now')))) ?></div>
-                        <?php endif; ?>
+                data-details="<?= esc($notification['details'], 'attr') ?>"
+                data-publish="<?= esc($notification['published_at'] !== '' ? date('M d, Y h:i A', strtotime($notification['published_at'])) : 'N/A', 'attr') ?>"
+                data-category="<?= esc($notification['category'], 'attr') ?>"
+                data-priority="<?= esc(ucfirst($notification['priority']), 'attr') ?>"
+                data-audience="<?= esc(ucfirst($notification['audience']), 'attr') ?>"
+                data-status="<?= esc($notification['status'], 'attr') ?>"
+                data-source="<?= esc($notification['source'], 'attr') ?>"
+                data-request-id="<?= esc((string) $notification['request_id'], 'attr') ?>"
+                data-actor-name="<?= esc($notification['actor_name'], 'attr') ?>"
+                data-actor-position="<?= esc($notification['actor_position'], 'attr') ?>"
+                data-author-name="<?= esc($notification['author_name'], 'attr') ?>"
+                data-author-photo="<?= esc($notification['author_photo'], 'attr') ?>"
+                data-requester-name="<?= esc($notification['requester_name'], 'attr') ?>"
+                data-requester-department="<?= esc($notification['requester_department'], 'attr') ?>"
+                data-requester-photo="<?= esc($notification['requester_photo'], 'attr') ?>"
+                data-request-type="<?= esc($notification['request_type'], 'attr') ?>"
+                data-attachments="<?= esc(json_encode($notification['attachments'] ?? []), 'attr') ?>"
+                onclick="openNotificationModal(this)"
+                onkeydown="handleNotificationKey(event, this)">
+                <div class="notif-avatar"><?= esc((string) $initials((string) ($n['requester_name'] ?? $notification['title'] ?? ''))) ?></div>
+                <div class="notif-content">
+                    <div class="notif-title-row">
+                        <div class="notif-title"><?= esc($notification['title']) ?></div>
+                        <div class="notif-time"><?= esc((string) $timeAgo((string) ($notification['published_at'] ?? ''))) ?></div>
                     </div>
+                    <div class="notif-desc"><?= esc(mb_strimwidth($notification['details'], 0, 80, '...')) ?></div>
+                    <div class="notif-tags">
+                        <span class="notif-pill priority-<?= strtolower($notification['priority']) ?>"><?= esc(ucfirst($notification['priority'])) ?></span>
+                        <span class="notif-pill muted"><?= esc(ucfirst($notification['category'])) ?></span>
+                    </div>
+                    <?php if ($showMeta): ?>
+                        <div class="notif-meta">Publish on <?= esc(date('M d, Y h:i A', strtotime((string) ($notification['published_at'] ?? 'now')))) ?></div>
+                    <?php endif; ?>
                 </div>
-                <?php
-            };
+            </div>
+        <?php
+        };
 
-            $publishedBuckets = $groupNotificationsByPeriod($publishedItems);
-            $unpublishedBuckets = $groupNotificationsByPeriod($unpublishedItems);
+        $publishedBuckets = $groupNotificationsByPeriod($publishedItems);
+        $unpublishedBuckets = $groupNotificationsByPeriod($unpublishedItems);
 
-            $hasPublishedTodayItems = ! empty($publishedBuckets['today']['items']);
-            $hasPublishedOlderItems = ! empty($publishedBuckets['older']['items']);
-            $hasPublishedItems = $hasPublishedTodayItems || $hasPublishedOlderItems;
+        $hasPublishedTodayItems = ! empty($publishedBuckets['today']['items']);
+        $hasPublishedOlderItems = ! empty($publishedBuckets['older']['items']);
+        $hasPublishedItems = $hasPublishedTodayItems || $hasPublishedOlderItems;
 
-            $hasUnpublishedTodayItems = ! empty($unpublishedBuckets['today']['items']);
-            $hasUnpublishedOlderItems = ! empty($unpublishedBuckets['older']['items']);
-            $hasUnpublishedItems = $hasUnpublishedTodayItems || $hasUnpublishedOlderItems;
+        $hasUnpublishedTodayItems = ! empty($unpublishedBuckets['today']['items']);
+        $hasUnpublishedOlderItems = ! empty($unpublishedBuckets['older']['items']);
+        $hasUnpublishedItems = $hasUnpublishedTodayItems || $hasUnpublishedOlderItems;
 
-            $renderNotificationSection = static function (string $sectionClass, string $title, array $items, callable $renderItem, callable $initials, callable $timeAgo, bool $showMeta = false): void {
-                if (empty($items)) {
-                    return;
-                }
-                ?>
-                <div class="notifications-section <?= esc($sectionClass, 'attr') ?>">
-                    <div class="notifications-divider-title"><?= esc($title) ?></div>
-                    <?php foreach ($items as $n): ?>
-                        <?php $renderItem($n, $initials, $timeAgo, $showMeta); ?>
-                    <?php endforeach; ?>
-                </div>
-                <?php
-            };
+        $renderNotificationSection = static function (string $sectionClass, string $title, array $items, callable $renderItem, callable $initials, callable $timeAgo, bool $showMeta = false): void {
+            if (empty($items)) {
+                return;
+            }
+        ?>
+            <div class="notifications-section <?= esc($sectionClass, 'attr') ?>">
+                <div class="notifications-divider-title"><?= esc($title) ?></div>
+                <?php foreach ($items as $n): ?>
+                    <?php $renderItem($n, $initials, $timeAgo, $showMeta); ?>
+                <?php endforeach; ?>
+            </div>
+        <?php
+        };
         ?>
 
         <div class="notifications">
@@ -1531,23 +1611,23 @@ document.addEventListener('DOMContentLoaded', function () {
                 </button>
 
                 <?php if (\App\Libraries\PortalAccess::can('announcements', $user)): ?>
-                <button type="button" id="tabUnpublished" class="notifications-tab" onclick="toggleNotificationsGroup('unpublished')">
-                    Unpublished
-                    <span class="notifications-badge"><?= count($unpublishedItems) ?></span>
-                </button>
+                    <button type="button" id="tabUnpublished" class="notifications-tab" onclick="toggleNotificationsGroup('unpublished')">
+                        Unpublished
+                        <span class="notifications-badge"><?= count($unpublishedItems) ?></span>
+                    </button>
                 <?php endif; ?>
             </div>
 
             <div id="publishedGroup" class="notifications-group hide-scroll-bar active">
                 <?php if ($hasPublishedItems): ?>
                     <?php
-                        if ($hasPublishedTodayItems) {
-                            $renderNotificationSection('today', $publishedBuckets['today']['title'], $publishedBuckets['today']['items'], $renderNotificationItem, $initials, $timeAgo);
-                        }
+                    if ($hasPublishedTodayItems) {
+                        $renderNotificationSection('today', $publishedBuckets['today']['title'], $publishedBuckets['today']['items'], $renderNotificationItem, $initials, $timeAgo);
+                    }
 
-                        if ($hasPublishedOlderItems) {
-                            $renderNotificationSection('older', $publishedBuckets['older']['title'], $publishedBuckets['older']['items'], $renderNotificationItem, $initials, $timeAgo);
-                        }
+                    if ($hasPublishedOlderItems) {
+                        $renderNotificationSection('older', $publishedBuckets['older']['title'], $publishedBuckets['older']['items'], $renderNotificationItem, $initials, $timeAgo);
+                    }
                     ?>
                 <?php else: ?>
                     <div class="notifications-empty">No notifications</div>
@@ -1555,9 +1635,9 @@ document.addEventListener('DOMContentLoaded', function () {
             </div>
 
             <?php if (\App\Libraries\PortalAccess::can('announcements', $user)): ?>
-            <div id="unpublishedGroup" class="notifications-group hide-scroll-bar">
-                <?php if ($hasUnpublishedItems): ?>
-                    <?php
+                <div id="unpublishedGroup" class="notifications-group hide-scroll-bar">
+                    <?php if ($hasUnpublishedItems): ?>
+                        <?php
                         if ($hasUnpublishedTodayItems) {
                             $renderNotificationSection('today', $unpublishedBuckets['today']['title'], $unpublishedBuckets['today']['items'], $renderNotificationItem, $initials, $timeAgo, true);
                         }
@@ -1565,463 +1645,455 @@ document.addEventListener('DOMContentLoaded', function () {
                         if ($hasUnpublishedOlderItems) {
                             $renderNotificationSection('older', $unpublishedBuckets['older']['title'], $unpublishedBuckets['older']['items'], $renderNotificationItem, $initials, $timeAgo, true);
                         }
-                    ?>
-                <?php else: ?>
-                    <div class="notifications-empty">No notifications</div>
-                <?php endif; ?>
-            </div>
+                        ?>
+                    <?php else: ?>
+                        <div class="notifications-empty">No notifications</div>
+                    <?php endif; ?>
+                </div>
             <?php endif; ?>
         </div>
     </div>
 </div>
 
-    <!-- TASK LOG MODAL -->
-    <div class="modal-overlay" id="taskLogModal">
-        <div class="modal">
-            <div class="modal-header">
-                <div>
-                    <span>Task Log</span>
-                    <p id="task_att_date" class="text-xs text-gray-400 font-normal mt-0.5"></p>
+<!-- TASK LOG MODAL -->
+<div class="modal-overlay" id="taskLogModal">
+    <div class="modal">
+        <div class="modal-header">
+            <div>
+                <span>Task Log</span>
+                <p id="task_att_date" class="text-xs text-gray-400 font-normal mt-0.5"></p>
+            </div>
+            <button onclick="closeTaskLogModal()">✕</button>
+        </div>
+
+        <div class="modal-body">
+
+            <!-- TIMELINE -->
+            <div class="mb-4">
+                <div class="flex items-center justify-between" style="margin-bottom:6px;">
+                    <label class="text-xs font-semibold text-gray-500">Your Clocked-In Time</label>
+                    <span id="tl_window_label" class="text-xs text-gray-400"></span>
                 </div>
-                <button onclick="closeTaskLogModal()">✕</button>
+                <div id="tl_timeline" class="relative w-full bg-gray-100 rounded-lg overflow-hidden border border-gray-200" style="height:32px;cursor:pointer;"></div>
+                <p class="text-[11px] text-gray-400 mt-1">Colored blocks are already-logged tasks — click a free (empty) spot to start a new one there.</p>
+            </div>
+
+            <!-- TASK LIST -->
+            <div class="mb-4">
+                <label class="text-xs font-semibold text-gray-500 block" style="margin-bottom:6px;">Logged Tasks</label>
+                <div id="tl_task_list"></div>
+                <p id="tl_empty_msg" class="text-xs text-gray-400 text-center py-3 hidden">No tasks logged yet for this session.</p>
+            </div>
+
+            <!-- ADD/EDIT FORM -->
+            <div class="border-t border-gray-100 pt-4">
+                <div class="flex items-center justify-between mb-1">
+                    <label id="tl_form_title" class="text-xs font-semibold text-gray-700">Add a Task</label>
+                    <button type="button" id="tl_cancel_edit_btn" onclick="cancelTaskEdit()" class="hidden text-xs text-purple-600 hover:text-purple-700 font-semibold">Cancel edit</button>
+                </div>
+
+                <label>Select Preset Task</label>
+                <select id="savedTasksDropdown">
+                    <option value="">-- Write your task manually --</option>
+                </select>
+
+                <label>Or write your task *</label>
+                <textarea id="task_att_text" placeholder="e.g. Coding Session"></textarea>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label>Start Time *</label>
+                        <input type="hidden" id="task_start_time">
+                        <div class="tl-time-row">
+                            <select id="task_start_hour" class="tl-time-select"></select>
+                            <span class="tl-time-colon">:</span>
+                            <select id="task_start_minute" class="tl-time-select"></select>
+                            <select id="task_start_ampm" class="tl-time-select tl-time-ampm"></select>
+                        </div>
+                    </div>
+                    <div>
+                        <label>End Time *</label>
+                        <input type="hidden" id="task_end_time">
+                        <div class="tl-time-row">
+                            <select id="task_end_hour" class="tl-time-select"></select>
+                            <span class="tl-time-colon">:</span>
+                            <select id="task_end_minute" class="tl-time-select"></select>
+                            <select id="task_end_ampm" class="tl-time-select tl-time-ampm"></select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-between" style="margin-top:-6px;margin-bottom:10px;">
+                    <div class="flex" style="gap:6px;">
+                        <button type="button" onclick="applyDurationPreset(15)" class="tl-duration-chip">15m</button>
+                        <button type="button" onclick="applyDurationPreset(30)" class="tl-duration-chip">30m</button>
+                        <button type="button" onclick="applyDurationPreset(60)" class="tl-duration-chip">1h</button>
+                        <button type="button" onclick="applyDurationPreset(120)" class="tl-duration-chip">2h</button>
+                    </div>
+                    <span id="tl_duration_label" style="font-size:11px;font-weight:600;color:#6b7280;"></span>
+                </div>
+
+                <label>Client</label>
+                <input type="text" id="task_att_client" placeholder="e.g. Acme Corp">
+
+                <label class="checkbox-container">
+                    <input type="checkbox" id="saveTaskToggle">
+                    Save this task as a preset
+                </label>
+
+                <p id="tl_form_error" class="text-xs text-red-600 mb-2 hidden" style="margin-top:-4px;"></p>
+
+                <input type="hidden" id="task_att_id">
+                <input type="hidden" id="task_editing_id" value="">
+            </div>
+        </div>
+
+        <div class="modal-footer">
+            <button type="button" class="cancel-btn" onclick="closeTaskLogModal()">Close</button>
+            <button type="button" id="tl_save_btn" class="submit-btn" onclick="saveTask()">Add Task</button>
+        </div>
+    </div>
+</div>
+
+<!-- REQUEST MODAL -->
+<div class="modal-overlay" id="requestModal">
+    <div class="modal">
+        <form id="requestForm" action="<?= site_url('client_portal/requests/store') ?>" method="post">
+            <!-- tells the controller which mode we're in -->
+            <input type="hidden" name="code_mode" id="codeModeInput" value="0">
+
+            <div class="modal-header">
+                <span>Request Form</span>
+                <button type="button" onclick="closeRequestForm()">✕</button>
             </div>
 
             <div class="modal-body">
 
-                <!-- TIMELINE -->
-                <div class="mb-4">
-                    <div class="flex items-center justify-between" style="margin-bottom:6px;">
-                        <label class="text-xs font-semibold text-gray-500">Your Clocked-In Time</label>
-                        <span id="tl_window_label" class="text-xs text-gray-400"></span>
-                    </div>
-                    <div id="tl_timeline" class="relative w-full bg-gray-100 rounded-lg overflow-hidden border border-gray-200" style="height:32px;cursor:pointer;"></div>
-                    <p class="text-[11px] text-gray-400 mt-1">Colored blocks are already-logged tasks — click a free (empty) spot to start a new one there.</p>
+                <!-- ── Code-mode toggle ── -->
+                <div class="req-toggle-row">
+                    <label class="req-toggle-switch" for="codeModeToggle">
+                        <input type="checkbox" id="codeModeToggle" onchange="toggleRequestCodeMode(this.checked)">
+                        <span class="req-toggle-track"></span>
+                    </label>
+                    <span class="req-toggle-label">I have an approval code</span>
                 </div>
 
-                <!-- TASK LIST -->
-                <div class="mb-4">
-                    <label class="text-xs font-semibold text-gray-500 block" style="margin-bottom:6px;">Logged Tasks</label>
-                    <div id="tl_task_list"></div>
-                    <p id="tl_empty_msg" class="text-xs text-gray-400 text-center py-3 hidden">No tasks logged yet for this session.</p>
+                <!-- ── Code-mode panel (shown when toggle is ON) ── -->
+                <div id="codeModePanel" style="display:none;">
+                    <div class="req-code-hint" id="codeHintText">
+                        Enter your approval code to continue.
+                    </div>
+                    <label>Approval Code</label>
+                    <input type="text" id="codeModeCodeInput" name="approval_code"
+                        placeholder="e.g. A3KM-PQ72-XYRS-84NV"
+                        style="text-transform:uppercase;letter-spacing:2px;font-family:monospace;font-size:15px;"
+                        oninput="this.value=this.value.toUpperCase()"
+                        onblur="applyApprovalCode(this.value)">
                 </div>
 
-                <!-- ADD/EDIT FORM -->
-                <div class="border-t border-gray-100 pt-4">
-                    <div class="flex items-center justify-between mb-1">
-                        <label id="tl_form_title" class="text-xs font-semibold text-gray-700">Add a Task</label>
-                        <button type="button" id="tl_cancel_edit_btn" onclick="cancelTaskEdit()" class="hidden text-xs text-purple-600 hover:text-purple-700 font-semibold">Cancel edit</button>
-                    </div>
-
-                    <label>Select Preset Task</label>
-                    <select id="savedTasksDropdown">
-                        <option value="">-- Write your task manually --</option>
+                <!-- ── Normal-mode fields (always visible, locked only when preset data exists) ── -->
+                <div id="normalModePanel">
+                    <label>Select Form</label>
+                    <select name="request_type" id="reqType" required onchange="toggleLeaveCategoryField(this.value)">
+                        <option value="leave">Leave Request</option>
+                        <option value="overtime">Overtime Request</option>
+                        <option value="undertime">Undertime Request</option>
                     </select>
 
-                    <label>Or write your task *</label>
-                    <textarea id="task_att_text" placeholder="e.g. Coding Session"></textarea>
-
-                    <div class="grid grid-cols-2 gap-3">
-                        <div>
-                            <label>Start Time *</label>
-                            <input type="hidden" id="task_start_time">
-                            <div class="tl-time-row">
-                                <select id="task_start_hour" class="tl-time-select"></select>
-                                <span class="tl-time-colon">:</span>
-                                <select id="task_start_minute" class="tl-time-select"></select>
-                                <select id="task_start_ampm" class="tl-time-select tl-time-ampm"></select>
-                            </div>
-                        </div>
-                        <div>
-                            <label>End Time *</label>
-                            <input type="hidden" id="task_end_time">
-                            <div class="tl-time-row">
-                                <select id="task_end_hour" class="tl-time-select"></select>
-                                <span class="tl-time-colon">:</span>
-                                <select id="task_end_minute" class="tl-time-select"></select>
-                                <select id="task_end_ampm" class="tl-time-select tl-time-ampm"></select>
-                            </div>
-                        </div>
+                    <div id="leaveCategoryWrap">
+                        <label>Leave Type</label>
+                        <select name="leave_category" id="reqLeaveCategory">
+                            <option value="vacation">Vacation Leave</option>
+                            <option value="sick">Sick Leave</option>
+                            <option value="emergency">Emergency Leave</option>
+                        </select>
                     </div>
 
-                    <div class="flex items-center justify-between" style="margin-top:-6px;margin-bottom:10px;">
-                        <div class="flex" style="gap:6px;">
-                            <button type="button" onclick="applyDurationPreset(15)" class="tl-duration-chip">15m</button>
-                            <button type="button" onclick="applyDurationPreset(30)" class="tl-duration-chip">30m</button>
-                            <button type="button" onclick="applyDurationPreset(60)" class="tl-duration-chip">1h</button>
-                            <button type="button" onclick="applyDurationPreset(120)" class="tl-duration-chip">2h</button>
-                        </div>
-                        <span id="tl_duration_label" style="font-size:11px;font-weight:600;color:#6b7280;"></span>
+                    <label>Start Date</label>
+                    <input type="date" name="start_date" id="reqStartDate" required oninput="checkBackdatedRequest()">
+
+                    <div id="reqBackdatedNotice" style="display:none;background:#EDE9FE;color:#5B21B6;font-size:12px;font-weight:600;padding:6px 10px;border-radius:6px;margin:-4px 0 10px;">
+                        ⓘ This date has already passed — this will be filed as a backdated request for payroll to review.
                     </div>
 
-                    <label>Client</label>
-                    <input type="text" id="task_att_client" placeholder="e.g. Acme Corp">
+                    <label>End Date</label>
+                    <input type="date" name="end_date" id="reqEndDate">
 
-                    <label class="checkbox-container">
-                        <input type="checkbox" id="saveTaskToggle">
-                        Save this task as a preset
-                    </label>
+                    <label>Message</label>
+                    <textarea rows="3" name="reason" id="reqReason" placeholder="Enter your reason..." required></textarea>
+                </div>
 
-                    <p id="tl_form_error" class="text-xs text-red-600 mb-2 hidden" style="margin-top:-4px;"></p>
+            </div>
 
-                    <input type="hidden" id="task_att_id">
-                    <input type="hidden" id="task_editing_id" value="">
+            <div class="modal-footer">
+                <button type="button" class="cancel-btn" onclick="closeRequestForm()">Cancel</button>
+                <button type="submit" class="submit-btn">Submit</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ANNOUNCEMENT MODAL -->
+<div class="modal-overlay" id="announcementModal">
+    <div class="modal announcement-modal">
+        <form id="announcementForm" action="<?= site_url('client_portal/announcements/store') ?>" method="post" enctype="multipart/form-data" class="announcement-form">
+            <div class="modal-header">
+                <span>Create Announcement</span>
+                <button type="button" onclick="closeAnnouncementForm()">✕</button>
+            </div>
+
+            <div class="modal-body hide-scroll-bar">
+                <div class="announcement-grid">
+                    <div class="announcement-field full-span">
+                        <label>Announcement Title *</label>
+                        <input type="text" name="title" maxlength="120" placeholder="e.g. Payroll Release Schedule - April 2026" required>
+                    </div>
+
+                    <div class="announcement-field">
+                        <label>Category *</label>
+                        <select name="category" required>
+                            <option value="">Select category</option>
+                            <option value="general">General Update</option>
+                            <option value="policy">Policy Notice</option>
+                            <option value="event">Event</option>
+                            <option value="maintenance">System Maintenance</option>
+                            <option value="emergency">Urgent Alert</option>
+                        </select>
+                    </div>
+
+                    <div class="announcement-field">
+                        <label>Audience *</label>
+                        <select id="announcementAudience" name="audience" onchange="toggleAnnouncementAudience()" required>
+                            <option value="">Select audience</option>
+                            <option value="all">All Employees</option>
+                            <option value="payroll">Payroll Staff</option>
+                            <option value="department">Specific Department</option>
+                        </select>
+                    </div>
+
+                    <div id="announcementDepartmentWrap" class="announcement-field" style="display:none;">
+                        <label>Department *</label>
+                        <input id="announcementDepartment" type="text" name="department" placeholder="e.g. Finance">
+                    </div>
+
+                    <div class="announcement-field">
+                        <label>Priority *</label>
+                        <select name="priority" required>
+                            <option value="normal">Normal</option>
+                            <option value="high">High</option>
+                            <option value="urgent">Urgent</option>
+                        </select>
+                    </div>
+
+                    <div class="announcement-field">
+                        <label>Publish On *</label>
+                        <input type="datetime-local" name="publish_at" required>
+                    </div>
+
+                    <div class="announcement-field">
+                        <label>Visible Until</label>
+                        <input type="datetime-local" name="expires_at">
+                    </div>
+
+                    <div class="announcement-field full-span">
+                        <label>Attachments</label>
+
+                        <div class="attach-dropzone" id="dropzone">
+                            <div class="icon-wrap">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M21.44 11.05l-8.49 8.49a5 5 0 01-7.07 0 5 5 0 010-7.07l8.49-8.49a3.5 3.5 0 014.95 4.95L11.83 18.97a2 2 0 01-2.83 0 2 2 0 010-2.83l6.36-6.36" />
+                                </svg>
+                            </div>
+                            <div class="copy">
+                                <div class="primary"><span>Click to upload</span> or drag and drop</div>
+                                <div class="secondary">PDF, DOC, or image — up to 10MB each</div>
+                            </div>
+                            <input type="file" id="fileInput" name="attachments[]" multiple accept="image/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
+                        </div>
+
+                        <div class="attach-list" id="attachList"></div>
+                    </div>
+
+                    <div class="announcement-field full-span">
+                        <label>Announcement Details *</label>
+                        <textarea name="details" style="min-height:120px;" placeholder="Write complete announcement details here." required></textarea>
+                    </div>
+
+                    <div class="announcement-field full-span">
+                        <label class="announcement-check">
+                            <input type="checkbox" name="require_acknowledgement" value="1">
+                            Require employee acknowledgement
+                        </label>
+                    </div>
                 </div>
             </div>
 
             <div class="modal-footer">
-                <button type="button" class="cancel-btn" onclick="closeTaskLogModal()">Close</button>
-                <button type="button" id="tl_save_btn" class="submit-btn" onclick="saveTask()">Add Task</button>
+                <button type="submit" class="submit-btn">Publish</button>
             </div>
-        </div>
+        </form>
     </div>
+</div>
 
-    <!-- REQUEST MODAL -->
-    <div class="modal-overlay" id="requestModal">
-        <div class="modal">
-            <form id="requestForm" action="<?= site_url('client_portal/requests/store') ?>" method="post">
-                <!-- tells the controller which mode we're in -->
-                <input type="hidden" name="code_mode" id="codeModeInput" value="0">
+<div class="modal-overlay" id="undertimeModal">
+    <div class="modal">
 
-                <div class="modal-header">
-                    <span>Request Form</span>
-                    <button type="button" onclick="closeRequestForm()">✕</button>
-                </div>
-
-                <div class="modal-body">
-
-                    <!-- ── Code-mode toggle ── -->
-                    <div class="req-toggle-row">
-                        <label class="req-toggle-switch" for="codeModeToggle">
-                            <input type="checkbox" id="codeModeToggle" onchange="toggleRequestCodeMode(this.checked)">
-                            <span class="req-toggle-track"></span>
-                        </label>
-                        <span class="req-toggle-label">I have an approval code</span>
-                    </div>
-
-                    <!-- ── Code-mode panel (shown when toggle is ON) ── -->
-                    <div id="codeModePanel" style="display:none;">
-                        <div class="req-code-hint" id="codeHintText">
-                            Enter your approval code to continue.
-                        </div>
-                        <label>Approval Code</label>
-                        <input type="text" id="codeModeCodeInput" name="approval_code"
-                               placeholder="e.g. A3KM-PQ72-XYRS-84NV"
-                               style="text-transform:uppercase;letter-spacing:2px;font-family:monospace;font-size:15px;"
-                               oninput="this.value=this.value.toUpperCase()"
-                               onblur="applyApprovalCode(this.value)">
-                    </div>
-
-                    <!-- ── Normal-mode fields (always visible, locked only when preset data exists) ── -->
-                    <div id="normalModePanel">
-                        <label>Select Form</label>
-                        <select name="request_type" id="reqType" required onchange="toggleLeaveCategoryField(this.value)">
-                            <option value="leave">Leave Request</option>
-                            <option value="overtime">Overtime Request</option>
-                            <option value="undertime">Undertime Request</option>
-                        </select>
-
-                        <div id="leaveCategoryWrap">
-                            <label>Leave Type</label>
-                            <select name="leave_category" id="reqLeaveCategory">
-                                <option value="vacation">Vacation Leave</option>
-                                <option value="sick">Sick Leave</option>
-                                <option value="emergency">Emergency Leave</option>
-                            </select>
-                        </div>
-
-                        <label>Start Date</label>
-                        <input type="date" name="start_date" id="reqStartDate" required oninput="checkBackdatedRequest()">
-
-                        <div id="reqBackdatedNotice" style="display:none;background:#EDE9FE;color:#5B21B6;font-size:12px;font-weight:600;padding:6px 10px;border-radius:6px;margin:-4px 0 10px;">
-                            ⓘ This date has already passed — this will be filed as a backdated request for payroll to review.
-                        </div>
-
-                        <label>End Date</label>
-                        <input type="date" name="end_date" id="reqEndDate">
-
-                        <label>Message</label>
-                        <textarea rows="3" name="reason" id="reqReason" placeholder="Enter your reason..." required></textarea>
-                    </div>
-
-                </div>
-
-                <div class="modal-footer">
-                    <button type="button" class="cancel-btn" onclick="closeRequestForm()">Cancel</button>
-                    <button type="submit" class="submit-btn">Submit</button>
-                </div>
-            </form>
+        <div class="modal-header">
+            <span>Early Clock Out</span>
+            <button
+                type="button"
+                onclick="closeUndertimeModal()">
+                ✕
+            </button>
         </div>
-    </div>
 
-    <!-- ANNOUNCEMENT MODAL -->
-    <div class="modal-overlay" id="announcementModal">
-        <div class="modal announcement-modal">
-            <form id="announcementForm" action="<?= site_url('client_portal/announcements/store') ?>" method="post" enctype="multipart/form-data" class="announcement-form">
-                <div class="modal-header">
-                    <span>Create Announcement</span>
-                    <button type="button" onclick="closeAnnouncementForm()">✕</button>
-                </div>
+        <div class="modal-body">
 
-                <div class="modal-body hide-scroll-bar">
-                    <div class="announcement-grid">
-                        <div class="announcement-field full-span">
-                            <label>Announcement Title *</label>
-                            <input type="text" name="title" maxlength="120" placeholder="e.g. Payroll Release Schedule - April 2026" required>
-                        </div>
-
-                        <div class="announcement-field">
-                            <label>Category *</label>
-                            <select name="category" required>
-                                <option value="">Select category</option>
-                                <option value="general">General Update</option>
-                                <option value="policy">Policy Notice</option>
-                                <option value="event">Event</option>
-                                <option value="maintenance">System Maintenance</option>
-                                <option value="emergency">Urgent Alert</option>
-                            </select>
-                        </div>
-
-                        <div class="announcement-field">
-                            <label>Audience *</label>
-                            <select id="announcementAudience" name="audience" onchange="toggleAnnouncementAudience()" required>
-                                <option value="">Select audience</option>
-                                <option value="all">All Employees</option>
-                                <option value="payroll">Payroll Staff</option>
-                                <option value="department">Specific Department</option>
-                            </select>
-                        </div>
-
-                        <div id="announcementDepartmentWrap" class="announcement-field" style="display:none;">
-                            <label>Department *</label>
-                            <input id="announcementDepartment" type="text" name="department" placeholder="e.g. Finance">
-                        </div>
-
-                        <div class="announcement-field">
-                            <label>Priority *</label>
-                            <select name="priority" required>
-                                <option value="normal">Normal</option>
-                                <option value="high">High</option>
-                                <option value="urgent">Urgent</option>
-                            </select>
-                        </div>
-
-                        <div class="announcement-field">
-                            <label>Publish On *</label>
-                            <input type="datetime-local" name="publish_at" required>
-                        </div>
-
-                        <div class="announcement-field">
-                            <label>Visible Until</label>
-                            <input type="datetime-local" name="expires_at">
-                        </div>
-
-                        <div class="announcement-field full-span">
-                            <label>Attachments</label>
-                            
-                            <div class="attach-dropzone" id="dropzone">
-                                <div class="icon-wrap">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                                    <path d="M21.44 11.05l-8.49 8.49a5 5 0 01-7.07 0 5 5 0 010-7.07l8.49-8.49a3.5 3.5 0 014.95 4.95L11.83 18.97a2 2 0 01-2.83 0 2 2 0 010-2.83l6.36-6.36"/>
-                                </svg>
-                                </div>
-                                <div class="copy">
-                                <div class="primary"><span>Click to upload</span> or drag and drop</div>
-                                <div class="secondary">PDF, DOC, or image — up to 10MB each</div>
-                                </div>
-                                <input type="file" id="fileInput" name="attachments[]" multiple accept="image/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
-                            </div>
-                            
-                            <div class="attach-list" id="attachList"></div>
-                        </div>
-
-                        <div class="announcement-field full-span">
-                            <label>Announcement Details *</label>
-                            <textarea name="details" style="min-height:120px;" placeholder="Write complete announcement details here." required></textarea>
-                        </div>
-
-                        <div class="announcement-field full-span">
-                            <label class="announcement-check">
-                                <input type="checkbox" name="require_acknowledgement" value="1">
-                                Require employee acknowledgement
-                            </label>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="modal-footer">
-                    <button type="submit" class="submit-btn">Publish</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-        <div class="modal-overlay" id="undertimeModal">
-            <div class="modal">
-
-                <div class="modal-header">
-                    <span>Early Clock Out</span>
-                    <button
-                        type="button"
-                        onclick="closeUndertimeModal()"
-                    >
-                        ✕
-                    </button>
-                </div>
-
-                <div class="modal-body">
-
-                    <p style="
+            <p style="
                         color:#dc2626;
                         font-weight:600;
                         margin-bottom:15px;
                     ">
-                        You are clocking out before your
-                        scheduled end time.
-                    </p>
+                You are clocking out before your
+                scheduled end time.
+            </p>
 
-                    <p style="
+            <p style="
                         margin-bottom:20px;
                         color:#6b7280;
                     ">
-                        If you do not have an approved
-                        undertime request, this may result
-                        in salary deduction.
+                If you do not have an approved
+                undertime request, this may result
+                in salary deduction.
+            </p>
+
+            <?php if ($hasApprovedUT): ?>
+
+                <div
+                    class="bg-green-50 border border-green-200 rounded-lg p-3 mt-3">
+
+                    <p class="text-green-700 font-semibold">
+                        You have an APPROVED undertime request.
                     </p>
 
-                   <?php if ($hasApprovedUT): ?>
+                    <p class="text-sm text-gray-600 mt-2">
+                        Approved Hours:
+                        <strong>
+                            <?= $approvedUTHours ?>
+                        </strong>
+                    </p>
 
-                    <div
-                        class="bg-green-50 border border-green-200 rounded-lg p-3 mt-3">
-
-                        <p class="text-green-700 font-semibold">
-                            You have an APPROVED undertime request.
-                        </p>
-
-                        <p class="text-sm text-gray-600 mt-2">
-                            Approved Hours:
+                    <?php if ($approvedUTReason): ?>
+                        <p class="text-sm text-gray-600">
+                            Reason:
                             <strong>
-                                <?= $approvedUTHours ?>
+                                <?= esc($approvedUTReason) ?>
                             </strong>
                         </p>
-
-                        <?php if ($approvedUTReason): ?>
-                            <p class="text-sm text-gray-600">
-                                Reason:
-                                <strong>
-                                    <?= esc($approvedUTReason) ?>
-                                </strong>
-                            </p>
-                        <?php endif; ?>
-
-                        <p class="text-sm text-green-600 mt-2">
-                            You may proceed to clock out.
-                        </p>
-
-                    </div>
-
-                    <?php else: ?>
-
-                    <label>
-                        Reason for Early Clock Out
-                    </label>
-
-                    <textarea
-                        id="earlyClockOutReason"
-                        placeholder="Enter your reason..."
-                    ></textarea>
-
                     <?php endif; ?>
 
-                </div>
-
-                <div class="modal-footer">
-
-                    <button
-                        type="button"
-                        class="cancel-btn"
-                        onclick="closeUndertimeModal()"
-                    >
-                        Cancel
-                    </button>
-
-                    <button
-                        type="button"
-                        class="submit-btn"
-                        onclick="proceedClockOut()"
-                    >
-                        Proceed Clock Out
-                    </button>
+                    <p class="text-sm text-green-600 mt-2">
+                        You may proceed to clock out.
+                    </p>
 
                 </div>
 
-            </div>
+            <?php else: ?>
+
+                <label>
+                    Reason for Early Clock Out
+                </label>
+
+                <textarea
+                    id="earlyClockOutReason"
+                    placeholder="Enter your reason..."></textarea>
+
+            <?php endif; ?>
+
         </div>
 
-        <div class="modal-overlay" id="missedClockoutModal">
-            <div class="modal">
+        <div class="modal-footer">
 
-                <div class="modal-header">
-                    <span>Missed Clock-Out</span>
-                    <button
-                        type="button"
-                        onclick="closeMissedClockoutModal()"
-                    >
-                        ✕
-                    </button>
-                </div>
+            <button
+                type="button"
+                class="cancel-btn"
+                onclick="closeUndertimeModal()">
+                Cancel
+            </button>
 
-                <div class="modal-body">
+            <button
+                type="button"
+                class="submit-btn"
+                onclick="proceedClockOut()">
+                Proceed Clock Out
+            </button>
 
-                    <p style="
+        </div>
+
+    </div>
+</div>
+
+<div class="modal-overlay" id="missedClockoutModal">
+    <div class="modal">
+
+        <div class="modal-header">
+            <span>Missed Clock-Out</span>
+            <button
+                type="button"
+                onclick="closeMissedClockoutModal()">
+                ✕
+            </button>
+        </div>
+
+        <div class="modal-body">
+
+            <p style="
                         color:#dc2626;
                         font-weight:600;
                         margin-bottom:15px;
                     ">
-                        It looks like you forgot to clock out
-                        on your last shift.
-                    </p>
+                It looks like you forgot to clock out
+                on your last shift.
+            </p>
 
-                    <p style="
+            <p style="
                         margin-bottom:20px;
                         color:#6b7280;
                     ">
-                        Please provide a reason so payroll can
-                        review this attendance record.
-                    </p>
+                Please provide a reason so payroll can
+                review this attendance record.
+            </p>
 
-                    <label>
-                        Reason for Late Clock-Out
-                    </label>
+            <label>
+                Reason for Late Clock-Out
+            </label>
 
-                    <textarea
-                        id="missedClockoutReason"
-                        placeholder="Enter your reason..."
-                    ></textarea>
+            <textarea
+                id="missedClockoutReason"
+                placeholder="Enter your reason..."></textarea>
 
-                </div>
-
-                <div class="modal-footer">
-
-                    <button
-                        type="button"
-                        class="cancel-btn"
-                        onclick="closeMissedClockoutModal()"
-                    >
-                        Cancel
-                    </button>
-
-                    <button
-                        type="button"
-                        class="submit-btn"
-                        onclick="proceedMissedClockout()"
-                    >
-                        Proceed Clock Out
-                    </button>
-
-                </div>
-
-            </div>
         </div>
+
+        <div class="modal-footer">
+
+            <button
+                type="button"
+                class="cancel-btn"
+                onclick="closeMissedClockoutModal()">
+                Cancel
+            </button>
+
+            <button
+                type="button"
+                class="submit-btn"
+                onclick="proceedMissedClockout()">
+                Proceed Clock Out
+            </button>
+
+        </div>
+
+    </div>
+</div>
 
 <script>
     const attendance = <?= json_encode($currentAttendance ?? null) ?>;
@@ -2030,9 +2102,10 @@ document.addEventListener('DOMContentLoaded', function () {
     console.log('currentAttendance:', attendance);
 
     // Required globals for public/js/components/task-log.js (loaded below).
-    const TASKS_BASE_URL  = "<?= site_url('client_portal/timesheet/tasks') ?>";
+    const TASKS_BASE_URL = "<?= site_url('client_portal/timesheet/tasks') ?>";
     const UPDATE_TASK_URL = "<?= site_url('client_portal/timesheet/tasks/edit') ?>";
     const DELETE_TASK_URL = "<?= site_url('client_portal/timesheet/tasks/delete') ?>";
+
     function escapeHtml(str) {
         if (!str) return '';
         return String(str).replace(/[&<>]/g, m => m === '&' ? '&amp;' : (m === '<' ? '&lt;' : '&gt;'));
@@ -2074,8 +2147,8 @@ document.addEventListener('DOMContentLoaded', function () {
         openTaskLogModal(attendance.id, today);
     }
 
-    function openRequestForm(){
-        document.getElementById("requestModal").style.display="flex";
+    function openRequestForm() {
+        document.getElementById("requestModal").style.display = "flex";
     }
 
     // Opens the Request form pre-filled as an Overtime request for a specific
@@ -2099,8 +2172,8 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
-    function closeRequestForm(){
-        document.getElementById("requestModal").style.display="none";
+    function closeRequestForm() {
+        document.getElementById("requestModal").style.display = "none";
         // Reset toggle back to normal mode when closing
         const toggle = document.getElementById("codeModeToggle");
         if (toggle && toggle.checked) {
@@ -2113,7 +2186,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function checkBackdatedRequest() {
-        const input  = document.getElementById("reqStartDate");
+        const input = document.getElementById("reqStartDate");
         const notice = document.getElementById("reqBackdatedNotice");
         if (!input.value) {
             notice.style.display = "none";
@@ -2121,28 +2194,28 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         const [y, m, d] = input.value.split('-').map(Number);
-        const picked    = new Date(y, m - 1, d);
+        const picked = new Date(y, m - 1, d);
 
-        const now   = new Date();
+        const now = new Date();
         const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
         notice.style.display = (picked < today) ? "block" : "none";
     }
 
     function toggleRequestCodeMode(on) {
-        const codePanel   = document.getElementById("codeModePanel");
+        const codePanel = document.getElementById("codeModePanel");
         const hiddenInput = document.getElementById("codeModeInput");
 
         if (on) {
             codePanel.style.display = "block";
-            hiddenInput.value       = "1";
+            hiddenInput.value = "1";
             // Normal fields stay visible + required; they only get locked if
             // a looked-up code carries preset data (see applyApprovalCode).
             setNormalFieldsLocked(false);
             document.getElementById("codeModeCodeInput").focus();
         } else {
             codePanel.style.display = "none";
-            hiddenInput.value       = "0";
+            hiddenInput.value = "0";
             // Clear code input and unlock all normal fields
             document.getElementById("codeModeCodeInput").value = "";
             resetPresetState();
@@ -2168,7 +2241,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // Set end-date `max` based on start date + (duration - 1)
     function setEndDateMaxForPreset(duration) {
         const startEl = document.getElementById('reqStartDate');
-        const endEl   = document.getElementById('reqEndDate');
+        const endEl = document.getElementById('reqEndDate');
         if (!endEl) return;
 
         _currentPresetDuration = duration !== null ? Number(duration) : null;
@@ -2206,7 +2279,7 @@ document.addEventListener('DOMContentLoaded', function () {
             endEl.value = maxYmd;
             const hint = document.getElementById('codeHintText');
             if (hint) {
-                hint.style.background  = '#fef3c7';
+                hint.style.background = '#fef3c7';
                 hint.style.borderColor = '#facc15';
                 hint.innerHTML = `⚠️ End date limited to ${_currentPresetDuration} day${_currentPresetDuration === 1 ? '' : 's'} by preset.`;
             }
@@ -2223,7 +2296,7 @@ document.addEventListener('DOMContentLoaded', function () {
             endEl.value = max;
             const hint = document.getElementById('codeHintText');
             if (hint) {
-                hint.style.background  = '#fef3c7';
+                hint.style.background = '#fef3c7';
                 hint.style.borderColor = '#facc15';
                 hint.innerHTML = `⚠️ End date cannot exceed the preset duration (${_currentPresetDuration} day${_currentPresetDuration === 1 ? '' : 's'}).`;
             }
@@ -2233,7 +2306,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // Attach listeners so start/end changes update enforcement
     (function attachPresetDateListeners() {
         const startEl = document.getElementById('reqStartDate');
-        const endEl   = document.getElementById('reqEndDate');
+        const endEl = document.getElementById('reqEndDate');
         if (startEl) {
             startEl.addEventListener('change', () => {
                 if (_currentPresetDuration !== null) setEndDateMaxForPreset(_currentPresetDuration);
@@ -2263,14 +2336,14 @@ document.addEventListener('DOMContentLoaded', function () {
         const endEl = document.getElementById('reqEndDate');
         if (endEl) endEl.removeAttribute('max');
         // Restore field values to empty
-        document.getElementById("reqType").value      = "leave";
+        document.getElementById("reqType").value = "leave";
         document.getElementById("reqStartDate").value = "";
-        document.getElementById("reqEndDate").value   = "";
-        document.getElementById("reqReason").value    = "";
+        document.getElementById("reqEndDate").value = "";
+        document.getElementById("reqReason").value = "";
         // Restore required on text fields
-        document.getElementById("reqType").required      = true;
+        document.getElementById("reqType").required = true;
         document.getElementById("reqStartDate").required = true;
-        document.getElementById("reqReason").required    = true;
+        document.getElementById("reqReason").required = true;
         // Reset hint
         const hint = document.getElementById("codeHintText");
         if (hint) {
@@ -2287,12 +2360,12 @@ document.addEventListener('DOMContentLoaded', function () {
         const hint = document.getElementById("codeHintText");
 
         try {
-            const res  = await fetch("<?= site_url('client_portal/requests/lookup-code') ?>?code=" + encodeURIComponent(code));
+            const res = await fetch("<?= site_url('client_portal/requests/lookup-code') ?>?code=" + encodeURIComponent(code));
             const data = await res.json();
 
             if (!data.success) {
                 // Invalid/used code — show warning but don't block the fields
-                hint.style.background  = "#fee2e2";
+                hint.style.background = "#fee2e2";
                 hint.style.borderColor = "#fca5a5";
                 hint.innerHTML = "⚠️ " + (data.message || "Invalid or already-used code.");
                 setNormalFieldsLocked(false);
@@ -2303,11 +2376,11 @@ document.addEventListener('DOMContentLoaded', function () {
             const presetDuration = preset.duration && Number(preset.duration) > 0 ? Number(preset.duration) : null;
 
             setNormalFieldsLocked(false);
-            hint.style.background  = "#dcfce7";
+            hint.style.background = "#dcfce7";
             hint.style.borderColor = "#86efac";
-            hint.innerHTML = presetDuration !== null
-                ? `✅ Code accepted. Duration preset: ${presetDuration} day${presetDuration === 1 ? "" : "s"}.`
-                : "✅ Code accepted. You can fill in the request details below.";
+            hint.innerHTML = presetDuration !== null ?
+                `✅ Code accepted. Duration preset: ${presetDuration} day${presetDuration === 1 ? "" : "s"}.` :
+                "✅ Code accepted. You can fill in the request details below.";
 
             // Activate client-side enforcement for end date when preset duration exists
             if (presetDuration !== null) {
@@ -2317,21 +2390,21 @@ document.addEventListener('DOMContentLoaded', function () {
             }
 
         } catch (e) {
-            hint.style.background  = "#fee2e2";
+            hint.style.background = "#fee2e2";
             hint.style.borderColor = "#fca5a5";
             hint.innerHTML = "⚠️ Could not verify the code. Please check your connection and try again.";
         }
     }
 
     function openAnnouncementForm() {
-        document.getElementById("announcementModal").style.display="flex";
+        document.getElementById("announcementModal").style.display = "flex";
     }
 
     function closeAnnouncementForm() {
-        document.getElementById("announcementModal").style.display="none";
+        document.getElementById("announcementModal").style.display = "none";
         document.getElementById("announcementForm").reset();
         toggleAnnouncementAudience();
-        
+
     }
 
     function toggleAnnouncementAudience() {
@@ -2349,7 +2422,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
-    
+
 
     function toggleNotificationsGroup(target = "published") {
         const tabPublished = document.getElementById("tabPublished");
@@ -2414,13 +2487,13 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
-    document.getElementById('viewNotificationsModal')?.addEventListener('click', function (e) {
+    document.getElementById('viewNotificationsModal')?.addEventListener('click', function(e) {
         if (e.target === this) {
             closeNotificationModal();
         }
     });
 
-    
+
     toggleNotificationsGroup("published");
 
     /* CLOCK SYSTEM */
@@ -2482,26 +2555,26 @@ document.addEventListener('DOMContentLoaded', function () {
 
     const circumference = 565.48;
 
-    function updateDisplay(){
+    function updateDisplay() {
 
         let progress;
 
-        if(onBreak){
+        if (onBreak) {
             let safeBreak = Math.max(breakRemaining, 0);
             progress = safeBreak / BREAK_MINUTES;
-            ring.setAttribute("stroke","#f97316");
-        }else{
+            ring.setAttribute("stroke", "#f97316");
+        } else {
             let safeShift = Math.max(shiftRemaining, 0);
             progress = safeShift / SHIFT_MINUTES;
-            ring.setAttribute("stroke","#B7E824");
+            ring.setAttribute("stroke", "#B7E824");
         }
 
-        if(progress<0)progress=0;
-        if(progress>1)progress=1;
+        if (progress < 0) progress = 0;
+        if (progress > 1) progress = 1;
 
         let dash = progress * circumference;
 
-        ring.setAttribute("stroke-dasharray",dash+" "+circumference);
+        ring.setAttribute("stroke-dasharray", dash + " " + circumference);
 
         let angle = progress * 360;
         let rad = angle * Math.PI / 180;
@@ -2509,47 +2582,47 @@ document.addEventListener('DOMContentLoaded', function () {
         let x = 100 + 90 * Math.cos(rad);
         let y = 100 + 90 * Math.sin(rad);
 
-        dot.setAttribute("cx",x);
-        dot.setAttribute("cy",y);
+        dot.setAttribute("cx", x);
+        dot.setAttribute("cy", y);
 
-        if(onBreak){
+        if (onBreak) {
             let safeBreak = Math.max(breakRemaining, 0);
-            shiftTimeEl.innerText = "Break "+Math.ceil(safeBreak)+"m";
-        }else{
+            shiftTimeEl.innerText = "Break " + Math.ceil(safeBreak) + "m";
+        } else {
             let safeShift = Math.max(shiftRemaining, 0);
-            let hours = Math.floor(safeShift/60);
-            let minutes = Math.floor(safeShift%60);
-            shiftTimeEl.innerText = hours+":"+minutes.toString().padStart(2,'0');
+            let hours = Math.floor(safeShift / 60);
+            let minutes = Math.floor(safeShift % 60);
+            shiftTimeEl.innerText = hours + ":" + minutes.toString().padStart(2, '0');
         }
 
     }
 
-    setInterval(()=>{
+    setInterval(() => {
 
-        if(!isClockedIn) return;
+        if (!isClockedIn) return;
 
-        if(onBreak){
-            if(breakRemaining > 0){
+        if (onBreak) {
+            if (breakRemaining > 0) {
                 breakRemaining--;
                 updateDisplay();
-                if(breakRemaining <= 0){
+                if (breakRemaining <= 0) {
                     // Reaching zero does not end a break; only the server-confirmed End Break action does.
                     updateDisplay();
                 }
             }
-        }else{
-            if(shiftRemaining > 0){
+        } else {
+            if (shiftRemaining > 0) {
                 shiftRemaining--;
                 updateDisplay();
             }
         }
 
-    },60000);
+    }, 60000);
 
     const now = new Date();
 
-    const days=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
-    const months=["January","February","March","April","May","June","July","August","September","October","November","December"];
+    const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+    const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
     document.getElementById("clockDate").innerText =
         days[now.getDay()] + ", " +
@@ -2566,8 +2639,8 @@ document.addEventListener('DOMContentLoaded', function () {
     // a repeat submission safely, but this avoids the redundant round trip and
     // any confusing "changed in another request" flash on a genuine double-click.
     let clockOutSubmitting = false;
-    function submitClockOutForm()
-    {
+
+    function submitClockOutForm() {
         if (clockOutSubmitting) return;
         clockOutSubmitting = true;
         const form = document.getElementById('clockOutForm');
@@ -2575,14 +2648,12 @@ document.addEventListener('DOMContentLoaded', function () {
         form.submit();
     }
 
-    function handleClockOut()
-    {
+    function handleClockOut() {
         // Clocking out on a later calendar day than the shift started means this
         // is an overdue/missed clock-out (e.g. forgot to clock out yesterday),
         // not an early clock-out — the scheduled-end comparison below assumes
         // "today", so it would otherwise misreport this as clocking out early.
-        if (attendance && attendance.time_in)
-        {
+        if (attendance && attendance.time_in) {
             const shiftDate = (attendance.scheduled_end_datetime || attendance.time_in).slice(0, 10);
 
             const localNow = new Date();
@@ -2591,8 +2662,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 String(localNow.getMonth() + 1).padStart(2, '0') + '-' +
                 String(localNow.getDate()).padStart(2, '0');
 
-            if (todayDate > shiftDate)
-            {
+            if (todayDate > shiftDate) {
                 document
                     .getElementById(
                         'missedClockoutModal'
@@ -2604,8 +2674,7 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         }
 
-        if (!scheduledEnd)
-        {
+        if (!scheduledEnd) {
             submitClockOutForm();
 
             return;
@@ -2615,26 +2684,26 @@ document.addEventListener('DOMContentLoaded', function () {
 
         const hh =
             String(now.getHours())
-                .padStart(2, '0');
+            .padStart(2, '0');
 
         const mm =
             String(now.getMinutes())
-                .padStart(2, '0');
+            .padStart(2, '0');
 
         const ss =
             String(now.getSeconds())
-                .padStart(2, '0');
+            .padStart(2, '0');
 
         const current =
             `${hh}:${mm}:${ss}`;
 
         const currentDate = new Date();
-        const [h,m,s] =
-            scheduledEnd.split(':');
+        const [h, m, s] =
+        scheduledEnd.split(':');
 
-        const scheduled = attendance.scheduled_end_datetime
-            ? new Date(attendance.scheduled_end_datetime.replace(' ', 'T'))
-            : new Date();
+        const scheduled = attendance.scheduled_end_datetime ?
+            new Date(attendance.scheduled_end_datetime.replace(' ', 'T')) :
+            new Date();
 
         if (!attendance.scheduled_end_datetime) scheduled.setHours(
             parseInt(h),
@@ -2643,8 +2712,7 @@ document.addEventListener('DOMContentLoaded', function () {
             0
         );
 
-        if (currentDate < scheduled)
-        {
+        if (currentDate < scheduled) {
             document
                 .getElementById(
                     'undertimeModal'
@@ -2658,8 +2726,7 @@ document.addEventListener('DOMContentLoaded', function () {
         submitClockOutForm();
     }
 
-    function proceedClockOut()
-    {
+    function proceedClockOut() {
         const hasApprovedUT =
             <?= $hasApprovedUT ? 'true' : 'false' ?>;
 
@@ -2669,9 +2736,9 @@ document.addEventListener('DOMContentLoaded', function () {
             );
 
         const reason =
-            textarea
-                ? textarea.value.trim()
-                : '';
+            textarea ?
+            textarea.value.trim() :
+            '';
 
         if (
             !hasApprovedUT &&
@@ -2690,8 +2757,7 @@ document.addEventListener('DOMContentLoaded', function () {
         submitClockOutForm();
     }
 
-    function closeUndertimeModal()
-    {
+    function closeUndertimeModal() {
         document.getElementById('undertimeModal').style.display = 'none';
 
         const textarea =
@@ -2702,17 +2768,16 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
-    function proceedMissedClockout()
-    {
+    function proceedMissedClockout() {
         const textarea =
             document.getElementById(
                 'missedClockoutReason'
             );
 
         const reason =
-            textarea
-                ? textarea.value.trim()
-                : '';
+            textarea ?
+            textarea.value.trim() :
+            '';
 
         if (!reason) {
             showToast(
@@ -2728,8 +2793,7 @@ document.addEventListener('DOMContentLoaded', function () {
         submitClockOutForm();
     }
 
-    function closeMissedClockoutModal()
-    {
+    function closeMissedClockoutModal() {
         document.getElementById('missedClockoutModal').style.display = 'none';
 
         const textarea =
@@ -2742,12 +2806,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
     <?php $otPrompt = session()->getFlashdata('prompt_ot_request'); ?>
     <?php if ($otPrompt): ?>
-    openLateOvertimeRequest(
-        <?= json_encode($otPrompt['date']) ?>,
-        <?= json_encode($otPrompt['reason']) ?>
-    );
+        openLateOvertimeRequest(
+            <?= json_encode($otPrompt['date']) ?>,
+            <?= json_encode($otPrompt['reason']) ?>
+        );
     <?php endif; ?>
-
 </script>
 <script src="<?= base_url('js/components/task-log.js') ?>"></script>
 
@@ -2783,7 +2846,7 @@ document.addEventListener('DOMContentLoaded', function () {
             removeBtn.type = 'button';
             removeBtn.className = 'cancel-btn';
             removeBtn.textContent = 'Remove';
-            removeBtn.addEventListener('click', function () {
+            removeBtn.addEventListener('click', function() {
                 removeAnnouncementAttachment(i);
             });
 
@@ -2808,12 +2871,12 @@ document.addEventListener('DOMContentLoaded', function () {
         updateNameFromArray(_announcementSelectedFiles);
     }
 
-    document.addEventListener('DOMContentLoaded', function () {
+    document.addEventListener('DOMContentLoaded', function() {
         const el = document.getElementById('announcementAttachments');
         const btn = document.getElementById('file-upload-button');
         const nameEl = document.getElementById('announcementAttachmentsName');
 
-        function updateNameFromArray(arr){
+        function updateNameFromArray(arr) {
             if (!nameEl) return;
             if (!arr || arr.length === 0) {
                 nameEl.textContent = 'No files chosen';
@@ -2827,7 +2890,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         if (el) {
-            el.addEventListener('change', function (e) {
+            el.addEventListener('change', function(e) {
                 const added = Array.from(e.target.files || []);
                 // merge new files into our array (avoid duplicates by name+size+type)
                 added.forEach(f => {
@@ -2848,82 +2911,93 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         if (btn && el) {
-            btn.addEventListener('click', function () { el.click(); });
+            btn.addEventListener('click', function() {
+                el.click();
+            });
         }
     });
 </script>
 
 <script>
-  const dropzone = document.getElementById('dropzone');
-  const fileInput = document.getElementById('fileInput');
-  const attachList = document.getElementById('attachList');
-  let files = [];
- 
-  dropzone.addEventListener('click', () => fileInput.click());
- 
-  ['dragenter', 'dragover'].forEach(evt =>
-    dropzone.addEventListener(evt, e => {
-      e.preventDefault();
-      dropzone.classList.add('dragover');
-    })
-  );
-  ['dragleave', 'drop'].forEach(evt =>
-    dropzone.addEventListener(evt, e => {
-      e.preventDefault();
-      dropzone.classList.remove('dragover');
-    })
-  );
-  dropzone.addEventListener('drop', e => {
-    addFiles(e.dataTransfer.files);
-  });
- 
-  fileInput.addEventListener('change', () => {
-    addFiles(fileInput.files);
-    fileInput.value = '';
-  });
- 
-  function addFiles(fileListObj) {
-    Array.from(fileListObj).forEach(f => files.push(f));
-    render();
-  }
- 
-  function removeFile(index) {
-    files.splice(index, 1);
-    render();
-  }
- 
-  function formatSize(bytes) {
-    if (bytes < 1024) return bytes + ' B';
-    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-  }
- 
-  function iconFor(file) {
-    if (file.type === 'application/pdf') {
-      return { cls: 'pdf', svg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>` };
+    const dropzone = document.getElementById('dropzone');
+    const fileInput = document.getElementById('fileInput');
+    const attachList = document.getElementById('attachList');
+    let files = [];
+
+    dropzone.addEventListener('click', () => fileInput.click());
+
+    ['dragenter', 'dragover'].forEach(evt =>
+        dropzone.addEventListener(evt, e => {
+            e.preventDefault();
+            dropzone.classList.add('dragover');
+        })
+    );
+    ['dragleave', 'drop'].forEach(evt =>
+        dropzone.addEventListener(evt, e => {
+            e.preventDefault();
+            dropzone.classList.remove('dragover');
+        })
+    );
+    dropzone.addEventListener('drop', e => {
+        addFiles(e.dataTransfer.files);
+    });
+
+    fileInput.addEventListener('change', () => {
+        addFiles(fileInput.files);
+        fileInput.value = '';
+    });
+
+    function addFiles(fileListObj) {
+        Array.from(fileListObj).forEach(f => files.push(f));
+        render();
     }
-    if (file.type.includes('word') || file.name.match(/\.docx?$/i)) {
-      return { cls: 'doc', svg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>` };
+
+    function removeFile(index) {
+        files.splice(index, 1);
+        render();
     }
-    return { cls: '', svg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>` };
-  }
- 
-  function render() {
-    attachList.innerHTML = '';
-    files.forEach((file, i) => {
-      const row = document.createElement('div');
-      row.className = 'attach-row';
- 
-      let mediaHtml;
-      if (file.type.startsWith('image/')) {
-        const url = URL.createObjectURL(file);
-        mediaHtml = `<img class="thumb" src="${url}" alt="">`;
-      } else {
-        const ic = iconFor(file);
-        mediaHtml = `<div class="file-icon ${ic.cls}">${ic.svg}</div>`;
-      }
- 
-      row.innerHTML = `
+
+    function formatSize(bytes) {
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+
+    function iconFor(file) {
+        if (file.type === 'application/pdf') {
+            return {
+                cls: 'pdf',
+                svg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>`
+            };
+        }
+        if (file.type.includes('word') || file.name.match(/\.docx?$/i)) {
+            return {
+                cls: 'doc',
+                svg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>`
+            };
+        }
+        return {
+            cls: '',
+            svg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>`
+        };
+    }
+
+    function render() {
+        attachList.innerHTML = '';
+        files.forEach((file, i) => {
+            const row = document.createElement('div');
+            row.className = 'attach-row';
+
+            let mediaHtml;
+            if (file.type.startsWith('image/')) {
+                const url = URL.createObjectURL(file);
+                mediaHtml = `<img class="thumb" src="${url}" alt="">`;
+            } else {
+                const ic = iconFor(file);
+                mediaHtml = `<div class="file-icon ${ic.cls}">${ic.svg}</div>`;
+            }
+
+            row.innerHTML = `
         ${mediaHtml}
         <div class="meta">
           <div class="name">${file.name}</div>
@@ -2933,13 +3007,13 @@ document.addEventListener('DOMContentLoaded', function () {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
         </button>
       `;
-      attachList.appendChild(row);
-    });
- 
-    attachList.querySelectorAll('.remove-btn').forEach(btn => {
-      btn.addEventListener('click', () => removeFile(Number(btn.dataset.index)));
-    });
-  }
+            attachList.appendChild(row);
+        });
+
+        attachList.querySelectorAll('.remove-btn').forEach(btn => {
+            btn.addEventListener('click', () => removeFile(Number(btn.dataset.index)));
+        });
+    }
 </script>
 
 <?= $this->endSection() ?>

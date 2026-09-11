@@ -4,7 +4,7 @@
         <!-- LOGO -->
         <div class="logo-box">
             <?php $logoUrl = $activeCompanyBranding['logo_url'] ?? null; ?>
-            <div class="logo<?= !empty($logoUrl) ? ' has-image' : '' ?>"<?= !empty($logoUrl) ? ' style="background-image:url(\'' . esc((string) $logoUrl, 'attr') . '\');"' : '' ?>></div>
+            <div class="logo<?= !empty($logoUrl) ? ' has-image' : '' ?>" <?= !empty($logoUrl) ? ' style="background-image:url(\'' . esc((string) $logoUrl, 'attr') . '\');"' : '' ?>></div>
         </div>
 
         <!-- MAIN MENU -->
@@ -22,13 +22,13 @@
             </a>
 
             <a href="<?= site_url('client_portal/requests') ?>"
-                    class="menu-item <?= str_contains(current_url(), 'client_portal/requests') ? 'active' : '' ?>">
-                    <img src="<?= base_url('icons/Requests.png') ?>" class="icon">
-                    <span>Requests</span>
-                </a>
+                class="menu-item <?= str_contains(current_url(), 'client_portal/requests') ? 'active' : '' ?>">
+                <img src="<?= base_url('icons/Requests.png') ?>" class="icon">
+                <span>Requests</span>
+            </a>
 
             <!-- Client Payroll Staff ONLY -->
-            <?php if(\App\Libraries\PortalAccess::can('payroll')): ?>
+            <?php if (\App\Libraries\PortalAccess::can('payroll')): ?>
                 <a href="<?= site_url('client_portal/payroll') ?>"
                     class="menu-item <?= str_contains(current_url(), 'client_portal/payroll') ? 'active' : '' ?>">
                     <img src="<?= base_url('icons/payroll.png') ?>" class="icon">
@@ -59,7 +59,6 @@
 
 
 <style>
-
     :root {
         --sidebar-bg: #1e1e1e;
         --sidebar-text: #cfcfcf;
@@ -71,7 +70,7 @@
     }
 
     /* SIDEBAR */
-    .sidebar{
+    .sidebar {
         width: 120px;
         background: var(--sidebar-bg);
         min-height: 100vh;
@@ -83,7 +82,7 @@
     }
 
     /* INNER */
-    .sidebar-inner{
+    .sidebar-inner {
         display: flex;
         flex-direction: column;
         height: 100%;
@@ -92,7 +91,7 @@
     }
 
     /* LOGO */
-    .logo-box{
+    .logo-box {
         padding: 15px 0px;
         border-bottom: 1px solid var(--sidebar-divider);
         width: 100%;
@@ -100,7 +99,7 @@
         justify-content: center;
     }
 
-    .logo{
+    .logo {
         width: 70px;
         height: 70px;
         background: #d9d9d9;
@@ -115,7 +114,7 @@
     }
 
     /* MAIN MENU */
-    .menu{
+    .menu {
         display: flex;
         flex-direction: column;
         gap: 10px;
@@ -125,7 +124,7 @@
     }
 
     /* MENU ITEM */
-    .menu-item{
+    .menu-item {
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -141,44 +140,43 @@
     }
 
     /* ACTIVE ITEM */
-    .menu-item.active{
+    .menu-item.active {
         background: var(--sidebar-active);
-        color:white;
+        color: white;
     }
 
     /* HOVER */
-    .menu-item:hover{
+    .menu-item:hover {
         background: var(--sidebar-hover);
         color: #ffffff;
         transform: translateX(2px);
     }
 
     /* ICON */
-    .icon{
-        width:28px;
-        height:28px;
+    .icon {
+        width: 28px;
+        height: 28px;
         filter: var(--sidebar-icon-filter);
         transition: 0.2s;
     }
 
     /* slightly brighter icon when active */
-    .menu-item.active .icon{
+    .menu-item.active .icon {
         filter: brightness(1.2) var(--sidebar-icon-filter);
     }
 
-    .menu-item:hover .icon{
+    .menu-item:hover .icon {
         filter: brightness(1.12) var(--sidebar-icon-filter);
     }
 
     /* BOTTOM MENU */
-    .bottom-menu{
-        margin-top:auto;
-        padding-bottom:15px;
-        display:flex;
-        flex-direction:column;
-        gap:10px;
-        align-items:center;
-        width:100%;
+    .bottom-menu {
+        margin-top: auto;
+        padding-bottom: 15px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        align-items: center;
+        width: 100%;
     }
-
 </style>
