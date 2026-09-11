@@ -3,7 +3,7 @@
 
 <div class="customization-page">
 
-    <div class="tabs">
+    <div class="tabs" id="settingsTabs">
         <a href="<?= site_url('settings/customization') ?>" class="tab active">Customization</a>
         <a href="<?= site_url('settings/face-recognition') ?>" class="tab">Face Recognition</a>
     </div>
@@ -19,7 +19,7 @@
                 <label>Sidebar Color</label>
                 <div class="color-field">
                     <input type="color" id="sidebarColorPicker" name="sidebar_color">
-                    <input type="text" id="sidebarColorValue" readonly>
+                    <input type="text" id="sidebarColorValue" maxlength="7" placeholder="#000000">
                 </div>
             </div>
 
@@ -27,7 +27,7 @@
                 <label>Topbar Color</label>
                 <div class="color-field">
                     <input type="color" id="headerColorPicker" name="header_color">
-                    <input type="text" id="headerColorValue" readonly>
+                    <input type="text" id="headerColorValue" maxlength="7" placeholder="#ffffff">
                 </div>
             </div>
 
@@ -35,7 +35,7 @@
                 <label>Background Color</label>
                 <div class="color-field">
                     <input type="color" id="bgColorPicker" name="background_color">
-                    <input type="text" id="bgColorValue" readonly>
+                    <input type="text" id="bgColorValue" maxlength="7" placeholder="#f5f6fa">
                 </div>
             </div>
 
@@ -79,9 +79,32 @@
 
         <div class="actions">
             <button type="button" class="discard-btn">Discard Changes</button>
-            <button type="submit" class="save-btn">Apply & Save</button>
+            <button type="button" class="save-btn">Apply & Save</button>
         </div>
     </form>
+</div>
+
+<div class="confirm-overlay" id="confirmOverlay">
+    <div class="confirm-modal">
+        <h4 id="confirmModalTitle">Are you sure?</h4>
+        <p id="confirmModalMessage">Please confirm this action.</p>
+        <div class="confirm-actions">
+            <button type="button" class="confirm-cancel-btn" id="confirmCancelBtn">Cancel</button>
+            <button type="button" class="confirm-ok-btn" id="confirmOkBtn">Confirm</button>
+        </div>
+    </div>
+</div>
+
+<div class="confirm-overlay" id="unsavedOverlay">
+    <div class="confirm-modal">
+        <h4>Unsaved Changes</h4>
+        <p>You have edits that haven't been saved yet. Save them before you leave, or discard them?</p>
+        <div class="confirm-actions">
+            <button type="button" class="confirm-cancel-btn" id="unsavedStayBtn">Cancel</button>
+            <button type="button" class="confirm-leave-btn" id="unsavedLeaveBtn">Discard Changes</button>
+            <button type="button" class="confirm-ok-btn" id="unsavedSaveBtn">Apply & Save</button>
+        </div>
+    </div>
 </div>
 
 <style>
@@ -239,6 +262,90 @@ h1 {
     padding: 12px 22px;
     border-radius: 10px;
     cursor: pointer;
+}
+
+/* CONFIRMATION MODAL */
+.confirm-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.45);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 100000;
+    padding: 16px;
+}
+
+.confirm-overlay.active {
+    display: flex;
+}
+
+.confirm-modal {
+    background: #ffffff;
+    width: 100%;
+    max-width: 380px;
+    border-radius: 14px;
+    padding: 24px;
+    box-shadow: 0 25px 50px rgba(0, 0, 0, 0.25);
+}
+
+.confirm-modal h4 {
+    margin: 0 0 10px;
+    font-size: 18px;
+    font-weight: 700;
+    color: #111827;
+}
+
+.confirm-modal p {
+    margin: 0 0 20px;
+    font-size: 14px;
+    color: #6b7280;
+    line-height: 1.5;
+}
+
+.confirm-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+.confirm-cancel-btn {
+    background: #e5e7eb;
+    border: none;
+    padding: 10px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.confirm-ok-btn {
+    background: linear-gradient(135deg, #7c3aed, #8b5cf6);
+    color: white;
+    border: none;
+    padding: 10px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.confirm-leave-btn {
+    background: #fee2e2;
+    color: #b91c1c;
+    border: none;
+    padding: 10px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+}
+
+/* The unsaved-changes prompt has 3 actions instead of 2, so it gets a bit
+   more room and lets its buttons wrap on narrow screens instead of cramping. */
+#unsavedOverlay .confirm-modal {
+    max-width: 440px;
+}
+
+#unsavedOverlay .confirm-actions {
+    flex-wrap: wrap;
 }
 
 /* TABS */
@@ -452,18 +559,169 @@ sidebarIconModeSelect?.addEventListener('change', () => {
     applyColors();
 });
 
-// SAVE
-customizationForm?.addEventListener('submit', () => {
-    // Keep localStorage in sync for immediate UI paint while navigating.
+// TYPE A HEX CODE DIRECTLY
+const HEX_COLOR_PATTERN = /^#[0-9A-Fa-f]{6}$/;
+
+function bindHexTextInput(textInput, picker, onValid) {
+    if (!textInput || !picker) return;
+
+    textInput.addEventListener('input', () => {
+        let value = textInput.value.trim();
+        if (value !== '' && value[0] !== '#') value = '#' + value;
+
+        if (!HEX_COLOR_PATTERN.test(value)) return;
+
+        picker.value = value;
+        onValid(value);
+        applyColors();
+    });
+
+    // Normalize/restore a valid-looking-but-incomplete value on blur so the
+    // field doesn't get stuck showing something that never got applied.
+    textInput.addEventListener('blur', () => {
+        textInput.value = picker.value;
+    });
+}
+
+bindHexTextInput(sidebarVal, sidebarPicker, (value) => { sidebarColor = value; });
+bindHexTextInput(headerVal, headerPicker, (value) => { headerColor = value; });
+bindHexTextInput(bgVal, bgPicker, (value) => { bgColor = value; });
+
+// CONFIRMATION MODAL (shared by Apply & Save and Discard Changes)
+const confirmOverlay = $('confirmOverlay');
+const confirmModalTitle = $('confirmModalTitle');
+const confirmModalMessage = $('confirmModalMessage');
+const confirmOkBtn = $('confirmOkBtn');
+const confirmCancelBtn = $('confirmCancelBtn');
+let confirmAction = null;
+
+function openConfirmModal(title, message, okLabel, onConfirm) {
+    if (!confirmOverlay) { onConfirm(); return; }
+
+    confirmModalTitle.textContent = title;
+    confirmModalMessage.textContent = message;
+    confirmOkBtn.textContent = okLabel;
+    confirmAction = onConfirm;
+    confirmOverlay.classList.add('active');
+}
+
+function closeConfirmModal() {
+    confirmOverlay?.classList.remove('active');
+    confirmAction = null;
+}
+
+confirmOkBtn?.addEventListener('click', () => {
+    const action = confirmAction;
+    closeConfirmModal();
+    action?.();
+});
+
+confirmCancelBtn?.addEventListener('click', closeConfirmModal);
+
+confirmOverlay?.addEventListener('click', (event) => {
+    if (event.target === confirmOverlay) closeConfirmModal();
+});
+
+// UNSAVED CHANGES TRACKING — warn before leaving this page (via the settings
+// tabs, or an actual browser navigation/close) with unapplied color/logo edits.
+let formIsDirty = false;
+let allowNavigation = false;
+
+function markFormDirty() { formIsDirty = true; }
+
+[headerPicker, sidebarPicker, bgPicker, headerVal, sidebarVal, bgVal, sidebarIconModeSelect, logoInput].forEach((el) => {
+    el?.addEventListener('input', markFormDirty);
+    el?.addEventListener('change', markFormDirty);
+});
+
+window.addEventListener('beforeunload', (event) => {
+    if (!formIsDirty || allowNavigation) return;
+    event.preventDefault();
+    event.returnValue = '';
+});
+
+const unsavedOverlay = $('unsavedOverlay');
+const unsavedStayBtn = $('unsavedStayBtn');
+const unsavedLeaveBtn = $('unsavedLeaveBtn');
+const unsavedSaveBtn = $('unsavedSaveBtn');
+let pendingNavigationHref = null;
+
+function closeUnsavedModal() {
+    unsavedOverlay?.classList.remove('active');
+    pendingNavigationHref = null;
+}
+
+// Catch any in-app navigation away from this page while dirty — the settings
+// tabs, the sidebar, the header user menu — so it gets our own styled modal
+// instead of the browser's unstyleable native "Leave site?" prompt.
+document.addEventListener('click', (event) => {
+    if (!formIsDirty) return;
+
+    const link = event.target.closest('a[href]');
+    if (!link) return;
+
+    const href = link.getAttribute('href');
+    if (!href || href === '#' || href.startsWith('javascript:')) return;
+    if (link.target === '_blank') return;
+    if (link.href.split('#')[0] === window.location.href.split('#')[0]) return;
+
+    event.preventDefault();
+    pendingNavigationHref = link.href;
+    unsavedOverlay?.classList.add('active');
+});
+
+unsavedStayBtn?.addEventListener('click', closeUnsavedModal);
+
+unsavedOverlay?.addEventListener('click', (event) => {
+    if (event.target === unsavedOverlay) closeUnsavedModal();
+});
+
+unsavedLeaveBtn?.addEventListener('click', () => {
+    allowNavigation = true;
+    const href = pendingNavigationHref;
+    closeUnsavedModal();
+    if (href) window.location.href = href;
+});
+
+unsavedSaveBtn?.addEventListener('click', () => {
+    allowNavigation = true;
+    closeUnsavedModal();
     localStorage.setItem('headerColor', headerColor);
     localStorage.setItem('sidebarColor', sidebarColor);
     localStorage.setItem('bgColor', bgColor);
     localStorage.setItem('sidebarIconMode', sidebarIconMode);
+    customizationForm?.submit();
+});
+
+// SAVE
+document.querySelector('.save-btn')?.addEventListener('click', () => {
+    openConfirmModal(
+        'Apply these changes?',
+        'Your color and logo settings will be updated for your account.',
+        'Apply & Save',
+        () => {
+            allowNavigation = true;
+            // Keep localStorage in sync for immediate UI paint while navigating.
+            localStorage.setItem('headerColor', headerColor);
+            localStorage.setItem('sidebarColor', sidebarColor);
+            localStorage.setItem('bgColor', bgColor);
+            localStorage.setItem('sidebarIconMode', sidebarIconMode);
+            customizationForm?.submit();
+        }
+    );
 });
 
 // DISCARD
 document.querySelector('.discard-btn').addEventListener('click', () => {
-    location.reload();
+    openConfirmModal(
+        'Discard changes?',
+        'Any unsaved color or logo changes will be lost.',
+        'Discard Changes',
+        () => {
+            allowNavigation = true;
+            location.reload();
+        }
+    );
 });
 
 if (serverBranding.logoUrl && logoPreview) {
