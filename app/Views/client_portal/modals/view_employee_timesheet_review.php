@@ -92,7 +92,7 @@
 
 <script>
 (function () {
-    const EMPLOYEES_URL = <?= json_encode(site_url('client_portal/payroll/employees_json')) ?>;
+    const EMPLOYEES_URL = <?= json_encode(site_url('client_portal/timesheet/review-employees')) ?>;
     const HISTORY_URL    = <?= json_encode(site_url('client_portal/timesheet/employee/history')) ?>;
     const TIMESHEET_URL  = <?= json_encode(site_url('client_portal/timesheet/employee')) ?>;
     const EXPORT_URL     = <?= json_encode(site_url('client_portal/timesheet/employee/export')) ?>;

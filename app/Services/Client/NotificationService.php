@@ -34,11 +34,10 @@ class NotificationService
             $attachments = [];
             if (($row['id'] ?? 0) > 0 && isset($announcementAttachments[$row['id']])) {
                 foreach ($announcementAttachments[$row['id']] as $att) {
-                    $fp = (string) ($att['file_path'] ?? '');
-                    if ($fp !== '' && ! preg_match('~^(?:[a-z][a-z0-9+.-]*:)?//~i', $fp)) {
-                        $fp = base_url($fp);
-                    }
-                    $att['file_path'] = $fp;
+                    // Attachments are stored outside the public webroot and
+                    // served only through the authenticated download action,
+                    // which re-checks this announcement's audience scope.
+                    $att['file_path'] = base_url('client_portal/announcements/download/' . (int) ($att['id'] ?? 0));
                     $attachments[] = $att;
                 }
             }

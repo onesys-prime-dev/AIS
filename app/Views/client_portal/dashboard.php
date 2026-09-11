@@ -1199,7 +1199,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 <h1>Employee Dashboard</h1>
             </div>
             <div class="button-holder">
-                <?php if ($user->inGroup('client_payroll_staff')): ?>
+                <?php if (\App\Libraries\PortalAccess::reviewsRequests($user)): ?>
                 <button onclick="openAnnouncementForm()" class="request-btn">
                     <img src="<?= base_url('icons/announcement.png') ?>" alt="Announcement" class="btn-icon">
                     <span>Announcement</span>
@@ -1249,11 +1249,18 @@ document.addEventListener('DOMContentLoaded', function () {
             if ($currentAttendance) {
                 $attendanceService = service('AttendanceComputationService');
 
-                $analysis =
-                    $attendanceService->analyzeClockOut(
-                        $user->id,
-                        date('Y-m-d H:i:s')
-                    );
+                try {
+                    $analysis =
+                        $attendanceService->analyzeClockOut(
+                            $user->id,
+                            date('Y-m-d H:i:s'),
+                            $currentAttendance
+                        );
+                } catch (\InvalidArgumentException $e) {
+                    // Same legacy/malformed-schedule fallback as DashboardController::index() —
+                    // this view must not crash a page the controller already recovered for.
+                    $analysis = ['undertime' => ['approved_ut' => 0, 'unapproved_ut' => 0], 'overtime' => ['approved_ot' => 0, 'unapproved_ot' => 0]];
+                }
 
                 $hasApprovedUT =
                     $analysis['undertime']['approved_ut'] > 0;
@@ -1281,10 +1288,15 @@ document.addEventListener('DOMContentLoaded', function () {
             <div class="buttons">
                 <!-- functioning break button -->
                 <?php if ($currentAttendance): ?>
-                <a href="<?= site_url('client_portal/toggle-break/'.$currentAttendance['id']) ?>"
+                <form method="post" action="<?= site_url('client_portal/toggle-break/'.$currentAttendance['id']) ?>" onsubmit="this.querySelectorAll('button').forEach(b=>b.disabled=true)">
+                    <input type="hidden" name="attendance_token" value="<?= esc($attendanceToken) ?>">
+                    <input type="hidden" name="state_version" value="<?= (int) ($currentAttendance['state_version'] ?? 0) ?>">
+                    <input type="hidden" name="break_action" value="<?= empty($currentAttendance['break_start']) ? 'start' : 'end' ?>">
+                    <button type="submit" aria-label="<?= empty($currentAttendance['break_start']) ? 'Start break' : 'End break' ?>"
                     class="icon-btn coffee <?= $currentAttendance['break_start'] ? 'on-break' : '' ?>">
                         <span></span><span></span><span></span>
-                </a>
+                    </button>
+                </form>
 
                     <?php endif; ?>
 
@@ -1296,7 +1308,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 <?php if (!$currentAttendance): ?>
                 <form
                     action="<?= site_url('client_portal/time-in') ?>"
-                    method="post">
+                    method="post"
+                    onsubmit="this.querySelectorAll('button').forEach(b=>b.disabled=true)">
+                    <input type="hidden" name="attendance_token" value="<?= esc($attendanceToken) ?>">
 
                     <?= csrf_field() ?>
 
@@ -1309,6 +1323,8 @@ document.addEventListener('DOMContentLoaded', function () {
                     id="clockOutForm"
                     action="<?= site_url('client_portal/time-out/'.$currentAttendance['id']) ?>"
                     method="post">
+                    <input type="hidden" name="attendance_token" value="<?= esc($attendanceToken) ?>">
+                    <input type="hidden" name="state_version" value="<?= (int) ($currentAttendance['state_version'] ?? 0) ?>">
 
                     <?= csrf_field() ?>
 
@@ -1503,7 +1519,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     <span class="notifications-badge"><?= count($publishedItems) ?></span>
                 </button>
 
-                <?php if ($user->inGroup('client_payroll_staff')): ?>
+                <?php if (\App\Libraries\PortalAccess::can('announcements', $user)): ?>
                 <button type="button" id="tabUnpublished" class="notifications-tab" onclick="toggleNotificationsGroup('unpublished')">
                     Unpublished
                     <span class="notifications-badge"><?= count($unpublishedItems) ?></span>
@@ -1527,7 +1543,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 <?php endif; ?>
             </div>
 
-            <?php if ($user->inGroup('client_payroll_staff')): ?>
+            <?php if (\App\Libraries\PortalAccess::can('announcements', $user)): ?>
             <div id="unpublishedGroup" class="notifications-group hide-scroll-bar">
                 <?php if ($hasUnpublishedItems): ?>
                     <?php
@@ -2398,8 +2414,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
     /* CLOCK SYSTEM */
 
-    const SHIFT_MINUTES = 480;
-    const BREAK_MINUTES = <?= (int) ($breakMinutesTotal ?? 60) ?>;
+    const SHIFT_MINUTES = <?= (int) ($shiftMinutes ?? 480) ?>;
+    const BREAK_MINUTES = <?= max(1, (int) ($nextBreakMinutes ?? 60)) ?>;
 
     let shiftRemaining = SHIFT_MINUTES;
     let breakRemaining = 0;
@@ -2435,10 +2451,10 @@ document.addEventListener('DOMContentLoaded', function () {
             let breakElapsed = Math.floor((now - breakStart) / 60000);
 
             // subtract already taken portion of break
-            breakRemaining = Math.max(BREAK_MINUTES - (attendance.break_duration * 60 + breakElapsed), 0);
+            breakRemaining = Math.max(BREAK_MINUTES - breakElapsed, 0);
         } else {
             // Not on break: show remaining break time
-            breakRemaining = Math.max(BREAK_MINUTES - (attendance.break_duration * 60), 0);
+            breakRemaining = BREAK_MINUTES;
         }
     }
 
@@ -2506,7 +2522,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 breakRemaining--;
                 updateDisplay();
                 if(breakRemaining <= 0){
-                    onBreak = false;
+                    // Reaching zero does not end a break; only the server-confirmed End Break action does.
                     updateDisplay();
                 }
             }
@@ -2533,6 +2549,21 @@ document.addEventListener('DOMContentLoaded', function () {
     updateDisplay();
     if (breakBtn) breakBtn.disabled = true;
 
+    // Every path that finalizes a clock-out (direct, after the undertime modal,
+    // after the missed-clockout modal) funnels through here so a fast double
+    // click/tap can only ever submit the form once — the server already tolerates
+    // a repeat submission safely, but this avoids the redundant round trip and
+    // any confusing "changed in another request" flash on a genuine double-click.
+    let clockOutSubmitting = false;
+    function submitClockOutForm()
+    {
+        if (clockOutSubmitting) return;
+        clockOutSubmitting = true;
+        const form = document.getElementById('clockOutForm');
+        form.querySelectorAll('button').forEach(btn => btn.disabled = true);
+        form.submit();
+    }
+
     function handleClockOut()
     {
         // Clocking out on a later calendar day than the shift started means this
@@ -2541,7 +2572,7 @@ document.addEventListener('DOMContentLoaded', function () {
         // "today", so it would otherwise misreport this as clocking out early.
         if (attendance && attendance.time_in)
         {
-            const shiftDate = attendance.time_in.slice(0, 10);
+            const shiftDate = (attendance.scheduled_end_datetime || attendance.time_in).slice(0, 10);
 
             const localNow = new Date();
             const todayDate =
@@ -2549,7 +2580,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 String(localNow.getMonth() + 1).padStart(2, '0') + '-' +
                 String(localNow.getDate()).padStart(2, '0');
 
-            if (shiftDate !== todayDate)
+            if (todayDate > shiftDate)
             {
                 document
                     .getElementById(
@@ -2564,11 +2595,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         if (!scheduledEnd)
         {
-            document
-                .getElementById(
-                    'clockOutForm'
-                )
-                .submit();
+            submitClockOutForm();
 
             return;
         }
@@ -2594,10 +2621,11 @@ document.addEventListener('DOMContentLoaded', function () {
         const [h,m,s] =
             scheduledEnd.split(':');
 
-        const scheduled =
-            new Date();
+        const scheduled = attendance.scheduled_end_datetime
+            ? new Date(attendance.scheduled_end_datetime.replace(' ', 'T'))
+            : new Date();
 
-        scheduled.setHours(
+        if (!attendance.scheduled_end_datetime) scheduled.setHours(
             parseInt(h),
             parseInt(m),
             parseInt(s || 0),
@@ -2616,11 +2644,7 @@ document.addEventListener('DOMContentLoaded', function () {
             return;
         }
 
-        document
-            .getElementById(
-                'clockOutForm'
-            )
-            .submit();
+        submitClockOutForm();
     }
 
     function proceedClockOut()
@@ -2652,11 +2676,7 @@ document.addEventListener('DOMContentLoaded', function () {
             'unapproved_ut_reason'
         ).value = reason;
 
-        document
-            .getElementById(
-                'clockOutForm'
-            )
-            .submit();
+        submitClockOutForm();
     }
 
     function closeUndertimeModal()
@@ -2694,11 +2714,7 @@ document.addEventListener('DOMContentLoaded', function () {
             'missed_clockout_reason'
         ).value = reason;
 
-        document
-            .getElementById(
-                'clockOutForm'
-            )
-            .submit();
+        submitClockOutForm();
     }
 
     function closeMissedClockoutModal()

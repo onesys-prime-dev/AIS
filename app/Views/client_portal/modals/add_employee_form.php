@@ -986,7 +986,7 @@ document.getElementById('employeeForm').addEventListener('submit', function(e) {
 
     const s = document.querySelector('input[name="start_time"]').value;
     const en = document.querySelector('input[name="end_time"]').value;
-    if (s && en && s >= en) { e.preventDefault(); showToast('End Time must be later than Start Time.', 'warning'); return; }
+    if (s && en && s === en) { e.preventDefault(); showToast('Start and end must differ. An earlier end means the following day.', 'warning'); return; }
 
     // De Minimis: allocated sub-benefits cannot exceed the total amount given
     const deMinimisTotal = parseFloat(document.getElementById('de_minimis_total')?.value) || 0;

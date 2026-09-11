@@ -23,7 +23,7 @@ class AnnouncementController extends BaseController
             return redirect()->to('/login');
         }
 
-        if (! $user->inGroup('client_payroll_staff')) {
+        if (! \App\Libraries\PortalAccess::can('announcements', $user)) {
             return redirect()->back()->withInput()->with('error', 'Only payroll staff can publish announcements.');
         }
 
@@ -145,8 +145,10 @@ class AnnouncementController extends BaseController
                     }
                 }
 
-                // Save files
-                $uploadPath = FCPATH . 'uploads/announcement_attachments/';
+                // Save files outside the public webroot — attachments are only
+                // reachable through the authenticated download() action below,
+                // which re-checks the announcement's audience/department scope.
+                $uploadPath = WRITEPATH . 'uploads/announcement_attachments/';
                 if (! is_dir($uploadPath)) {
                     mkdir($uploadPath, 0755, true);
                 }
@@ -175,6 +177,41 @@ class AnnouncementController extends BaseController
         }
 
         return redirect()->to(site_url('client_portal/dashboard'))->with('success', 'Announcement published successfully.');
+    }
+
+    /**
+     * Serve an announcement attachment. Requires login (route-level 'auth'
+     * filter) and re-checks the parent announcement's audience/department
+     * scope here — attachments are stored outside the public webroot
+     * specifically so this check can't be bypassed by requesting the file
+     * directly.
+     */
+    public function download(int $attachmentId)
+    {
+        $user = auth()->user();
+        if (! $user) {
+            return redirect()->to('/login');
+        }
+
+        $attachment = $this->announcementService->getAttachmentById($attachmentId);
+        if (! $attachment) {
+            throw \CodeIgniter\Exceptions\PageNotFoundException::forPageNotFound();
+        }
+
+        if (! $this->announcementService->canUserAccessAnnouncement((int) $attachment['announcement_id'], $user)) {
+            throw \CodeIgniter\Exceptions\PageNotFoundException::forPageNotFound();
+        }
+
+        $relativePath = ltrim((string) $attachment['file_path'], '/');
+        $fullPath = WRITEPATH . $relativePath;
+
+        if (! is_file($fullPath)) {
+            throw \CodeIgniter\Exceptions\PageNotFoundException::forPageNotFound();
+        }
+
+        $downloadName = (string) ($attachment['original_name'] ?? basename($fullPath));
+
+        return $this->response->download($fullPath, null)->setFileName($downloadName);
     }
 
     public function viewed()
@@ -223,7 +260,7 @@ class AnnouncementController extends BaseController
             return redirect()->to('/login');
         }
 
-        if (! $user->inGroup('client_payroll_staff')) {
+        if (! \App\Libraries\PortalAccess::can('announcements', $user)) {
             return redirect()->back()->with('error', 'Only payroll staff can delete announcements.');
         }
 

@@ -66,8 +66,8 @@ class EmployeeService
                 throw new \Exception('Start time and end time are required.');
             }
 
-            if ($startTime >= $endTime) {
-                throw new \Exception('End time must be later than start time.');
+            if ($startTime === $endTime) {
+                throw new \Exception('Start and end time must differ. An earlier end time means the following day.');
             }
 
             if ($workingDays === []) {
@@ -420,10 +420,10 @@ class EmployeeService
 
             if (
                 isset($scheduleData['start_time'], $scheduleData['end_time'])
-                && $scheduleData['start_time'] >= $scheduleData['end_time']
+                && $scheduleData['start_time'] === $scheduleData['end_time']
             ) {
                 throw new \InvalidArgumentException(
-                    'End time must be later than start time.'
+                    'Start and end time must differ. An earlier end time means the following day.'
                 );
             }
 
@@ -562,6 +562,11 @@ class EmployeeService
                 'de_minimis_breakdown' => isset($data['de_minimis_breakdown']) && $data['de_minimis_breakdown'] !== '' ? $data['de_minimis_breakdown'] : null,
                 'allowances'         => isset($data['allowances'])         && $data['allowances']         !== '' ? (float) $data['allowances']         : 0,
             ] + $scheduleData;
+
+            // Compensation fields are already scrubbed to their existing values by
+            // PortalAccess::employeeInput() before $data reaches this method (its
+            // only caller, EmployeeController::updateEmployee()) — this is the
+            // single place that guard is enforced, so it isn't repeated here.
 
             if ($existingPosition) {
 

@@ -35,9 +35,13 @@ $routes->group('client_portal', ['filter' => 'auth'], function($routes){
     $routes->post('employees/update/(:num)', 'Client\EmployeeController::updateEmployee/$1');
     $routes->post('employees/import'       ,'Client\EmployeeController::importEmployees');
     $routes->get ('employees/export'        ,'Client\EmployeeController::exportEmployees');
+    $routes->get ('employees/import-history','Client\EmployeeController::importHistory');
 
     // -- Loans --
-    $routes->get ('loans'                           , 'Client\LoanController::loanView');
+    // Note: no standalone 'loans' index route — the Loans tab is rendered
+    // directly via employee_main.php -> employee_loan.php; a route here
+    // previously pointed at LoanController::loanView(), a method that was
+    // never implemented (nothing in the UI links to this URL).
     $routes->post('loans/addLoan'                   , 'Client\LoanController::newLoan');
     $routes->get ('loans/loanEmployees'             , 'Client\LoanController::getLoanEmployees');
     $routes->get ('loans/getLoans'                  , 'Client\LoanController::getLoans');
@@ -82,7 +86,7 @@ $routes->group('client_portal', ['filter' => 'auth'], function($routes){
 $routes->group('', ['filter' => 'auth'], function($routes) {
     $routes->post('client_portal/time-in', 'Client\AttendanceController::timeIn');
     $routes->post('client_portal/time-out/(:num)', 'Client\AttendanceController::timeOut/$1');
-    $routes->get('client_portal/toggle-break/(:num)', 'Client\AttendanceController::toggleBreak/$1');
+    $routes->post('client_portal/toggle-break/(:num)', 'Client\AttendanceController::toggleBreak/$1');
     $routes->get('client_portal/requests/new', 'Client\RequestController::create');
     $routes->post('client_portal/requests/store', 'Client\RequestController::store');
     $routes->get('client_portal/requests', 'Client\RequestController::index');
@@ -90,6 +94,7 @@ $routes->group('', ['filter' => 'auth'], function($routes) {
     $routes->post('client_portal/request-notifications/viewed', 'Client\RequestNotificationController::viewed');
     $routes->post('client_portal/request-notifications/dismiss', 'Client\RequestNotificationController::dismiss');
     $routes->post('client_portal/announcements/store', 'Client\AnnouncementController::store');
+    $routes->get('client_portal/announcements/download/(:num)', 'Client\AnnouncementController::download/$1');
     $routes->post('client_portal/announcements/viewed', 'Client\AnnouncementController::viewed');
     $routes->post('client_portal/announcements/dismiss', 'Client\AnnouncementController::dismiss');
     $routes->post('client_portal/announcements/delete/(:num)', 'Client\AnnouncementController::delete/$1');
@@ -195,6 +200,7 @@ $routes->group('client_portal/payroll', ['namespace' => 'App\Controllers\Client'
 
     // ========== Audit Log ==========
     $routes->get('getAuditLog',          'PayrollController::getAuditLog');
+    $routes->get('getImportHistory',     'PayrollController::getImportHistory');
 });
 
 $routes->group('client_portal', ['namespace' => 'App\Controllers\Client', 'filter' => 'auth'], function($routes) {
@@ -214,6 +220,7 @@ $routes->group('client_portal', ['namespace' => 'App\Controllers\Client', 'filte
     $routes->post('payroll/savePayslipRecord', 'PayrollController::savePayslipRecord');
     $routes->get('payroll/getAllPayslips', 'PayrollController::getAllPayslips');
     $routes->post('timesheet/update-attendance/(:num)', 'TimesheetController::updateAttendance/$1');
+    $routes->get('timesheet/review-employees', 'TimesheetController::reviewEmployees');
     $routes->get('timesheet/employee/history', 'TimesheetController::adminEmployeeTimesheetHistory');
     $routes->get('timesheet/employee', 'TimesheetController::adminEmployeeTimesheet');
     $routes->get('timesheet/employee/export', 'TimesheetController::adminExportEmployeeTimesheet');

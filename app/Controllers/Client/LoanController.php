@@ -12,6 +12,11 @@ use App\Models\Client\LoanSettingModel;
 
 class LoanController extends BaseController
 {
+    public function loanView()
+    {
+        return redirect()->to(site_url('client_portal/employees'));
+    }
+
     protected LoanService $loanService;
     protected LoanModel $loanModel;
     protected LoanScheduleModel $scheduleModel;

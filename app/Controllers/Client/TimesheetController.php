@@ -305,12 +305,29 @@ class TimesheetController extends BaseController
     {
         $user = auth()->user();
         if (!$user) return false;
-        return $user->inGroup('client_payroll_staff') || $user->inGroup('superadmin') || $user->inGroup('admin');
+        return \App\Libraries\PortalAccess::reviewsAttendance($user);
+    }
+
+    public function reviewEmployees()
+    {
+        if (!\App\Libraries\PortalAccess::reviewsAttendance()) {
+            return $this->response->setStatusCode(403)->setJSON(['error' => 'Unauthorized']);
+        }
+        $query = db_connect()->table('employees')->select('id, employee_number, first_name, middle_name, last_name');
+        if (!\App\Libraries\PortalAccess::can('attendance')) {
+            $query->whereIn('user_id', \App\Libraries\PortalAccess::teamUserIds() ?: [0]);
+        }
+        $rows = $query->orderBy('last_name')->get()->getResultArray();
+        foreach ($rows as &$row) {
+            $row['label'] = trim($row['last_name'] . ', ' . $row['first_name'] . ' ' . ($row['middle_name'] ?? ''));
+        }
+        unset($row);
+        return $this->response->setJSON($rows);
     }
 
     public function adminEmployeeTimesheetHistory()
     {
-        if (!$this->isPayrollAdmin()) {
+        if (!\App\Libraries\PortalAccess::canReviewEmployee((int) $this->request->getGet('employee_id'))) {
             return $this->response->setStatusCode(403)->setJSON(['error' => 'Unauthorized']);
         }
 
@@ -339,7 +356,7 @@ class TimesheetController extends BaseController
 
     public function adminEmployeeTimesheet()
     {
-        if (!$this->isPayrollAdmin()) {
+        if (!\App\Libraries\PortalAccess::canReviewEmployee((int) $this->request->getGet('employee_id'))) {
             return $this->response->setStatusCode(403)->setJSON(['error' => 'Unauthorized']);
         }
 
@@ -368,7 +385,7 @@ class TimesheetController extends BaseController
 
     public function adminExportEmployeeTimesheet()
     {
-        if (!$this->isPayrollAdmin()) {
+        if (!\App\Libraries\PortalAccess::canReviewEmployee((int) $this->request->getGet('employee_id'))) {
             return $this->response->setStatusCode(403)->setBody('Unauthorized');
         }
 

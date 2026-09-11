@@ -609,10 +609,12 @@ $_defaultYearMonth = "{$_year}-{$_month}";
 }
 .import-modal-content {
     background-color: #fefefe;
-    margin: 10% auto;
+    margin: 10vh auto;
     padding: 20px;
     border: 1px solid #888;
     width: 500px;
+    max-width: 94vw;
+    box-sizing: border-box;
     border-radius: 10px;
 }
 
@@ -1130,6 +1132,7 @@ $_defaultYearMonth = "{$_year}-{$_month}";
             <div class="button-container">
                 <button type="button" class="next-btn" id="exportTimesheetBtn" style="background:#28a745;">Export Timesheet</button>
                 <button type="button" class="next-btn" id="importTimesheetBtn" style="background:#17a2b8;">Import Timesheet</button>
+                <button type="button" class="next-btn" id="importHistoryBtn" style="background:#6c757d;" onclick="openImportHistory()">Import History</button>
                 <button type="button" class="next-btn" onclick="syncToRegister()">Next → Register</button>
             </div>
             </div><!-- /#individual-mode -->
@@ -1421,10 +1424,10 @@ $_defaultYearMonth = "{$_year}-{$_month}";
 <div id="importTimesheetModal" class="import-modal">
     <div class="import-modal-content">
         <span style="float:right; cursor:pointer; font-size:24px;" onclick="closeImportModal()">&times;</span>
-        <h3>Import Timesheet (CSV)</h3>
+        <h3>Import Timesheet (CSV / XLSX)</h3>
         <form id="importTimesheetForm" enctype="multipart/form-data">
-            <input type="file" id="timesheetImportFile" name="timesheet_file" accept=".csv" required>
-            <p class="text-xs text-gray-500 mt-2">Expected columns: employee_number, date, time_in, time_out, break_duration</p>
+            <input type="file" id="timesheetImportFile" name="timesheet_file" accept=".csv,.xlsx" required>
+            <p class="text-xs text-gray-500 mt-2">Required: employee_number, time_in, time_out. Include date for time-only entries. Optional: break_duration. Maximum 5 MB and 5,000 rows; XLSX uses the first worksheet. Hours are recalculated.</p>
 
             <div id="importColumnMapping" style="display:none; margin-top:14px;">
                 <p style="font-size:13px; color:#555; margin-bottom:8px;">
@@ -1445,6 +1448,16 @@ $_defaultYearMonth = "{$_year}-{$_month}";
                 <button type="submit" id="importTimesheetSubmitBtn" style="background:#007bff; color:white; padding:6px 12px; border:none; border-radius:5px;">Upload</button>
             </div>
         </form>
+    </div>
+</div>
+
+<div id="importHistoryModal" class="import-modal">
+    <div class="import-modal-content" style="width:720px;">
+        <span style="float:right; cursor:pointer; font-size:24px;" onclick="document.getElementById('importHistoryModal').style.display='none'">&times;</span>
+        <h3>Timesheet Import History</h3>
+        <div id="importHistoryList" style="max-height:60vh; overflow:auto; margin-top:10px;">
+            <p style="color:#888; font-size:13px;">Loading…</p>
+        </div>
     </div>
 </div>
 
@@ -2456,11 +2469,16 @@ async function fillEmployeeData(employeeId, silent = false) {
     if (absentAmount > semiMonthlyPay) absentAmount = semiMonthlyPay;
     document.getElementById('absentPhp').value = absentAmount.toFixed(2);
     
-    const tardyHours  = summary.tardy_minutes / 60;
+    // undertime_hours already covers late arrival AND early departure together
+    // (it's the shortfall against the whole scheduled window, not just the start),
+    // so this replaces the old tardy-only figure rather than adding to it —
+    // summing the two would double-count the late-arrival portion. Falls back to
+    // tardy-only if an older cached summary response doesn't carry the field yet.
+    const undertimeHours = summary.undertime_hours ?? (summary.tardy_minutes / 60);
     const hourlyRate  = parseFloat(document.getElementById('hourlyRate').value) || 0;
     const otHourlyRate = parseFloat(document.getElementById('otHourlyRate').value) || hourlyRate;
-    const undertimeAmount = tardyHours * hourlyRate;
-    document.getElementById('utHours').value = tardyHours.toFixed(2);
+    const undertimeAmount = undertimeHours * hourlyRate;
+    document.getElementById('utHours').value = undertimeHours.toFixed(2);
     document.getElementById('utPhp').value   = undertimeAmount.toFixed(2);
     
     const s_rates      = window._payrollSettings || {};
@@ -4818,196 +4836,116 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('importTimesheetModal').style.display = 'block';
     });
     
-    // Timesheet import — two stages. Stage 1 asks the server to read just
-    // the header row and guess a mapping; if the file's headers already
-    // match ours exactly it imports immediately (unchanged one-click flow).
-    // Otherwise stage 2 shows the guessed mapping for the uploader to
-    // confirm or correct before anything actually gets imported.
+    // Every file is previewed before a separate confirmation saves attendance.
     (function() {
-        const form = document.getElementById('importTimesheetForm');
-        const fileInput = document.getElementById('timesheetImportFile');
-        const mappingSection = document.getElementById('importColumnMapping');
-        const mappingFieldsEl = document.getElementById('importColumnMappingFields');
-        const employeeSection = document.getElementById('importEmployeeResolution');
-        const employeeFieldsEl = document.getElementById('importEmployeeResolutionFields');
-        const submitBtn = document.getElementById('importTimesheetSubmitBtn');
-        const backBtn = document.getElementById('importMappingBackBtn');
-
-        let stage = 'select'; // 'select' | 'confirm'
-        let previewFields = [];
-
-        function resetToSelectStage() {
-            stage = 'select';
-            mappingSection.style.display = 'none';
-            mappingFieldsEl.innerHTML = '';
-            employeeSection.style.display = 'none';
-            employeeFieldsEl.innerHTML = '';
-            backBtn.style.display = 'none';
-            submitBtn.textContent = 'Upload';
-            submitBtn.disabled = false;
-        }
-        backBtn?.addEventListener('click', resetToSelectStage);
-        fileInput?.addEventListener('change', resetToSelectStage);
-
-        function buildMappingUI(headers, fields, guess) {
-            mappingFieldsEl.innerHTML = fields.map(f => {
-                const opts = ['<option value="">&mdash; not in this file &mdash;</option>']
-                    .concat(headers.map(h => {
-                        const sel = (guess[f.key] === h) ? 'selected' : '';
-                        return `<option value="${escapeHtml(h)}" ${sel}>${escapeHtml(h)}</option>`;
-                    }));
-                return `
-                    <div style="display:flex; align-items:center; gap:8px;">
-                        <label style="width:150px; font-size:13px;">${escapeHtml(f.label)}${f.required ? ' *' : ''}</label>
-                        <select data-field="${f.key}" ${f.required ? 'required' : ''} style="flex:1; padding:4px; border:1px solid #ccc; border-radius:4px;">
-                            ${opts.join('')}
-                        </select>
-                    </div>
-                `;
-            }).join('');
-        }
-
-        // One row per distinct unrecognized employee_number value found in
-        // the file (not per CSV row — the same typo'd number can appear on
-        // many attendance rows), with a dropdown of every real employee and
-        // the closest fuzzy match pre-selected when there is one.
-        function buildEmployeeResolutionUI(unmatched, employees) {
-            employeeFieldsEl.innerHTML = unmatched.map(u => {
-                const rowLabel = u.count === 1 ? '1 row' : `${u.count} rows`;
-                const options = ['<option value="">&mdash; skip these rows &mdash;</option>']
-                    .concat(employees.map(e => {
-                        const sel = (u.suggested_employee_id && e.id === u.suggested_employee_id) ? 'selected' : '';
-                        return `<option value="${e.id}" ${sel}>${escapeHtml(e.label)}</option>`;
-                    }));
-                return `
-                    <div style="display:flex; align-items:center; gap:8px;">
-                        <label style="width:150px; font-size:13px;" title="As it appears in the file">"${escapeHtml(u.value)}" <span style="color:#888;">(${rowLabel})</span></label>
-                        <select data-employee-value="${escapeHtml(u.value)}" style="flex:1; padding:4px; border:1px solid #ccc; border-radius:4px;">
-                            ${options.join('')}
-                        </select>
-                    </div>
-                `;
-            }).join('');
-        }
-
-        async function doImport(columnMap, employeeMap) {
-            const formData = new FormData(form);
-            if (columnMap) formData.set('column_map', JSON.stringify(columnMap));
-            if (employeeMap) formData.set('employee_map', JSON.stringify(employeeMap));
-
-            submitBtn.disabled = true;
-            let result;
+        const form=document.getElementById('importTimesheetForm');
+        if(!form)return;
+        const file=document.getElementById('timesheetImportFile');
+        const mapping=document.getElementById('importColumnMapping');
+        const fields=document.getElementById('importColumnMappingFields');
+        const employeeSection=document.getElementById('importEmployeeResolution');
+        const employees=document.getElementById('importEmployeeResolutionFields');
+        const button=document.getElementById('importTimesheetSubmitBtn');
+        const back=document.getElementById('importMappingBackBtn');
+        mapping.querySelector('p').textContent='For each file column, choose its timesheet field or Ignore. Each timesheet field can be used once. Calculated payroll columns are ignored because their values are calculated by AIS.';
+        employeeSection.querySelector('p').textContent='Select the correct employee for each unrecognized number. Unresolved rows prevent importing.';
+        const options=document.createElement('details');
+        options.innerHTML='<summary style="cursor:pointer;font-size:13px;margin:8px 0">Date and break settings</summary><label>Slash dates <select name="date_order"><option value="dmy">Day / month / year</option><option value="mdy">Month / day / year</option></select></label> <label>Break unit <select name="break_unit"><option value="auto">From header (otherwise hours)</option><option value="hours">Hours</option><option value="minutes">Minutes</option></select></label> <label>Import period (optional) <input type="date" name="period_start"> to <input type="date" name="period_end"></label><small style="display:block;color:#666">Rows dated outside this range are flagged and skipped instead of being imported into the wrong period. Leave blank to accept any date.</small>';
+        file.insertAdjacentElement('afterend',options);
+        const notice=document.createElement('p');notice.setAttribute('role','status');notice.style.cssText='padding:10px;background:#f1f5f9;border-radius:6px';
+        options.insertAdjacentElement('afterend',notice);
+        const review=document.createElement('div');review.setAttribute('aria-live','polite');
+        review.style.cssText='margin-top:14px;max-height:320px;overflow:auto';
+        employeeSection.insertAdjacentElement('afterend',review);
+        const modal=form.closest('.import-modal-content');modal.style.maxHeight='90vh';modal.style.overflowY='auto';
+        let token=null;
+        let importFields=[];
+        const escape=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+        function invalidate(){token=null;button.textContent=fields.childNodes.length?'Continue Import':'Upload';}
+        function reset(){invalidate();importFields=[];button.textContent='Upload';notice.textContent='Matching files import automatically after validation. If needed, we will ask you to match columns or choose an employee.';fields.replaceChildren();employees.replaceChildren();review.replaceChildren();mapping.style.display='none';employeeSection.style.display='none';back.style.display='none';options.open=false;}
+        reset();file.addEventListener('change',reset);back.addEventListener('click',reset);
+        form.addEventListener('change',()=>{invalidate();if(review.childNodes.length)review.textContent='Settings changed. Preview again to review the updated rows.';});
+        form.addEventListener('submit',async event=>{
+            event.preventDefault();
+            const payload=new FormData(form);const columnMap={};const employeeMap={};
+            if(importFields.length)importFields.forEach(field=>columnMap[field.key]='');
+            const assigned=new Set();let repeated=false;
+            fields.querySelectorAll('select[data-source-column]').forEach(select=>{
+                if(!select.value)return;
+                if(assigned.has(select.value))repeated=true;
+                assigned.add(select.value);columnMap[select.value]=select.dataset.sourceColumn;
+            });
+            if(repeated){notice.textContent='Choose each timesheet field only once. Set the other column to Ignore.';return;}
+            employees.querySelectorAll('select').forEach(select=>{if(select.value)employeeMap[select.dataset.employee]=select.value;});
+            payload.set('column_map',JSON.stringify(columnMap));payload.set('employee_map',JSON.stringify(employeeMap));
+            const committing=!!token;if(token)payload.set('preview_token',token);
+            button.disabled=true;notice.textContent=committing?'Saving validated attendance…':'Reading your file…';
             try {
-                const response = await fetch('<?= site_url('client_portal/payroll/importTimesheet') ?>', {
-                    method: 'POST',
-                    body: formData
-                });
-                result = await response.json();
-            } catch (err) {
-                submitBtn.disabled = false;
-                showToast('Import failed: could not reach the server.', 'error');
-                return;
-            }
-            submitBtn.disabled = false;
-
-            if (result.success) {
-                const skippedCount = result.skipped || 0;
-                if (skippedCount > 0) {
-                    console.warn('Timesheet import — skipped rows:', result.errors);
-                    showToast(`${result.imported} row(s) imported, ${skippedCount} skipped — see browser console for details.`, 'warning');
-                } else {
-                    showToast(result.message || `${result.imported} row(s) imported successfully.`, 'success');
+                const response=await fetch(committing?'<?= site_url('client_portal/payroll/importTimesheet') ?>':'<?= site_url('client_portal/payroll/previewTimesheetImport') ?>',{method:'POST',body:payload});
+                const result=await response.json();
+                if(!result.success)throw new Error(result.error||'Unable to process this file.');
+                if(committing){showToast(result.message,'success');closeImportModal();form.reset();reset();return;}
+                importFields=result.fields;
+                fields.innerHTML=(result.source_columns||result.headers.map(header=>({header,letter:'',samples:[]}))).map(column=>`<div style="padding:8px 0;border-bottom:1px solid #ddd"><label style="display:flex;align-items:center;gap:8px"><span style="flex:1;overflow-wrap:anywhere"><strong>${escape(column.letter)} ${escape(column.header)}</strong><small style="display:block;color:#666">${column.samples.map(escape).join(' / ')||'No sample values'}</small></span><select style="width:190px;padding:5px;max-width:50%" data-source-column="${escape(column.header)}"><option value="">Ignore this column</option>${result.fields.map(f=>`<option value="${escape(f.key)}" ${result.guess[f.key]===column.header?'selected':''}>${escape(f.label)}</option>`).join('')}</select></label></div>`).join('');
+                const needsMapping=result.fields.some(f=>f.required&&f.key!=='employee_number'&&!result.guess[f.key])||result.rows.some(r=>r.message.includes('Provide a date'));
+                const isClean=result.summary.error===0&&result.summary.pending===0&&result.summary.out_of_period===0;
+                mapping.style.display=needsMapping?'block':'none';
+                employees.innerHTML=result.unmatched_employees.map(u=>`<label style="display:block;margin:8px 0">${escape(u.label||u.value)} (${u.count} row${u.count===1?'':'s'}) <select style="width:100%;padding:6px" data-employee="${escape(u.value)}"><option value="">Select employee</option>${result.employees.map(e=>`<option value="${e.id}" ${String(employeeMap[u.value])===String(e.id)?'selected':''}>${escape(e.label)}</option>`).join('')}</select></label>`).join('');
+                employeeSection.style.display=result.unmatched_employees.length?'block':'none';
+                review.innerHTML=`<p><strong>${result.summary.ready} ready; ${result.summary.duplicate} duplicate; ${result.summary.error} invalid; ${result.summary.pending} still open; ${result.summary.out_of_period} outside the selected period.</strong></p><p>Ready rows import; rows with an error, still open, or outside the selected period are skipped and can be fixed and re-imported separately. Existing attendance is preserved.</p><table style="font-size:12px;width:100%"><thead><tr><th>Row</th><th>Employee</th><th>Shift date</th><th>Time in</th><th>Time out</th><th>Break hours</th><th>Net hours</th><th>Result</th></tr></thead><tbody>${result.rows.map(r=>`<tr>${[r.row,r.employee,r.shift_date,r.time_in,r.time_out,r.break_hours,r.total_hours,r.status+': '+r.message].map(v=>`<td style="padding:5px;border-bottom:1px solid #ddd">${escape(v)}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+                // Auto-commit only a fully clean preview; anything with rows to
+                // review (errors, still-open shifts, out-of-period rows) waits for
+                // an explicit "Continue Import" click so the admin sees them first.
+                token=result.can_import?result.preview_token:null;
+                if(token&&isClean){
+                    notice.textContent='File validated. Importing attendance…';
+                    payload.set('preview_token',token);
+                    const savedResponse=await fetch('<?= site_url('client_portal/payroll/importTimesheet') ?>',{method:'POST',body:payload});
+                    const saved=await savedResponse.json();
+                    if(!saved.success)throw new Error(saved.error||'Import failed. Please try again.');
+                    showToast(saved.message,'success');closeImportModal();form.reset();reset();return;
                 }
-                closeImportModal();
-                form.reset();
-                resetToSelectStage();
-            } else {
-                showToast('Import failed: ' + (result.error || result.message || 'Unknown error'), 'error');
-            }
-        }
-
-        form?.addEventListener('submit', async function(e) {
-            e.preventDefault();
-
-            if (stage === 'select') {
-                const formData = new FormData(form);
-                submitBtn.disabled = true;
-                let result;
-                try {
-                    const response = await fetch('<?= site_url('client_portal/payroll/previewTimesheetImport') ?>', {
-                        method: 'POST',
-                        body: formData
-                    });
-                    result = await response.json();
-                } catch (err) {
-                    submitBtn.disabled = false;
-                    showToast('Could not read the file.', 'error');
-                    return;
-                }
-                submitBtn.disabled = false;
-
-                if (!result.success) {
-                    showToast('Import failed: ' + (result.error || 'Unknown error'), 'error');
-                    return;
-                }
-
-                if (result.exact_match) {
-                    await doImport(null, null);
-                    return;
-                }
-
-                previewFields = result.fields;
-
-                const needsColumnMapping = result.fields.some(f => result.guess[f.key] !== f.key);
-                if (needsColumnMapping) {
-                    buildMappingUI(result.headers, result.fields, result.guess);
-                    mappingSection.style.display = 'block';
-                }
-
-                const unmatched = result.unmatched_employees || [];
-                if (unmatched.length > 0) {
-                    buildEmployeeResolutionUI(unmatched, result.employees || []);
-                    employeeSection.style.display = 'block';
-                }
-
-                backBtn.style.display = 'inline-block';
-                submitBtn.textContent = 'Confirm Import';
-                stage = 'confirm';
-
-                const messages = [];
-                if (needsColumnMapping) messages.push("columns didn't match automatically");
-                if (unmatched.length > 0) messages.push(`${unmatched.length} employee number(s) not recognized`);
-                showToast(`Please confirm before importing — ${messages.join(', ')}.`, 'warning');
-                return;
-            }
-
-            // stage === 'confirm': build whatever mappings were shown and actually import.
-            const columnMap = {};
-            let missingRequired = false;
-            mappingFieldsEl.querySelectorAll('select[data-field]').forEach(sel => {
-                columnMap[sel.dataset.field] = sel.value;
-                const field = previewFields.find(f => f.key === sel.dataset.field);
-                if (field && field.required && !sel.value) missingRequired = true;
-            });
-            if (missingRequired) {
-                showToast('Please map every required column before importing.', 'error');
-                return;
-            }
-
-            const employeeMap = {};
-            employeeFieldsEl.querySelectorAll('select[data-employee-value]').forEach(sel => {
-                if (sel.value) employeeMap[sel.dataset.employeeValue] = sel.value;
-            });
-
-            await doImport(
-                Object.keys(columnMap).length ? columnMap : null,
-                Object.keys(employeeMap).length ? employeeMap : null
-            );
+                notice.textContent=needsMapping?'Match the missing columns, then click Continue Import.':result.unmatched_employees.length?'Select the employee, then click Continue Import.':result.can_import?'Review the rows below, then click Continue Import to save the ready rows.':'Resolve the errors below, then try again.';
+                button.textContent='Continue Import';back.style.display='inline-block';
+            } catch(error){invalidate();notice.textContent=error.message||'Could not reach the server. Preview again before retrying.';showToast(notice.textContent,'error');}
+            finally{button.disabled=false;}
         });
     })();
-    
     window.closeImportModal = function() {
         document.getElementById('importTimesheetModal').style.display = 'none';
+    };
+
+    window.openImportHistory = async function() {
+        const modal = document.getElementById('importHistoryModal');
+        const list = document.getElementById('importHistoryList');
+        modal.style.display = 'block';
+        list.innerHTML = '<p style="color:#888;font-size:13px;">Loading…</p>';
+        try {
+            const res = await fetch('<?= site_url('client_portal/payroll/getImportHistory') ?>');
+            const data = await res.json();
+            if (!data.success) throw new Error(data.error || 'Could not load import history.');
+            if (!data.batches || !data.batches.length) {
+                list.innerHTML = '<p style="color:#888;font-size:13px;">No timesheet imports recorded yet.</p>';
+                return;
+            }
+            const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+            list.innerHTML = `<table style="width:100%;font-size:13px;border-collapse:collapse;">
+                <thead><tr style="text-align:left;border-bottom:1px solid #ddd;">
+                    <th style="padding:6px;">When</th><th style="padding:6px;">File</th><th style="padding:6px;">By</th>
+                    <th style="padding:6px;text-align:right;">Imported</th><th style="padding:6px;text-align:right;">Duplicate</th>
+                    <th style="padding:6px;text-align:right;">Error</th><th style="padding:6px;text-align:right;">Other</th>
+                </tr></thead><tbody>${data.batches.map(b => `<tr style="border-bottom:1px solid #f0f0f0;">
+                    <td style="padding:6px;">${esc(b.created_at)}</td>
+                    <td style="padding:6px;">${esc(b.filename || '(unknown)')}</td>
+                    <td style="padding:6px;">${esc(b.imported_by_name || '—')}</td>
+                    <td style="padding:6px;text-align:right;">${esc(b.ready_count)}</td>
+                    <td style="padding:6px;text-align:right;">${esc(b.duplicate_count)}</td>
+                    <td style="padding:6px;text-align:right;">${esc(b.error_count)}</td>
+                    <td style="padding:6px;text-align:right;">${esc(b.other_count)}</td>
+                </tr>`).join('')}</tbody></table>`;
+        } catch (err) {
+            list.innerHTML = `<p style="color:#c0392b;font-size:13px;">${err.message || 'Could not load import history.'}</p>`;
+        }
     };
     
     document.querySelector('.close-modal')?.addEventListener('click', function() {

@@ -31,8 +31,6 @@ class PayrollTransactionModel extends Model
         'phic_ee',
         'hdmf_ee',
         'withholding_tax',
-        'loan_deductions',
-        'total_loan_deductions',
         'other_deductions',
         'total_deductions',
         'net_pay',

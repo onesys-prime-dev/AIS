@@ -16,7 +16,7 @@ class EmployeeController extends BaseController
     {
         $user = auth()->user();
 
-        if (! $user || ! $user->inGroup('client_payroll_staff')) {
+        if (! $user || ! \App\Libraries\PortalAccess::can('employees', $user)) {
             throw PageNotFoundException::forPageNotFound();
         }
     }
@@ -192,6 +192,10 @@ class EmployeeController extends BaseController
         |--------------------------------------------------------------------------
         */
 
+        $employees = array_map([\App\Libraries\PortalAccess::class, 'hideCompensation'], $employees);
+        if (!\App\Libraries\PortalAccess::can('loans')) {
+            return view('client_portal/employee_main', ['employees' => $employees, 'loans' => [], 'settings' => [], 'currentUserId' => (int) $currentUser->id]);
+        }
         $loanModel = new LoanModel();
 
         $loans = $loanModel
@@ -329,7 +333,7 @@ class EmployeeController extends BaseController
         $service = new EmployeeService();
 
         try {
-            $postData = $this->request->getPost();
+            $postData = \App\Libraries\PortalAccess::employeeInput($this->request->getPost());
             
             // Controller-level validation - fail fast before service processing
             $email = trim((string) ($postData['email'] ?? ''));
@@ -368,7 +372,7 @@ class EmployeeController extends BaseController
 
         $service = new EmployeeService();
         try {
-            $service->updateEmployee($id, $this->request->getPost());
+            $service->updateEmployee($id, \App\Libraries\PortalAccess::employeeInput($this->request->getPost(), (int) $id));
             return redirect()->back()
                 ->with('success', 'Employee updated successfully');
         } catch (\Throwable $e) {
@@ -422,7 +426,53 @@ class EmployeeController extends BaseController
             $employee['emergency_leave'] = $leaveBalanceModel->getTypeEntitlement((int) $employee['id'], 'emergency', $year);
         }
 
-        return $this->response->setJSON($employee);
+        return $this->response->setJSON($employee ? \App\Libraries\PortalAccess::hideCompensation($employee) : null);
+    }
+
+    /**
+     * Maps one CSV row (keyed by the same headers exportEmployees() writes) to the
+     * shape EmployeeService::createEmployee() expects. Each imported row goes
+     * through the same account/position/government-ID/leave creation as the "Add
+     * Employee" modal — this importer used to insert a bare `employees` row with
+     * no linked user account, position, or compensation, which silently produced
+     * employees who couldn't log in, clock in, or be paid.
+     */
+    private function mapImportRow(array $row, string $tempPassword): array
+    {
+        $get = static fn (string $key) => trim((string) ($row[$key] ?? ''));
+        return [
+            'email'              => $get('Email'),
+            'password'           => $tempPassword,
+            'first_name'         => $get('First Name'),
+            'middle_name'        => $get('Middle Name'),
+            'last_name'          => $get('Last Name'),
+            'dob'                => $get('Birthdate') ?: null,
+            'gender'             => $get('Gender') ?: null,
+            'civil_status'       => $get('Civil Status') ?: null,
+            'sss'                => $get('SSS') ?: null,
+            'tin'                => $get('TIN') ?: null,
+            'pagibig'            => $get('Pagibig') ?: null,
+            'philhealth'         => $get('PhilHealth') ?: null,
+            'department'         => $get('Department') ?: null,
+            'position'           => $get('Position') ?: null,
+            'employment_type'    => $get('Employment Type') ?: null,
+            'working_day_type'   => $get('Working Day Type') ?: 'full_weekdays',
+            'working_days'       => array_values(array_filter(array_map('trim', explode(',', $get('Working Days'))))),
+            'start_time'         => $get('Start Time'),
+            'end_time'           => $get('End Time'),
+            'monthly_salary'     => $get('Basic Salary'),
+            'de_minimis_benefit' => $get('De Minimis Benefit'),
+            'allowances'         => $get('Allowances'),
+            'mobile_number'      => $get('Contact No.') ?: null,
+            'address'            => $get('Address') ?: null,
+            'bank'               => $get('Bank') ?: null,
+            'bank_address'       => $get('Bank Address') ?: null,
+            'account_number'     => $get('Account Number') ?: null,
+            'swift_code'         => $get('Swift Code') ?: null,
+            'vacation_leave'     => $get('Vacation Leave'),
+            'sick_leave'         => $get('Sick Leave'),
+            'emergency_leave'    => $get('Emergency Leave'),
+        ];
     }
 
     public function importEmployees()
@@ -430,55 +480,83 @@ class EmployeeController extends BaseController
         $this->ensurePayrollStaff();
 
         try {
-
             $file = $this->request->getFile('file');
 
             if (! $file || ! $file->isValid()) {
-
-                return $this->response->setJSON([
-                    'success' => false,
-                    'message' => 'Invalid file.'
-                ]);
+                return $this->response->setJSON(['success' => false, 'message' => 'Invalid file.']);
             }
 
             $handle = fopen($file->getTempName(), 'r');
 
             if (! $handle) {
-
-                return $this->response->setJSON([
-                    'success' => false,
-                    'message' => 'Unable to read file.'
-                ]);
+                return $this->response->setJSON(['success' => false, 'message' => 'Unable to read file.']);
             }
 
             $header = fgetcsv($handle);
+            if (! $header) {
+                fclose($handle);
+                return $this->response->setJSON(['success' => false, 'message' => 'The file has no header row.']);
+            }
+            if (! in_array('Email', $header, true)) {
+                fclose($handle);
+                return $this->response->setJSON(['success' => false, 'message' => 'The file needs an "Email" column — use the exported template as a starting point.']);
+            }
 
-            $employeeModel = new EmployeeModel();
-            $imported = 0;
+            $service = new EmployeeService();
+            $imported = [];
+            $errors = [];
+            $rowNumber = 1;
 
             while (($row = fgetcsv($handle)) !== false) {
-
-                if (count($row) !== count($header)) continue;
+                $rowNumber++;
+                if (count($row) !== count($header)) {
+                    $errors[] = "Row {$rowNumber}: column count doesn't match the header row.";
+                    continue;
+                }
                 $data = array_combine($header, $row);
+                if (trim((string) ($data['Email'] ?? '')) === '') continue; // blank trailing row
 
-                // Use header-based mapping so the file round-trips with exportEmployees.
-                $employeeModel->insert([
-                    'employee_number' => $data['Employee Number'] ?? ($data['employee_number'] ?? ''),
-                    'first_name'      => $data['First Name']      ?? ($data['first_name']      ?? ''),
-                    'middle_name'     => $data['Middle Name']     ?? ($data['middle_name']     ?? ''),
-                    'last_name'       => $data['Last Name']       ?? ($data['last_name']       ?? ''),
-                    'birthdate'       => !empty($data['Birthdate'] ?? $data['birthdate'] ?? '')
-                                            ? ($data['Birthdate'] ?? $data['birthdate'])
-                                            : null,
-                ]);
-                $imported++;
+                // A random temporary password per row — the admin communicates it
+                // (or resets it) to the employee, who should change it on first login.
+                $tempPassword = bin2hex(random_bytes(6));
+
+                try {
+                    $mapped = \App\Libraries\PortalAccess::employeeInput($this->mapImportRow($data, $tempPassword));
+                    $service->createEmployee($mapped);
+                    $imported[] = ['row' => $rowNumber, 'email' => $mapped['email'], 'temp_password' => $tempPassword];
+                } catch (\Throwable $e) {
+                    $errors[] = "Row {$rowNumber} ({$data['Email']}): " . $this->safeErrorMessage($e, 'Could not be imported.');
+                }
             }
 
             fclose($handle);
 
+            // Previously this importer left no trace anywhere — no activity
+            // log entry, no filename, nothing — unlike every other write path
+            // in the app. Recorded after the loop, non-critical: a history
+            // write failing here must not turn an otherwise-successful import
+            // into a reported failure.
+            try {
+                service('activityLogger')->log(
+                    'created', 'employees',
+                    count($imported) . ' employee(s) imported from CSV; ' . count($errors) . ' row(s) skipped',
+                    null, null,
+                    ['filename' => $file->getClientName(), 'imported_count' => count($imported), 'error_count' => count($errors)]
+                );
+                (new \App\Models\Client\ImportBatchModel())->record(
+                    'employees', $file->getClientName(), hash_file('sha256', $file->getTempName()),
+                    (int) (auth()->id() ?? 0), $rowNumber - 1, count($imported), 0, count($errors), 0,
+                    ['errors' => array_slice($errors, 0, 20)]
+                );
+            } catch (\Throwable $e) {
+                log_message('error', 'Employee import history record failed (import itself succeeded): {message}', ['message' => $e->getMessage()]);
+            }
+
             return $this->response->setJSON([
-                'success' => true,
-                'message' => "{$imported} employee(s) imported successfully.",
+                'success'  => true,
+                'message'  => count($imported) . ' employee(s) imported; ' . count($errors) . ' skipped.',
+                'imported' => $imported,
+                'errors'   => $errors,
             ]);
 
         } catch (\Throwable $e) {
@@ -490,6 +568,14 @@ class EmployeeController extends BaseController
                 'message' => $this->safeErrorMessage($e, 'Unable to import employees from this file.')
             ]);
         }
+    }
+
+    /** Recent employee CSV import batches — filename, when, who, and row outcomes. */
+    public function importHistory()
+    {
+        $this->ensurePayrollStaff();
+        $rows = (new \App\Models\Client\ImportBatchModel())->recent('employees', 50);
+        return $this->response->setJSON(['success' => true, 'batches' => $rows]);
     }
 
     public function exportEmployees()
@@ -613,6 +699,7 @@ class EmployeeController extends BaseController
         */
 
         foreach ($employees as $employee) {
+            $employee = \App\Libraries\PortalAccess::hideCompensation($employee);
 
             /*
             |--------------------------------------------------------------------------
@@ -714,15 +801,15 @@ class EmployeeController extends BaseController
                 $employee['bank_address'],
                 $employee['account_number'],
                 $employee['swift_code'],
-                $employee['monthly_salary'],
-                $employee['de_minimis_benefit'],
+                $employee['monthly_salary'] ?? '',
+                $employee['de_minimis_benefit'] ?? '',
                 $allocations['rice_subsidy'] ?? '',
                 $allocations['uniform_allowance'] ?? '',
                 $allocations['laundry_allowance'] ?? '',
                 $allocations['medical_allowance'] ?? '',
                 $otherCompTotal,
                 $otherCompSummary,
-                $employee['allowances'],
+                $employee['allowances'] ?? '',
                 $leaveBalanceModel->getTypeEntitlement((int) $employee['id'], 'vacation',  $currentYear),
                 $leaveBalanceModel->getTypeEntitlement((int) $employee['id'], 'sick',      $currentYear),
                 $leaveBalanceModel->getTypeEntitlement((int) $employee['id'], 'emergency', $currentYear),

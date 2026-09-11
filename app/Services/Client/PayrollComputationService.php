@@ -512,15 +512,17 @@ class PayrollComputationService
             ->get()
             ->getResultArray();
 
+        // Brackets are ordered by min_amount DESC, so the first bracket whose
+        // scaled floor the income clears is the correct one — no upper-bound
+        // check needed. (An earlier version also required annualTaxableIncome
+        // <= annualMax, but scaling each monthly tier's own 1-peso gap to the
+        // next tier by ×12 turns it into a 12-peso gap, e.g. 399,984 to
+        // 399,996 — any income landing in one of those gaps matched no
+        // bracket at all and silently returned ₱0 tax.)
         foreach ($brackets as $bracket) {
             $annualMin = (float)$bracket['min_amount'] * 12;
-            $annualMax = $bracket['max_amount'] !== null
-                ? (float)$bracket['max_amount'] * 12
-                : null;
 
-            if ($annualTaxableIncome >= $annualMin &&
-                ($annualMax === null || $annualTaxableIncome <= $annualMax)
-            ) {
+            if ($annualTaxableIncome >= $annualMin) {
                 $annualFixed = (float)$bracket['fixed_tax'] * 12;
                 $excess      = $annualTaxableIncome - $annualMin;
                 return max(0, round($annualFixed + ($excess * (float)$bracket['percent_over']), 2));

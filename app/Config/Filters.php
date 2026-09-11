@@ -40,7 +40,8 @@ class Filters extends BaseFilters
         'performance'   => PerformanceMetrics::class,
         'session'       => SessionAuth::class,
         'tokens'        => TokenAuth::class,
-        'auth'          => ChainAuth::class,
+        'auth'          => [ChainAuth::class, \App\Filters\PortalAccessFilter::class],
+        'portalaccess' => \App\Filters\PortalAccessFilter::class,
         'faceverified'  => FaceVerified::class,
     ];
 
@@ -106,6 +107,7 @@ class Filters extends BaseFilters
     public array $methods = [];
 
     public array $filters = [
+        'portalaccess' => ['before' => ['register']],
         'faceverified' => [
             'before' => [
                 'client_portal',

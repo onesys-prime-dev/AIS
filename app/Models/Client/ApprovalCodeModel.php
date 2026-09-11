@@ -44,4 +44,26 @@ class ApprovalCodeModel extends Model
             'used_at' => date('Y-m-d H:i:s'),
         ]);
     }
+
+    /**
+     * Atomically claims a code — unlike markUsed(), this only succeeds if the
+     * code is still unused at the moment of the UPDATE itself (a single
+     * WHERE-gated statement, not a separate check-then-write), so two
+     * near-simultaneous redemptions of the same single-use code can't both
+     * succeed. findActiveCode() alone can't prevent that: both requests can
+     * pass its SELECT before either commits a write. Returns false if the
+     * code was already claimed by the time this ran.
+     */
+    public function claim(int $codeId, int $usedBy): bool
+    {
+        $affected = $this->where('id', $codeId)
+            ->where('is_used', 0)
+            ->update(null, [
+                'is_used' => 1,
+                'used_by' => $usedBy,
+                'used_at' => date('Y-m-d H:i:s'),
+            ]);
+
+        return $affected && $this->db->affectedRows() > 0;
+    }
 }
