@@ -1765,6 +1765,8 @@ document.addEventListener('DOMContentLoaded', function () {
     <div class="modal-overlay" id="announcementModal">
         <div class="modal announcement-modal">
             <form id="announcementForm" action="<?= site_url('client_portal/announcements/store') ?>" method="post" enctype="multipart/form-data" class="announcement-form" data-store-url="<?= site_url('client_portal/announcements/store') ?>">
+                <?= csrf_field() ?>
+
                 <div class="modal-header">
                     <span id="announcementModalTitle">Create Announcement</span>
                     <button type="button" onclick="closeAnnouncementForm()">✕</button>
