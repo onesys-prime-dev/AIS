@@ -6,11 +6,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= esc($title ?? 'Dashboard') ?> | Your Company</title>
     
-    <link href="<?= base_url('css/main.css') ?>" rel="stylesheet">
+    <?php
+        $mainCssVer = is_file(FCPATH . 'css/main.css') ? filemtime(FCPATH . 'css/main.css') : time();
+        $toastCssVer = is_file(FCPATH . 'css/toast.css') ? filemtime(FCPATH . 'css/toast.css') : time();
+    ?>
+    <link href="<?= base_url('css/main.css') ?>?v=<?= $mainCssVer ?>" rel="stylesheet">
     <link href="<?= base_url('css/scrollBar.css') ?>" rel="stylesheet">
     <link href="<?= base_url('css/tailwind.css') ?>" rel="stylesheet">
     <link href="<?= base_url('css/style.css') ?>" rel="stylesheet">
-    <link href="<?= base_url('css/toast.css') ?>" rel="stylesheet">
+    <link href="<?= base_url('css/toast.css') ?>?v=<?= $toastCssVer ?>" rel="stylesheet">
 
     <?= $this->renderSection('styles') ?>
 </head>
@@ -63,6 +67,12 @@ window.requestNotificationDismissedUrl = <?= json_encode(site_url('client_portal
 window.requestsListUrl = <?= json_encode(site_url('client_portal/requests')) ?>;
 window.notificationCsrfTokenName = <?= json_encode(csrf_token()) ?>;
 window.notificationCsrfTokenHash = <?= json_encode(csrf_hash()) ?>;
+window.dashboardUrl = <?= json_encode(site_url('client_portal/dashboard')) ?>;
+window.currentUserId = <?= json_encode(auth()->loggedIn() ? (int) auth()->user()->id : 0) ?>;
+window.canEditAnnouncements = <?= json_encode(auth()->loggedIn() && \App\Libraries\PortalAccess::can('announcements', auth()->user())) ?>;
+window.announcementEditFetchUrlBase = <?= json_encode(site_url('client_portal/announcements/edit')) ?>;
+window.announcementUpdateUrlBase = <?= json_encode(site_url('client_portal/announcements/update')) ?>;
+window.announcementAttachmentDeleteUrlBase = <?= json_encode(site_url('client_portal/announcements/attachments/delete')) ?>;
 
 function getContrastColor(hex) {
     hex = hex.replace('#', '');
@@ -184,8 +194,17 @@ document.addEventListener("DOMContentLoaded", function () {
 <?= view('client_portal/modals/view_notification') ?>
 <?= view('client_portal/modals/view_request_notification') ?>
 
-<script src="<?= base_url('js/components/toast.js') ?>"></script>
-<script src="<?= base_url('js/components/notification-modals.js') ?>"></script>
+<?php
+    $toastJsPath = FCPATH . 'js/components/toast.js';
+    $notifJsPath = FCPATH . 'js/components/notification-modals.js';
+    $toastJsVer = is_file($toastJsPath) ? filemtime($toastJsPath) : time();
+    $notifJsVer = is_file($notifJsPath) ? filemtime($notifJsPath) : time();
+?>
+<script src="<?= base_url('js/components/toast.js') ?>?v=<?= $toastJsVer ?>"></script>
+<script src="<?= base_url('js/components/notification-modals.js') ?>?v=<?= $notifJsVer ?>"></script>
+<?php if (auth()->loggedIn()): ?>
+<script src="<?= base_url('js/components/notifications-poll.js') ?>"></script>
+<?php endif; ?>
 <script>
 <?php if (session()->getFlashdata('success')): ?>
 window.showToast(<?= json_encode(session()->getFlashdata('success')) ?>, 'success');

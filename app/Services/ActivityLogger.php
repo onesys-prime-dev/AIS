@@ -699,6 +699,25 @@ class ActivityLogger
         );
     }
 
+    public function announcementUpdated(int $announcementId, array $oldData, array $newData): bool
+    {
+        $label = ucfirst($newData['category'] ?? 'announcement');
+
+        return $this->updated(
+            'announcements',
+            "{$label} announcement updated",
+            $announcementId,
+            $this->pick($oldData, [
+                'title', 'category', 'audience', 'department',
+                'priority', 'publish_at', 'expires_at', 'require_acknowledgement',
+            ]),
+            $this->pick($newData, [
+                'title', 'category', 'audience', 'department',
+                'priority', 'publish_at', 'expires_at', 'require_acknowledgement',
+            ])
+        );
+    }
+
     // =========================================================================
     // Private helpers
     // =========================================================================
