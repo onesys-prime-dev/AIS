@@ -625,7 +625,9 @@ $currentAttendance = $currentAttendance ?? null;
         display:flex;
         flex-direction:column;
         min-height:0;
+        max-height:85vh;
         flex:1;
+        overflow:hidden;
     }
 
     #viewNotificationsModal .modal {
