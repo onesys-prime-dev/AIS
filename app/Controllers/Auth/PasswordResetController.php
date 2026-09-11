@@ -64,7 +64,7 @@ class PasswordResetController extends Controller
 
         if (! $throttler->check($emailKey, 3, 900)) {
             return redirect()
-                ->to('/forgot-passwor')
+                ->to('/forgot-password')
                 ->with('message', $genericMessage);
         }
 
