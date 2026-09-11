@@ -327,6 +327,13 @@ window.openNotificationModal = function (el) {
 
     modal.dataset.notificationId = String(el.dataset.id || '');
     modal.dataset.notificationSource = String(el.dataset.source || 'announcement');
+    modal.dataset.notificationCreatedBy = String(el.dataset.createdBy || '0');
+
+    const editBtn = document.getElementById('notificationEditBtn');
+    if (editBtn) {
+        const canEdit = modal.dataset.notificationSource === 'announcement' && !!window.canEditAnnouncements;
+        editBtn.style.display = canEdit ? '' : 'none';
+    }
 
     const authorName = el.dataset.authorName || 'System';
     const authorPhoto = el.dataset.authorPhoto || '';
@@ -444,6 +451,28 @@ window.openNotificationModal = function (el) {
     modal.style.display = 'flex';
 };
 
+window.updateHeaderNotifBadge = function () {
+    const badge = document.querySelector('.header-notif-badge');
+    const unread = document.querySelectorAll('.header-notif-item:not(.header-notif-viewed)').length;
+
+    if (unread <= 0) {
+        if (badge) badge.remove();
+        return;
+    }
+
+    if (badge) {
+        badge.textContent = String(unread);
+        return;
+    }
+
+    const btn = document.querySelector('.header-notif-btn');
+    if (!btn) return;
+    const newBadge = document.createElement('span');
+    newBadge.className = 'header-notif-badge';
+    newBadge.textContent = String(unread);
+    btn.appendChild(newBadge);
+};
+
 window.syncNotificationViewedState = function (notificationId, isViewed, source = 'announcement') {
     if (!notificationId) return;
 
@@ -451,6 +480,8 @@ window.syncNotificationViewedState = function (notificationId, isViewed, source 
         item.classList.toggle('header-notif-viewed', isViewed);
         item.classList.toggle('notif-viewed', isViewed);
     });
+
+    window.updateHeaderNotifBadge();
 };
 
 window.refreshNotificationGroupState = function () {
@@ -496,15 +527,8 @@ window.refreshHeaderNotificationState = function () {
 
     const headerItems = notifList.querySelectorAll('.header-notif-item');
     const remaining = headerItems.length;
-    const badge = document.querySelector('.header-notif-badge');
 
-    if (badge) {
-        if (remaining <= 0) {
-            badge.remove();
-        } else {
-            badge.textContent = String(remaining);
-        }
-    }
+    window.updateHeaderNotifBadge();
 
     const sectionLabels = notifList.querySelectorAll('.header-notif-section-label');
     const existingEmpty = notifList.querySelector('.header-notif-empty');
@@ -539,17 +563,11 @@ window.refreshHeaderNotificationState = function () {
     }
 };
 
-window.markNotificationAsViewed = async function (notificationId) {
-    let modal = document.getElementById('viewNotificationsModal');
-    if (!(modal?.style?.display === 'flex' || modal?.dataset?.notificationId)) {
-        modal = document.getElementById('viewRequestNotificationModal') || modal;
-    }
-
-    const source = modal?.dataset?.notificationSource || 'announcement';
+async function sendNotificationViewed(notificationId, source) {
     const viewedUrl = source === 'request' ? window.requestNotificationViewedUrl : window.notificationViewedUrl;
 
     if (!notificationId || !viewedUrl || !window.notificationCsrfTokenName || !window.notificationCsrfTokenHash) {
-        return;
+        return false;
     }
 
     const payload = new URLSearchParams();
@@ -572,13 +590,48 @@ window.markNotificationAsViewed = async function (notificationId) {
             window.notificationCsrfTokenHash = result.csrfHash;
         }
 
-        if (!response.ok || !result || result.success !== true) {
-            window.syncNotificationViewedState(notificationId, false, source);
-        }
+        return response.ok && result && result.success === true;
     } catch (error) {
-        window.syncNotificationViewedState(notificationId, false, source);
         console.error('Unable to mark notification as viewed.', error);
+        return false;
     }
+}
+
+window.markNotificationAsViewed = async function (notificationId) {
+    let modal = document.getElementById('viewNotificationsModal');
+    if (!(modal?.style?.display === 'flex' || modal?.dataset?.notificationId)) {
+        modal = document.getElementById('viewRequestNotificationModal') || modal;
+    }
+
+    const source = modal?.dataset?.notificationSource || 'announcement';
+
+    const ok = await sendNotificationViewed(notificationId, source);
+    if (!ok) {
+        window.syncNotificationViewedState(notificationId, false, source);
+    }
+};
+
+window.markAllNotificationsAsRead = async function () {
+    const unreadItems = Array.from(document.querySelectorAll('.header-notif-item:not(.header-notif-viewed)'));
+
+    if (unreadItems.length === 0) {
+        return;
+    }
+
+    const results = await Promise.all(unreadItems.map(function (item) {
+        const notificationId = Number(item.dataset.id || 0);
+        const source = String(item.dataset.source || 'announcement');
+
+        return sendNotificationViewed(notificationId, source).then(function (ok) {
+            return { item: item, notificationId: notificationId, source: source, ok: ok };
+        });
+    }));
+
+    results.forEach(function (result) {
+        if (result.ok) {
+            window.syncNotificationViewedState(result.notificationId, true, result.source);
+        }
+    });
 };
 
 window.deleteCurrentNotificationForMe = async function () {
@@ -645,6 +698,26 @@ window.deleteCurrentNotificationForMe = async function () {
         console.error('Unable to delete notification.', error);
         showToast('Unable to delete notification.', 'error');
     }
+};
+
+window.editCurrentNotificationHandler = function () {
+    const modal = document.getElementById('viewNotificationsModal');
+    const notificationId = Number(modal?.dataset?.notificationId || 0);
+    const source = modal?.dataset?.notificationSource || 'announcement';
+
+    if (!notificationId || source !== 'announcement') {
+        showToast('This notification cannot be edited.', 'info');
+        return;
+    }
+
+    if (typeof window.openAnnouncementEditModal === 'function') {
+        window.closeNotificationModal();
+        window.openAnnouncementEditModal(notificationId);
+        return;
+    }
+
+    const dashboardUrl = window.dashboardUrl || '/client_portal/dashboard';
+    window.location.href = `${dashboardUrl}?edit_announcement=${notificationId}`;
 };
 
 window.closeNotificationModal = function () {

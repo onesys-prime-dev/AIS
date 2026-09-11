@@ -48,6 +48,12 @@
                 <img src="<?= base_url('icons/activity.png'); ?>" class="w-7 h-7" alt="Review Employee Timesheets">
                 Review Employee Timesheets
             </button>
+
+            <button type="button" onclick="openAttendanceIssues()"
+                class="bg-[#FFFFFF] hover:bg-[#f3f4f6] px-3 py-3 rounded-lg shadow hover:shadow-[0_6px_12px_rgba(0,0,0,0.2)] flex items-center gap-2 transition hover:translate-y-[-2px] text-gray-700 text-sm font-medium">
+                <img src="<?= base_url('icons/alarms.png'); ?>" class="w-7 h-7" alt="Attendance Issues">
+                Attendance Issues
+            </button>
             <?php endif; ?>
 
             <button type="button"
@@ -307,6 +313,20 @@
             'id'       => 'viewEmployeeTimesheetModal',
             'title'    => 'Review Employee Timesheets',
             'maxWidth' => '1320px',
+            'content'  => $content,
+        ]);
+    ?>
+    <?php endif; ?>
+
+    <!-- Attendance Issues Modal (client_payroll_staff / admin only) -->
+    <?php if ($isPayrollAdmin): ?>
+    <?php
+        $content = '<p class="text-sm text-gray-500 -mt-2 mb-3">Sessions clocked in but never closed, and records with an impossible total (negative, or over 24h). Fixing one recomputes it the same way live clock-out does.</p>'
+                 . '<div id="attendanceIssuesList" style="max-height:60vh;overflow:auto;"><p class="text-gray-400 text-sm">Loading…</p></div>';
+        echo view('components/view_modal', [
+            'id'       => 'attendanceIssuesModal',
+            'title'    => 'Attendance Issues',
+            'maxWidth' => '900px',
             'content'  => $content,
         ]);
     ?>
@@ -652,6 +672,101 @@ document.getElementById('sortBy')?.addEventListener('change', filterAndSort);
 document.getElementById('departmentFilter')?.addEventListener('change', filterAndSort);
 
 renderTable();
+
+// ========== ATTENDANCE ISSUES (stuck/broken records finder + corrector) ==========
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+function toLocalInputValue(mysqlDatetime) {
+    // "2026-06-15 21:33:00" -> "2026-06-15T21:33" for a datetime-local input.
+    if (!mysqlDatetime) return '';
+    return mysqlDatetime.replace(' ', 'T').slice(0, 16);
+}
+
+async function openAttendanceIssues() {
+    openModalById('attendanceIssuesModal');
+    await loadAttendanceIssues();
+}
+
+async function loadAttendanceIssues() {
+    const list = document.getElementById('attendanceIssuesList');
+    list.innerHTML = '<p class="text-gray-400 text-sm">Loading…</p>';
+    try {
+        const res = await fetch('<?= site_url('client_portal/timesheet/flagged') ?>');
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+
+        const rowHtml = (r, kind) => `
+            <div style="border:1px solid #e5e7eb;border-radius:10px;padding:12px;margin-bottom:10px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+                    <div>
+                        <strong>${esc(r.employee_name)}</strong>
+                        <span style="color:#888;font-size:12px;"> (${esc(r.employee_number || '')})</span>
+                        <div style="font-size:12px;color:#666;margin-top:2px;">
+                            ${kind === 'stuck_open'
+                                ? `Clocked in ${esc(r.time_in)} — never clocked out`
+                                : `${esc(r.time_in)} → ${esc(r.time_out)} — total_hours: ${esc(r.total_hours)}`}
+                        </div>
+                    </div>
+                </div>
+                <form onsubmit="return submitAttendanceCorrection(event, ${r.id})" style="display:flex;gap:8px;align-items:end;flex-wrap:wrap;margin-top:10px;">
+                    <label style="font-size:12px;color:#555;">Time In
+                        <input type="datetime-local" name="time_in" value="${esc(toLocalInputValue(r.time_in))}" required
+                            style="display:block;border:1px solid #ccc;border-radius:6px;padding:5px 8px;">
+                    </label>
+                    <label style="font-size:12px;color:#555;">Time Out
+                        <input type="datetime-local" name="time_out" value="${esc(toLocalInputValue(r.time_out))}" required
+                            style="display:block;border:1px solid #ccc;border-radius:6px;padding:5px 8px;">
+                    </label>
+                    <label style="font-size:12px;color:#555;">Break (hrs)
+                        <input type="number" name="break_hours" step="0.01" min="0" value="0"
+                            style="display:block;border:1px solid #ccc;border-radius:6px;padding:5px 8px;width:80px;">
+                    </label>
+                    <button type="submit" style="background:#007bff;color:#fff;border:none;border-radius:6px;padding:7px 14px;font-size:13px;">Save correction</button>
+                    <span class="correction-status" style="font-size:12px;"></span>
+                </form>
+            </div>`;
+
+        const stuck = (data.stuck_open || []).map(r => rowHtml(r, 'stuck_open')).join('');
+        const bad = (data.bad_hours || []).map(r => rowHtml(r, 'bad_hours')).join('');
+
+        if (!stuck && !bad) {
+            list.innerHTML = '<p class="text-gray-400 text-sm">No flagged records right now.</p>';
+            return;
+        }
+        list.innerHTML =
+            (stuck ? '<h4 style="font-weight:600;margin:6px 0;">Never clocked out</h4>' + stuck : '') +
+            (bad   ? '<h4 style="font-weight:600;margin:6px 0;">Impossible totals</h4>' + bad   : '');
+    } catch (err) {
+        list.innerHTML = `<p style="color:#c0392b;font-size:13px;">${esc(err.message || 'Could not load flagged records.')}</p>`;
+    }
+}
+
+async function submitAttendanceCorrection(event, attendanceId) {
+    event.preventDefault();
+    const form = event.target;
+    const statusEl = form.querySelector('.correction-status');
+    const toMysql = v => v ? v.replace('T', ' ') + ':00' : '';
+    const payload = {
+        time_in: toMysql(form.time_in.value),
+        time_out: toMysql(form.time_out.value),
+        break_hours: form.break_hours.value,
+    };
+    statusEl.textContent = 'Saving…'; statusEl.style.color = '#666';
+    try {
+        const res = await fetch('<?= site_url('client_portal/timesheet/update-attendance') ?>/' + attendanceId, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload),
+        });
+        const result = await res.json();
+        if (!result.success) throw new Error(result.message || 'Correction failed.');
+        statusEl.textContent = 'Saved.'; statusEl.style.color = '#16a34a';
+        setTimeout(loadAttendanceIssues, 800);
+    } catch (err) {
+        statusEl.textContent = err.message || 'Could not save.'; statusEl.style.color = '#c0392b';
+    }
+    return false;
+}
 </script>
 <script src="<?= base_url('js/components/task-log.js') ?>"></script>
 <?= $this->endSection() ?>

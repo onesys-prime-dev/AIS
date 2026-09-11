@@ -55,6 +55,7 @@ $routes->group('client_portal', ['filter' => 'auth'], function($routes){
     $routes->get ('loans/getEmployeeLoanInfo/(:num)', 'Client\LoanController::getEmployeeLoanInfo/$1');
 
     $routes->get('timesheets/daily-log', 'Client\TimesheetController::dailyTimeLog');
+    $routes->get('timesheet/flagged', 'Client\TimesheetController::flaggedAttendance');
     $routes->get('timesheet/history-details', 'Client\TimesheetController::historyDetails');
     $routes->get('timesheet/export-history', 'Client\TimesheetController::exportHistory');
     $routes->get('timesheet/tasks/(:num)', 'Client\TimesheetController::listTasks/$1');
@@ -98,6 +99,9 @@ $routes->group('', ['filter' => 'auth'], function($routes) {
     $routes->post('client_portal/announcements/viewed', 'Client\AnnouncementController::viewed');
     $routes->post('client_portal/announcements/dismiss', 'Client\AnnouncementController::dismiss');
     $routes->post('client_portal/announcements/delete/(:num)', 'Client\AnnouncementController::delete/$1');
+    $routes->get('client_portal/announcements/edit/(:num)', 'Client\AnnouncementController::edit/$1');
+    $routes->post('client_portal/announcements/attachments/delete/(:num)', 'Client\AnnouncementController::deleteAttachment/$1');
+    $routes->post('client_portal/announcements/update/(:num)', 'Client\AnnouncementController::update/$1');
     $routes->post('client_portal/tasks/submit', 'Client\TaskController::submitTask');
     $routes->get('client_portal/tasks/saved', 'Client\TaskController::getSavedTasks');
     $routes->get('client_portal/timesheet', 'Client\TimesheetController::index');

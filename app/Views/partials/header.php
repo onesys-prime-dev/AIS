@@ -21,9 +21,17 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
         <div class="header-notif-wrapper">
             <button class="header-notif-btn" onclick="toggleNotif()">
                 <img src="<?=base_url('icons/notifications-bell.png')?>">
-                <?php if (!empty($notifications) && count($notifications) > 0): ?>
+                <?php
+                    $unreadNotifCount = 0;
+                    foreach ($notifications ?? [] as $n) {
+                        if (empty($n['is_viewed'])) {
+                            $unreadNotifCount++;
+                        }
+                    }
+                ?>
+                <?php if ($unreadNotifCount > 0): ?>
                     <span class="header-notif-badge">
-                <?= count($notifications) ?>
+                <?= $unreadNotifCount ?>
                     </span>
                 <?php endif; ?>
             </button>
@@ -32,7 +40,7 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
             <div id="notifDropdown" class="header-notif-dropdown">
                 <div class="header-notif-header">
                     <span class="header-notif-heading">Notifications</span>
-                    <button type="button" class="header-notif-mark-read">
+                    <button type="button" class="header-notif-mark-read" onclick="markAllNotificationsAsRead()">
                         <img src="<?= base_url('icons/double-check.png') ?>" class="double-check-icon">
                         Mark all as read
                     </button>
@@ -48,6 +56,11 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
                                     $notifTime = (string) ($n['time_ago'] ?? '');
                                     $notifTitle = (string) $notif['title'];
                                     $notifSummary = (string) $notif['details'];
+
+                                    $notifAttachments = $notif['attachments'] ?? [];
+                                    $notifFirstAttachment = $notifAttachments[0] ?? null;
+                                    $notifPreviewIsImage = $notifFirstAttachment
+                                        && strpos(strtolower((string) ($notifFirstAttachment['mime_type'] ?? '')), 'image/') === 0;
                                 ?>
                                 <div
                                     class="header-notif-item <?= ! empty($n['is_viewed']) ? 'header-notif-viewed' : '' ?>"
@@ -63,6 +76,7 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
                                     data-audience="<?= esc(ucfirst($notif['audience']), 'attr') ?>"
                                     data-status="<?= esc($notif['status'], 'attr') ?>"
                                     data-source="<?= esc($notif['source'], 'attr') ?>"
+                                    data-created-by="<?= esc((string) $notif['created_by'], 'attr') ?>"
                                     data-request-id="<?= esc((string) $notif['request_id'], 'attr') ?>"
                                     data-actor-name="<?= esc($notif['actor_name'], 'attr') ?>"
                                     data-actor-position="<?= esc($notif['actor_position'], 'attr') ?>"
@@ -76,8 +90,17 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
                                     onclick="openNotificationModal(this)"
                                     onkeydown="handleNotificationKey(event, this)"
                                 >
-                                    <div class="header-notif-icon-wrap">
-                                        <i class="fa-regular fa-bell"></i>
+                                    <div class="header-notif-icon-wrap <?= $notifPreviewIsImage ? 'header-notif-icon-thumb' : '' ?>">
+                                        <?php if ($notifPreviewIsImage): ?>
+                                            <img src="<?= esc($notifFirstAttachment['file_path'], 'attr') ?>" alt="" class="header-notif-thumb-img" loading="lazy">
+                                        <?php else: ?>
+                                            <i class="fa-regular fa-bell"></i>
+                                        <?php endif; ?>
+                                        <?php if ($notifFirstAttachment): ?>
+                                            <span class="header-notif-attach-badge" title="Has attachment">
+                                                <i class="fa-solid fa-paperclip"></i>
+                                            </span>
+                                        <?php endif; ?>
                                     </div>
                                     <div class="header-notif-content">
                                         <div class="header-notif-topline">
@@ -478,6 +501,8 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
     ========================================================= */
 
     .header-notif-icon-wrap{
+        position:relative;
+
         width:42px;
         height:42px;
 
@@ -494,6 +519,46 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
         justify-content:center;
 
         flex-shrink:0;
+    }
+
+    /* =========================================================
+    NOTIFICATION FILE PREVIEW THUMBNAIL
+    ========================================================= */
+
+    .header-notif-icon-thumb{
+        padding:0;
+        overflow:hidden;
+    }
+
+    .header-notif-thumb-img{
+        width:100%;
+        height:100%;
+
+        object-fit:cover;
+    }
+
+    .header-notif-attach-badge{
+        position:absolute;
+
+        right:-3px;
+        bottom:-3px;
+
+        width:18px;
+        height:18px;
+
+        border-radius:50%;
+
+        background:#ffffff;
+        border:1px solid #e5e7eb;
+
+        color:#7c3aed;
+        font-size:9px;
+
+        display:flex;
+        align-items:center;
+        justify-content:center;
+
+        box-shadow:0 2px 4px rgba(15,23,42,0.12);
     }
 
     /* =========================================================

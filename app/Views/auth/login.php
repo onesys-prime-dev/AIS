@@ -7,21 +7,21 @@
     $postLoginRedirect = $postLoginRedirect ?? site_url('/client_portal/dashboard');
 ?>
 
-<div class="relative flex min-h-screen items-center justify-center m-auto w-full px-6 py-12 bg-[#FAF9F6]">
-    <div class="flex w-full max-w-6xl h-[80vh] rounded-2xl overflow-hidden shadow-lg">
-        <div class="w-2/3 flex items-center justify-center bg-white px-12 lg:px-24">
+<div class="relative flex min-h-screen items-center justify-center m-auto w-full px-6 py-6 bg-[#FAF9F6]">
+    <div class="flex w-full max-w-6xl rounded-2xl overflow-hidden shadow-lg">
+        <div class="w-2/3 flex items-center justify-center bg-white px-12 lg:px-24 py-8">
             <div class="w-full max-w-md">
-                <div class="mb-10">
-                    <div class="flex items-center justify-center mb-8">
+                <div class="mb-6">
+                    <div class="flex items-center justify-center mb-5">
                         <?php if (! empty($companyLogoUrl)): ?>
                             <img src="<?= esc($companyLogoUrl) ?>" alt="Company Logo" class="h-20 w-20" loading="eager" decoding="async">
                         <?php endif; ?>
                     </div>
-                    <h1 class="text-4xl font-bold text-gray-900 mb-3">Welcome Back</h1>
-                    <p class="text-gray-500 text-lg">
+                    <h1 class="text-3xl font-bold text-gray-900 mb-2">Welcome Back</h1>
+                    <p class="text-gray-500 text-base">
                         Enter your email and password to access your account.
                     </p>
-                    <p class="mt-2 text-sm text-gray-400">
+                    <p class="mt-1 text-sm text-gray-400">
                         A face verification step will be required after sign in.
                     </p>
                 </div>
@@ -32,7 +32,7 @@
                     </div>
                 <?php endif; ?>
 
-                <form action="<?= url_to('login') ?>" method="post" class="space-y-6">
+                <form action="<?= url_to('login') ?>" method="post" class="space-y-4">
                     <?= csrf_field() ?>
 
                     <div>
@@ -41,13 +41,13 @@
                             name="email"
                             value="<?= old('email') ?>"
                             placeholder="Email or username"
-                            class="w-full px-5 py-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-600 focus:border-transparent text-gray-800 placeholder-gray-400"
+                            class="w-full px-5 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-600 focus:border-transparent text-gray-800 placeholder-gray-400"
                             required
                         >
                     </div>
 
                     <div class="relative">
-                        <input type="password" id="password" name="password" placeholder="Password" class="w-full px-5 py-4 pr-12 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-600 focus:border-transparent text-gray-800 placeholder-gray-400" required>
+                        <input type="password" id="password" name="password" placeholder="Password" class="w-full px-5 py-3 pr-12 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-600 focus:border-transparent text-gray-800 placeholder-gray-400" required>
                         <button type="button" id="toggle-password" class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none">
                             <svg id="eye-closed" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -78,19 +78,19 @@
 
                     <button
                         type="submit"
-                        class="w-full bg-black text-white py-4 rounded-full font-semibold text-lg hover:bg-gray-900 transition duration-200 shadow-md"
+                        class="w-full bg-black text-white py-3 rounded-full font-semibold text-base hover:bg-gray-900 transition duration-200 shadow-md"
                     >
                         Login
                     </button>
                 </form>
 
-                <p class="mt-8 text-center text-gray-500 text-sm">
+                <p class="mt-6 text-center text-gray-500 text-sm">
                     By continuing, you agree to our
                     <span class="font-semibold text-gray-700">Terms</span> and
                     <span class="font-semibold text-gray-700">Privacy Policy</span>
                 </p>
 
-                <p class="mt-6 text-center text-gray-400 text-xs">
+                <p class="mt-3 text-center text-gray-400 text-xs">
                     Copyright © 2026 ONESYS Primesolutions Co
                 </p>
             </div>
