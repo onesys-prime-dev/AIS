@@ -35,6 +35,15 @@
                 </button>
             </div>
 
+            <!-- IMPORT HISTORY -->
+            <button type="button" id="importHistoryBtn" onclick="openEmployeeImportHistory()"
+                class="bg-white border border-gray-300 hover:bg-gray-100 text-gray-700 px-4 py-3 rounded-lg shadow-sm flex items-center gap-2 transition">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span class="font-medium"> History </span>
+            </button>
+
             <!-- EXPORT -->
             <?php endif; ?>
             <button type="button" id="exportEmployeesBtn" class="bg-[#9764F6] hover:bg-[#8a58e0] text-white px-4 py-3 rounded-lg shadow-sm flex items-center gap-2">
@@ -78,4 +87,14 @@
             'Action'
         ]
     ]) ?>
+
+    <div id="employeeImportHistoryModal" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.5);">
+        <div style="background:#fefefe;margin:10vh auto;padding:20px;border:1px solid #888;width:720px;max-width:94vw;box-sizing:border-box;border-radius:10px;">
+            <span style="float:right;cursor:pointer;font-size:24px;" onclick="document.getElementById('employeeImportHistoryModal').style.display='none'">&times;</span>
+            <h3 class="text-lg font-bold text-gray-800">Employee Import History</h3>
+            <div id="employeeImportHistoryList" style="max-height:60vh;overflow:auto;margin-top:10px;">
+                <p style="color:#888;font-size:13px;">Loading…</p>
+            </div>
+        </div>
+    </div>
 </div>

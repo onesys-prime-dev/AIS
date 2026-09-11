@@ -1132,6 +1132,7 @@ $_defaultYearMonth = "{$_year}-{$_month}";
             <div class="button-container">
                 <button type="button" class="next-btn" id="exportTimesheetBtn" style="background:#28a745;">Export Timesheet</button>
                 <button type="button" class="next-btn" id="importTimesheetBtn" style="background:#17a2b8;">Import Timesheet</button>
+                <button type="button" class="next-btn" id="importHistoryBtn" style="background:#6c757d;" onclick="openImportHistory()">Import History</button>
                 <button type="button" class="next-btn" onclick="syncToRegister()">Next → Register</button>
             </div>
             </div><!-- /#individual-mode -->
@@ -1447,6 +1448,16 @@ $_defaultYearMonth = "{$_year}-{$_month}";
                 <button type="submit" id="importTimesheetSubmitBtn" style="background:#007bff; color:white; padding:6px 12px; border:none; border-radius:5px;">Upload</button>
             </div>
         </form>
+    </div>
+</div>
+
+<div id="importHistoryModal" class="import-modal">
+    <div class="import-modal-content" style="width:720px;">
+        <span style="float:right; cursor:pointer; font-size:24px;" onclick="document.getElementById('importHistoryModal').style.display='none'">&times;</span>
+        <h3>Timesheet Import History</h3>
+        <div id="importHistoryList" style="max-height:60vh; overflow:auto; margin-top:10px;">
+            <p style="color:#888; font-size:13px;">Loading…</p>
+        </div>
     </div>
 </div>
 
@@ -4902,6 +4913,39 @@ document.addEventListener('DOMContentLoaded', function() {
     })();
     window.closeImportModal = function() {
         document.getElementById('importTimesheetModal').style.display = 'none';
+    };
+
+    window.openImportHistory = async function() {
+        const modal = document.getElementById('importHistoryModal');
+        const list = document.getElementById('importHistoryList');
+        modal.style.display = 'block';
+        list.innerHTML = '<p style="color:#888;font-size:13px;">Loading…</p>';
+        try {
+            const res = await fetch('<?= site_url('client_portal/payroll/getImportHistory') ?>');
+            const data = await res.json();
+            if (!data.success) throw new Error(data.error || 'Could not load import history.');
+            if (!data.batches || !data.batches.length) {
+                list.innerHTML = '<p style="color:#888;font-size:13px;">No timesheet imports recorded yet.</p>';
+                return;
+            }
+            const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+            list.innerHTML = `<table style="width:100%;font-size:13px;border-collapse:collapse;">
+                <thead><tr style="text-align:left;border-bottom:1px solid #ddd;">
+                    <th style="padding:6px;">When</th><th style="padding:6px;">File</th><th style="padding:6px;">By</th>
+                    <th style="padding:6px;text-align:right;">Imported</th><th style="padding:6px;text-align:right;">Duplicate</th>
+                    <th style="padding:6px;text-align:right;">Error</th><th style="padding:6px;text-align:right;">Other</th>
+                </tr></thead><tbody>${data.batches.map(b => `<tr style="border-bottom:1px solid #f0f0f0;">
+                    <td style="padding:6px;">${esc(b.created_at)}</td>
+                    <td style="padding:6px;">${esc(b.filename || '(unknown)')}</td>
+                    <td style="padding:6px;">${esc(b.imported_by_name || '—')}</td>
+                    <td style="padding:6px;text-align:right;">${esc(b.ready_count)}</td>
+                    <td style="padding:6px;text-align:right;">${esc(b.duplicate_count)}</td>
+                    <td style="padding:6px;text-align:right;">${esc(b.error_count)}</td>
+                    <td style="padding:6px;text-align:right;">${esc(b.other_count)}</td>
+                </tr>`).join('')}</tbody></table>`;
+        } catch (err) {
+            list.innerHTML = `<p style="color:#c0392b;font-size:13px;">${err.message || 'Could not load import history.'}</p>`;
+        }
     };
     
     document.querySelector('.close-modal')?.addEventListener('click', function() {

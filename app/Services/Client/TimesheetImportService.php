@@ -252,7 +252,7 @@ final class TimesheetImportService
         return $result;
     }
 
-    public function commit(string $path,string $extension,array $columns,array $employees,string $dateOrder,string $breakUnit,string $expectedHash,?string $periodStart=null,?string $periodEnd=null): array
+    public function commit(string $path,string $extension,array $columns,array $employees,string $dateOrder,string $breakUnit,string $expectedHash,?string $periodStart=null,?string $periodEnd=null,?string $originalFilename=null,?int $importedBy=null): array
     {
         $plan=$this->preview($path,$extension,$columns,$employees,$dateOrder,$breakUnit,$periodStart,$periodEnd);
         if(!$plan['can_import']||!hash_equals($expectedHash,$plan['plan_hash']))throw new DomainException('The file or attendance data changed. Preview again before importing.');
@@ -271,6 +271,22 @@ final class TimesheetImportService
             if(!$this->db->transStatus()||!$this->db->transCommit())throw new RuntimeException('Import could not be committed.');
             $skipped=$checked['summary']['duplicate']+$checked['summary']['error']+$checked['summary']['pending']+$checked['summary']['out_of_period'];
             $message=count($checked['records']).' rows imported; '.$skipped.' skipped ('.$checked['summary']['duplicate'].' duplicate, '.$checked['summary']['error'].' invalid, '.$checked['summary']['pending'].' still open, '.$checked['summary']['out_of_period'].' outside the selected period).';
+
+            // Recorded after the real commit, deliberately outside that
+            // transaction: a history-logging hiccup must never be the reason an
+            // otherwise-successful attendance import reports as failed.
+            try {
+                (new \App\Models\Client\ImportBatchModel())->record(
+                    'timesheet', $originalFilename, $checked['file_hash'], $importedBy,
+                    count($checked['rows']), count($checked['records']),
+                    (int) $checked['summary']['duplicate'], (int) $checked['summary']['error'],
+                    (int) $checked['summary']['pending'] + (int) $checked['summary']['out_of_period'],
+                    ['batch' => $batch, 'period_start' => $periodStart, 'period_end' => $periodEnd]
+                );
+            } catch (Throwable $e) {
+                log_message('error', 'Import history record failed (timesheet import itself succeeded): {message}', ['message' => $e->getMessage()]);
+            }
+
             return ['success'=>true,'imported'=>count($checked['records']),'skipped'=>$skipped,'batch'=>$batch,'message'=>$message];
         }catch(Throwable $e){$this->db->transRollback();throw $e;}
     }

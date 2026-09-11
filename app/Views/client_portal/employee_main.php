@@ -1178,5 +1178,36 @@ document.getElementById('employeeImportInput')?.addEventListener('change', async
     this.value = '';
 });
 
+window.openEmployeeImportHistory = async function() {
+    const modal = document.getElementById('employeeImportHistoryModal');
+    const list = document.getElementById('employeeImportHistoryList');
+    if (!modal || !list) return;
+    modal.style.display = 'block';
+    list.innerHTML = '<p style="color:#888;font-size:13px;">Loading…</p>';
+    try {
+        const res = await fetch('<?= site_url('client_portal/employees/import-history') ?>');
+        const data = await res.json();
+        if (!data.success) throw new Error(data.message || data.error || 'Could not load import history.');
+        if (!data.batches || !data.batches.length) {
+            list.innerHTML = '<p style="color:#888;font-size:13px;">No employee imports recorded yet.</p>';
+            return;
+        }
+        const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+        list.innerHTML = `<table style="width:100%;font-size:13px;border-collapse:collapse;">
+            <thead><tr style="text-align:left;border-bottom:1px solid #ddd;">
+                <th style="padding:6px;">When</th><th style="padding:6px;">File</th><th style="padding:6px;">By</th>
+                <th style="padding:6px;text-align:right;">Imported</th><th style="padding:6px;text-align:right;">Errors</th>
+            </tr></thead><tbody>${data.batches.map(b => `<tr style="border-bottom:1px solid #f0f0f0;">
+                <td style="padding:6px;">${esc(b.created_at)}</td>
+                <td style="padding:6px;">${esc(b.filename || '(unknown)')}</td>
+                <td style="padding:6px;">${esc(b.imported_by_name || '—')}</td>
+                <td style="padding:6px;text-align:right;">${esc(b.ready_count)}</td>
+                <td style="padding:6px;text-align:right;">${esc(b.error_count)}</td>
+            </tr>`).join('')}</tbody></table>`;
+    } catch (err) {
+        list.innerHTML = `<p style="color:#c0392b;font-size:13px;">${err.message || 'Could not load import history.'}</p>`;
+    }
+};
+
 </script>
 <?= $this->endSection() ?>

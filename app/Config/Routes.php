@@ -35,6 +35,7 @@ $routes->group('client_portal', ['filter' => 'auth'], function($routes){
     $routes->post('employees/update/(:num)', 'Client\EmployeeController::updateEmployee/$1');
     $routes->post('employees/import'       ,'Client\EmployeeController::importEmployees');
     $routes->get ('employees/export'        ,'Client\EmployeeController::exportEmployees');
+    $routes->get ('employees/import-history','Client\EmployeeController::importHistory');
 
     // -- Loans --
     // Note: no standalone 'loans' index route — the Loans tab is rendered
@@ -199,6 +200,7 @@ $routes->group('client_portal/payroll', ['namespace' => 'App\Controllers\Client'
 
     // ========== Audit Log ==========
     $routes->get('getAuditLog',          'PayrollController::getAuditLog');
+    $routes->get('getImportHistory',     'PayrollController::getImportHistory');
 });
 
 $routes->group('client_portal', ['namespace' => 'App\Controllers\Client', 'filter' => 'auth'], function($routes) {

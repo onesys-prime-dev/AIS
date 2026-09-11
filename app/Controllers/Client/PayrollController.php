@@ -1483,7 +1483,7 @@ class PayrollController extends BaseController
             $file=$this->request->getFile('timesheet_file');
             if(!$file||!$file->isValid()||!hash_equals($plan['file_hash'],hash_file('sha256',$file->getTempName())))
                 throw new \DomainException('The file changed. Preview it again.');
-            $result=(new \App\Services\Client\TimesheetImportService())->commit($file->getTempName(),$plan['extension'],$plan['columns'],$plan['employees'],$plan['order'],$plan['unit'],$plan['hash'],$plan['period_start']??null,$plan['period_end']??null);
+            $result=(new \App\Services\Client\TimesheetImportService())->commit($file->getTempName(),$plan['extension'],$plan['columns'],$plan['employees'],$plan['order'],$plan['unit'],$plan['hash'],$plan['period_start']??null,$plan['period_end']??null,$file->getClientName(),(int)auth()->id());
             session()->remove('timesheet_import_preview');
             return $this->response->setJSON($result);
         } catch(\DomainException $e) {
@@ -2321,6 +2321,17 @@ class PayrollController extends BaseController
      * System-wide audit log viewer — filterable, paginated read of activity_logs.
      * Backs the Audit Log tab in the Payroll module.
      */
+    /** Recent timesheet import batches — filename, when, who, and row outcomes. */
+    public function getImportHistory()
+    {
+        $user = auth()->user();
+        if (!\App\Libraries\PortalAccess::can('payroll', $user)) {
+            return $this->response->setStatusCode(403)->setJSON(['error' => 'Unauthorized']);
+        }
+        $rows = (new \App\Models\Client\ImportBatchModel())->recent('timesheet', 50);
+        return $this->response->setJSON(['success' => true, 'batches' => $rows]);
+    }
+
     public function getAuditLog()
     {
         $user = auth()->user();

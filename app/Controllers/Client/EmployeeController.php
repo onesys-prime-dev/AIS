@@ -531,6 +531,27 @@ class EmployeeController extends BaseController
 
             fclose($handle);
 
+            // Previously this importer left no trace anywhere — no activity
+            // log entry, no filename, nothing — unlike every other write path
+            // in the app. Recorded after the loop, non-critical: a history
+            // write failing here must not turn an otherwise-successful import
+            // into a reported failure.
+            try {
+                service('activityLogger')->log(
+                    'created', 'employees',
+                    count($imported) . ' employee(s) imported from CSV; ' . count($errors) . ' row(s) skipped',
+                    null, null,
+                    ['filename' => $file->getClientName(), 'imported_count' => count($imported), 'error_count' => count($errors)]
+                );
+                (new \App\Models\Client\ImportBatchModel())->record(
+                    'employees', $file->getClientName(), hash_file('sha256', $file->getTempName()),
+                    (int) (auth()->id() ?? 0), $rowNumber - 1, count($imported), 0, count($errors), 0,
+                    ['errors' => array_slice($errors, 0, 20)]
+                );
+            } catch (\Throwable $e) {
+                log_message('error', 'Employee import history record failed (import itself succeeded): {message}', ['message' => $e->getMessage()]);
+            }
+
             return $this->response->setJSON([
                 'success'  => true,
                 'message'  => count($imported) . ' employee(s) imported; ' . count($errors) . ' skipped.',
@@ -547,6 +568,14 @@ class EmployeeController extends BaseController
                 'message' => $this->safeErrorMessage($e, 'Unable to import employees from this file.')
             ]);
         }
+    }
+
+    /** Recent employee CSV import batches — filename, when, who, and row outcomes. */
+    public function importHistory()
+    {
+        $this->ensurePayrollStaff();
+        $rows = (new \App\Models\Client\ImportBatchModel())->recent('employees', 50);
+        return $this->response->setJSON(['success' => true, 'batches' => $rows]);
     }
 
     public function exportEmployees()
