@@ -621,6 +621,13 @@ $currentAttendance = $currentAttendance ?? null;
         max-width:640px;
     }
 
+    #requestModal .modal form{
+        display:flex;
+        flex-direction:column;
+        min-height:0;
+        flex:1;
+    }
+
     #viewNotificationsModal .modal {
         max-width: 640px;
     }
@@ -1516,7 +1523,7 @@ document.addEventListener('DOMContentLoaded', function () {
             };
         ?>
 
-        <div class="notifications">
+        <div class="notifications" id="notificationsPanel">
             <div class="notifications-top">
                 <div class="notifications-title">Notification</div>
                 <button type="button" class="notifications-clear" onclick="clearNotificationsView()"><img class="dot" src="<?= base_url('icons/Clear.png') ?>">Clear all</button>

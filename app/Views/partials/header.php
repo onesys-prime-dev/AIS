@@ -21,11 +21,13 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
         <div class="header-notif-wrapper">
             <button class="header-notif-btn" onclick="toggleNotif()">
                 <img src="<?=base_url('icons/notifications-bell.png')?>">
+                <span id="headerNotifBadgeSlot">
                 <?php if (!empty($notifications) && count($notifications) > 0): ?>
                     <span class="header-notif-badge">
                 <?= count($notifications) ?>
                     </span>
                 <?php endif; ?>
+                </span>
             </button>
 
             <!-- BELL DROPDOWN -->
@@ -40,7 +42,7 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
 
                 <div class="header-notif-section-label">Today</div>
 
-                <div class="header-notif-list notif-scroll-hide">
+                <div id="headerNotifList" class="header-notif-list notif-scroll-hide">
                         <?php if (!empty($notifications)): ?>
                             <?php foreach($notifications as $n): ?>
                                 <?php
