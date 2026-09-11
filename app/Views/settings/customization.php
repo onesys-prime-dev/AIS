@@ -97,7 +97,7 @@ body {
     flex-direction: column;
     overflow: hidden;
     min-height: 0;
-    background-color: #e5e7eb;
+    background-color: var(--bg-color, #e5e7eb);
 }
 
 h1 {

@@ -6,7 +6,7 @@ use CodeIgniter\Config\BaseConfig;
 
 class Email extends BaseConfig
 {
-    public string $fromEmail  = 'ais.ecovis@gmail.com';
+    public string $fromEmail  = '';
     public string $fromName   = 'AIS Payroll System';
     public string $recipients = '';
 
@@ -38,12 +38,12 @@ class Email extends BaseConfig
     /**
      * SMTP Username
      */
-    public string $SMTPUser = 'ais.ecovis@gmail.com';
+    public string $SMTPUser = '';
 
     /**
      * SMTP Password
      */
-    public string $SMTPPass = 'jdjh fizy rofm agnc';
+    public string $SMTPPass = '';
 
     /**
      * SMTP Port

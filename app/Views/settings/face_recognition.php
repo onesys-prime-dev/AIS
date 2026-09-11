@@ -75,7 +75,7 @@ body {
     flex-direction: column;
     min-height: 0;
     overflow: hidden;
-    background-color: #e5e7eb;
+    background-color: var(--bg-color, #e5e7eb);
 }
 
 .tabs {

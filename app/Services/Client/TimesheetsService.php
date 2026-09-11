@@ -440,6 +440,14 @@ class TimesheetsService
             $hasSchedule       = (bool) ($scheduledStart && $scheduledEnd);
             $hasApprovedOt     = isset($approvedOtDates[$date]);
 
+            // Tardiness only depends on the clock-in time, not the clock-out —
+            // computed here, unconditionally, so a still-open shift (clocked in
+            // late, not yet clocked out) still shows it instead of silently
+            // showing nothing until the employee eventually clocks out.
+            if ($timeIn) {
+                $tardyMinutes = AttendanceComputationService::lateMinutes(new DateTime($att['time_in']), $windowStart);
+            }
+
             if ($timeIn && $timeOut) {
                 // Use the full stored datetimes (not the date + time-of-day
                 // reconstruction) so a clock-out recorded on a later calendar day
@@ -479,8 +487,6 @@ class TimesheetsService
                     $undertimeHours = max(0, round($requiredHours - $regularHours, 2));
                 }
 
-                // Tardy uses the shift's own scheduled start.
-                $tardyMinutes = AttendanceComputationService::lateMinutes($start, $split['window_start']);
 
                 // Night Differential — only counted for the portion of the shift
                 // that's actually paid (the scheduled window, plus any OT hours

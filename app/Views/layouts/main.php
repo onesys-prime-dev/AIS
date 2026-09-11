@@ -7,16 +7,35 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= esc($title ?? 'Dashboard') ?> | Your Company</title>
 
+<<<<<<< HEAD
     <link href="<?= base_url('css/main.css') ?>" rel="stylesheet">
+=======
+    <?php
+        // The favicon follows the company's uploaded logo (Settings > Customization)
+        // so branding stays consistent between the sidebar and the browser tab;
+        // falls back to the static default when no logo has been uploaded yet.
+        $faviconUrl = ! empty($activeCompanyBranding['logo_url'] ?? null)
+            ? $activeCompanyBranding['logo_url']
+            : base_url('favicon.ico');
+        $faviconType = (string) ($activeCompanyBranding['logo_mime_type'] ?? '');
+    ?>
+    <link rel="icon" href="<?= esc($faviconUrl, 'attr') ?>"<?= $faviconType !== '' ? ' type="' . esc($faviconType, 'attr') . '"' : '' ?>>
+
+    <?php
+        $mainCssVer = is_file(FCPATH . 'css/main.css') ? filemtime(FCPATH . 'css/main.css') : time();
+        $toastCssVer = is_file(FCPATH . 'css/toast.css') ? filemtime(FCPATH . 'css/toast.css') : time();
+    ?>
+    <link href="<?= base_url('css/main.css') ?>?v=<?= $mainCssVer ?>" rel="stylesheet">
+>>>>>>> myBranch
     <link href="<?= base_url('css/scrollBar.css') ?>" rel="stylesheet">
     <link href="<?= base_url('css/tailwind.css') ?>" rel="stylesheet">
     <link href="<?= base_url('css/style.css') ?>" rel="stylesheet">
-    <link href="<?= base_url('css/toast.css') ?>" rel="stylesheet">
+    <link href="<?= base_url('css/toast.css') ?>?v=<?= $toastCssVer ?>" rel="stylesheet">
 
     <?= $this->renderSection('styles') ?>
 </head>
 
-<body class="bg-[#E7E3E3] min-h-screen font-sans antialiased scroll-smooth">
+<body class="min-h-screen font-sans antialiased scroll-smooth" style="background: var(--bg-color, #E7E3E3);">
 
     <div class="flex h-screen overflow-hidden">
 
@@ -65,8 +84,25 @@
         window.notificationCsrfTokenName = <?= json_encode(csrf_token()) ?>;
         window.notificationCsrfTokenHash = <?= json_encode(csrf_hash()) ?>;
 
+<<<<<<< HEAD
         function getContrastColor(hex) {
             hex = hex.replace('#', '');
+=======
+<script>
+window.notificationViewedUrl = <?= json_encode(site_url('client_portal/announcements/viewed')) ?>;
+window.notificationDismissedUrl = <?= json_encode(site_url('client_portal/announcements/dismiss')) ?>;
+window.requestNotificationViewedUrl = <?= json_encode(site_url('client_portal/request-notifications/viewed')) ?>;
+window.requestNotificationDismissedUrl = <?= json_encode(site_url('client_portal/request-notifications/dismiss')) ?>;
+window.requestsListUrl = <?= json_encode(site_url('client_portal/requests')) ?>;
+window.notificationCsrfTokenName = <?= json_encode(csrf_token()) ?>;
+window.notificationCsrfTokenHash = <?= json_encode(csrf_hash()) ?>;
+window.dashboardUrl = <?= json_encode(site_url('client_portal/dashboard')) ?>;
+window.currentUserId = <?= json_encode(auth()->loggedIn() ? (int) auth()->user()->id : 0) ?>;
+window.canEditAnnouncements = <?= json_encode(auth()->loggedIn() && \App\Libraries\PortalAccess::can('announcements', auth()->user())) ?>;
+window.announcementEditFetchUrlBase = <?= json_encode(site_url('client_portal/announcements/edit')) ?>;
+window.announcementUpdateUrlBase = <?= json_encode(site_url('client_portal/announcements/update')) ?>;
+window.announcementAttachmentDeleteUrlBase = <?= json_encode(site_url('client_portal/announcements/attachments/delete')) ?>;
+>>>>>>> myBranch
 
             const r = parseInt(hex.substring(0, 2), 16);
             const g = parseInt(hex.substring(2, 4), 16);
@@ -197,6 +233,7 @@
 
     <?= $this->renderSection('scripts') ?>
 
+<<<<<<< HEAD
     <?php if (auth()->loggedIn()): ?>
         <script>
             window.PRESENCE_HEARTBEAT_URL = "<?= site_url('client_portal/presence/heartbeat') ?>";
@@ -204,6 +241,37 @@
         </script>
         <script src="<?= base_url('js/components/presence.js') ?>"></script>
     <?php endif; ?>
+=======
+<?php
+    $toastJsPath = FCPATH . 'js/components/toast.js';
+    $notifJsPath = FCPATH . 'js/components/notification-modals.js';
+    $toastJsVer = is_file($toastJsPath) ? filemtime($toastJsPath) : time();
+    $notifJsVer = is_file($notifJsPath) ? filemtime($notifJsPath) : time();
+?>
+<script src="<?= base_url('js/components/toast.js') ?>?v=<?= $toastJsVer ?>"></script>
+<script src="<?= base_url('js/components/notification-modals.js') ?>?v=<?= $notifJsVer ?>"></script>
+<?php if (auth()->loggedIn()): ?>
+<script src="<?= base_url('js/components/notifications-poll.js') ?>"></script>
+<?php endif; ?>
+<script>
+<?php if (session()->getFlashdata('success')): ?>
+window.showToast(<?= json_encode(session()->getFlashdata('success')) ?>, 'success');
+<?php endif; ?>
+<?php if (session()->getFlashdata('error')): ?>
+window.showToast(<?= json_encode(session()->getFlashdata('error')) ?>, 'error');
+<?php endif; ?>
+</script>
+
+<?= $this->renderSection('scripts') ?>
+
+<?php if (auth()->loggedIn()): ?>
+<script>
+    window.PRESENCE_HEARTBEAT_URL = "<?= site_url('client_portal/presence/heartbeat') ?>";
+    window.PRESENCE_STATUSES_URL  = "<?= site_url('client_portal/presence/statuses') ?>";
+</script>
+<script src="<?= base_url('js/components/presence.js') ?>"></script>
+<?php endif; ?>
+>>>>>>> myBranch
 
 </body>
 
