@@ -1,1 +1,1 @@
-{"version":2,"defects":{"BgColorDebugTest::testDashboardBackgroundColorRendering":8},"times":{"BgColorDebugTest::testDashboardBackgroundColorRendering":0.427}}
+{"version":2,"defects":{"BgColorDebugTest::testDashboardBackgroundColorRendering":8},"times":{"BgColorDebugTest::testDashboardBackgroundColorRendering":0.427,"CsrfDebugTest::testCustomizationSaveWithFreshToken":0.248}}
