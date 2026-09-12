@@ -103,12 +103,23 @@ final class PortalAccess
         if (preg_match('~^client_portal/payroll/(?:markstatus|send(?:/.*)?|sendpdf|sendstatic)$~', $path)) return 'release';
         if (preg_match('~^client_portal/payroll(?:/|$)~', $path)) return 'payroll';
         if (preg_match('~^client_portal/timesheet/employee(?:/|$)~', $path)) return 'review_attendance';
+        // Correcting a clocked time is a review/oversight action, not
+        // self-service — this previously fell into the generic 'self' bucket
+        // below, letting an employee edit their own clock-in/out unaudited.
+        // Classified as 'attendance_roster' (a broad "can review attendance at
+        // all" check with no query-param dependency), not 'review_attendance'
+        // — that case reads employee_id from the query string, which this
+        // route doesn't carry (the employee is implicit in the attendanceId
+        // path segment); the controller itself does the precise
+        // per-employee canReviewEmployee() check afterward.
+        if (preg_match('~^client_portal/timesheet/update-attendance/[0-9]+$~', $path)) return 'attendance_roster';
+        if ($path === 'client_portal/timesheet/flagged') return 'attendance_roster';
         if (preg_match('~^client_portal/requests/update/[0-9]+$~', $path)) return 'review_request';
         if ($path === 'client_portal/requests/generate-code') return 'request_codes';
-        if (preg_match('~^client_portal/announcements/(?:store|delete/[0-9]+)$~', $path)) return 'announcements';
+        if (preg_match('~^client_portal/announcements/(?:store|delete/[0-9]+|edit/[0-9]+|update/[0-9]+|attachments/delete/[0-9]+)$~', $path)) return 'announcements';
         if (preg_match('~^client_portal/help/(?:update/[0-9]+)$~', $path)) return 'help';
         if (preg_match('~^settings/(?:customization(?:/save)?|face-recognition(?:/(?:enroll|status))?)$~', $path)) return 'self';
-        if (preg_match('~^client_portal/(?:dashboard|profile(?:/(?:photo|identity|contact|username|emergency|password|payslip-password(?:/reset)?))?|presence/(?:heartbeat|statuses)|help(?:/store)?|company-logo|time-in|time-out/[0-9]+|toggle-break/[0-9]+|requests(?:/(?:new|store|lookup-code))?|request-notifications/(?:viewed|dismiss)|announcements/(?:viewed|dismiss|download/[0-9]+)|tasks/(?:submit|saved)|timesheets/daily-log|timesheet(?:/(?:history-details|export-history|tasks/[0-9]+(?:/create)?|tasks/(?:edit|delete)/[0-9]+|update-attendance/[0-9]+))?)$~', $path)) return 'self';
+        if (preg_match('~^client_portal/(?:dashboard|profile(?:/(?:photo|identity|contact|username|emergency|password|payslip-password(?:/reset)?))?|presence/(?:heartbeat|statuses)|help(?:/store|/search-index)?|company-logo|time-in|time-out/[0-9]+|toggle-break/[0-9]+|requests(?:/(?:new|store|lookup-code))?|request-notifications/(?:viewed|dismiss)|announcements/(?:viewed|dismiss|download/[0-9]+)|tasks/(?:submit|saved)|timesheets/daily-log|timesheet(?:/(?:history-details|export-history|tasks/[0-9]+(?:/create)?|tasks/(?:edit|delete)/[0-9]+))?)$~', $path)) return 'self';
         return 'deny';
     }
 }

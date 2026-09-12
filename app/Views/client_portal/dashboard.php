@@ -8,7 +8,6 @@ $currentAttendance = $currentAttendance ?? null;
 
 <style>
     body{
-        background:#f3f4f6;
         font-family:Segoe UI, Arial, sans-serif;
         margin:0;
     }
@@ -619,6 +618,15 @@ $currentAttendance = $currentAttendance ?? null;
 
     #taskLogModal .modal{
         max-width:640px;
+    }
+
+    #requestModal .modal form{
+        display:flex;
+        flex-direction:column;
+        min-height:0;
+        max-height:85vh;
+        flex:1;
+        overflow:hidden;
     }
 
     #viewNotificationsModal .modal {
@@ -1516,7 +1524,7 @@ document.addEventListener('DOMContentLoaded', function () {
             };
         ?>
 
-        <div class="notifications">
+        <div class="notifications" id="notificationsPanel">
             <div class="notifications-top">
                 <div class="notifications-title">Notification</div>
                 <button type="button" class="notifications-clear" onclick="clearNotificationsView()"><img class="dot" src="<?= base_url('icons/Clear.png') ?>">Clear all</button>
@@ -1756,9 +1764,11 @@ document.addEventListener('DOMContentLoaded', function () {
     <!-- ANNOUNCEMENT MODAL -->
     <div class="modal-overlay" id="announcementModal">
         <div class="modal announcement-modal">
-            <form id="announcementForm" action="<?= site_url('client_portal/announcements/store') ?>" method="post" enctype="multipart/form-data" class="announcement-form">
+            <form id="announcementForm" action="<?= site_url('client_portal/announcements/store') ?>" method="post" enctype="multipart/form-data" class="announcement-form" data-store-url="<?= site_url('client_portal/announcements/store') ?>">
+                <?= csrf_field() ?>
+
                 <div class="modal-header">
-                    <span>Create Announcement</span>
+                    <span id="announcementModalTitle">Create Announcement</span>
                     <button type="button" onclick="closeAnnouncementForm()">✕</button>
                 </div>
 
@@ -1815,9 +1825,14 @@ document.addEventListener('DOMContentLoaded', function () {
                             <input type="datetime-local" name="expires_at">
                         </div>
 
+                        <div class="announcement-field full-span" id="announcementExistingAttachmentsWrap" style="display:none;">
+                            <label>Current Attachments</label>
+                            <div class="attach-list" id="announcementExistingAttachments"></div>
+                        </div>
+
                         <div class="announcement-field full-span">
                             <label>Attachments</label>
-                            
+
                             <div class="attach-dropzone" id="dropzone">
                                 <div class="icon-wrap">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -1849,7 +1864,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 </div>
 
                 <div class="modal-footer">
-                    <button type="submit" class="submit-btn">Publish</button>
+                    <button type="submit" class="submit-btn" id="announcementSubmitBtn">Publish</button>
                 </div>
             </form>
         </div>
@@ -2324,15 +2339,286 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function openAnnouncementForm() {
+        resetAnnouncementFormToCreateMode();
         document.getElementById("announcementModal").style.display="flex";
     }
 
     function closeAnnouncementForm() {
         document.getElementById("announcementModal").style.display="none";
-        document.getElementById("announcementForm").reset();
-        toggleAnnouncementAudience();
-        
+        resetAnnouncementFormToCreateMode();
     }
+
+    function resetAnnouncementFormToCreateMode() {
+        const form = document.getElementById("announcementForm");
+        form.reset();
+        form.action = form.dataset.storeUrl;
+        delete form.dataset.editingId;
+        document.getElementById("announcementModalTitle").textContent = "Create Announcement";
+        document.getElementById("announcementSubmitBtn").textContent = "Publish";
+
+        const existingWrap = document.getElementById("announcementExistingAttachmentsWrap");
+        const existingList = document.getElementById("announcementExistingAttachments");
+        if (existingWrap) existingWrap.style.display = "none";
+        if (existingList) existingList.innerHTML = "";
+
+        if (typeof files !== "undefined") {
+            files.length = 0;
+            if (typeof syncFileInput === "function") syncFileInput();
+            if (typeof render === "function") render();
+        }
+
+        toggleAnnouncementAudience();
+    }
+
+    function renderExistingAnnouncementAttachments(announcementId, attachments) {
+        const wrap = document.getElementById("announcementExistingAttachmentsWrap");
+        const list = document.getElementById("announcementExistingAttachments");
+        if (!list) return;
+
+        list.innerHTML = '';
+        attachments.forEach(function (att) {
+            const row = document.createElement('div');
+            row.className = 'attach-row';
+            row.innerHTML = `
+                <div class="file-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg></div>
+                <div class="meta">
+                    <div class="name">${att.name}</div>
+                </div>
+            `;
+
+            const actions = document.createElement('div');
+            actions.style.display = 'flex';
+            actions.style.gap = '6px';
+
+            const viewLink = document.createElement('a');
+            viewLink.href = att.url;
+            viewLink.target = '_blank';
+            viewLink.rel = 'noopener';
+            viewLink.className = 'remove-btn';
+            viewLink.setAttribute('aria-label', 'View ' + att.name);
+            viewLink.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>';
+
+            const removeBtn = document.createElement('button');
+            removeBtn.type = 'button';
+            removeBtn.className = 'remove-btn';
+            removeBtn.setAttribute('aria-label', 'Remove ' + att.name);
+            removeBtn.title = 'Remove this attachment';
+            removeBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>';
+            removeBtn.addEventListener('click', function () {
+                deleteExistingAnnouncementAttachment(announcementId, att.id, row);
+            });
+
+            actions.appendChild(viewLink);
+            actions.appendChild(removeBtn);
+            row.appendChild(actions);
+            list.appendChild(row);
+        });
+
+        if (wrap) wrap.style.display = attachments.length > 0 ? '' : 'none';
+    }
+
+    async function deleteExistingAnnouncementAttachment(announcementId, attachmentId, rowEl) {
+        if (!attachmentId || !window.announcementAttachmentDeleteUrlBase) return;
+        if (!window.confirm('Remove this attachment? This cannot be undone.')) return;
+
+        try {
+            const response = await fetch(`${window.announcementAttachmentDeleteUrlBase}/${attachmentId}`, {
+                method: 'POST',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            });
+            const result = await response.json();
+
+            if (!response.ok || !result || result.success !== true) {
+                showToast((result && result.message) || 'Failed to remove attachment.', 'error');
+                return;
+            }
+
+            showToast(result.message || 'Attachment removed.', 'success');
+            if (rowEl) rowEl.remove();
+
+            const list = document.getElementById("announcementExistingAttachments");
+            const wrap = document.getElementById("announcementExistingAttachmentsWrap");
+            if (wrap && list && list.children.length === 0) wrap.style.display = 'none';
+
+            // Keep the bell dropdown's cached attachment data (and any
+            // already-open view modal) from still showing the file that was
+            // just removed.
+            document.querySelectorAll(
+                `.header-notif-item[data-id="${announcementId}"][data-source="announcement"], .notif[data-id="${announcementId}"][data-source="announcement"]`
+            ).forEach(function (item) {
+                let current = [];
+                try { current = JSON.parse(item.dataset.attachments || '[]'); } catch (e) { current = []; }
+                const remaining = current.filter(function (a) {
+                    return !String(a.file_path || '').endsWith('/announcements/download/' + attachmentId);
+                });
+                item.dataset.attachments = JSON.stringify(remaining);
+            });
+        } catch (error) {
+            console.error('Unable to remove attachment.', error);
+            showToast('Unable to remove attachment. Please check your connection and try again.', 'error');
+        }
+    }
+
+    async function openAnnouncementEditModal(announcementId) {
+        if (!announcementId || !window.announcementEditFetchUrlBase) return;
+
+        let data;
+        try {
+            const response = await fetch(`${window.announcementEditFetchUrlBase}/${announcementId}`, {
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            });
+            data = await response.json();
+            if (!response.ok || !data || data.success !== true) {
+                showToast((data && data.message) || 'Unable to load announcement for editing.', 'error');
+                return;
+            }
+        } catch (error) {
+            console.error('Unable to load announcement for editing.', error);
+            showToast('Unable to load announcement for editing.', 'error');
+            return;
+        }
+
+        const a = data.announcement;
+        const form = document.getElementById("announcementForm");
+
+        resetAnnouncementFormToCreateMode();
+
+        form.action = `${window.announcementUpdateUrlBase}/${a.id}`;
+        form.dataset.editingId = String(a.id);
+        form.elements['title'].value = a.title || '';
+        form.elements['category'].value = a.category || '';
+        form.elements['audience'].value = a.audience || '';
+        form.elements['department'].value = a.department || '';
+        form.elements['priority'].value = a.priority || 'normal';
+        form.elements['publish_at'].value = a.publish_at || '';
+        form.elements['expires_at'].value = a.expires_at || '';
+        form.elements['details'].value = a.details || '';
+        form.elements['require_acknowledgement'].checked = !!a.require_acknowledgement;
+        toggleAnnouncementAudience();
+
+        document.getElementById("announcementModalTitle").textContent = "Edit Announcement";
+        document.getElementById("announcementSubmitBtn").textContent = "Save Changes";
+
+        renderExistingAnnouncementAttachments(a.id, data.attachments || []);
+
+        document.getElementById("announcementModal").style.display = "flex";
+    }
+    window.openAnnouncementEditModal = openAnnouncementEditModal;
+
+    // The bell dropdown's notification rows carry their data (title,
+    // details, attachments, ...) in HTML data-* attributes rendered once at
+    // page load. Editing saves via fetch with no page reload, so without
+    // this the dropdown (and any already-open view modal) would keep
+    // showing the pre-edit data — attachments included — until a manual
+    // refresh.
+    function applyAnnouncementNotificationPatch(n) {
+        const items = document.querySelectorAll(
+            `.header-notif-item[data-id="${n.id}"][data-source="announcement"], .notif[data-id="${n.id}"][data-source="announcement"]`
+        );
+
+        items.forEach(function (item) {
+            item.dataset.title = n.title;
+            item.dataset.details = n.details;
+            item.dataset.category = n.category;
+            item.dataset.priority = n.priority;
+            item.dataset.audience = n.audience;
+            item.dataset.publish = n.publish;
+            item.dataset.attachments = JSON.stringify(n.attachments || []);
+
+            const titleEl = item.querySelector('.header-notif-title');
+            if (titleEl) titleEl.textContent = n.title;
+
+            const descEl = item.querySelector('.header-notif-desc');
+            if (descEl) descEl.textContent = n.details;
+
+            const iconWrap = item.querySelector('.header-notif-icon-wrap');
+            if (iconWrap) {
+                const attachments = n.attachments || [];
+                const first = attachments[0] || null;
+                const isImage = !!(first && String(first.mime_type || '').toLowerCase().startsWith('image/'));
+
+                iconWrap.classList.toggle('header-notif-icon-thumb', isImage);
+                iconWrap.innerHTML = isImage
+                    ? `<img src="${first.file_path}" alt="" class="header-notif-thumb-img" loading="lazy">`
+                    : '<i class="fa-regular fa-bell"></i>';
+
+                if (first) {
+                    const badge = document.createElement('span');
+                    badge.className = 'header-notif-attach-badge';
+                    badge.title = 'Has attachment';
+                    badge.innerHTML = '<i class="fa-solid fa-paperclip"></i>';
+                    iconWrap.appendChild(badge);
+                }
+            }
+        });
+
+        // If the notification the user just edited is still open in the
+        // view modal, refresh it too instead of leaving stale data visible.
+        const viewModal = document.getElementById('viewNotificationsModal');
+        if (viewModal && viewModal.style.display === 'flex' && Number(viewModal.dataset.notificationId || 0) === n.id) {
+            const sourceItem = document.querySelector(`.header-notif-item[data-id="${n.id}"][data-source="announcement"]`);
+            if (sourceItem && typeof window.openNotificationModal === 'function') {
+                window.openNotificationModal(sourceItem);
+            }
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        const params = new URLSearchParams(window.location.search);
+        const editId = Number(params.get('edit_announcement') || 0);
+        if (editId > 0) {
+            openAnnouncementEditModal(editId);
+        }
+
+        // Only the edit flow is intercepted — saving posts via fetch so a
+        // success/error toast shows immediately, with no page reload
+        // required. Create still submits normally (full page flow).
+        const announcementFormEl = document.getElementById('announcementForm');
+        if (announcementFormEl) {
+            announcementFormEl.addEventListener('submit', async function (event) {
+                if (!announcementFormEl.dataset.editingId) {
+                    return; // create mode: let the normal form POST + redirect flow happen
+                }
+
+                event.preventDefault();
+
+                const submitBtn = document.getElementById('announcementSubmitBtn');
+                const originalLabel = submitBtn ? submitBtn.textContent : '';
+                if (submitBtn) {
+                    submitBtn.disabled = true;
+                    submitBtn.textContent = 'Saving...';
+                }
+
+                try {
+                    const response = await fetch(announcementFormEl.action, {
+                        method: 'POST',
+                        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                        body: new FormData(announcementFormEl),
+                    });
+                    const result = await response.json();
+
+                    if (!response.ok || !result || result.success !== true) {
+                        showToast((result && result.message) || 'Failed to update announcement. Please try again.', 'error');
+                        return;
+                    }
+
+                    showToast(result.message || 'Announcement updated successfully.', 'success');
+                    if (result.notification) {
+                        applyAnnouncementNotificationPatch(result.notification);
+                    }
+                    closeAnnouncementForm();
+                } catch (error) {
+                    console.error('Unable to update announcement.', error);
+                    showToast('Unable to update announcement. Please check your connection and try again.', 'error');
+                } finally {
+                    if (submitBtn) {
+                        submitBtn.disabled = false;
+                        submitBtn.textContent = originalLabel;
+                    }
+                }
+            });
+        }
+    });
 
     function toggleAnnouncementAudience() {
         const audience = document.getElementById("announcementAudience").value;
@@ -2878,18 +3164,36 @@ document.addEventListener('DOMContentLoaded', function () {
   });
  
   fileInput.addEventListener('change', () => {
-    addFiles(fileInput.files);
+    // Capture the picked files and clear the native input's value FIRST
+    // (so selecting the same file again still fires another 'change'
+    // event) — addFiles() below rebuilds fileInput.files from the full
+    // accumulated list via syncFileInput(), which must happen after this
+    // clear or it gets wiped right back out.
+    const picked = Array.from(fileInput.files);
     fileInput.value = '';
+    addFiles(picked);
   });
  
   function addFiles(fileListObj) {
     Array.from(fileListObj).forEach(f => files.push(f));
+    syncFileInput();
     render();
   }
- 
+
   function removeFile(index) {
     files.splice(index, 1);
+    syncFileInput();
     render();
+  }
+
+  // fileInput.value is reset to '' on every 'change' (so re-picking the same
+  // file still fires another change event), which also wipes its native
+  // .files FileList — without this, the files shown in the preview list were
+  // never actually part of the form submission, so nothing got uploaded.
+  function syncFileInput() {
+    const dt = new DataTransfer();
+    files.forEach(f => dt.items.add(f));
+    fileInput.files = dt.files;
   }
  
   function formatSize(bytes) {

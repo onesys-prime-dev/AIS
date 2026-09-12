@@ -3260,6 +3260,14 @@ class PayrollController extends BaseController
         $thirteenthData     = [];
         $annualizationData  = [];
 
+        // Every employee's 13th-month/annualization upsert used to run as its
+        // own unguarded write — a failure partway through a large roster left
+        // some employees recomputed against this run and others still holding
+        // whatever a previous run (or nothing) had saved, with no way to tell
+        // which employees actually reflect this computation. Wrapping the
+        // whole pass keeps it all-or-nothing without changing a single
+        // computed value or the response shape for the success case.
+        $db->transBegin();
         foreach ($byEmployee as $empId => $agg) {
             // ── 13th Month ───────────────────────────────────────────────────
             $totalPureBasic = $agg['total_pure_basic'];
@@ -3337,6 +3345,21 @@ class PayrollController extends BaseController
                 'year_end_adjustment'        => $adjustment,
             ];
         }
+
+        if (!$db->transStatus()) {
+            $db->transRollback();
+            log_message('error', 'Year-end computation failed to save for {count} employee(s); rolled back.', ['count' => count($byEmployee)]);
+            return $this->response->setStatusCode(500)->setJSON(['error' => 'Year-end computation could not be saved. Please try again.']);
+        }
+        $db->transCommit();
+
+        $actor = auth()->user();
+        service('activityLogger')->log(
+            'updated', 'payroll',
+            'Year-end 13th-month/annualization computed for ' . $year . ' (' . count($byEmployee) . ' employee(s))',
+            null, null,
+            ['year' => $year, 'employee_count' => count($byEmployee), 'run_by' => $actor ? ($actor->username ?? $actor->id) : 'system']
+        );
 
         return $this->response->setJSON([
             'success'          => true,

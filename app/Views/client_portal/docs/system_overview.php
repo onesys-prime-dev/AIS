@@ -2,55 +2,70 @@
     <h2>System Overview</h2>
 
     <p>
-        <strong>OTIS (One Transaction Integrated System)</strong> is a comprehensive
-        Accounting Information System designed to centralize payroll,
-        bookkeeping, tax management, financial reporting, and client collaboration
-        within a single platform.
+        <strong>OTIS</strong> is the client portal you're using right now — a single
+        web app for attendance, requests, payroll, employee records, and
+        company announcements, built with roles so each person only sees the
+        modules relevant to them.
     </p>
 
-    <h3>Purpose</h3>
+    <h3>Sidebar Navigation</h3>
 
-    <p>
-        OTIS enables organizations and accounting firms to automate financial
-        operations, improve compliance, and maintain a complete audit trail of
-        all accounting activities.
-    </p>
-
-    <h3>System Portals</h3>
+    <p>The left sidebar is the same for everyone, but which items appear depends on your role:</p>
 
     <table class="table-auto">
         <thead>
             <tr>
-                <th>Portal</th>
-                <th>Description</th>
+                <th>Sidebar item</th>
+                <th>Who sees it</th>
+                <th>What's inside</th>
             </tr>
         </thead>
         <tbody>
             <tr>
-                <td>Client Portal</td>
-                <td>Upload documents, view financial reports, communicate with accountants.</td>
+                <td>Dashboard</td>
+                <td>Everyone</td>
+                <td>Time in/out, current status, the announcements feed, quick actions.</td>
             </tr>
             <tr>
-                <td>Employee Portal</td>
-                <td>Attendance tracking, requests management, payslip access.</td>
+                <td>Timesheets</td>
+                <td>Everyone</td>
+                <td>Daily time log, attendance history, flagged/edited entries, task logging.</td>
             </tr>
             <tr>
-                <td>Accounting Portal</td>
-                <td>Bookkeeping, payroll processing, tax compliance, and reporting.</td>
+                <td>Requests</td>
+                <td>Everyone</td>
+                <td>Submit and track Overtime, Undertime, and Leave requests.</td>
+            </tr>
+            <tr>
+                <td>Payroll</td>
+                <td>Payroll Staff only</td>
+                <td>6 tabs: Payroll Status, Generate Payslip, Payroll Settings, 13th Month &amp; Annualization, Payroll Register &amp; History, Audit Log.</td>
+            </tr>
+            <tr>
+                <td>Employee</td>
+                <td>Payroll Staff only</td>
+                <td>2 tabs: Employee Management, and Loan Management (also gated by the loans permission).</td>
+            </tr>
+            <tr>
+                <td>Help</td>
+                <td>Everyone</td>
+                <td>This page — documentation, FAQs, and the support request form.</td>
             </tr>
         </tbody>
     </table>
 
-    <h3>Core Modules</h3>
+    <h3>Other Places to Know About</h3>
 
     <ul>
-        <li>Payroll Management</li>
-        <li>Bookkeeping Management</li>
-        <li>Tax Compliance</li>
-        <li>Financial Reporting</li>
-        <li>Bank Reconciliation</li>
-        <li>Client Document Management</li>
-        <li>User & Role Management</li>
-        <li>Audit & Monitoring</li>
+        <li>The notification bell (top right) — announcements and request updates, with an unread count</li>
+        <li>The header's "Ask" button — a Help Centre chat assistant that answers from this documentation</li>
+        <li>Settings (from your profile menu) — personal theme/branding, and face recognition login setup</li>
+        <li>Your Profile page — payslip password, contact info, emergency contact, profile photo</li>
     </ul>
+
+    <p>
+        There is no separate "Accounting Portal" or bookkeeping/tax-compliance
+        module — payroll, employee records, and attendance are the core of
+        the system.
+    </p>
 </div>

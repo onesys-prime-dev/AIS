@@ -106,6 +106,10 @@ function formatAttachmentSize(bytes) {
     return `${(kilobytes / 1024).toFixed(1)} MB`;
 }
 
+function getAttachmentPreviewIconSvg() {
+    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>';
+}
+
 function getAttachmentIconSvg(kind) {
     if (kind === 'image') {
         return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2" ry="2"/><circle cx="9" cy="10" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>';
@@ -144,6 +148,26 @@ window.closeAttachmentPreviewModal = function () {
     }
 };
 
+function withInlineViewParam(url) {
+    return url + (url.indexOf('?') === -1 ? '?' : '&') + 'view=1';
+}
+
+function showAttachmentPreviewError(stage, downloadNode) {
+    stage.innerHTML = `
+        <div class="attachment-preview-fallback">
+            <div class="attachment-preview-fallback-icon">${getAttachmentIconSvg('document')}</div>
+            <div class="attachment-preview-fallback-title">File not found</div>
+            <div class="attachment-preview-fallback-text">This attachment could not be located on the server. It may have been removed.</div>
+        </div>
+    `;
+    if (downloadNode) {
+        downloadNode.href = '#';
+        downloadNode.removeAttribute('download');
+        downloadNode.setAttribute('aria-disabled', 'true');
+        downloadNode.classList.add('is-disabled');
+    }
+}
+
 window.openAttachmentPreviewModal = function (attachment) {
     const modal = document.getElementById('attachmentPreviewModal');
     const stage = document.getElementById('attachmentPreviewStage');
@@ -165,33 +189,51 @@ window.openAttachmentPreviewModal = function (attachment) {
     downloadNode.href = fileUrl || '#';
     downloadNode.download = fileName;
     downloadNode.setAttribute('aria-label', `Download ${fileName}`);
+    downloadNode.removeAttribute('aria-disabled');
+    downloadNode.classList.remove('is-disabled');
 
     stage.innerHTML = '';
+    modal.style.display = 'flex';
 
-    if (kind === 'image') {
-        const img = document.createElement('img');
-        img.src = fileUrl;
-        img.alt = fileName;
-        stage.appendChild(img);
-    } else if (kind === 'pdf' && fileUrl) {
-        const iframe = document.createElement('iframe');
-        iframe.src = fileUrl;
-        iframe.title = fileName;
-        iframe.loading = 'lazy';
-        iframe.referrerPolicy = 'no-referrer';
-        stage.appendChild(iframe);
-    } else {
-        const fallback = document.createElement('div');
-        fallback.className = 'attachment-preview-fallback';
-        fallback.innerHTML = `
-            <div class="attachment-preview-fallback-icon">${getAttachmentIconSvg('document')}</div>
-            <div class="attachment-preview-fallback-title">Preview unavailable for this file type</div>
-            <div class="attachment-preview-fallback-text">Use the Download button to open the file locally.</div>
-        `;
-        stage.appendChild(fallback);
+    if (!fileUrl) {
+        showAttachmentPreviewError(stage, downloadNode);
+        return;
     }
 
-    modal.style.display = 'flex';
+    fetch(fileUrl, { credentials: 'same-origin' })
+        .then(function (res) {
+            if (!res.ok) {
+                showAttachmentPreviewError(stage, downloadNode);
+                return;
+            }
+
+            if (kind === 'image') {
+                const img = document.createElement('img');
+                img.onerror = function () { showAttachmentPreviewError(stage, downloadNode); };
+                img.alt = fileName;
+                img.src = withInlineViewParam(fileUrl);
+                stage.appendChild(img);
+            } else if (kind === 'pdf') {
+                const iframe = document.createElement('iframe');
+                iframe.src = withInlineViewParam(fileUrl);
+                iframe.title = fileName;
+                iframe.loading = 'lazy';
+                iframe.referrerPolicy = 'no-referrer';
+                stage.appendChild(iframe);
+            } else {
+                const fallback = document.createElement('div');
+                fallback.className = 'attachment-preview-fallback';
+                fallback.innerHTML = `
+                    <div class="attachment-preview-fallback-icon">${getAttachmentIconSvg('document')}</div>
+                    <div class="attachment-preview-fallback-title">Preview unavailable for this file type</div>
+                    <div class="attachment-preview-fallback-text">Use the Download button to open the file locally.</div>
+                `;
+                stage.appendChild(fallback);
+            }
+        })
+        .catch(function () {
+            showAttachmentPreviewError(stage, downloadNode);
+        });
 };
 
 window.openNotificationModal = function (el) {
@@ -327,6 +369,13 @@ window.openNotificationModal = function (el) {
 
     modal.dataset.notificationId = String(el.dataset.id || '');
     modal.dataset.notificationSource = String(el.dataset.source || 'announcement');
+    modal.dataset.notificationCreatedBy = String(el.dataset.createdBy || '0');
+
+    const editBtn = document.getElementById('notificationEditBtn');
+    if (editBtn) {
+        const canEdit = modal.dataset.notificationSource === 'announcement' && !!window.canEditAnnouncements;
+        editBtn.style.display = canEdit ? '' : 'none';
+    }
 
     const authorName = el.dataset.authorName || 'System';
     const authorPhoto = el.dataset.authorPhoto || '';
@@ -384,7 +433,7 @@ window.openNotificationModal = function (el) {
                     openBtn.className = `attachment-open-btn attachment-kind-${kind}`;
                     openBtn.setAttribute('aria-label', `Preview ${name}`);
                     openBtn.title = `Preview ${name}`;
-                    openBtn.innerHTML = getAttachmentIconSvg(kind);
+                    openBtn.innerHTML = getAttachmentPreviewIconSvg();
                     openBtn.addEventListener('click', function () {
                         window.openAttachmentPreviewModal({
                             url: fp,
@@ -418,6 +467,23 @@ window.openNotificationModal = function (el) {
                     downloadBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>';
                     downloadBtn.addEventListener('click', function (event) {
                         event.stopPropagation();
+                        if (!fp) {
+                            event.preventDefault();
+                            if (window.showToast) window.showToast('This attachment could not be found.', 'error');
+                            return;
+                        }
+                        event.preventDefault();
+                        fetch(fp, { credentials: 'same-origin' })
+                            .then(function (res) {
+                                if (!res.ok) {
+                                    if (window.showToast) window.showToast('This attachment could not be found. It may have been removed.', 'error');
+                                    return;
+                                }
+                                window.location.href = fp;
+                            })
+                            .catch(function () {
+                                if (window.showToast) window.showToast('This attachment could not be found. It may have been removed.', 'error');
+                            });
                     });
 
                     card.appendChild(openBtn);
@@ -444,6 +510,31 @@ window.openNotificationModal = function (el) {
     modal.style.display = 'flex';
 };
 
+window.updateHeaderNotifBadge = function () {
+    const badge = document.querySelector('.header-notif-badge');
+    const unread = document.querySelectorAll('.header-notif-item:not(.header-notif-viewed)').length;
+
+    if (unread <= 0) {
+        if (badge) badge.remove();
+        return;
+    }
+
+    if (badge) {
+        badge.textContent = String(unread);
+        return;
+    }
+
+    // Prefer the poll script's slot (#headerNotifBadgeSlot) so a badge we
+    // create client-side lives in the same place a server-rendered one
+    // would, ahead of the next 60s poll's innerHTML swap.
+    const slot = document.getElementById('headerNotifBadgeSlot') || document.querySelector('.header-notif-btn');
+    if (!slot) return;
+    const newBadge = document.createElement('span');
+    newBadge.className = 'header-notif-badge';
+    newBadge.textContent = String(unread);
+    slot.appendChild(newBadge);
+};
+
 window.syncNotificationViewedState = function (notificationId, isViewed, source = 'announcement') {
     if (!notificationId) return;
 
@@ -451,6 +542,8 @@ window.syncNotificationViewedState = function (notificationId, isViewed, source 
         item.classList.toggle('header-notif-viewed', isViewed);
         item.classList.toggle('notif-viewed', isViewed);
     });
+
+    window.updateHeaderNotifBadge();
 };
 
 window.refreshNotificationGroupState = function () {
@@ -496,15 +589,8 @@ window.refreshHeaderNotificationState = function () {
 
     const headerItems = notifList.querySelectorAll('.header-notif-item');
     const remaining = headerItems.length;
-    const badge = document.querySelector('.header-notif-badge');
 
-    if (badge) {
-        if (remaining <= 0) {
-            badge.remove();
-        } else {
-            badge.textContent = String(remaining);
-        }
-    }
+    window.updateHeaderNotifBadge();
 
     const sectionLabels = notifList.querySelectorAll('.header-notif-section-label');
     const existingEmpty = notifList.querySelector('.header-notif-empty');
@@ -539,17 +625,11 @@ window.refreshHeaderNotificationState = function () {
     }
 };
 
-window.markNotificationAsViewed = async function (notificationId) {
-    let modal = document.getElementById('viewNotificationsModal');
-    if (!(modal?.style?.display === 'flex' || modal?.dataset?.notificationId)) {
-        modal = document.getElementById('viewRequestNotificationModal') || modal;
-    }
-
-    const source = modal?.dataset?.notificationSource || 'announcement';
+async function sendNotificationViewed(notificationId, source) {
     const viewedUrl = source === 'request' ? window.requestNotificationViewedUrl : window.notificationViewedUrl;
 
     if (!notificationId || !viewedUrl || !window.notificationCsrfTokenName || !window.notificationCsrfTokenHash) {
-        return;
+        return false;
     }
 
     const payload = new URLSearchParams();
@@ -572,13 +652,48 @@ window.markNotificationAsViewed = async function (notificationId) {
             window.notificationCsrfTokenHash = result.csrfHash;
         }
 
-        if (!response.ok || !result || result.success !== true) {
-            window.syncNotificationViewedState(notificationId, false, source);
-        }
+        return response.ok && result && result.success === true;
     } catch (error) {
-        window.syncNotificationViewedState(notificationId, false, source);
         console.error('Unable to mark notification as viewed.', error);
+        return false;
     }
+}
+
+window.markNotificationAsViewed = async function (notificationId) {
+    let modal = document.getElementById('viewNotificationsModal');
+    if (!(modal?.style?.display === 'flex' || modal?.dataset?.notificationId)) {
+        modal = document.getElementById('viewRequestNotificationModal') || modal;
+    }
+
+    const source = modal?.dataset?.notificationSource || 'announcement';
+
+    const ok = await sendNotificationViewed(notificationId, source);
+    if (!ok) {
+        window.syncNotificationViewedState(notificationId, false, source);
+    }
+};
+
+window.markAllNotificationsAsRead = async function () {
+    const unreadItems = Array.from(document.querySelectorAll('.header-notif-item:not(.header-notif-viewed)'));
+
+    if (unreadItems.length === 0) {
+        return;
+    }
+
+    const results = await Promise.all(unreadItems.map(function (item) {
+        const notificationId = Number(item.dataset.id || 0);
+        const source = String(item.dataset.source || 'announcement');
+
+        return sendNotificationViewed(notificationId, source).then(function (ok) {
+            return { item: item, notificationId: notificationId, source: source, ok: ok };
+        });
+    }));
+
+    results.forEach(function (result) {
+        if (result.ok) {
+            window.syncNotificationViewedState(result.notificationId, true, result.source);
+        }
+    });
 };
 
 window.deleteCurrentNotificationForMe = async function () {
@@ -645,6 +760,26 @@ window.deleteCurrentNotificationForMe = async function () {
         console.error('Unable to delete notification.', error);
         showToast('Unable to delete notification.', 'error');
     }
+};
+
+window.editCurrentNotificationHandler = function () {
+    const modal = document.getElementById('viewNotificationsModal');
+    const notificationId = Number(modal?.dataset?.notificationId || 0);
+    const source = modal?.dataset?.notificationSource || 'announcement';
+
+    if (!notificationId || source !== 'announcement') {
+        showToast('This notification cannot be edited.', 'info');
+        return;
+    }
+
+    if (typeof window.openAnnouncementEditModal === 'function') {
+        window.closeNotificationModal();
+        window.openAnnouncementEditModal(notificationId);
+        return;
+    }
+
+    const dashboardUrl = window.dashboardUrl || '/client_portal/dashboard';
+    window.location.href = `${dashboardUrl}?edit_announcement=${notificationId}`;
 };
 
 window.closeNotificationModal = function () {

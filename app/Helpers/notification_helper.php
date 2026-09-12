@@ -13,6 +13,7 @@ if (! function_exists('notification_data')) {
             'audience' => (string) ($notification['audience'] ?? 'All Employees'),
             'status' => (string) ($notification['status'] ?? ''),
             'source' => (string) ($notification['source'] ?? 'announcement'),
+            'created_by' => (int) ($notification['created_by'] ?? 0),
             'request_id' => (int) ($notification['request_id'] ?? 0),
             'actor_name' => (string) ($notification['actor_name'] ?? $notification['author_name'] ?? 'System'),
             'actor_position' => (string) ($notification['actor_position'] ?? ''),

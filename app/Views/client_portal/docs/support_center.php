@@ -1,58 +1,62 @@
 <div id="doc-support-center" class="doc-article">
-    <h2>Support & Issue Escalation</h2>
+    <h2>Support &amp; Help Requests</h2>
 
-    <h3>Support Ticket Lifecycle</h3>
+    <h3>Help Request Status</h3>
 
     <ol>
-        <li>Open</li>
-        <li>Under Review</li>
-        <li>Assigned</li>
-        <li>Resolved</li>
+        <li>Open — just submitted, not yet reviewed</li>
+        <li>In Progress — Payroll Staff is looking into it</li>
+        <li>Resolved — an answer or fix has been given</li>
         <li>Closed</li>
     </ol>
 
-    <h3>Issue Priorities</h3>
+    <h3>Priority Levels</h3>
 
     <table>
         <thead>
             <tr>
                 <th>Priority</th>
-                <th>Description</th>
-                <th>Target Response</th>
+                <th>When to use it</th>
             </tr>
         </thead>
         <tbody>
             <tr>
-                <td>P1</td>
-                <td>System Unavailable</td>
-                <td>1 Hour</td>
+                <td>Urgent</td>
+                <td>Blocking work right now — can't clock in, payroll error affecting pay</td>
             </tr>
             <tr>
-                <td>P2</td>
-                <td>Major Feature Failure</td>
-                <td>4 Hours</td>
+                <td>High</td>
+                <td>Significant problem, but you can keep working around it</td>
             </tr>
             <tr>
-                <td>P3</td>
-                <td>Minor Issue</td>
-                <td>1 Business Day</td>
+                <td>Normal</td>
+                <td>Most requests and questions</td>
             </tr>
             <tr>
-                <td>P4</td>
-                <td>Enhancement Request</td>
-                <td>Next Release</td>
+                <td>Low</td>
+                <td>Minor issue or suggestion</td>
             </tr>
         </tbody>
     </table>
 
-    <h3>Required Information When Reporting Issues</h3>
+    <p>
+        Priority is a label to help Payroll Staff triage — there's no fixed
+        guaranteed response time attached to it.
+    </p>
+
+    <h3>What to Include When Reporting an Issue</h3>
 
     <ul>
-        <li>User Role</li>
-        <li>Affected Module</li>
-        <li>Steps to Reproduce</li>
-        <li>Screenshots</li>
-        <li>Error Messages</li>
-        <li>Payroll Period or Transaction Reference</li>
+        <li>What you were trying to do</li>
+        <li>What module/page it happened on</li>
+        <li>Any error message shown</li>
+        <li>A screenshot, if possible</li>
+        <li>The relevant date or payroll period, if applicable</li>
     </ul>
+
+    <p>
+        Submit through the contact form below — your name, email, and phone
+        are collected automatically for follow-up. You can track your own
+        submitted requests in the history list on this page.
+    </p>
 </div>

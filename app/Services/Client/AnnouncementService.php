@@ -213,6 +213,30 @@ class AnnouncementService
         return $row ?: null;
     }
 
+    /**
+     * Delete a single attachment (file on disk + DB row) — used when editing
+     * an announcement to remove an existing file, independent of publishing
+     * new changes. Attachments are stored under WRITEPATH (outside the
+     * webroot), matching how they're saved in store()/update().
+     */
+    public function deleteAttachment(int $attachmentId): bool
+    {
+        $attachment = $this->getAttachmentById($attachmentId);
+        if (! $attachment) {
+            return false;
+        }
+
+        $filePath = (string) ($attachment['file_path'] ?? '');
+        if ($filePath !== '') {
+            $fullPath = WRITEPATH . ltrim($filePath, '/');
+            if (is_file($fullPath)) {
+                @unlink($fullPath);
+            }
+        }
+
+        return (bool) $this->attachmentModel->delete($attachmentId);
+    }
+
     public function getVisibleAnnouncementsForUser(object $user, int $limit = 15): array
     {
         return $this->applyVisibilityScope($user, false)
@@ -335,6 +359,49 @@ class AnnouncementService
         $db->transComplete();
 
         return $db->transStatus();
+    }
+
+    public function getAnnouncementById(int $announcementId): ?array
+    {
+        $announcementId = (int) $announcementId;
+        if ($announcementId <= 0) {
+            return null;
+        }
+
+        $row = $this->announcementModel->find($announcementId);
+
+        return $row ?: null;
+    }
+
+    public function updateAnnouncement(int $announcementId, array $data): bool
+    {
+        $announcementId = (int) $announcementId;
+        if ($announcementId <= 0) {
+            return false;
+        }
+
+        $existing = $this->announcementModel->find($announcementId);
+        if (! $existing) {
+            return false;
+        }
+
+        $ok = $this->announcementModel->update($announcementId, [
+            'title' => $data['title'],
+            'category' => $data['category'],
+            'audience' => $data['audience'],
+            'department' => $data['department'] !== '' ? $data['department'] : null,
+            'priority' => $data['priority'],
+            'publish_at' => $data['publish_at'],
+            'expires_at' => $data['expires_at'] !== '' ? $data['expires_at'] : null,
+            'details' => $data['details'],
+            'require_acknowledgement' => $data['require_acknowledgement'] ? 1 : 0,
+        ]);
+
+        if ($ok) {
+            $this->logger->announcementUpdated($announcementId, $existing, $data);
+        }
+
+        return $ok;
     }
 
     public function markAnnouncementViewed(int $announcementId, int $userId): bool

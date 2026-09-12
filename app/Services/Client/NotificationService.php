@@ -45,6 +45,7 @@ class NotificationService
             return [
                 'id' => (int) ($row['id'] ?? 0),
                 'source' => $source,
+                'created_by' => (int) ($row['created_by'] ?? 0),
                 'title' => (string) ($row['title'] ?? 'Notification'),
                 'details' => (string) ($row['details'] ?? ''),
                 'publish_at' => $publishedAt,

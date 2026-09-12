@@ -39,11 +39,9 @@
     color:#6b7280;
 }
 
+/* Positioning now lives on the wrapping .search-icon-btn button
+   (header.php) — the icon itself just needs to sit inside it. */
 .search-icon{
-    position:absolute;
-    left:16px;
-    top:50%;
-    transform:translateY(-50%);
     color:#6b7280;
 }
 
