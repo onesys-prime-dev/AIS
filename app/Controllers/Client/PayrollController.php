@@ -1985,13 +1985,35 @@ class PayrollController extends BaseController
                 // payroll_id references employee_payslips (this flow has no
                 // payroll_transactions row) so payments stay traceable to the
                 // payslip that generated them.
-                $this->markLoansActiveOngoing((int) $employeeId, (string) $data['period_end']);
-                (new \App\Services\Client\LoanService())->markInstallmentPaid(
-                    (int) $employeeId,
-                    (string) $data['period_start'],
-                    (string) $data['period_end'],
-                    (int) $payslipRecordId
-                );
+                //
+                // markInstallmentPaid() can update several loans' schedules
+                // for one employee; without a transaction, a failure partway
+                // through left some installments marked paid and others not,
+                // with no way to tell which reflect this send. Wrapped so
+                // it's all-or-nothing — a failure here doesn't undo the email
+                // that already went out (can't recall it), so it's caught
+                // and logged rather than surfaced as a failed send; the
+                // payslip record itself still reflects sent_at/sent_by above.
+                $loanWarning = null;
+                $db = \Config\Database::connect();
+                $db->transBegin();
+                try {
+                    $this->markLoansActiveOngoing((int) $employeeId, (string) $data['period_end']);
+                    (new \App\Services\Client\LoanService())->markInstallmentPaid(
+                        (int) $employeeId,
+                        (string) $data['period_start'],
+                        (string) $data['period_end'],
+                        (int) $payslipRecordId
+                    );
+                    if (!$db->transStatus()) throw new \RuntimeException('Loan installment update failed to save.');
+                    $db->transCommit();
+                } catch (\Throwable $e) {
+                    $db->transRollback();
+                    log_message('error', 'sendPdf: loan installment marking failed for employee {id}, payslip {payslip}: {message}', [
+                        'id' => $employeeId, 'payslip' => $payslipRecordId, 'message' => $e->getMessage(),
+                    ]);
+                    $loanWarning = 'Payslip sent, but loan installment deduction could not be recorded — please review this employee\'s loans manually.';
+                }
 
                 $sendMethod = ($data['send_method'] ?? 'individual') === 'bulk' ? 'bulk' : 'individual';
                 service('activityLogger')->payslipSent(
@@ -2003,7 +2025,7 @@ class PayrollController extends BaseController
                     $sendMethod
                 );
 
-                return $this->response->setJSON(['success' => true]);
+                return $this->response->setJSON($loanWarning ? ['success' => true, 'warning' => $loanWarning] : ['success' => true]);
             } else {
                 $debugInfo = $email->printDebugger(['headers', 'subject', 'body']);
                 log_message('error', 'sendPdf email failed: ' . $debugInfo);

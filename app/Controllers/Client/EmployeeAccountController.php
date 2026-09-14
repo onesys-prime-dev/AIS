@@ -237,8 +237,7 @@ class EmployeeAccountController extends BaseController
         ];
 
         if (! $this->validateData($this->request->getPost(), $rules)) {
-            return redirect()->back()->withInput()
-                ->with('error', implode(' ', $this->validator->getErrors()));
+            return $this->respond(false, implode(' ', $this->validator->getErrors()));
         }
 
         $currentInput = (string) $this->request->getPost('current_payslip_password');
@@ -262,14 +261,14 @@ class EmployeeAccountController extends BaseController
             $employeeModel = new \App\Models\Client\EmployeeModel();
             $employee = $employeeModel->where('user_id', $user->id)->first();
             if (! $employee) {
-                return redirect()->back()->with('error', 'Employee record not found.');
+                return $this->respond(false, 'Employee record not found.');
             }
             $preset = $employee['employee_number'] . date('Ymd', strtotime($employee['birthdate']));
             $valid = hash_equals($preset, $currentInput);
         }
 
         if (! $valid) {
-            return redirect()->back()->with('error', 'Current payslip password is incorrect.');
+            return $this->respond(false, 'Current payslip password is incorrect.');
         }
 
         // --- Hash and save the new password ---
@@ -301,7 +300,7 @@ class EmployeeAccountController extends BaseController
             ['user_id' => $user->id]
         );
 
-        return redirect()->back()->with('success', 'Payslip password updated successfully.');
+        return $this->respond(true, 'Payslip password updated successfully.');
     }
 
     public function resetPayslipPassword()
@@ -316,7 +315,7 @@ class EmployeeAccountController extends BaseController
         ];
 
         if (! $this->validateData($this->request->getPost(), $rules)) {
-            return redirect()->back()->with('error', 'Account password is required.');
+            return $this->respond(false, 'Account password is required.');
         }
 
         // Verify account password against Shield's auth_identities secret2
@@ -328,12 +327,12 @@ class EmployeeAccountController extends BaseController
             ->getRowArray();
 
         if (! $identity) {
-            return redirect()->back()->with('error', 'Could not verify account credentials.');
+            return $this->respond(false, 'Could not verify account credentials.');
         }
 
         $accountPassword = (string) $this->request->getPost('account_password');
         if (! password_verify($accountPassword, $identity['secret2'])) {
-            return redirect()->back()->with('error', 'Account password is incorrect.');
+            return $this->respond(false, 'Account password is incorrect.');
         }
 
         // Strip payslip password keys from settings, preserve everything else
@@ -364,6 +363,24 @@ class EmployeeAccountController extends BaseController
             ['user_id' => $user->id]
         );
 
-        return redirect()->back()->with('success', 'Payslip password reset to default successfully.');
+        return $this->respond(true, 'Payslip password reset to default successfully.');
+    }
+
+    /**
+     * Send a success/error confirmation for a payslip-password action.
+     * AJAX requests (used by the payslip password forms) get an explicit
+     * JSON payload so the UI can show a toast immediately instead of relying
+     * on a full-page reload picking up flash data. Non-AJAX submissions
+     * (e.g. JS disabled) fall back to the usual redirect + flash message.
+     */
+    private function respond(bool $ok, string $message)
+    {
+        if ($this->request->isAJAX()) {
+            return $this->response->setJSON(['ok' => $ok, 'message' => $message]);
+        }
+
+        return $ok
+            ? redirect()->back()->with('success', $message)
+            : redirect()->back()->with('error', $message);
     }
 }

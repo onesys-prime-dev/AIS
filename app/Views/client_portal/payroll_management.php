@@ -4694,7 +4694,11 @@ async function sendPdfToEmployee() {
             showToast('Error sending PDF: ' + (result.error || `Server error ${response.status}`), 'error');
             return;
         }
-        showToast('PDF payslip sent successfully to employee email.', 'success');
+        if (result.warning) {
+            showToast(result.warning, 'warning');
+        } else {
+            showToast('PDF payslip sent successfully to employee email.', 'success');
+        }
         window.location.reload();
     } catch (error) {
         console.error('Send PDF error:', error);

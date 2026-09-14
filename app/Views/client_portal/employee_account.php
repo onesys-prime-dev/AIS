@@ -272,7 +272,7 @@
                 If not set, the default is your <strong>Employee Number + Birthdate (YYYYMMDD)</strong>.
             </p>
 
-            <form method="post" action="<?= site_url('client_portal/profile/payslip-password') ?>">
+            <form id="payslipPasswordForm" method="post" action="<?= site_url('client_portal/profile/payslip-password') ?>">
                 <?= csrf_field() ?>
                 <div class="security-grid">
                     <div class="form-group">
@@ -320,7 +320,7 @@
             Enter your <strong>account password</strong> to confirm.
         </p>
 
-        <form method="post" action="<?= site_url('client_portal/profile/payslip-password/reset') ?>">
+        <form id="resetPayslipForm" method="post" action="<?= site_url('client_portal/profile/payslip-password/reset') ?>">
             <?= csrf_field() ?>
             <div class="form-group" style="margin-bottom:1rem;">
                 <label>Account Password</label>
@@ -1292,6 +1292,62 @@
         });
 
         syncSaveVisibility();
+    })();
+
+    // AJAX submit for the Payslip Password forms (Update + Reset), so success/failure
+    // is confirmed via a toast immediately instead of depending on a full page reload.
+    (function () {
+        function bindAjaxForm(form, onSuccess) {
+            if (!form) return;
+
+            form.addEventListener('submit', function (e) {
+                e.preventDefault();
+
+                const submitBtn = form.querySelector('button[type="submit"]');
+                const originalText = submitBtn ? submitBtn.textContent : null;
+                if (submitBtn) {
+                    submitBtn.disabled = true;
+                    submitBtn.textContent = 'Please wait…';
+                }
+
+                fetch(form.getAttribute('action'), {
+                    method: 'POST',
+                    body: new FormData(form),
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                })
+                    .then((res) => res.json().catch(() => ({
+                        // A non-JSON response here means something upstream (e.g. an
+                        // expired-session redirect to /login, followed silently by
+                        // fetch) intercepted the request before it reached respond() —
+                        // never treat that as success just because the final response
+                        // itself was a 200.
+                        ok: false,
+                        message: res.redirected ? 'Your session expired. Please log in again.' : 'Something went wrong. Please try again.',
+                    })))
+                    .then((data) => {
+                        window.showToast(data.message || (data.ok ? 'Done.' : 'Something went wrong.'), data.ok ? 'success' : 'error');
+                        if (data.ok) {
+                            form.reset();
+                            if (onSuccess) onSuccess();
+                        }
+                    })
+                    .catch(() => {
+                        window.showToast('Network error. Please try again.', 'error');
+                    })
+                    .finally(() => {
+                        if (submitBtn) {
+                            submitBtn.disabled = false;
+                            submitBtn.textContent = originalText;
+                        }
+                    });
+            });
+        }
+
+        bindAjaxForm(document.getElementById('payslipPasswordForm'));
+        bindAjaxForm(document.getElementById('resetPayslipForm'), function () {
+            const modal = document.getElementById('resetPayslipModal');
+            if (modal) modal.style.display = 'none';
+        });
     })();
 
     // Change detection for Emergency Contact Form
