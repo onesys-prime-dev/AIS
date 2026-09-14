@@ -36,7 +36,9 @@ class PayrollTransactionModel extends Model
         'net_pay',
         'status',
         'computed_by',
-        'computed_at'
+        'computed_at',
+        'paid_by',
+        'paid_at'
     ];
 
     protected $useTimestamps = false;

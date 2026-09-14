@@ -547,6 +547,22 @@ $_defaultYearMonth = "{$_year}-{$_month}";
     .send-pdf-btn:hover {
         background: #218838;
     }
+    .mark-paid-btn {
+        background: #0d6efd;
+        color: white;
+        border: none;
+        padding: 10px 24px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-weight: 500;
+    }
+    .mark-paid-btn:hover {
+        background: #0b5ed7;
+    }
+    .mark-paid-btn:disabled {
+        background: #6c757d;
+        cursor: default;
+    }
 
 /* ─── LAYOUT & UI IMPROVEMENTS ─── */
 /* Raw-sheet & register section cards */
@@ -1430,6 +1446,7 @@ $_defaultYearMonth = "{$_year}-{$_month}";
         <div id="staticPayslipContent"></div>
         <div class="modal-footer">
             <button class="send-pdf-btn" id="sendPdfBtn"><span id="sendPdfBtnSpinner" class="btn-spinner" style="display:none;"></span><span id="sendPdfBtnText">Send Payslip to Employee</span></button>
+            <button class="mark-paid-btn" id="markPaidBtn" title="Marks this payroll transaction as paid. This cannot be undone."><span id="markPaidBtnText">Mark as Paid</span></button>
         </div>
     </div>
 </div>
@@ -4490,13 +4507,17 @@ function generateStaticPayslip() {
         body: JSON.stringify(payload)
     }).then(response => response.ok ? response.json() : Promise.reject())
       .then(result => {
-          if (result.transaction_id) console.log('Transaction saved, ID:', result.transaction_id);
+          if (result.transaction_id) {
+              d.transactionId = result.transaction_id;
+              updateMarkPaidButtonState();
+          }
       }).catch(() => {});
 
     const html = generatePayslipHTML(d);
     document.getElementById('staticPayslipContent').innerHTML = html;
     document.getElementById('staticPayslipModal').style.display = 'block';
     window.currentPayslipData = d;
+    updateMarkPaidButtonState();
 
     let employeeIdToPersist = document.getElementById('selectedEmployeeId').value;
     if (!employeeIdToPersist && selectedEmployeeIds.size > 0) {
@@ -4685,6 +4706,60 @@ async function sendPdfToEmployee() {
     }
 }
 
+// ================= MARK AS PAID =================
+// Reflects whether the currently-previewed payslip's transaction is known
+// and not already paid. transactionId only exists once the compute/generate
+// call above has round-tripped, so this stays disabled until then.
+function updateMarkPaidButtonState() {
+    const btn     = document.getElementById('markPaidBtn');
+    const btnText = document.getElementById('markPaidBtnText');
+    if (!btn || !btnText) return;
+
+    const alreadyPaid = window.currentPayslipData?.alreadyPaid === true;
+    const hasTxId     = !!window.currentPayslipData?.transactionId;
+
+    btn.disabled = alreadyPaid || !hasTxId;
+    btnText.textContent = alreadyPaid ? 'Already Paid' : 'Mark as Paid';
+}
+
+async function markPayrollTransactionPaid() {
+    const txId = window.currentPayslipData?.transactionId;
+    if (!txId) {
+        showToast('Generate the payslip first so a payroll transaction exists to mark.', 'warning');
+        return;
+    }
+    if (window.currentPayslipData?.alreadyPaid) return;
+
+    if (!confirm('Mark this payroll transaction as paid? This cannot be undone.')) return;
+
+    const btn     = document.getElementById('markPaidBtn');
+    const btnText = document.getElementById('markPaidBtnText');
+    btn.disabled = true;
+    btnText.textContent = 'Marking...';
+
+    try {
+        const response = await fetch('<?= site_url('client_portal/payroll/markPaid') ?>/' + txId, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        const result = await response.json();
+        if (!response.ok || !result.success) {
+            showToast('Error: ' + (result.error || `Server error ${response.status}`), 'error');
+            btn.disabled = false;
+            btnText.textContent = 'Mark as Paid';
+            return;
+        }
+        window.currentPayslipData.alreadyPaid = true;
+        updateMarkPaidButtonState();
+        showToast('Payroll transaction marked as paid.', 'success');
+    } catch (error) {
+        console.error('Mark paid error:', error);
+        showToast('Network error — could not reach server. Check console for details.', 'error');
+        btn.disabled = false;
+        btnText.textContent = 'Mark as Paid';
+    }
+}
+
 // ================= EXPORT RAW SHEET (CSV) =================
 function exportRawSheet() {
     // Bulk mode: export all generated payslips as multi-row CSV
@@ -4851,6 +4926,7 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('payslipPeriodStart')?.addEventListener('change', () => { autoDetectPeriodType(); fetchAndSetPriorHalfWT(); });
     document.getElementById('payslipPeriodType')?.addEventListener('change', fetchAndSetPriorHalfWT);
     document.getElementById('sendPdfBtn')?.addEventListener('click', sendPdfToEmployee);
+    document.getElementById('markPaidBtn')?.addEventListener('click', markPayrollTransactionPaid);
     document.getElementById('exportRawSheetBtn')?.addEventListener('click', exportRawSheet);
     document.getElementById('exportRegisterBtn')?.addEventListener('click', exportRegister);
     
