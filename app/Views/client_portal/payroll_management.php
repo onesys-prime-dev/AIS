@@ -4598,7 +4598,6 @@ async function sendPdfToEmployee() {
     // only blocks an accidental double-click/slow-network double-submit.
     const sendBtn = document.getElementById('sendPdfBtn');
     if (sendBtn) { if (sendBtn.disabled) return; sendBtn.disabled = true; }
-    const restoreSendBtn = () => { if (sendBtn) sendBtn.disabled = false; };
     const payload = {
         employee_id: employeeId,
         period_start: window.currentPayslipData.periodStart,
@@ -4656,7 +4655,6 @@ async function sendPdfToEmployee() {
         net_pay: window.currentPayslipData.netPay,
     };
 
-    const sendBtn     = document.getElementById('sendPdfBtn');
     const sendSpinner = document.getElementById('sendPdfBtnSpinner');
     const sendBtnText = document.getElementById('sendPdfBtnText');
 
@@ -4681,13 +4679,9 @@ async function sendPdfToEmployee() {
         console.error('Send PDF error:', error);
         showToast('Network error — could not reach server. Check console for details.', 'error');
     } finally {
-<<<<<<< HEAD
         sendBtn.disabled = false;
         sendSpinner.style.display = 'none';
         sendBtnText.textContent = 'Send Payslip to Employee';
-=======
-        restoreSendBtn();
->>>>>>> f654c1d8aeb5bb42bdd592798a281f35f7f1b4b3
     }
 }
 

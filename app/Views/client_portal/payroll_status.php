@@ -203,7 +203,7 @@
         try {
             const resp = await fetch(MARK_URL, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': CSRF_HASH },
                 body: JSON.stringify({ employee_id: employeeId, month_year: MONTH, status, period_type: PERIOD })
             });
             const result = await resp.json();
