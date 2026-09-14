@@ -194,6 +194,77 @@ class PayrollController extends BaseController
         }
     }
 
+    /**
+     * POST client_portal/payroll/markPaid/(:num)
+     *
+     * Marks one computed payroll_transactions row as 'paid'. One-way: only a
+     * 'computed' row may transition to 'paid' — already-'paid' or still-'draft'
+     * rows are rejected, so this can't double-mark a payment or skip
+     * computation. Traceable via paid_by/paid_at plus an activity log entry,
+     * mirroring the computed_by/computed_at and payslip sent_by/sent_at
+     * patterns already used elsewhere in this controller.
+     */
+    public function markTransactionPaid($id = null)
+    {
+        try {
+            $txModel = new PayrollTransactionModel();
+            $tx      = $txModel->find($id);
+
+            if (!$tx) {
+                return $this->response->setStatusCode(404)->setJSON(['error' => 'Payroll transaction not found.']);
+            }
+
+            if ($tx['status'] !== 'computed') {
+                return $this->response->setStatusCode(409)->setJSON([
+                    'error' => $tx['status'] === 'paid'
+                        ? 'This payroll transaction is already marked as paid.'
+                        : 'Only a computed payroll transaction can be marked as paid.',
+                ]);
+            }
+
+            $actor = auth()->user();
+            $db    = \Config\Database::connect();
+
+            $db->transBegin();
+
+            // Conditional update guards against a concurrent double-click/second
+            // request racing past the status check above.
+            $affected = $db->table('payroll_transactions')
+                ->where('id', $id)
+                ->where('status', 'computed')
+                ->update([
+                    'status'  => 'paid',
+                    'paid_by' => $actor ? $actor->id : null,
+                    'paid_at' => date('Y-m-d H:i:s'),
+                ]);
+
+            if (!$affected || !$db->transStatus()) {
+                $db->transRollback();
+                return $this->response->setStatusCode(409)->setJSON(['error' => 'This payroll transaction was already updated by another request.']);
+            }
+
+            $db->transCommit();
+
+            service('activityLogger')->log(
+                'updated', 'payroll',
+                'Payroll transaction #' . $id . ' marked as paid',
+                null, null,
+                [
+                    'transaction_id' => (int)$id,
+                    'employee_id'    => $tx['employee_id'],
+                    'period_start'   => $tx['period_start'],
+                    'period_end'     => $tx['period_end'],
+                    'net_pay'        => $tx['net_pay'],
+                    'paid_by'        => $actor ? ($actor->username ?? $actor->id) : 'system',
+                ]
+            );
+
+            return $this->response->setJSON(['success' => true, 'id' => (int)$id, 'status' => 'paid']);
+        } catch (\Throwable $e) {
+            return $this->jsonError($e, 'Unable to mark payroll transaction as paid. Please try again.');
+        }
+    }
+
     public function createPayroll()
     {
         $model = new PayrollModel();

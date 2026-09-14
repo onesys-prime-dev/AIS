@@ -100,7 +100,7 @@ final class PortalAccess
         if (preg_match('~^client_portal/loans(?:/|$)~', $path)) return 'loans';
         if (preg_match('~^client_portal/payroll/(?:getmypayslips)$~', $path)) return 'self';
         if (preg_match('~^client_portal/payroll/(?:downloadpayslip|getpayslipdata)/[0-9]+$~', $path)) return 'self';
-        if (preg_match('~^client_portal/payroll/(?:markstatus|send(?:/.*)?|sendpdf|sendstatic)$~', $path)) return 'release';
+        if (preg_match('~^client_portal/payroll/(?:markstatus|markpaid/[0-9]+|send(?:/.*)?|sendpdf|sendstatic)$~', $path)) return 'release';
         if (preg_match('~^client_portal/payroll(?:/|$)~', $path)) return 'payroll';
         if (preg_match('~^client_portal/timesheet/employee(?:/|$)~', $path)) return 'review_attendance';
         // Correcting a clocked time is a review/oversight action, not

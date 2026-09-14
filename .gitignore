@@ -44,3 +44,6 @@ CompreFace/
 *~
 .DS_Store
 Thumbs.db
+
+# PHPUnit generated output (logs, coverage cache) — never source
+build/

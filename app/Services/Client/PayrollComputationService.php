@@ -384,9 +384,9 @@ class PayrollComputationService
 
     protected function calculatePagIbig(float $monthlySalary): float
     {
-        // 2% of salary, capped at ₱100 employee share — both configurable.
+        // 2% of salary, capped at ₱200 employee share (2024+ HDMF circular) — both configurable.
         $rate = (float)($this->settings->getSetting('hdmf_rate') ?? 0.02);
-        $max  = (float)($this->settings->getSetting('hdmf_max')  ?? 100);
+        $max  = (float)($this->settings->getSetting('hdmf_max')  ?? 200);
 
         return min(round($monthlySalary * $rate, 2), $max);
     }
@@ -424,7 +424,7 @@ class PayrollComputationService
         if ($semiMonthlyTaxable <= 33333)  return round(937.50  + ($semiMonthlyTaxable - 16667) * 0.20, 2);
         if ($semiMonthlyTaxable <= 83333)  return round(4270.70 + ($semiMonthlyTaxable - 33333) * 0.25, 2);
         if ($semiMonthlyTaxable <= 333333) return round(16770.70 + ($semiMonthlyTaxable - 83333) * 0.30, 2);
-        return round(91770.00 + ($semiMonthlyTaxable - 333333) * 0.35, 2);
+        return round(91770.70 + ($semiMonthlyTaxable - 333333) * 0.35, 2);
     }
 
     // ========== Helpers for previous cut‑off data ==========

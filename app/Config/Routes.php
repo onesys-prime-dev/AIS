@@ -125,14 +125,6 @@ $routes->group('', ['filter' => 'auth'], function($routes) {
 // ================= PAYROLL ROUTES =================
 $routes->group('client_portal', ['namespace' => 'App\Controllers\Client', 'filter' => 'auth'], function($routes) {
     $routes->get('payroll', 'PayrollController::payrollView');
-    $routes->get('payroll/employees_json', 'PayrollController::getEmployees');
-    $routes->get('payroll/employee_details/(:num)', 'PayrollController::getEmployeeDetails/$1');
-    $routes->post('payroll/create', 'PayrollController::createPayroll');
-    $routes->post('payroll/update/(:num)', 'PayrollController::updatePayroll/$1');
-    $routes->get('payroll/delete/(:num)', 'PayrollController::deletePayroll/$1');
-    $routes->get('payroll/get/(:num)', 'PayrollController::getPayroll/$1');
-    $routes->post('payroll/markStatus', 'PayrollController::markPayrollStatus');
-
     // -- CRUD
     $routes->get ('payroll'                        , 'PayrollController::payrollView');
     $routes->get ('payroll/employees_json'         , 'PayrollController::getEmployees');
@@ -142,6 +134,7 @@ $routes->group('client_portal', ['namespace' => 'App\Controllers\Client', 'filte
     $routes->get ('payroll/delete/(:num)'          , 'PayrollController::deletePayroll/$1');
     $routes->get ('payroll/get/(:num)'             , 'PayrollController::getPayroll/$1');
     $routes->post('payroll/markStatus'             , 'PayrollController::markPayrollStatus');
+    $routes->post('payroll/markPaid/(:num)'        , 'PayrollController::markTransactionPaid/$1');
 
     $routes->post('payroll/compute'        , 'PayrollController::computeAndSave');
     $routes->get ('payroll/generate/(:num)', 'PayrollController::generatePayslip/$1');
