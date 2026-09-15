@@ -77,11 +77,18 @@ abstract class BaseController extends Controller
                 'header_color'     => '#ffffff',
                 'background_color' => '#f5f6fa',
                 'sidebar_icon_mode'=> 'auto',
+                'font_family'      => 'default',
+                'font_size'        => 'medium',
             ];
 
             $branding['logo_url'] = ! empty($branding['logo_path'])
                 ? base_url((string) $branding['logo_path'])
                 : null;
+
+            // font_family/font_size are user_settings-only preferences, not
+            // company_branding columns, so a real DB row won't carry them.
+            $branding['font_family'] ??= 'default';
+            $branding['font_size']   ??= 'medium';
 
                 log_message('debug', 'logo_path: {p} | logo_url: {u}', [
     'p' => $branding['logo_path'] ?? 'null',
@@ -93,7 +100,7 @@ abstract class BaseController extends Controller
             $userId       = (int) auth()->id();
             $userSettings = (new UserSettingsModel())->getSettingsArray($userId);
 
-            $overridableKeys = ['sidebar_color', 'header_color', 'background_color', 'sidebar_icon_mode'];
+            $overridableKeys = ['sidebar_color', 'header_color', 'background_color', 'sidebar_icon_mode', 'font_family', 'font_size'];
             foreach ($overridableKeys as $key) {
                 if (! empty($userSettings[$key])) {
                     $branding[$key] = $userSettings[$key];

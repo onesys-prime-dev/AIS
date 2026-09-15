@@ -136,7 +136,7 @@
         border-radius: 16px;
         text-decoration: none;
         color: var(--sidebar-text);
-        font-size: 11px;
+        font-size: calc(11px * var(--font-scale, 1));
         transition: background-color 0.2s, color 0.2s, transform 0.2s, box-shadow 0.2s;
     }
 

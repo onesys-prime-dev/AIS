@@ -11,7 +11,32 @@
     <form class="grid" method="post" action="<?= site_url('settings/customization/save') ?>" enctype="multipart/form-data">
         <?= csrf_field() ?>
 
-        <!-- COLORS — always column 1 -->
+        <!-- LOGO — full width on top, only for client_payroll_staff -->
+        <?php if ($canManageLogo): ?>
+        <div class="card card-full">
+            <h3>Company Logo</h3>
+
+            <div class="upload-box" id="logoDropzone">
+                <div class="upload-inner">
+                    <div class="logo-circle" id="logoPreview" style="<?= !empty($logoUrl) ? 'background-image:url(\'' . esc($logoUrl, 'attr') . '\');' : '' ?>">
+                        <?= empty($logoUrl) ? 'Logo' : '' ?>
+                    </div>
+
+                    <p class="drag-text">Drag and drop your file</p>
+                    <small id="fileName"><?= !empty($branding['logo_original_name']) ? esc((string) $branding['logo_original_name']) : 'No file selected' ?></small>
+
+                    <label class="upload-btn">
+                        Upload Files
+                        <input type="file" id="logoInput" name="company_logo" hidden accept=".png,.jpg,.jpeg,.svg,image/png,image/jpeg,image/svg+xml">
+                    </label>
+
+                    <span class="format">Formats: PNG, JPG, or SVG Only</span>
+                </div>
+            </div>
+        </div>
+        <?php endif; ?>
+
+        <!-- BELOW — Company Colors and Typography side by side -->
         <div class="card">
             <h3>Company Colors</h3>
 
@@ -52,30 +77,36 @@
             </div>
         </div>
 
-        <!-- LOGO — column 2, only for client_payroll_staff -->
-        <?php if ($canManageLogo): ?>
         <div class="card">
-            <h3>Company Logo</h3>
+            <h3>Typography</h3>
 
-            <div class="upload-box" id="logoDropzone">
-                <div class="upload-inner">
-                    <div class="logo-circle" id="logoPreview" style="<?= !empty($logoUrl) ? 'background-image:url(\'' . esc($logoUrl, 'attr') . '\');' : '' ?>">
-                        <?= empty($logoUrl) ? 'Logo' : '' ?>
-                    </div>
-
-                    <p class="drag-text">Drag and drop your file</p>
-                    <small id="fileName"><?= !empty($branding['logo_original_name']) ? esc((string) $branding['logo_original_name']) : 'No file selected' ?></small>
-
-                    <label class="upload-btn">
-                        Upload Files
-                        <input type="file" id="logoInput" name="company_logo" hidden accept=".png,.jpg,.jpeg,.svg,image/png,image/jpeg,image/svg+xml">
-                    </label>
-
-                    <span class="format">Formats: PNG, JPG, or SVG Only</span>
+            <div class="color-box">
+                <label>Font Family</label>
+                <div class="mode-field">
+                    <select id="fontFamilySelect" name="font_family">
+                        <option value="default">Default (System)</option>
+                        <option value="classic">Classic Sans (Arial)</option>
+                        <option value="serif">Serif (Georgia)</option>
+                        <option value="rounded">Rounded (Verdana)</option>
+                        <option value="mono">Monospace (Consolas)</option>
+                    </select>
                 </div>
             </div>
+
+            <div class="color-box">
+                <label>Font Size</label>
+                <div class="mode-field">
+                    <select id="fontSizeSelect" name="font_size">
+                        <option value="small">Small</option>
+                        <option value="medium">Medium (Default)</option>
+                        <option value="large">Large</option>
+                        <option value="xlarge">Extra Large</option>
+                    </select>
+                </div>
+            </div>
+
+            <p class="font-preview" id="fontPreviewText">The quick brown fox jumps over the lazy dog.</p>
         </div>
-        <?php endif; ?>
 
         <div class="actions">
             <button type="button" class="discard-btn">Discard Changes</button>
@@ -140,18 +171,31 @@ h1 {
     align-content: start;
 }
 
-/* CARD - with scroll and reduced max-height */
+/* CARD - sizes to its own content; the outer .grid scrolls the whole page */
 .card {
     background: #ffffff;
     border-radius: 18px;
     padding: 25px;
     box-shadow: 0 8px 25px rgba(0,0,0,0.08);
-    overflow-y: auto;
-    max-height: auto;   /* reduced from 500px to bring buttons up */
+    align-self: start;
+}
+
+/* Company Logo sits full-width on top of the grid */
+.card-full {
+    grid-column: 1 / -1;
 }
 
 .card h3 {
     margin-bottom: 20px;
+}
+
+.font-preview {
+    margin-top: 16px;
+    padding: 14px 16px;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    background: #f9fafb;
+    color: #374151;
 }
 
 /* UPLOAD BOX */
@@ -406,6 +450,9 @@ const headerVal = $('headerColorValue');
 const sidebarVal = $('sidebarColorValue');
 const bgVal = $('bgColorValue');
 const sidebarIconModeSelect = $('sidebarIconMode');
+const fontFamilySelect = $('fontFamilySelect');
+const fontSizeSelect = $('fontSizeSelect');
+const fontPreviewText = $('fontPreviewText');
 
 const logoInput = $('logoInput');
 const logoPreview = $('logoPreview');
@@ -417,6 +464,8 @@ const serverBranding = {
     sidebarColor: '<?= esc((string) ($branding['sidebar_color'] ?? '#1e1e1e'), 'js') ?>',
     bgColor: '<?= esc((string) ($branding['background_color'] ?? '#f5f6fa'), 'js') ?>',
     sidebarIconMode: '<?= esc((string) ($branding['sidebar_icon_mode'] ?? 'auto'), 'js') ?>',
+    fontFamily: '<?= esc((string) ($branding['font_family'] ?? 'default'), 'js') ?>',
+    fontSize: '<?= esc((string) ($branding['font_size'] ?? 'medium'), 'js') ?>',
     logoUrl: '<?= esc((string) ($logoUrl ?? ''), 'js') ?>',
 };
 
@@ -425,6 +474,33 @@ let headerColor = serverBranding.headerColor || '#ffffff';
 let sidebarColor = serverBranding.sidebarColor || '#1e1e1e';
 let bgColor = serverBranding.bgColor || '#f5f6fa';
 let sidebarIconMode = serverBranding.sidebarIconMode || 'auto';
+let fontFamily = serverBranding.fontFamily || 'default';
+let fontSize = serverBranding.fontSize || 'medium';
+
+// FONT FAMILY / SIZE LOOKUPS — shared with layouts/main.php, keep in sync
+const FONT_FAMILY_STACKS = {
+    default: "ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif",
+    classic: "Arial, Helvetica, sans-serif",
+    serif: "Georgia, 'Times New Roman', serif",
+    rounded: "Verdana, Geneva, sans-serif",
+    mono: "Consolas, 'Courier New', monospace",
+};
+
+const FONT_SIZE_SCALES = {
+    small: '14px',
+    medium: '16px',
+    large: '18px',
+    xlarge: '20px',
+};
+
+// Multiplier for the header/sidebar's hardcoded px font sizes (they use
+// calc(Npx * var(--font-scale, 1)) since they don't use rem units).
+const FONT_SCALE_FACTORS = {
+    small: 0.875,
+    medium: 1,
+    large: 1.125,
+    xlarge: 1.25,
+};
 
 // TEXT CONTRAST
 function getContrastColor(hex) {
@@ -527,6 +603,16 @@ function applyColors() {
     document.documentElement.style.setProperty('--sidebar-divider', tintColor(sidebarColor, 0.18));
     document.documentElement.style.setProperty('--sidebar-hover', tintColor(sidebarColor, 0.14));
     document.documentElement.style.setProperty('--sidebar-active', tintColor(sidebarColor, 0.25));
+
+    // TYPOGRAPHY
+    document.documentElement.style.setProperty('--font-family', FONT_FAMILY_STACKS[fontFamily] || FONT_FAMILY_STACKS.default);
+    document.documentElement.style.setProperty('--font-scale', FONT_SCALE_FACTORS[fontSize] ?? 1);
+    document.documentElement.style.fontSize = FONT_SIZE_SCALES[fontSize] || FONT_SIZE_SCALES.medium;
+
+    if (fontPreviewText) {
+        fontPreviewText.style.fontFamily = FONT_FAMILY_STACKS[fontFamily] || FONT_FAMILY_STACKS.default;
+        fontPreviewText.style.fontSize = FONT_SIZE_SCALES[fontSize] || FONT_SIZE_SCALES.medium;
+    }
 }
 
 // INITIAL LOAD
@@ -538,6 +624,8 @@ if (headerVal) headerVal.value = headerColor;
 if (sidebarVal) sidebarVal.value = sidebarColor;
 if (bgVal) bgVal.value = bgColor;
 if (sidebarIconModeSelect) sidebarIconModeSelect.value = sidebarIconMode;
+if (fontFamilySelect) fontFamilySelect.value = fontFamily;
+if (fontSizeSelect) fontSizeSelect.value = fontSize;
 
 applyColors();
 
@@ -562,6 +650,16 @@ bgPicker?.addEventListener('input', () => {
 
 sidebarIconModeSelect?.addEventListener('change', () => {
     sidebarIconMode = sidebarIconModeSelect.value;
+    applyColors();
+});
+
+fontFamilySelect?.addEventListener('change', () => {
+    fontFamily = fontFamilySelect.value;
+    applyColors();
+});
+
+fontSizeSelect?.addEventListener('change', () => {
+    fontSize = fontSizeSelect.value;
     applyColors();
 });
 
@@ -635,7 +733,7 @@ let allowNavigation = false;
 
 function markFormDirty() { formIsDirty = true; }
 
-[headerPicker, sidebarPicker, bgPicker, headerVal, sidebarVal, bgVal, sidebarIconModeSelect, logoInput].forEach((el) => {
+[headerPicker, sidebarPicker, bgPicker, headerVal, sidebarVal, bgVal, sidebarIconModeSelect, fontFamilySelect, fontSizeSelect, logoInput].forEach((el) => {
     el?.addEventListener('input', markFormDirty);
     el?.addEventListener('change', markFormDirty);
 });
@@ -696,6 +794,8 @@ unsavedSaveBtn?.addEventListener('click', () => {
     localStorage.setItem('sidebarColor', sidebarColor);
     localStorage.setItem('bgColor', bgColor);
     localStorage.setItem('sidebarIconMode', sidebarIconMode);
+    localStorage.setItem('fontFamily', fontFamily);
+    localStorage.setItem('fontSize', fontSize);
     customizationForm?.submit();
 });
 
@@ -712,6 +812,8 @@ document.querySelector('.save-btn')?.addEventListener('click', () => {
             localStorage.setItem('sidebarColor', sidebarColor);
             localStorage.setItem('bgColor', bgColor);
             localStorage.setItem('sidebarIconMode', sidebarIconMode);
+            localStorage.setItem('fontFamily', fontFamily);
+            localStorage.setItem('fontSize', fontSize);
             customizationForm?.submit();
         }
     );

@@ -265,7 +265,7 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
         background:linear-gradient(135deg, #ef4444, #dc2626);
         color:#ffffff;
 
-        font-size:13px;
+        font-size: calc(13px * var(--font-scale, 1));
         font-weight:700;
 
         cursor:pointer;
@@ -283,7 +283,7 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
     }
 
     .ai-helper-open-btn i{
-        font-size:13px;
+        font-size: calc(13px * var(--font-scale, 1));
     }
 
     .search-input{
@@ -299,7 +299,7 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
 
         padding-left:45px;
 
-        font-size:14px;
+        font-size: calc(14px * var(--font-scale, 1));
         color: var(--search-text);
     }
 
@@ -385,14 +385,14 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
         align-items:center;
         gap:8px;
 
-        font-size:13px;
+        font-size: calc(13px * var(--font-scale, 1));
         font-weight:700;
 
         color:#111827;
     }
 
     .header-search-result-tag{
-        font-size:10px;
+        font-size: calc(10px * var(--font-scale, 1));
         font-weight:700;
         text-transform:uppercase;
         letter-spacing:0.04em;
@@ -407,7 +407,7 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
     }
 
     .header-search-result-snippet{
-        font-size:12px;
+        font-size: calc(12px * var(--font-scale, 1));
         color:#6b7280;
 
         margin-top:2px;
@@ -422,7 +422,7 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
     .header-search-empty{
         padding:14px 16px;
 
-        font-size:12px;
+        font-size: calc(12px * var(--font-scale, 1));
         color:#6b7280;
         text-align:center;
     }
@@ -442,7 +442,7 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
     }
 
     .header-search-answer-label{
-        font-size:10px;
+        font-size: calc(10px * var(--font-scale, 1));
         font-weight:700;
         text-transform:uppercase;
         letter-spacing:0.06em;
@@ -453,7 +453,7 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
     }
 
     .header-search-answer-text{
-        font-size:13px;
+        font-size: calc(13px * var(--font-scale, 1));
         line-height:1.55;
         color:#374151;
 
@@ -466,7 +466,7 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
     }
 
     .header-search-answer-link{
-        font-size:12px;
+        font-size: calc(12px * var(--font-scale, 1));
         font-weight:700;
         color:#dc2626;
 
@@ -476,7 +476,7 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
     .header-search-related-label{
         padding:8px 16px 4px;
 
-        font-size:10px;
+        font-size: calc(10px * var(--font-scale, 1));
         font-weight:700;
         text-transform:uppercase;
         letter-spacing:0.06em;
@@ -523,7 +523,7 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
         background:none;
         border:none;
 
-        font-size:20px;
+        font-size: calc(20px * var(--font-scale, 1));
 
         cursor:pointer;
 
@@ -556,7 +556,7 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
         background:#ef4444;
         color:white;
 
-        font-size:10px;
+        font-size: calc(10px * var(--font-scale, 1));
         font-weight:600;
 
         display:flex;
@@ -617,7 +617,7 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
     }
 
     .header-notif-heading{
-        font-size:20px;
+        font-size: calc(20px * var(--font-scale, 1));
         font-weight:700;
 
         color:var(--header-text);
@@ -637,7 +637,7 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
 
         color:var(--accent-violet-deep);
 
-        font-size:12px;
+        font-size: calc(12px * var(--font-scale, 1));
         font-weight:700;
 
         display:flex;
@@ -680,7 +680,7 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
 
         color:#6b7280;
 
-        font-size:13px;
+        font-size: calc(13px * var(--font-scale, 1));
         font-weight:700;
 
         box-shadow:0 10px 12px -12px rgba(31, 30, 9, 0.17);
@@ -795,7 +795,7 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
         border:1px solid #e5e7eb;
 
         color:#7c3aed;
-        font-size:9px;
+        font-size: calc(9px * var(--font-scale, 1));
 
         display:flex;
         align-items:center;
@@ -848,7 +848,7 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
     }
 
     .header-notif-title{
-        font-size:16px;
+        font-size: calc(16px * var(--font-scale, 1));
         font-weight:700;
 
         color:var(--header-text);
@@ -857,7 +857,7 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
     }
 
     .header-notif-desc{
-        font-size:14px;
+        font-size: calc(14px * var(--font-scale, 1));
         color:#475569;
         line-height:1.45;
         white-space: nowrap;
@@ -866,7 +866,7 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
     }
 
     .header-notif-time{
-        font-size:13px;
+        font-size: calc(13px * var(--font-scale, 1));
 
         color:#6b7280;
 
@@ -888,7 +888,7 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
 
         color:#6b7280;
 
-        font-size:14px;
+        font-size: calc(14px * var(--font-scale, 1));
     }
 
     /* =========================================================
@@ -968,20 +968,20 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
     }
 
     .user-name{
-        font-size:14px;
+        font-size: calc(14px * var(--font-scale, 1));
         font-weight:600;
 
         color:var(--header-text);
     }
 
     .user-email{
-        font-size:12px;
+        font-size: calc(12px * var(--font-scale, 1));
 
         color:#9ca3af;
     }
 
     .dropdown-icon{
-        font-size:12px;
+        font-size: calc(12px * var(--font-scale, 1));
 
         color:var(--header-text);
     }
@@ -1020,7 +1020,7 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
 
         color:var(--dropdown-text);
 
-        font-size:14px;
+        font-size: calc(14px * var(--font-scale, 1));
 
         transition:
             background 0.2s ease,
@@ -1113,12 +1113,12 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
     }
 
     .ai-helper-title{
-        font-size:14px;
+        font-size: calc(14px * var(--font-scale, 1));
         font-weight:800;
     }
 
     .ai-helper-subtitle{
-        font-size:11px;
+        font-size: calc(11px * var(--font-scale, 1));
         color:rgba(255,255,255,0.85);
         margin-top:1px;
     }
@@ -1128,7 +1128,7 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
         border:none;
 
         color:#ffffff;
-        font-size:15px;
+        font-size: calc(15px * var(--font-scale, 1));
 
         cursor:pointer;
 
@@ -1161,7 +1161,7 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
 
         border-radius:14px;
 
-        font-size:13px;
+        font-size: calc(13px * var(--font-scale, 1));
         line-height:1.55;
 
         white-space:pre-wrap;
@@ -1196,7 +1196,7 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
     .ai-helper-source-tag{
         display:inline-block;
 
-        font-size:10px;
+        font-size: calc(10px * var(--font-scale, 1));
         font-weight:700;
         text-transform:uppercase;
         letter-spacing:0.05em;
@@ -1215,7 +1215,7 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
 
         margin-top:8px;
 
-        font-size:12px;
+        font-size: calc(12px * var(--font-scale, 1));
         font-weight:700;
         color:#dc2626;
         text-decoration:none;
@@ -1238,7 +1238,7 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
         background:#ffffff;
 
         color:#374151;
-        font-size:11px;
+        font-size: calc(11px * var(--font-scale, 1));
         font-weight:600;
 
         padding:5px 11px;
@@ -1276,7 +1276,7 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
 
         padding:0 16px;
 
-        font-size:13px;
+        font-size: calc(13px * var(--font-scale, 1));
         color:#111827;
 
         outline:none;
