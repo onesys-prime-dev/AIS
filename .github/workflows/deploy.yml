@@ -1,0 +1,186 @@
+name: 🚀 Deploy AIS
+
+on:
+  push:
+    branches:
+      - staging
+      - main
+
+jobs:
+  deploy-staging:
+    # Only deploy staging branch for now.
+    # Main is reserved for future production deployment.
+    if: github.ref == 'refs/heads/staging'
+
+    runs-on: ubuntu-latest
+
+    env:
+      SSH_PORT: 22
+      DEPLOY_PATH: /home/onesys/htdocs/AIS
+
+    steps:
+      ########################################################
+      # Checkout
+      ########################################################
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      ########################################################
+      # PHP
+      ########################################################
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          extensions: mbstring, intl, mysqli, zip
+          coverage: none
+
+      - name: Install Composer dependencies
+        run: |
+          composer install \
+            --no-dev \
+            --optimize-autoloader \
+            --no-interaction
+
+      ########################################################
+      # NODE
+      ########################################################
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install Node dependencies
+        run: |
+          rm -rf node_modules
+          npm install
+
+      ########################################################
+      # Debug Node environment
+      ########################################################
+
+      - name: Debug Node environment
+        run: |
+          node -v
+          npm -v
+          npm ls rolldown || true
+          npm ls @rolldown/binding-linux-x64-gnu || true
+
+      ########################################################
+      # Verify Rolldown native binding
+      ########################################################
+
+      - name: Verify Rolldown native binding
+        run: |
+          ls -la node_modules/@rolldown || true
+          node -e "require('@rolldown/binding-linux-x64-gnu'); console.log('Rolldown binding loaded successfully.')"
+
+      ########################################################
+      # Build
+      ########################################################
+
+      - name: Build Vite assets
+        run: npm run build
+
+      - name: Verify build output
+        run: |
+          test -f public/build/.vite/manifest.json
+          echo "Vite manifest found."
+          ls -R public/build
+
+      ########################################################
+      # SSH
+      ########################################################
+
+      - name: Install SSH Key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.VPS_PRIVATE_KEY }}
+
+      ########################################################
+      # Verify VPS deployment directory
+      ########################################################
+
+      - name: Verify deployment directory
+        run: |
+          ssh -p ${SSH_PORT} \
+            -o StrictHostKeyChecking=no \
+            ${{ secrets.VPS_USERNAME }}@${{ secrets.VPS_HOST }} << EOF
+
+          mkdir -p ${DEPLOY_PATH}
+          echo "Deployment directory:"
+          ls -ld ${DEPLOY_PATH}
+
+          EOF
+
+      ########################################################
+      # Deploy
+      ########################################################
+
+      - name: Deploy AIS to staging
+        run: |
+          rsync -az --delete \
+            --exclude=".git" \
+            --exclude=".github" \
+            --exclude=".env" \
+            --exclude="node_modules" \
+            --exclude="tests" \
+            --exclude="writable" \
+            -e "ssh -p ${SSH_PORT} -o StrictHostKeyChecking=no" \
+            ./ \
+            ${{ secrets.VPS_USERNAME }}@${{ secrets.VPS_HOST }}:${DEPLOY_PATH}
+
+      ########################################################
+      # Permissions
+      ########################################################
+
+      - name: Set writable permissions
+        run: |
+          ssh -p ${SSH_PORT} \
+            -o StrictHostKeyChecking=no \
+            ${{ secrets.VPS_USERNAME }}@${{ secrets.VPS_HOST }} << EOF
+
+          cd ${DEPLOY_PATH}
+
+          if [ -d writable ]; then
+            find writable -type d -exec chmod 775 {} \;
+            find writable -type f -exec chmod 664 {} \;
+          fi
+
+          EOF
+
+      ########################################################
+      # Deployment complete
+      ########################################################
+
+      - name: Deployment complete
+        run: |
+          echo "=========================================="
+          echo "AIS staging deployment successful!"
+          echo "Branch: ${GITHUB_REF_NAME}"
+          echo "Path: ${DEPLOY_PATH}"
+          echo "=========================================="
+
+
+  ############################################################
+  # FUTURE PRODUCTION DEPLOYMENT
+  ############################################################
+
+  deploy-production:
+    # Reserved for future production deployment.
+    # DO NOT enable until the production domain/path is ready.
+    if: github.ref == 'refs/heads/main'
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Production deployment reserved
+        run: |
+          echo "=========================================="
+          echo "Production deployment is currently disabled."
+          echo "Branch: main"
+          echo "Production deployment path/domain not yet configured."
+          echo "=========================================="
