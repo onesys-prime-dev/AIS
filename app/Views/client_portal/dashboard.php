@@ -1318,6 +1318,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 <!-- functioning break button -->
                 <?php if ($currentAttendance): ?>
                 <form method="post" class="break-form" action="<?= site_url('client_portal/toggle-break/'.$currentAttendance['id']) ?>" onsubmit="this.querySelectorAll('button').forEach(b=>b.disabled=true)">
+                    <?= csrf_field() ?>
                     <input type="hidden" name="attendance_token" value="<?= esc($attendanceToken) ?>">
                     <input type="hidden" name="state_version" value="<?= (int) ($currentAttendance['state_version'] ?? 0) ?>">
                     <input type="hidden" name="break_action" value="<?= empty($currentAttendance['break_start']) ? 'start' : 'end' ?>">
