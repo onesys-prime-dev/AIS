@@ -124,6 +124,9 @@ jobs:
             --exclude="node_modules" \
             --exclude="tests" \
             --exclude="writable" \
+            --exclude="python-face-service/venv/" \
+            --exclude="python-face-service/.env" \
+            --exclude="python-face-service/models/" \
             -e "ssh -p ${SSH_PORT} -o StrictHostKeyChecking=no" \
             ./ \
             ${{ secrets.VPS_USERNAME }}@${{ secrets.VPS_HOST }}:${DEPLOY_PATH}
