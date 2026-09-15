@@ -97,6 +97,7 @@
 <script>
 (function () {
     const BASE = '<?= site_url('client_portal/payroll') ?>';
+    const CSRF_HASH = "<?= csrf_hash() ?>";
 
     let years   = [];
     let current = null;
@@ -234,7 +235,7 @@
         try {
             const res = await fetch(`${BASE}/wtax/saveBrackets`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': CSRF_HASH },
                 body: JSON.stringify({ year: current, brackets: rows })
             });
             const data = await res.json();
@@ -320,7 +321,7 @@
         if (!confirm(`Set ${current} as the active withholding tax table?`)) return;
         const res = await fetch(`${BASE}/wtax/setActive`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': CSRF_HASH },
             body: JSON.stringify({ year: current })
         });
         const data = await res.json();
@@ -342,7 +343,7 @@
 
         const res = await fetch(`${BASE}/wtax/createYear`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': CSRF_HASH },
             body: JSON.stringify({ year: yr, copy_from: copyFromSelect.value || null })
         });
         const data = await res.json();

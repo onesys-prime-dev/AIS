@@ -81,7 +81,30 @@ class Filters extends BaseFilters
      */
     public array $globals = [
         'before' => [
-            'csrf',
+            // CodeIgniter's Filters::processGlobals() only honors an "except"
+            // list when the entry itself is this array shape — a bare 'csrf'
+            // string here (as this used to be) is always kept regardless of
+            // the separate $csrf property below, which the framework never
+            // reads at all. That silently broke this exemption for every
+            // request: sendPdf/compute/send's JS doesn't send a CSRF token,
+            // so every call was hitting a real (and pointless, since it can
+            // never succeed) CSRF check and failing with a 403.
+            'csrf' => ['except' => [
+                'client_portal/payroll/compute',
+                'client_portal/payroll/sendPdf',
+                'client_portal/payroll/send/*',
+                'client_portal/payroll/savePayslipRecord',
+                'client_portal/payroll/computeYearEnd',
+                // navigator.sendBeacon() (presence.js's beforeunload handler,
+                // firing on every page navigation) cannot set custom headers,
+                // so its CSRF token can only travel as a URL query param the
+                // server-side CSRF check never reads — structurally
+                // impossible to pass otherwise. By far the single largest
+                // source of CRITICAL log noise before this was added (99
+                // failures in one day, dwarfing every other route combined).
+                // Low-sensitivity payload (Online/Away/Offline status only).
+                'client_portal/presence/heartbeat',
+            ]],
             // 'honeypot',
             // 'invalidchars',
         ],
@@ -115,21 +138,4 @@ class Filters extends BaseFilters
             ],
         ],
     ];
-
-    /**
-     * List of filter aliases that should run on any
-     * before or after URI patterns.
-     *
-     * Example:
-     * 'isLoggedIn' => ['before' => ['account/*', 'profiles/*']]
-     *
-     * @var array<string, array<string, list<string>>>
-     */
- public $csrf = [
-    'except' => [
-        'client_portal/payroll/compute',
-        'client_portal/payroll/sendPdf',
-        'client_portal/payroll/send/*',
-    ]
-];
 }

@@ -1457,6 +1457,7 @@ $_defaultYearMonth = "{$_year}-{$_month}";
         <span style="float:right; cursor:pointer; font-size:24px;" onclick="closeImportModal()">&times;</span>
         <h3>Import Timesheet (CSV / XLSX)</h3>
         <form id="importTimesheetForm" enctype="multipart/form-data">
+            <?= csrf_field() ?>
             <input type="file" id="timesheetImportFile" name="timesheet_file" accept=".csv,.xlsx" required>
             <p class="text-xs text-gray-500 mt-2">Required: employee_number, time_in, time_out. Include date for time-only entries. Optional: break_duration. Maximum 5 MB and 5,000 rows; XLSX uses the first worksheet. Hours are recalculated.</p>
 
@@ -4683,6 +4684,14 @@ async function sendPdfToEmployee() {
     sendSpinner.style.display = 'inline-block';
     sendBtnText.textContent = 'Sending...';
 
+    // showToast() just renders the toast and returns immediately — it used
+    // to be followed straight away by window.location.reload(), which wiped
+    // the whole page (toast included) before it had a chance to actually
+    // appear on screen. This flag keeps the button in its post-send state
+    // and skips the normal reset in `finally` while the confirmation is
+    // shown, so the reload only happens once the user has actually seen it.
+    let reloading = false;
+
     try {
         const response = await fetch('<?= site_url('client_portal/payroll/sendPdf') ?>', {
             method: 'POST',
@@ -4699,14 +4708,19 @@ async function sendPdfToEmployee() {
         } else {
             showToast('PDF payslip sent successfully to employee email.', 'success');
         }
-        window.location.reload();
+        reloading = true;
+        sendSpinner.style.display = 'none';
+        sendBtnText.textContent = 'Sent ✓';
+        setTimeout(() => window.location.reload(), 1800);
     } catch (error) {
         console.error('Send PDF error:', error);
         showToast('Network error — could not reach server. Check console for details.', 'error');
     } finally {
-        sendBtn.disabled = false;
-        sendSpinner.style.display = 'none';
-        sendBtnText.textContent = 'Send Payslip to Employee';
+        if (!reloading) {
+            sendBtn.disabled = false;
+            sendSpinner.style.display = 'none';
+            sendBtnText.textContent = 'Send Payslip to Employee';
+        }
     }
 }
 

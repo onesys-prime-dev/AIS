@@ -161,6 +161,18 @@ $currentAttendance = $currentAttendance ?? null;
         font-weight:700;
     }
 
+    /* Break has run past its scheduled length — a visible nudge to end it,
+       not an automatic end (see the setInterval comment below for why). */
+    .shift-time.break-overdue{
+        color:#dc2626;
+        animation:break-overdue-pulse 1.5s ease-in-out infinite;
+    }
+
+    @keyframes break-overdue-pulse{
+        0%, 100% { opacity: 1; }
+        50%      { opacity: 0.55; }
+    }
+
     /* DATE */
     .date{
         font-size: 18px;
@@ -1306,6 +1318,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 <!-- functioning break button -->
                 <?php if ($currentAttendance): ?>
                 <form method="post" class="break-form" action="<?= site_url('client_portal/toggle-break/'.$currentAttendance['id']) ?>" onsubmit="this.querySelectorAll('button').forEach(b=>b.disabled=true)">
+                    <?= csrf_field() ?>
                     <input type="hidden" name="attendance_token" value="<?= esc($attendanceToken) ?>">
                     <input type="hidden" name="state_version" value="<?= (int) ($currentAttendance['state_version'] ?? 0) ?>">
                     <input type="hidden" name="break_action" value="<?= empty($currentAttendance['break_start']) ? 'start' : 'end' ?>">
@@ -1687,6 +1700,7 @@ document.addEventListener('DOMContentLoaded', function () {
     <div class="modal-overlay" id="requestModal">
         <div class="modal">
             <form id="requestForm" action="<?= site_url('client_portal/requests/store') ?>" method="post">
+                <?= csrf_field() ?>
                 <!-- tells the controller which mode we're in -->
                 <input type="hidden" name="code_mode" id="codeModeInput" value="0">
 
@@ -2747,8 +2761,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
             let breakElapsed = Math.floor((now - breakStart) / 60000);
 
-            // subtract already taken portion of break
-            breakRemaining = Math.max(BREAK_MINUTES - breakElapsed, 0);
+            // Subtract already-taken portion of break. Not clamped to 0: a
+            // page reload mid-overstay should still show the real overage
+            // (e.g. "+12m over"), not reset the warning back to "Break 0m".
+            breakRemaining = BREAK_MINUTES - breakElapsed;
         } else {
             // Not on break: show remaining break time
             breakRemaining = BREAK_MINUTES;
@@ -2799,9 +2815,17 @@ document.addEventListener('DOMContentLoaded', function () {
         dot.setAttribute("cy",y);
 
         if(onBreak){
-            let safeBreak = Math.max(breakRemaining, 0);
-            shiftTimeEl.innerText = "Break "+Math.ceil(safeBreak)+"m";
+            // Past the scheduled length, breakRemaining goes negative (see the
+            // interval below) instead of freezing at 0 — that's the signal for
+            // the "over" display and the red pulsing warning. This is a visual
+            // nudge only: it does not end the break or change what gets
+            // deducted from pay (still the fixed schedule preset either way).
+            shiftTimeEl.classList.toggle('break-overdue', breakRemaining < 0);
+            shiftTimeEl.innerText = breakRemaining >= 0
+                ? "Break "+Math.ceil(breakRemaining)+"m"
+                : "+"+Math.ceil(-breakRemaining)+"m over";
         }else{
+            shiftTimeEl.classList.remove('break-overdue');
             let safeShift = Math.max(shiftRemaining, 0);
             let hours = Math.floor(safeShift/60);
             let minutes = Math.floor(safeShift%60);
@@ -2815,14 +2839,11 @@ document.addEventListener('DOMContentLoaded', function () {
         if(!isClockedIn) return;
 
         if(onBreak){
-            if(breakRemaining > 0){
-                breakRemaining--;
-                updateDisplay();
-                if(breakRemaining <= 0){
-                    // Reaching zero does not end a break; only the server-confirmed End Break action does.
-                    updateDisplay();
-                }
-            }
+            // Reaching zero does not end a break; only the server-confirmed End
+            // Break action does. It keeps counting into negative minutes so the
+            // display can show how far overdue the break is.
+            breakRemaining--;
+            updateDisplay();
         }else{
             if(shiftRemaining > 0){
                 shiftRemaining--;

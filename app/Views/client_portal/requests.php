@@ -1181,6 +1181,7 @@
             </div>
 
             <form id="requestReviewForm" method="post">
+                <?= csrf_field() ?>
                 <input type="hidden" name="status" id="requestReviewStatus" value="pending">
 
                 <div class="request-review-modal-body">
@@ -1568,7 +1569,36 @@ function submitRequestReview(status) {
     }
 
     document.getElementById('requestReviewStatus').value = status;
-    form.submit();
+
+    const approveBtn = document.getElementById('reviewApproveBtn');
+    const rejectBtn  = document.getElementById('reviewRejectBtn');
+    [approveBtn, rejectBtn].forEach(btn => { if (btn) btn.disabled = true; });
+
+    fetch(form.getAttribute('action'), {
+        method: 'POST',
+        body: new FormData(form),
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+    })
+        .then(res => res.json().catch(() => ({
+            success: false,
+            message: 'Something went wrong. Please try again.',
+        })))
+        .then(data => {
+            window.showToast(data.message || (data.success ? 'Done.' : 'Something went wrong.'), data.success ? 'success' : 'error');
+            if (data.success) {
+                closeRequestReviewModal();
+                // The list (pending counts, statuses, balances) needs a fresh
+                // pull from the server — simplest correct way is a reload,
+                // same end result the old full-page form submit already had.
+                window.location.reload();
+            }
+        })
+        .catch(() => {
+            window.showToast('Network error. Please try again.', 'error');
+        })
+        .finally(() => {
+            [approveBtn, rejectBtn].forEach(btn => { if (btn) btn.disabled = false; });
+        });
 }
 
 document.getElementById('requestReviewModalOverlay')?.addEventListener('click', function (e) {
