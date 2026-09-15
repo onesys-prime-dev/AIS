@@ -1806,7 +1806,11 @@ async function doGenerateCode() {
     try {
         const resp = await fetch('<?= site_url('client_portal/requests/generate-code') ?>', {
             method: 'POST',
-            headers: { 'X-Requested-With': 'XMLHttpRequest', 'Content-Type': 'application/json' },
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': '<?= csrf_hash() ?>',
+            },
             body: JSON.stringify({ preset_data: presetData }),
         });
 
