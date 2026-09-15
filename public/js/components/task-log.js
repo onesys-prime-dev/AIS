@@ -35,6 +35,14 @@ let taskLogDirty  = false;  // true once any add/edit/delete succeeds
 let taskLogDurationMs = null;
 let taskLogListenersBound = false;
 
+// Same convention as presence.js: pull the token from the <meta> tag main.php
+// sets, sent as a header since these are JSON fetch() calls (no form field
+// for the CSRF filter to read from a plain POST body).
+function taskLogCsrfToken() {
+    const meta = document.querySelector('meta[name="csrf-token"]');
+    return meta ? meta.getAttribute('content') : '';
+}
+
 async function openTaskLogModal(attendanceId, date) {
     document.getElementById('task_att_id').value = attendanceId;
     document.getElementById('task_att_date').textContent = date || '';
@@ -494,7 +502,10 @@ async function saveTask() {
     try {
         const res = await fetch(url, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': taskLogCsrfToken(),
+            },
             body: JSON.stringify({
                 task_performed: taskPerformed,
                 client: client,
@@ -524,7 +535,10 @@ async function deleteTaskEntry(taskId) {
     if (!confirm('Delete this task entry?')) return;
 
     try {
-        const res  = await fetch(`${DELETE_TASK_URL}/${taskId}`, { method: 'POST' });
+        const res  = await fetch(`${DELETE_TASK_URL}/${taskId}`, {
+            method: 'POST',
+            headers: { 'X-CSRF-TOKEN': taskLogCsrfToken() },
+        });
         const data = await res.json();
         if (!data.success) {
             if (typeof showToast === 'function') showToast(data.message || 'Unable to delete task.', 'error');
