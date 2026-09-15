@@ -31,7 +31,9 @@
     <?= $this->renderSection('styles') ?>
 </head>
 
-<body class="min-h-screen font-sans antialiased scroll-smooth" style="background: var(--bg-color, #E7E3E3);">
+<body class="min-h-screen font-sans antialiased scroll-smooth" style="background: var(--bg-color, #E7E3E3); font-family: var(--font-family, inherit);">
+
+<?= view('partials/loading_overlay') ?>
 
 <div class="flex h-screen overflow-hidden">
 
@@ -171,6 +173,8 @@ document.addEventListener("DOMContentLoaded", function () {
     const sidebarColor = serverBranding.sidebar_color || localStorage.getItem('sidebarColor');
     const sidebarIconMode = serverBranding.sidebar_icon_mode || localStorage.getItem('sidebarIconMode') || 'auto';
     const bgColor = serverBranding.background_color || localStorage.getItem('bgColor');
+    const fontFamily = serverBranding.font_family || localStorage.getItem('fontFamily') || 'default';
+    const fontSize = serverBranding.font_size || localStorage.getItem('fontSize') || 'medium';
 
     if (headerColor) {
         document.documentElement.style.setProperty('--header-bg', headerColor);
@@ -196,6 +200,35 @@ document.addEventListener("DOMContentLoaded", function () {
     if (bgColor) {
         document.documentElement.style.setProperty('--bg-color', bgColor);
     }
+
+    const FONT_FAMILY_STACKS = {
+        default: "ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif",
+        classic: "Arial, Helvetica, sans-serif",
+        serif: "Georgia, 'Times New Roman', serif",
+        rounded: "Verdana, Geneva, sans-serif",
+        mono: "Consolas, 'Courier New', monospace",
+    };
+
+    const FONT_SIZE_SCALES = {
+        small: '14px',
+        medium: '16px',
+        large: '18px',
+        xlarge: '20px',
+    };
+
+    // Multiplier applied to the header/sidebar's own hardcoded px font sizes
+    // (font-size: calc(Npx * var(--font-scale, 1))) since they don't use
+    // rem units and so don't automatically follow the root font-size below.
+    const FONT_SCALE_FACTORS = {
+        small: 0.875,
+        medium: 1,
+        large: 1.125,
+        xlarge: 1.25,
+    };
+
+    document.documentElement.style.setProperty('--font-family', FONT_FAMILY_STACKS[fontFamily] || FONT_FAMILY_STACKS.default);
+    document.documentElement.style.setProperty('--font-scale', FONT_SCALE_FACTORS[fontSize] ?? 1);
+    document.documentElement.style.fontSize = FONT_SIZE_SCALES[fontSize] || FONT_SIZE_SCALES.medium;
 });
 
 </script>
