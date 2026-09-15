@@ -1258,6 +1258,21 @@ document.addEventListener('DOMContentLoaded', function () {
                         </span>
                 </div>
 
+                <div class="status">
+                    Break :
+                        <span id="breakStatusBadge">
+                            <?php if (!$currentAttendance): ?>
+                                &mdash;
+                            <?php elseif (!empty($currentAttendance['break_start'])): ?>
+                                On Break
+                            <?php elseif ((int) ($currentAttendance['breaks_taken'] ?? 0) >= $totalBreakSlots && $totalBreakSlots > 0): ?>
+                                All Breaks Taken
+                            <?php else: ?>
+                                Not Taken
+                            <?php endif; ?>
+                        </span>
+                </div>
+
                 <div class="clock">
                     <svg viewBox="0 0 200 200" width="100%" height="100%">
                         <circle cx="100" cy="100" r="90" stroke="#d1d5db" stroke-width="12" fill="none"/>
@@ -1317,7 +1332,7 @@ document.addEventListener('DOMContentLoaded', function () {
             <div class="buttons">
                 <!-- functioning break button -->
                 <?php if ($currentAttendance): ?>
-                <form method="post" class="break-form" action="<?= site_url('client_portal/toggle-break/'.$currentAttendance['id']) ?>" onsubmit="this.querySelectorAll('button').forEach(b=>b.disabled=true)">
+                <form method="post" id="breakForm" class="break-form" action="<?= site_url('client_portal/toggle-break/'.$currentAttendance['id']) ?>" onsubmit="return handleBreakSubmit(this)">
                     <?= csrf_field() ?>
                     <input type="hidden" name="attendance_token" value="<?= esc($attendanceToken) ?>">
                     <input type="hidden" name="state_version" value="<?= (int) ($currentAttendance['state_version'] ?? 0) ?>">
@@ -1339,8 +1354,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 <form
                     action="<?= site_url('client_portal/time-in') ?>"
                     method="post"
-                    class="clock-form"
-                    onsubmit="this.querySelectorAll('button').forEach(b=>b.disabled=true)">
+                    class="clock-form">
                     <input type="hidden" name="attendance_token" value="<?= esc($attendanceToken) ?>">
 
                     <?= csrf_field() ?>
@@ -2052,6 +2066,42 @@ document.addEventListener('DOMContentLoaded', function () {
             </div>
         </div>
 
+        <!-- BREAK LIMIT REACHED MODAL -->
+        <div class="modal-overlay" id="breakLimitModal">
+            <div class="modal">
+
+                <div class="modal-header">
+                    <span>Break Limit Reached</span>
+                    <button
+                        type="button"
+                        onclick="closeBreakLimitModal()"
+                    >
+                        ✕
+                    </button>
+                </div>
+
+                <div class="modal-body">
+                    <p style="
+                        color:#dc2626;
+                        font-weight:600;
+                    ">
+                        You have already taken all your break times.
+                    </p>
+                </div>
+
+                <div class="modal-footer">
+                    <button
+                        type="button"
+                        class="submit-btn"
+                        onclick="closeBreakLimitModal()"
+                    >
+                        OK
+                    </button>
+                </div>
+
+            </div>
+        </div>
+
 <script>
     const attendance = <?= json_encode($currentAttendance ?? null) ?>;
     const scheduledEnd = <?= json_encode($currentAttendance['scheduled_end'] ?? null) ?>;
@@ -2727,6 +2777,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
     const SHIFT_MINUTES = <?= (int) ($shiftMinutes ?? 480) ?>;
     const BREAK_MINUTES = <?= max(1, (int) ($nextBreakMinutes ?? 60)) ?>;
+    const TOTAL_BREAK_SLOTS = <?= (int) ($totalBreakSlots ?? 0) ?>;
+    const BREAKS_TAKEN = <?= (int) ($currentAttendance['breaks_taken'] ?? 0) ?>;
 
     let shiftRemaining = SHIFT_MINUTES;
     let breakRemaining = 0;
@@ -2878,7 +2930,6 @@ document.addEventListener('DOMContentLoaded', function () {
         if (clockOutSubmitting) return;
         clockOutSubmitting = true;
         const form = document.getElementById('clockOutForm');
-        form.querySelectorAll('button').forEach(btn => btn.disabled = true);
         form.submit();
     }
 
@@ -3053,6 +3104,27 @@ document.addEventListener('DOMContentLoaded', function () {
         <?= json_encode($otPrompt['date']) ?>,
         <?= json_encode($otPrompt['reason']) ?>
     );
+    <?php endif; ?>
+
+    function closeBreakLimitModal()
+    {
+        document.getElementById('breakLimitModal').style.display = 'none';
+    }
+
+    // Starting a break when every scheduled slot is already used always fails
+    // server-side, so catch it here and skip the round trip (and the page's
+    // loading overlay) entirely — just show the same modal immediately.
+    function handleBreakSubmit(form)
+    {
+        if (!onBreak && BREAKS_TAKEN >= TOTAL_BREAK_SLOTS && TOTAL_BREAK_SLOTS > 0) {
+            document.getElementById('breakLimitModal').style.display = 'flex';
+            return false;
+        }
+        return true;
+    }
+
+    <?php if (session()->getFlashdata('break_limit_reached')): ?>
+    document.getElementById('breakLimitModal').style.display = 'flex';
     <?php endif; ?>
 
 </script>
