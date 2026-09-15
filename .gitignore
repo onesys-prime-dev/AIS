@@ -39,6 +39,7 @@ CompreFace/
 #-------------------------
 .vscode/
 .idea/
+.claude/
 *.swp
 *.swo
 *~
