@@ -17,6 +17,7 @@
     <!-- Tab: General -->
     <div class="payroll-tab-content flex-1 overflow-auto hide-scroll-bar" id="tab-general">
         <form id="payrollSettingsForm" action="<?= site_url('client_portal/payroll/saveSettings') ?>" method="post">
+            <?= csrf_field() ?>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div class="bg-gray-50 p-4 rounded shadow">
                     <h4 class="font-semibold border-b pb-1 mb-2">Working Hours</h4>

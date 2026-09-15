@@ -59,7 +59,14 @@ class AttendanceController extends BaseController
         if (!$this->request->is('post')) return redirect()->to(site_url('client_portal/dashboard'));
         return $this->perform(function($service, $userId) use ($id) {
             $action = (string) $this->request->getPost('break_action');
-            $service->changeBreak($userId, (int) $id, $action, $this->expectedVersion());
+            try {
+                $service->changeBreak($userId, (int) $id, $action, $this->expectedVersion());
+            } catch (DomainException $e) {
+                if ($e->getMessage() === 'All scheduled breaks have been used.') {
+                    return redirect()->to(site_url('client_portal/dashboard'))->with('break_limit_reached', true);
+                }
+                throw $e;
+            }
             return redirect()->to(site_url('client_portal/dashboard'))->with('success', $action === 'start' ? 'Break started!' : 'Break ended!');
         });
     }
