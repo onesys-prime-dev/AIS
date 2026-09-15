@@ -206,7 +206,25 @@
                 headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': CSRF_HASH },
                 body: JSON.stringify({ employee_id: employeeId, month_year: MONTH, status, period_type: PERIOD })
             });
-            const result = await resp.json();
+
+            // A permission denial comes back as real JSON ({success:false,
+            // error:'...'}) and is handled below like any other failure. But
+            // a CSRF failure (e.g. this tab's token going stale after logging
+            // in as a different account elsewhere) throws server-side and
+            // comes back as an HTML error page instead — resp.json() on that
+            // throws its own confusing "Unexpected token <" rather than
+            // telling the user what actually happened, so detect that
+            // specific case and point at the obvious fix (refresh).
+            let result;
+            try {
+                result = await resp.json();
+            } catch (parseErr) {
+                throw new Error(
+                    resp.status === 403
+                        ? 'Action blocked (403) — your session may be stale. Please refresh the page and try again.'
+                        : `Server returned an unexpected response (${resp.status}).`
+                );
+            }
             if (!resp.ok || !result.success) throw new Error(result.error || 'Server error');
 
             const row = btn.closest('[data-employee-id]');

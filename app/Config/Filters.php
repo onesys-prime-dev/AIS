@@ -81,7 +81,19 @@ class Filters extends BaseFilters
      */
     public array $globals = [
         'before' => [
-            'csrf',
+            // CodeIgniter's Filters::processGlobals() only honors an "except"
+            // list when the entry itself is this array shape — a bare 'csrf'
+            // string here (as this used to be) is always kept regardless of
+            // the separate $csrf property below, which the framework never
+            // reads at all. That silently broke this exemption for every
+            // request: sendPdf/compute/send's JS doesn't send a CSRF token,
+            // so every call was hitting a real (and pointless, since it can
+            // never succeed) CSRF check and failing with a 403.
+            'csrf' => ['except' => [
+                'client_portal/payroll/compute',
+                'client_portal/payroll/sendPdf',
+                'client_portal/payroll/send/*',
+            ]],
             // 'honeypot',
             // 'invalidchars',
         ],
@@ -115,21 +127,4 @@ class Filters extends BaseFilters
             ],
         ],
     ];
-
-    /**
-     * List of filter aliases that should run on any
-     * before or after URI patterns.
-     *
-     * Example:
-     * 'isLoggedIn' => ['before' => ['account/*', 'profiles/*']]
-     *
-     * @var array<string, array<string, list<string>>>
-     */
- public $csrf = [
-    'except' => [
-        'client_portal/payroll/compute',
-        'client_portal/payroll/sendPdf',
-        'client_portal/payroll/send/*',
-    ]
-];
 }

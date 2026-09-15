@@ -62,10 +62,23 @@
 </div>
 
 <style>
+    /*
+     * Sizing here is fluid (clamp(min, preferred-vw, max)) rather than fixed
+     * pixels + a couple of breakpoints — the old version had its full desktop
+     * font sizes (up to 38px) all the way down to 641px viewport width, then
+     * jumped abruptly at the 640px breakpoint. That left the whole tablet /
+     * small-laptop range oversized and cramped, and any width the two
+     * breakpoints didn't anticipate could look off. Fluid values scale
+     * continuously with the viewport instead, so this looks right at any
+     * window/screen size, not just the two widths that were explicitly
+     * tested.
+     */
     #viewPayslipModal .civm-box {
-        max-width: 1080px;
-        padding: 22px;
+        max-width: min(1080px, 96vw);
+        width: 100%;
+        padding: clamp(14px, 2.5vw, 22px);
         border-radius: 16px;
+        box-sizing: border-box;
     }
 
     #viewPayslipModal .civm-box > .civm-close,
@@ -75,15 +88,23 @@
 
     .payslip-sheet {
         width: 100%;
+        max-width: 100%;
         font-family: "Segoe UI", Arial, sans-serif;
         color: #1f2937;
+        box-sizing: border-box;
+    }
+
+    .payslip-sheet * {
+        box-sizing: border-box;
+        min-width: 0; /* let flex/grid children shrink instead of overflowing */
     }
 
     .payslip-toolbar {
         display: flex;
+        flex-wrap: wrap;
         justify-content: space-between;
         align-items: center;
-        gap: 16px;
+        gap: 12px;
         margin-bottom: 14px;
     }
 
@@ -104,11 +125,12 @@
         line-height: 1;
         cursor: pointer;
         color: #111827;
+        flex-shrink: 0;
     }
 
     .payslip-title {
         margin: 0;
-        font-size: 30px;
+        font-size: clamp(18px, 3vw, 30px);
         font-weight: 700;
         color: #1f2937;
         padding-left: 5px;
@@ -120,10 +142,14 @@
         gap: 10px;
         flex-wrap: wrap;
         justify-content: flex-end;
+        flex: 1 1 auto;
+        min-width: 0;
     }
 
     .payslip-range {
-        min-width: 305px;
+        flex: 1 1 220px;
+        min-width: 0;
+        max-width: 100%;
         height: 40px;
         border: 1px solid #d1d5db;
         border-radius: 8px;
@@ -146,34 +172,41 @@
         align-items: center;
         gap: 8px;
         cursor: pointer;
+        white-space: nowrap;
+        flex-shrink: 0;
     }
 
     .payslip-card {
         border: 1px solid #d1d5db;
         border-radius: 14px;
         background: #f8f8f8;
-        padding: 18px 24px 22px;
+        padding: clamp(12px, 2.5vw, 22px) clamp(12px, 3vw, 24px);
+        max-width: 100%;
+        overflow: hidden;
     }
 
     .payslip-company {
         display: grid;
-        grid-template-columns: auto 1fr auto;
+        grid-template-columns: auto minmax(0, 1fr) auto;
         align-items: center;
+        gap: clamp(10px, 2vw, 20px);
     }
 
     .payslip-date-holder{
         display: flex;
         flex-direction: column;
+        min-width: 0;
     }
 
     .payslip-meta {
         display: flex;
-        gap: 44px;
+        flex-wrap: wrap;
+        gap: clamp(16px, 3vw, 44px);
     }
 
     .payslip-meta p {
         margin: 0;
-        font-size: 22px;
+        font-size: clamp(14px, 1.8vw, 22px);
         line-height: 1.25;
         color: #6b7280;
     }
@@ -181,32 +214,36 @@
     .payslip-meta .payroll-period, .payslip-meta .payment-date{
         color: #18181b;
         font-weight: 600;
-        font-size: 28px;
+        font-size: clamp(16px, 2.4vw, 28px);
+        overflow-wrap: anywhere;
     }
 
     .payslip-brand {
         align-self: end;
+        min-width: 0;
     }
 
     .payslip-brand h3 {
         margin: 12px 0 6px;
-        font-size: 38px;
+        font-size: clamp(20px, 3.6vw, 38px);
         line-height: 1.15;
         font-weight: 700;
         color: #1f2937;
+        overflow-wrap: anywhere;
     }
 
     .payslip-brand p {
         margin: 0;
-        font-size: 17px;
+        font-size: clamp(12px, 1.4vw, 17px);
         line-height: 1.45;
         color: #6b7280;
-        max-width: 1000px;
+        max-width: 100%;
+        overflow-wrap: anywhere;
     }
 
     .payslip-logo-wrap {
-        width: 120px;
-        height: 120px;
+        width: clamp(70px, 9vw, 120px);
+        height: clamp(70px, 9vw, 120px);
         border-radius: 50%;
         display: flex;
         align-items: center;
@@ -214,11 +251,12 @@
         justify-self: center;
         align-self: center;
         overflow: hidden;
+        flex-shrink: 0;
     }
 
     .payslip-logo {
-        width: 100px;
-        height: 100px;
+        width: 84%;
+        height: 84%;
         object-fit: contain;
     }
 
@@ -231,15 +269,22 @@
     .payslip-preview {
         display: block;
         height: 56vh;
+        max-width: 100%;
         overflow: auto;
         padding: 6px;
         border: 1px solid #e5e7eb;
         border-radius: 10px;
         background: #ffffff;
+        -webkit-overflow-scrolling: touch;
     }
 
+    /* The payslip table itself is generated JS-side (renderPayslipHtml) as a
+       fixed, print-style document — it's allowed to be wider than the
+       preview pane on very narrow screens and scroll horizontally there,
+       rather than squeezing financial figures into unreadable columns. */
     .payslip-preview table {
         width: 100%;
+        min-width: 480px;
         border-collapse: collapse;
         font-size: 13px;
     }
@@ -254,10 +299,13 @@
         text-align: right;
     }
 
+    /* Structural layout changes (column stacking) still need discrete steps —
+       fluid sizing above handles everything in between so this breakpoint
+       is no longer the only thing standing between "fits" and "broken". */
     @media (max-width: 1024px) {
         .payslip-toolbar {
             flex-direction: column;
-            align-items: flex-start;
+            align-items: stretch;
         }
 
         .payslip-controls {
@@ -266,12 +314,6 @@
 
         .payslip-company {
             grid-template-columns: 1fr;
-            gap: 14px;
-        }
-
-        .payslip-meta {
-            gap: 24px;
-            flex-wrap: wrap;
         }
 
         .payslip-brand h3 {
@@ -279,43 +321,22 @@
         }
 
         .payslip-logo-wrap {
-            width: 92px;
-            height: 92px;
+            justify-self: start;
         }
     }
 
     @media (max-width: 640px) {
-        #viewPayslipModal .modal-card {
-            padding: 14px;
-        }
-
-        .payslip-title {
-            font-size: 22px;
-        }
-
         .payslip-range {
-            min-width: 100%;
+            flex-basis: 100%;
         }
 
         .payslip-btn {
-            width: 100%;
+            flex: 1 1 auto;
             justify-content: center;
         }
 
-        .payslip-meta p {
-            font-size: 20px;
-        }
-
-        .payslip-meta p span {
-            font-size: 14px;
-        }
-
-        .payslip-brand h3 {
-            font-size: 24px;
-        }
-
-        .payslip-brand p {
-            font-size: 14px;
+        .payslip-preview {
+            height: 46vh;
         }
     }
 </style>
@@ -608,23 +629,28 @@ document.addEventListener('DOMContentLoaded', () => {
     const printBtn = document.getElementById('printPayslipBtn');
     if (printBtn) {
         printBtn.addEventListener('click', () => {
-            const previewContent = document.getElementById('payslipPreview').innerHTML;
-            const originalTitle = document.title;
-            document.title = 'Payslip';
-            const printWindow = window.open('', '_blank');
-            printWindow.document.write(`
-                <html><head><title>Payslip</title>
-                <style>
-                    body { font-family: Arial, sans-serif; padding: 20px; }
-                    table { width: 100%; border-collapse: collapse; }
-                    th, td { border: 1px solid #ccc; padding: 6px; }
-                    .right { text-align: right; }
-                </style>
-                </head><body>${previewContent}</body></html>
-            `);
-            printWindow.document.close();
-            printWindow.print();
-            document.title = originalTitle;
+            // Printing must go through the same password-protected PDF as
+            // "Download PDF" (see PayrollController::downloadPayslip(), which
+            // encrypts the file with the employee's payslip password) —
+            // this used to build a fresh, unencrypted copy from the on-screen
+            // preview HTML and hand it straight to window.print(), which let
+            // "Save as PDF" produce a completely unprotected file with the
+            // same salary/deduction data. Opening the real PDF means the
+            // browser's own viewer enforces the password before anyone can
+            // view or print it.
+            //
+            // mode=inline asks the server for "Content-Disposition: inline"
+            // instead of "attachment" — same encrypted file, but it opens in
+            // the browser's PDF viewer (so its print button / Ctrl+P works)
+            // instead of just saving to disk, which is what Download does.
+            if (!currentDownloadUrl) {
+                showToast('No payslip selected.', 'warning');
+                return;
+            }
+            const printUrl = currentDownloadUrl
+                + (currentDownloadUrl.includes('?') ? '&' : '?')
+                + 'mode=inline';
+            window.open(printUrl, '_blank');
         });
     }
     

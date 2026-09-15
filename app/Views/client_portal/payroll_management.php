@@ -4683,6 +4683,14 @@ async function sendPdfToEmployee() {
     sendSpinner.style.display = 'inline-block';
     sendBtnText.textContent = 'Sending...';
 
+    // showToast() just renders the toast and returns immediately — it used
+    // to be followed straight away by window.location.reload(), which wiped
+    // the whole page (toast included) before it had a chance to actually
+    // appear on screen. This flag keeps the button in its post-send state
+    // and skips the normal reset in `finally` while the confirmation is
+    // shown, so the reload only happens once the user has actually seen it.
+    let reloading = false;
+
     try {
         const response = await fetch('<?= site_url('client_portal/payroll/sendPdf') ?>', {
             method: 'POST',
@@ -4699,14 +4707,19 @@ async function sendPdfToEmployee() {
         } else {
             showToast('PDF payslip sent successfully to employee email.', 'success');
         }
-        window.location.reload();
+        reloading = true;
+        sendSpinner.style.display = 'none';
+        sendBtnText.textContent = 'Sent ✓';
+        setTimeout(() => window.location.reload(), 1800);
     } catch (error) {
         console.error('Send PDF error:', error);
         showToast('Network error — could not reach server. Check console for details.', 'error');
     } finally {
-        sendBtn.disabled = false;
-        sendSpinner.style.display = 'none';
-        sendBtnText.textContent = 'Send Payslip to Employee';
+        if (!reloading) {
+            sendBtn.disabled = false;
+            sendSpinner.style.display = 'none';
+            sendBtnText.textContent = 'Send Payslip to Employee';
+        }
     }
 }
 

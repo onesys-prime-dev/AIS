@@ -91,25 +91,25 @@ class RequestController extends BaseController
 
         // Only payroll staff can approve/reject
         if (!\App\Libraries\PortalAccess::canReviewRequest((int) $id, $user)) {
-            return redirect()->back()->with('error', 'Unauthorized action.');
+            return $this->respond(false, 'Unauthorized action.');
         }
 
         $status = trim((string) $this->request->getPost('status'));
         $reviewMessage = trim((string) $this->request->getPost('review_message'));
 
         if (! in_array($status, ['approved', 'rejected'], true)) {
-            return redirect()->back()->with('error', 'Invalid request status.');
+            return $this->respond(false, 'Invalid request status.');
         }
 
         if ($status === 'rejected' && $reviewMessage === '') {
-            return redirect()->back()->with('error', 'Please enter a rejection message before rejecting the request.');
+            return $this->respond(false, 'Please enter a rejection message before rejecting the request.');
         }
 
         // Fetch old state before updating
         $old = $this->requestModel->find($id);
 
         if (! $old) {
-            return redirect()->back()->with('error', 'Request not found.');
+            return $this->respond(false, 'Request not found.');
         }
 
         $leaveCategory = (string) ($old['leave_category'] ?? 'leave');
@@ -133,7 +133,7 @@ class RequestController extends BaseController
                 $leaveDuration
             );
             if (! $check['sufficient']) {
-                return redirect()->back()->with('error', 'Cannot approve — insufficient leave balance (' . implode('; ', $check['shortfalls']) . ').');
+                return $this->respond(false, 'Cannot approve — insufficient leave balance (' . implode('; ', $check['shortfalls']) . ').');
             }
         }
 
@@ -171,7 +171,7 @@ class RequestController extends BaseController
         } catch (\Throwable $e) {
             $db->transRollback();
             log_message('error', 'Request status update failed: {message}', ['message' => $e->getMessage()]);
-            return redirect()->back()->with('error', 'Could not update the request. Please try again.');
+            return $this->respond(false, 'Could not update the request. Please try again.');
         }
 
         $recipientUserId = (int) ($old['requested_by'] ?? 0);
@@ -188,7 +188,25 @@ class RequestController extends BaseController
 
         service('activityLogger')->requestStatusChanged($id, $old['status'] ?? 'pending', $status, $user->id, $reviewMessage !== '' ? $reviewMessage : null);
 
-        return redirect()->back()->with('success', "Request $status successfully.");
+        return $this->respond(true, "Request $status successfully.");
+    }
+
+    /**
+     * Send a success/error confirmation for updateStatus(). The review modal
+     * submits via AJAX so a denial (e.g. no permission to review this
+     * request) comes back as JSON to show as a toast, instead of the browser
+     * navigating to a raw JSON body as if it were the page — the bug this
+     * replaced. Non-AJAX submissions fall back to the previous redirect+flash.
+     */
+    private function respond(bool $ok, string $message)
+    {
+        if ($this->request->isAJAX()) {
+            return $this->response->setJSON(['success' => $ok, 'message' => $message]);
+        }
+
+        return $ok
+            ? redirect()->back()->with('success', $message)
+            : redirect()->back()->with('error', $message);
     }
 
     public function generateApprovalCode()

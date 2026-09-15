@@ -2352,9 +2352,17 @@ class PayrollController extends BaseController
 
         $filename = 'payslip_' . ($payslip['period_start'] ?? 'unknown') . '.pdf';
 
+        // Same password-protected file either way — only how the browser
+        // hands it to the user differs. "Print Payslip" opens it inline in
+        // the browser's own PDF viewer so the toolbar's print button/Ctrl+P
+        // works; "Download PDF" forces a save-to-disk. Without this, both
+        // buttons pointed at the same URL with a forced "attachment"
+        // disposition, so Print silently just downloaded the file too.
+        $disposition = $this->request->getGet('mode') === 'inline' ? 'inline' : 'attachment';
+
         return $this->response
             ->setHeader('Content-Type', 'application/pdf')
-            ->setHeader('Content-Disposition', 'attachment; filename="' . $filename . '"')
+            ->setHeader('Content-Disposition', $disposition . '; filename="' . $filename . '"')
             ->setBody($pdfOutput);
     }
 
