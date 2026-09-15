@@ -1687,6 +1687,7 @@ document.addEventListener('DOMContentLoaded', function () {
     <div class="modal-overlay" id="requestModal">
         <div class="modal">
             <form id="requestForm" action="<?= site_url('client_portal/requests/store') ?>" method="post">
+                <?= csrf_field() ?>
                 <!-- tells the controller which mode we're in -->
                 <input type="hidden" name="code_mode" id="codeModeInput" value="0">
 
