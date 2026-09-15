@@ -87,10 +87,12 @@ class DashboardController extends BaseController
         $nextBreakMinutes = 60;
         $shiftMinutes = 480;
         $breakMinutesTotal = 0;
+        $totalBreakSlots = 0;
         if ($currentAttendance) {
             try {
                 $snapshot = \App\Libraries\AttendanceWindow::schedule($currentAttendance, $positionRow ?? []);
                 $breakSlots = \App\Libraries\AttendanceWindow::breaks($snapshot);
+                $totalBreakSlots = count($breakSlots);
                 $breakMinutesTotal = array_sum($breakSlots);
                 $nextBreakMinutes = $breakSlots[(int) ($currentAttendance['breaks_taken'] ?? 0)] ?? 0;
                 [$shiftStart, $shiftEnd] = \App\Libraries\AttendanceWindow::bounds($currentAttendance, $positionRow ?? []);
@@ -117,6 +119,7 @@ class DashboardController extends BaseController
             'publishedNotifications' => $publishedNotifications,
             'unpublishedNotifications' => $unpublishedNotifications,
             'breakMinutesTotal' => $breakMinutesTotal,
+            'totalBreakSlots' => $totalBreakSlots,
         ]);
     }
 }
