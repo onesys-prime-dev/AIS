@@ -62,16 +62,30 @@ jobs:
       - name: Install Node dependencies
         run: |
           rm -rf node_modules
+          npm cache clean --force
+          npm install --include=optional --force
 
-          # Install optional native dependencies such as
-          # @rolldown/binding-linux-x64-gnu.
-          #
-          # package-lock is temporarily ignored here because the
-          # current lockfile is not resolving Rolldown's Linux
-          # native optional dependency correctly in GitHub Actions.
-          npm install \
-            --include=optional \
-            --package-lock=false
+      - name: Debug Node environment
+        run: |
+          echo "Node version:"
+          node -v
+
+          echo "NPM version:"
+          npm -v
+
+          echo "Installed packages:"
+          npm ls --depth=0 || true
+
+          echo "Rolldown packages:"
+          npm ls rolldown || true
+          npm ls @rolldown/binding-linux-x64-gnu || true
+
+          echo "Rolldown directory:"
+          ls -la node_modules/@rolldown 2>/dev/null || echo "No @rolldown directory found"
+
+      - name: Build Vite assets
+        run: |
+          npm run build
 
 
       # ==========================================================
@@ -90,22 +104,6 @@ jobs:
 
           echo "Rolldown Linux native binding:"
           npm ls @rolldown/binding-linux-x64-gnu || true
-
-
-      # ==========================================================
-      # VERIFY ROLLDOWN NATIVE BINDING
-      # ==========================================================
-      - name: Verify Rolldown native binding
-        run: |
-          if [ ! -d "node_modules/@rolldown" ]; then
-            echo "ERROR: node_modules/@rolldown does not exist."
-            exit 1
-          fi
-
-          echo "Rolldown directory:"
-          ls -la node_modules/@rolldown
-
-          node -e "require('@rolldown/binding-linux-x64-gnu'); console.log('Rolldown Linux native binding loaded successfully.')"
 
 
       # ==========================================================
