@@ -144,7 +144,7 @@ jobs:
 
           cd ${DEPLOY_PATH}
 
-          ./deploy.sh
+          bash deploy.sh
 
           EOF
 
