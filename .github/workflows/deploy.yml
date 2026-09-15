@@ -13,7 +13,7 @@ jobs:
   # ============================================================
   deploy-staging:
 
-    # Only deploy staging branch for now.
+    # Only deploy the staging branch for now.
     # Main is reserved for future production deployment.
     if: github.ref == 'refs/heads/staging'
 
@@ -51,7 +51,7 @@ jobs:
 
 
       # ==========================================================
-      # NODE
+      # NODE / TAILWIND CSS
       # ==========================================================
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -62,67 +62,27 @@ jobs:
       - name: Install Node dependencies
         run: |
           rm -rf node_modules
-          npm cache clean --force
-          npm install --include=optional --force
-
-      - name: Debug Node environment
-        run: |
-          echo "Node version:"
-          node -v
-
-          echo "NPM version:"
-          npm -v
-
-          echo "Installed packages:"
-          npm ls --depth=0 || true
-
-          echo "Rolldown packages:"
-          npm ls rolldown || true
-          npm ls @rolldown/binding-linux-x64-gnu || true
-
-          echo "Rolldown directory:"
-          ls -la node_modules/@rolldown 2>/dev/null || echo "No @rolldown directory found"
-
-      - name: Build Vite assets
-        run: |
-          npm run build
-
+          npm ci
 
       # ==========================================================
-      # DEBUG NODE ENVIRONMENT
+      # BUILD TAILWIND CSS
       # ==========================================================
-      - name: Debug Node environment
+      - name: Build Tailwind CSS
         run: |
-          echo "Node version:"
-          node -v
-
-          echo "NPM version:"
-          npm -v
-
-          echo "Rolldown:"
-          npm ls rolldown || true
-
-          echo "Rolldown Linux native binding:"
-          npm ls @rolldown/binding-linux-x64-gnu || true
-
+          npm run build:css:min
 
       # ==========================================================
-      # BUILD
+      # VERIFY CSS BUILD
       # ==========================================================
-      - name: Build Vite assets
+      - name: Verify CSS build
         run: |
-          npm run build
-
-      - name: Verify build output
-        run: |
-          if [ ! -f "public/build/.vite/manifest.json" ]; then
-            echo "ERROR: Vite manifest was not generated."
+          if [ ! -f "public/css/main.css" ]; then
+            echo "ERROR: Tailwind CSS build was not generated."
             exit 1
           fi
 
-          echo "Vite manifest found."
-          echo "Build output:"
-          ls -R public/build
+          echo "Tailwind CSS build found."
+          ls -lh public/css/main.css
 
 
       # ==========================================================
@@ -213,6 +173,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+
       - name: Production deployment reserved
         run: |
           echo "=========================================="
