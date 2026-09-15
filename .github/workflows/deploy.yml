@@ -7,7 +7,12 @@ on:
       - main
 
 jobs:
+
+  # ============================================================
+  # STAGING DEPLOYMENT
+  # ============================================================
   deploy-staging:
+
     # Only deploy staging branch for now.
     # Main is reserved for future production deployment.
     if: github.ref == 'refs/heads/staging'
@@ -19,17 +24,17 @@ jobs:
       DEPLOY_PATH: /home/onesys/htdocs/AIS
 
     steps:
-      ########################################################
-      # Checkout
-      ########################################################
 
+      # ==========================================================
+      # CHECKOUT
+      # ==========================================================
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      ########################################################
-      # PHP
-      ########################################################
 
+      # ==========================================================
+      # PHP
+      # ==========================================================
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
@@ -44,82 +49,114 @@ jobs:
             --optimize-autoloader \
             --no-interaction
 
-      ########################################################
-      # NODE
-      ########################################################
 
+      # ==========================================================
+      # NODE
+      # ==========================================================
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 24
+          cache: npm
 
       - name: Install Node dependencies
         run: |
           rm -rf node_modules
-          npm install
 
-      ########################################################
-      # Debug Node environment
-      ########################################################
+          # Install optional native dependencies such as
+          # @rolldown/binding-linux-x64-gnu.
+          #
+          # package-lock is temporarily ignored here because the
+          # current lockfile is not resolving Rolldown's Linux
+          # native optional dependency correctly in GitHub Actions.
+          npm install \
+            --include=optional \
+            --package-lock=false
 
+
+      # ==========================================================
+      # DEBUG NODE ENVIRONMENT
+      # ==========================================================
       - name: Debug Node environment
         run: |
+          echo "Node version:"
           node -v
+
+          echo "NPM version:"
           npm -v
+
+          echo "Rolldown:"
           npm ls rolldown || true
+
+          echo "Rolldown Linux native binding:"
           npm ls @rolldown/binding-linux-x64-gnu || true
 
-      ########################################################
-      # Verify Rolldown native binding
-      ########################################################
 
+      # ==========================================================
+      # VERIFY ROLLDOWN NATIVE BINDING
+      # ==========================================================
       - name: Verify Rolldown native binding
         run: |
-          ls -la node_modules/@rolldown || true
-          node -e "require('@rolldown/binding-linux-x64-gnu'); console.log('Rolldown binding loaded successfully.')"
+          if [ ! -d "node_modules/@rolldown" ]; then
+            echo "ERROR: node_modules/@rolldown does not exist."
+            exit 1
+          fi
 
-      ########################################################
-      # Build
-      ########################################################
+          echo "Rolldown directory:"
+          ls -la node_modules/@rolldown
 
+          node -e "require('@rolldown/binding-linux-x64-gnu'); console.log('Rolldown Linux native binding loaded successfully.')"
+
+
+      # ==========================================================
+      # BUILD
+      # ==========================================================
       - name: Build Vite assets
-        run: npm run build
+        run: |
+          npm run build
 
       - name: Verify build output
         run: |
-          test -f public/build/.vite/manifest.json
+          if [ ! -f "public/build/.vite/manifest.json" ]; then
+            echo "ERROR: Vite manifest was not generated."
+            exit 1
+          fi
+
           echo "Vite manifest found."
+          echo "Build output:"
           ls -R public/build
 
-      ########################################################
-      # SSH
-      ########################################################
 
+      # ==========================================================
+      # SSH
+      # ==========================================================
       - name: Install SSH Key
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.VPS_PRIVATE_KEY }}
 
-      ########################################################
-      # Verify VPS deployment directory
-      ########################################################
 
+      # ==========================================================
+      # VERIFY VPS DEPLOYMENT DIRECTORY
+      # ==========================================================
       - name: Verify deployment directory
         run: |
-          ssh -p ${SSH_PORT} \
+          ssh \
+            -p ${SSH_PORT} \
             -o StrictHostKeyChecking=no \
             ${{ secrets.VPS_USERNAME }}@${{ secrets.VPS_HOST }} << EOF
 
           mkdir -p ${DEPLOY_PATH}
+
           echo "Deployment directory:"
           ls -ld ${DEPLOY_PATH}
 
           EOF
 
-      ########################################################
-      # Deploy
-      ########################################################
 
+      # ==========================================================
+      # DEPLOY
+      # ==========================================================
       - name: Deploy AIS to staging
         run: |
           rsync -az --delete \
@@ -133,13 +170,14 @@ jobs:
             ./ \
             ${{ secrets.VPS_USERNAME }}@${{ secrets.VPS_HOST }}:${DEPLOY_PATH}
 
-      ########################################################
-      # Permissions
-      ########################################################
 
+      # ==========================================================
+      # PERMISSIONS
+      # ==========================================================
       - name: Set writable permissions
         run: |
-          ssh -p ${SSH_PORT} \
+          ssh \
+            -p ${SSH_PORT} \
             -o StrictHostKeyChecking=no \
             ${{ secrets.VPS_USERNAME }}@${{ secrets.VPS_HOST }} << EOF
 
@@ -152,10 +190,10 @@ jobs:
 
           EOF
 
-      ########################################################
-      # Deployment complete
-      ########################################################
 
+      # ==========================================================
+      # DEPLOYMENT COMPLETE
+      # ==========================================================
       - name: Deployment complete
         run: |
           echo "=========================================="
@@ -165,11 +203,11 @@ jobs:
           echo "=========================================="
 
 
-  ############################################################
+  # ============================================================
   # FUTURE PRODUCTION DEPLOYMENT
-  ############################################################
-
+  # ============================================================
   deploy-production:
+
     # Reserved for future production deployment.
     # DO NOT enable until the production domain/path is ready.
     if: github.ref == 'refs/heads/main'
