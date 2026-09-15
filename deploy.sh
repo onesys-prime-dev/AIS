@@ -43,13 +43,11 @@ fi
 
 echo "[5/6] Restarting face recognition service..."
 
-if systemctl list-unit-files | grep -q "^${FACE_SERVICE}.service"; then
-
     sudo systemctl restart "$FACE_SERVICE"
 
     sleep 2
 
-    if ! systemctl is-active --quiet "$FACE_SERVICE"; then
+    if ! sudo systemctl is-active --quiet "$FACE_SERVICE"; then
         echo "ERROR: Face recognition service failed to start."
         sudo systemctl status "$FACE_SERVICE" --no-pager
         exit 1
@@ -73,7 +71,12 @@ echo "PHP:"
 php -v | head -n 1
 
 echo "Face recognition API:"
-curl --fail --silent "$FACE_URL/health"
+
+if ! curl --fail --silent "$FACE_URL/health"; then
+    echo
+    echo "ERROR: Face recognition API health check failed."
+    exit 1
+fi
 
 echo
 echo "Face recognition API: OK"
