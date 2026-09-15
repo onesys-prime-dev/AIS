@@ -1457,6 +1457,7 @@ $_defaultYearMonth = "{$_year}-{$_month}";
         <span style="float:right; cursor:pointer; font-size:24px;" onclick="closeImportModal()">&times;</span>
         <h3>Import Timesheet (CSV / XLSX)</h3>
         <form id="importTimesheetForm" enctype="multipart/form-data">
+            <?= csrf_field() ?>
             <input type="file" id="timesheetImportFile" name="timesheet_file" accept=".csv,.xlsx" required>
             <p class="text-xs text-gray-500 mt-2">Required: employee_number, time_in, time_out. Include date for time-only entries. Optional: break_duration. Maximum 5 MB and 5,000 rows; XLSX uses the first worksheet. Hours are recalculated.</p>
 
