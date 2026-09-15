@@ -130,9 +130,9 @@ jobs:
 
 
       # ==========================================================
-      # PERMISSIONS
+      # RUN VPS DEPLOYMENT SCRIPT
       # ==========================================================
-      - name: Set writable permissions
+      - name: Run VPS deployment script
         run: |
           ssh \
             -p ${SSH_PORT} \
@@ -141,10 +141,7 @@ jobs:
 
           cd ${DEPLOY_PATH}
 
-          if [ -d writable ]; then
-            find writable -type d -exec chmod 775 {} \;
-            find writable -type f -exec chmod 664 {} \;
-          fi
+          ./deploy.sh
 
           EOF
 
