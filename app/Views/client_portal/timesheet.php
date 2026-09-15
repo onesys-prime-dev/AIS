@@ -768,5 +768,5 @@ async function submitAttendanceCorrection(event, attendanceId) {
     return false;
 }
 </script>
-<script src="<?= base_url('js/components/task-log.js') ?>"></script>
+<script src="<?= base_url('js/components/task-log.js') ?>?v=<?= is_file(FCPATH . 'js/components/task-log.js') ? filemtime(FCPATH . 'js/components/task-log.js') : time() ?>"></script>
 <?= $this->endSection() ?>
