@@ -93,6 +93,17 @@ class Filters extends BaseFilters
                 'client_portal/payroll/compute',
                 'client_portal/payroll/sendPdf',
                 'client_portal/payroll/send/*',
+                'client_portal/payroll/savePayslipRecord',
+                'client_portal/payroll/computeYearEnd',
+                // navigator.sendBeacon() (presence.js's beforeunload handler,
+                // firing on every page navigation) cannot set custom headers,
+                // so its CSRF token can only travel as a URL query param the
+                // server-side CSRF check never reads — structurally
+                // impossible to pass otherwise. By far the single largest
+                // source of CRITICAL log noise before this was added (99
+                // failures in one day, dwarfing every other route combined).
+                // Low-sensitivity payload (Online/Away/Offline status only).
+                'client_portal/presence/heartbeat',
             ]],
             // 'honeypot',
             // 'invalidchars',
