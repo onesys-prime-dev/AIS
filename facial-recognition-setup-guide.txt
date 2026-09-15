@@ -1,0 +1,67 @@
+Here's the full ordered walkthrough, accounting for the two real gotchas we actually hit (Smart App Control, Store-Python-vs-service):
+
+Step-by-step after git pull
+1. Navigate to the service folder
+
+
+cd python-face-service
+2. Check what Python you have — you need a standalone install (python.org), not the Microsoft Store version. The Store one works fine for steps 3-8 below, but will silently break later if you try to run this as an always-on Windows service (step 11).
+
+
+(Get-Item "C:\PythonXXX\python.exe").VersionInfo
+If the install directory has Lib\, Scripts\, DLLs\ folders directly inside it, it's standalone — good. If you only have the Store version and don't yet know whether you'll need the service later, it's simplest to just install a standalone Python 3.10+ from python.org now.
+
+3. Create the venv
+
+
+C:\PythonXXX\python.exe -m venv venv
+venv\Scripts\activate
+4. Install dependencies
+
+
+pip install -r requirements.txt
+5. If that fails with ImportError: DLL load failed ... An Application Control policy has blocked this file — that's Windows Smart App Control, not a package problem:
+
+Windows Security → App & browser control → Smart App Control → Off
+Restart the machine (required — the change doesn't apply until reboot)
+⚠️ This is a one-way change — Microsoft doesn't allow re-enabling it without reinstalling Windows. If that's not acceptable, WSL2 is the alternative (runs Linux, sidesteps Smart App Control entirely) — ask if you want those steps instead.
+Retry pip install -r requirements.txt
+6. Download the model files (not in git — binaries)
+
+
+mkdir models
+curl -L -o models\face_detection_yunet_2023mar.onnx https://github.com/opencv/opencv_zoo/raw/main/models/face_detection_yunet/face_detection_yunet_2023mar.onnx
+curl -L -o models\face_recognition_sface_2021dec.onnx https://github.com/opencv/opencv_zoo/raw/main/models/face_recognition_sface/face_recognition_sface_2021dec.onnx
+7. Set up this service's .env
+
+
+copy .env.example .env
+php -r "echo bin2hex(random_bytes(24));"
+Paste that generated value as API_KEY in python-face-service\.env.
+
+8. Set up the main app's .env (if you don't already have one)
+
+
+cd ..
+copy env .env
+Edit .env, find the FaceRecognition.* block, uncomment it, and set FaceRecognition.apiKey to the same value you just generated in step 7. Leave FaceRecognition.enabled = false for now.
+
+9. Test it manually
+
+
+cd python-face-service
+venv\Scripts\activate
+uvicorn app:app --host 127.0.0.1 --port 8100
+In another terminal: curl http://127.0.0.1:8100/health → should return {"status":"ok","model_version":"opencv-sface"}. Stop it with Ctrl+C once confirmed.
+
+10. Run the DB migration (adds the face_embeddings table)
+
+
+cd ..
+php spark migrate
+11. (Optional, for always-on) Register as a Windows service via NSSM — see the "Run (always-on Windows service)" section in python-face-service/README.md for the exact commands (downloading nssm.exe, registering, and the fix if the service fails to start due to a Store-Python venv).
+
+12. Flip it on
+Set FaceRecognition.enabled = true in the main app's .env, then enroll a face via settings/face-recognition in the browser and test login.
+
+Want me to consolidate this into a "Quick Start" section at the top of python-face-service/README.md too, so future collaborators don't have to piece it together from the separate sections?
