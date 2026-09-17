@@ -43,13 +43,13 @@ fi
 
 echo "[5/6] Restarting face recognition service..."
 
-    sudo systemctl restart "$FACE_SERVICE"
+    sudo -n systemctl restart "$FACE_SERVICE"
 
     sleep 2
 
-    if ! sudo systemctl is-active --quiet "$FACE_SERVICE"; then
+    if ! sudo -n systemctl is-active --quiet "$FACE_SERVICE"; then
         echo "ERROR: Face recognition service failed to start."
-        sudo systemctl status "$FACE_SERVICE" --no-pager
+        sudo -n systemctl status "$FACE_SERVICE" --no-pager
         exit 1
     fi
 
