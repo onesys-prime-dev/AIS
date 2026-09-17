@@ -144,6 +144,24 @@ jobs:
 
           cd ${DEPLOY_PATH}
 
+          echo "=== SSH USER ==="
+          whoami
+          id
+
+          echo "=== SYSTEMCTL PATH ==="
+          command -v systemctl
+          ls -l /usr/bin/systemctl
+
+          echo "=== SUDO PERMISSIONS ==="
+          sudo -n -l
+
+          echo "=== SUDO TEST ==="
+          sudo -n /usr/bin/systemctl is-active ais-face-service
+
+          echo "=== DEPLOY SCRIPT ==="
+          grep -n "systemctl" deploy.sh
+
+          echo "=== RUN DEPLOYMENT ==="
           bash deploy.sh
 
           EOF
