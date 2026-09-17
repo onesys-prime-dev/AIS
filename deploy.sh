@@ -61,9 +61,15 @@ sudo -n /usr/bin/systemctl restart "$FACE_SERVICE"
 
 sleep 2
 
-if ! sudo -n /usr/bin/systemctl is-active --quiet "$FACE_SERVICE"; then
+# NOTE: the sudoers NOPASSWD rule on the VPS whitelists these exact command
+# strings (no extra flags) — /usr/bin/systemctl {restart,status,is-active}
+# ais-face-service. Adding flags like --quiet or --no-pager changes the
+# invoked command signature and sudo silently falls back to requiring a
+# password, which fails non-interactively. Redirect output via the shell
+# instead of passing extra flags to systemctl.
+if ! sudo -n /usr/bin/systemctl is-active "$FACE_SERVICE" >/dev/null; then
     echo "ERROR: Face recognition service failed to start."
-    sudo -n /usr/bin/systemctl status "$FACE_SERVICE" --no-pager
+    sudo -n /usr/bin/systemctl status "$FACE_SERVICE" | cat
     exit 1
 fi
 
