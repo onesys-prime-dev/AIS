@@ -26,13 +26,17 @@ fi
 
 echo "Application files OK."
 
-echo "[2/6] Running database migrations..."
+echo "[2/6] Database migrations..."
 
-php spark migrate --all
+echo "WARNING: Automatic migrations are temporarily disabled."
+echo "Migration state must be reconciled before enabling migrations."
 
 echo "[3/6] Clearing CodeIgniter cache..."
 
-php spark cache:clear
+if ! php spark cache:clear; then
+    echo "ERROR: Cache clear failed."
+    exit 1
+fi
 
 echo "[4/6] Fixing writable permissions..."
 
@@ -43,24 +47,27 @@ fi
 
 echo "[5/6] Restarting face recognition service..."
 
-    sudo -n /usr/bin/systemctl restart "$FACE_SERVICE"
+echo "Testing sudo permission..."
 
-    sleep 2
-
-    if ! sudo -n /usr/bin/systemctl is-active --quiet "$FACE_SERVICE"; then
-        echo "ERROR: Face recognition service failed to start."
-        sudo -n /usr/bin/systemctl status "$FACE_SERVICE" --no-pager
-        exit 1
-    fi
-
-    echo "Face recognition service is running."
-
-else
-
-    echo "ERROR: ${FACE_SERVICE}.service not found."
+if ! sudo -n /usr/bin/systemctl is-active ais-face-service >/dev/null 2>&1; then
+    echo "ERROR: onesys cannot access ais-face-service through sudo."
+    sudo -n -l
     exit 1
-
 fi
+
+echo "Sudo permission: OK"
+
+sudo -n /usr/bin/systemctl restart "$FACE_SERVICE"
+
+sleep 2
+
+if ! sudo -n /usr/bin/systemctl is-active --quiet "$FACE_SERVICE"; then
+    echo "ERROR: Face recognition service failed to start."
+    sudo -n /usr/bin/systemctl status "$FACE_SERVICE" --no-pager
+    exit 1
+fi
+
+echo "Face recognition service is running."
 
 echo "[6/6] Verifying deployment..."
 
