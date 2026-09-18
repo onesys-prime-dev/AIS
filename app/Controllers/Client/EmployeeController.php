@@ -21,6 +21,84 @@ class EmployeeController extends BaseController
         }
     }
 
+    /**
+     * Every active user account with a face-enrollment summary attached —
+     * source data for the Face Recognition tab's employee list. Starts from
+     * `users` (left-joined to `employees`) rather than `employees` directly
+     * so admin-only accounts with no employee profile still show up.
+     */
+    private function buildFaceRecognitionEmployees(): array
+    {
+        $db = \Config\Database::connect();
+
+        // Every non-GROUP-BY column must be wrapped in an aggregate: employees.user_id
+        // is only a plain (non-unique) FK index, not a unique constraint, so MySQL
+        // can't treat e.* as functionally dependent on u.id — a bare e.first_name
+        // etc. here is rejected outright under sql_mode=ONLY_FULL_GROUP_BY (the
+        // MySQL/MariaDB default on most managed hosts, though not on this XAMPP
+        // dev setup, which is why this previously passed locally but 500'd in prod).
+        $rows = $db->table('users u')
+            ->select("
+                u.id AS user_id,
+                MAX(u.username) AS username,
+                MAX(u.active) AS status,
+                MAX(e.id) AS employee_id,
+                MAX(e.employee_number) AS employee_number,
+                MAX(e.first_name) AS first_name,
+                MAX(e.middle_name) AS middle_name,
+                MAX(e.last_name) AS last_name,
+                MAX(ep.position) AS position,
+                MAX(ep.department) AS department,
+                MAX(ea.photo_path) AS photo_path,
+                MAX(ai.secret) AS email,
+                GROUP_CONCAT(DISTINCT agu.group) AS user_groups
+            ", false)
+            ->join('employees e', 'e.user_id = u.id', 'left')
+            ->join('employee_positions ep', 'ep.employee_id = e.id', 'left')
+            ->join('employee_accounts ea', 'ea.employee_id = e.id', 'left')
+            ->join('auth_identities ai', "ai.user_id = u.id AND ai.type = 'email_password'", 'left')
+            ->join('auth_groups_users agu', 'agu.user_id = u.id', 'left')
+            ->where('u.active', 1)
+            ->groupBy('u.id')
+            ->orderBy('COALESCE(MAX(e.first_name), MAX(u.username))', 'ASC', false)
+            ->get()
+            ->getResultArray();
+
+        $enrollmentSummary = (new \App\Models\FaceEmbeddingModel())->getSummaryForAllUsers();
+
+        return array_map(function ($row) use ($enrollmentSummary) {
+            $userId = (int) $row['user_id'];
+
+            $first  = trim((string) ($row['first_name'] ?? ''));
+            $middle = trim((string) ($row['middle_name'] ?? ''));
+            $last   = trim((string) ($row['last_name'] ?? ''));
+            $mi     = $middle !== '' ? strtoupper(substr($middle, 0, 1)) . '.' : '';
+            $name   = trim($first . ' ' . ($mi !== '' ? $mi . ' ' : '') . $last);
+
+            if ($name === '') {
+                $name = (string) ($row['username'] ?? ('User #' . $userId));
+            }
+
+            $summary = $enrollmentSummary[$userId] ?? null;
+
+            return [
+                'user_id'             => $userId,
+                'employee_id'         => $row['employee_id'] !== null ? (int) $row['employee_id'] : null,
+                'employee_number'     => $row['employee_number'],
+                'name'                => $name,
+                'position'            => $row['position'] ?: null,
+                'department'          => $row['department'] ?: null,
+                'photo_path'          => !empty($row['photo_path']) ? base_url((string) $row['photo_path']) : null,
+                'email'               => $row['email'],
+                'groups'              => $row['user_groups'] ? explode(',', $row['user_groups']) : [],
+                'status'              => (int) $row['status'],
+                'enrolled'            => $summary !== null,
+                'enrollment_count'    => $summary['count'] ?? 0,
+                'enrollment_latest_at' => $summary['latest_at'] ?? null,
+            ];
+        }, $rows);
+    }
+
     public function employeeView()
     {
         $this->ensurePayrollStaff();
@@ -34,17 +112,22 @@ class EmployeeController extends BaseController
         |--------------------------------------------------------------------------
         */
 
+        // employees.id is the only column MariaDB accepts unaggregated under
+        // sql_mode=ONLY_FULL_GROUP_BY — unlike MySQL 5.7+, MariaDB never added
+        // the "functionally dependent on primary key" relaxation, so every
+        // other employees.* column here must be wrapped too, even though
+        // they come from the very table being grouped by its own PK.
         $employees = $employeeModel
         ->select("
             employees.id,
-            employees.user_id,
-            employees.first_name,
-            employees.middle_name,
-            employees.last_name,
-            employees.birthdate,
-            employees.employee_number,
-            employees.gender,
-            employees.civil_status,
+            MAX(employees.user_id) as user_id,
+            MAX(employees.first_name) as first_name,
+            MAX(employees.middle_name) as middle_name,
+            MAX(employees.last_name) as last_name,
+            MAX(employees.birthdate) as birthdate,
+            MAX(employees.employee_number) as employee_number,
+            MAX(employees.gender) as gender,
+            MAX(employees.civil_status) as civil_status,
 
             MAX(employee_positions.department) as department,
             MAX(employee_positions.position) as position,
@@ -190,13 +273,34 @@ class EmployeeController extends BaseController
 
         /*
         |--------------------------------------------------------------------------
+        | FACE RECOGNITION (admin-managed enrollment — superadmin/admin only)
+        |--------------------------------------------------------------------------
+        |
+        | Built from `users`, not `employees` — a superadmin/admin account may
+        | have no employees row at all, but still needs to appear here since
+        | face-verify at login applies to any authenticated user.
+        */
+
+        $faceRecognitionEmployees = [];
+        if (\App\Libraries\PortalAccess::can('face_recognition')) {
+            $faceRecognitionEmployees = $this->buildFaceRecognitionEmployees();
+        }
+
+        /*
+        |--------------------------------------------------------------------------
         | LOANS
         |--------------------------------------------------------------------------
         */
 
         $employees = array_map([\App\Libraries\PortalAccess::class, 'hideCompensation'], $employees);
         if (!\App\Libraries\PortalAccess::can('loans')) {
-            return view('client_portal/employee_main', ['employees' => $employees, 'loans' => [], 'settings' => [], 'currentUserId' => (int) $currentUser->id]);
+            return view('client_portal/employee_main', [
+                'employees' => $employees,
+                'loans' => [],
+                'settings' => [],
+                'currentUserId' => (int) $currentUser->id,
+                'faceRecognitionEmployees' => $faceRecognitionEmployees,
+            ]);
         }
         $loanModel = new LoanModel();
 
@@ -315,6 +419,8 @@ class EmployeeController extends BaseController
 
         $data['currentUserId'] =
             (int) ($currentUser->id ?? 0);
+
+        $data['faceRecognitionEmployees'] = $faceRecognitionEmployees;
 
         /*
         |--------------------------------------------------------------------------

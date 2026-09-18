@@ -135,8 +135,8 @@ class FaceRecognitionService
     }
 
     /**
-     * Wipes all enrolled embeddings for a user — the "Replace Face" flow
-     * clears this before capturing a fresh enrollment.
+     * Wipes all enrolled embeddings for a user — backs the "Remove enrolled
+     * face" action in the admin enrollment modal.
      */
     public function clearEnrollment(int $userId): bool
     {

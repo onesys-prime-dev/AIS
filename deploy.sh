@@ -85,9 +85,30 @@ php -v | head -n 1
 
 echo "Face recognition API:"
 
-if ! curl --fail --silent "$FACE_URL/health"; then
+# systemd reporting the unit "active" only means the process started — the
+# actual FastAPI app can still be mid-startup (loading the YuNet/SFace
+# models on first request) or crashed right after. Retry with backoff
+# instead of a single immediate curl, which was failing here even though
+# is-active reported healthy just above.
+HEALTH_OK=0
+for attempt in 1 2 3 4 5; do
+    if curl --fail --silent --max-time 5 "$FACE_URL/health"; then
+        HEALTH_OK=1
+        break
+    fi
+    echo "Attempt $attempt/5 failed, retrying in 3s..."
+    sleep 3
+done
+
+if [ "$HEALTH_OK" -ne 1 ]; then
     echo
-    echo "ERROR: Face recognition API health check failed."
+    echo "ERROR: Face recognition API health check failed after 5 attempts."
+    echo
+    echo "--- systemctl status $FACE_SERVICE ---"
+    sudo -n /usr/bin/systemctl status "$FACE_SERVICE" | cat
+    echo
+    echo "--- verbose curl to $FACE_URL/health ---"
+    curl -v --max-time 5 "$FACE_URL/health" || true
     exit 1
 fi
 
