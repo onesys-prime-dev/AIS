@@ -344,7 +344,7 @@ class PayrollController extends BaseController
 
             // Employee management is the canonical source for salary and benefits
             $posRow = $db->table('employee_positions')
-                ->select('position, monthly_salary, de_minimis_benefit, de_minimis_breakdown, allowances')
+                ->select('position, monthly_salary, de_minimis_benefit, de_minimis_breakdown, allowances, additional_de_minimis_benefit, additional_de_minimis_breakdown')
                 ->where('employee_id', $id)
                 ->get()->getRowArray();
 
@@ -352,6 +352,8 @@ class PayrollController extends BaseController
             $monthlySalary = (float)($posRow['monthly_salary']     ?? 0);
             $deMinimis     = (float)($posRow['de_minimis_benefit'] ?? 0);
             $allowances    = (float)($posRow['allowances']         ?? 0);
+            $additionalDeMinimis = (float)($posRow['additional_de_minimis_benefit'] ?? 0);
+            $additionalAllocations = json_decode($posRow['additional_de_minimis_breakdown'] ?? '{}', true) ?: [];
 
             $breakdown             = [];
             $allocations           = [];
@@ -422,6 +424,8 @@ class PayrollController extends BaseController
                 'laundry_allowance'         => isset($allocations['laundry_allowance']) ? (float) $allocations['laundry_allowance'] : null,
                 'medical_allowance'         => isset($allocations['medical_allowance']) ? (float) $allocations['medical_allowance'] : null,
                 'other_non_taxable_default' => round($otherNonTaxableTotal, 2),
+                'additional_de_minimis_default' => round($additionalDeMinimis, 2),
+                'additional_de_minimis_allocations' => $additionalAllocations,
             ]);
         } catch (\Exception $e) {
             return $this->jsonError($e, 'Unable to load employee details.');
@@ -3257,6 +3261,67 @@ class PayrollController extends BaseController
         service('activityLogger')->wtaxBracketsYearCreated($year, $copyFrom ?: null);
 
         return $this->response->setJSON(['success' => true]);
+    }
+
+    // =========================================================================
+    // ADDITIONAL DE MINIMIS CATEGORIES (BIR) — separate from the existing
+    // fixed rice/uniform/laundry/medical fields on employee_positions, which
+    // this never touches. Caps live here, editable, not hardcoded, since BIR
+    // revises them periodically.
+    // =========================================================================
+
+    /** GET client_portal/payroll/deminimis/categories */
+    public function getDeMinimisCategories()
+    {
+        $model = new \App\Models\Client\DeMinimisCategoryModel();
+        return $this->response->setJSON(
+            $model->orderBy('label', 'ASC')->findAll()
+        );
+    }
+
+    /** POST client_portal/payroll/deminimis/saveCategories  { categories: [...] } */
+    public function saveDeMinimisCategories()
+    {
+        $body       = $this->request->getJSON(true);
+        $categories = $body['categories'] ?? [];
+
+        if (!is_array($categories)) {
+            return $this->response->setStatusCode(400)
+                ->setJSON(['success' => false, 'message' => 'Invalid payload.']);
+        }
+
+        $model = new \App\Models\Client\DeMinimisCategoryModel();
+
+        foreach ($categories as $c) {
+            $id = (int) ($c['id'] ?? 0);
+            if (!$id) {
+                continue;
+            }
+
+            $model->update($id, [
+                'label'      => $c['label'] ?? '',
+                'note'       => $c['note'] ?? null,
+                'cap_amount' => (float) ($c['cap_amount'] ?? 0),
+                'cap_period' => in_array($c['cap_period'] ?? '', ['monthly', 'annual', 'per_payroll'], true)
+                    ? $c['cap_period']
+                    : 'annual',
+                'is_active'  => !empty($c['is_active']) ? 1 : 0,
+            ]);
+        }
+
+        return $this->response->setJSON(['success' => true]);
+    }
+
+    /** POST client_portal/payroll/deminimis/restoreDefaults */
+    public function restoreDeMinimisDefaults()
+    {
+        $model = new \App\Models\Client\DeMinimisCategoryModel();
+        $model->seedBirDefaults();
+
+        return $this->response->setJSON([
+            'success'    => true,
+            'categories' => $model->orderBy('label', 'ASC')->findAll(),
+        ]);
     }
 
     // =========================================================================

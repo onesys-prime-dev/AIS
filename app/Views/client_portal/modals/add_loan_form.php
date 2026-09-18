@@ -121,6 +121,25 @@
                     class="w-full border rounded-lg px-3 py-2">
             </div>
 
+            <!-- UNEVEN / CUSTOM INSTALLMENT AMOUNTS -->
+            <div class="mb-4">
+                <label class="flex items-center gap-2 text-sm text-gray-700">
+                    <input type="checkbox" id="useCustomInstallments">
+                    Use uneven amounts per installment
+                </label>
+                <p class="text-xs text-gray-400 mt-1">
+                    e.g. a ₱10,000 loan over 3 cutoffs doesn't have to be split evenly —
+                    it can be entered as 2000 / 5000 / 3000, as long as they add up to the total payable.
+                </p>
+
+                <div id="customInstallmentsWrap" class="hidden mt-3 space-y-2">
+                    <div id="customInstallmentInputs" class="space-y-2"></div>
+                    <p id="customInstallmentTotal" class="text-sm font-medium"></p>
+                </div>
+
+                <input type="hidden" name="custom_amounts" id="custom_amounts">
+            </div>
+
             <!-- EFFECTIVE DATE -->
             <div class="mb-6">
                 <label class="block text-sm font-medium text-gray-700 mb-1">
@@ -222,6 +241,8 @@
                 <p id="preview_deduction" class="text-lg font-bold text-gray-800">₱0.00</p>
             </div>
         </div>
+
+        <p id="preview_custom_schedule" class="hidden text-sm text-gray-600 mb-6 -mt-4"></p>
 
         <!-- DETAILS -->
         <div class="border rounded-xl overflow-hidden mb-6">
@@ -911,6 +932,93 @@
         }).format(value);
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | UNEVEN / CUSTOM INSTALLMENT AMOUNTS
+    |--------------------------------------------------------------------------
+    |
+    | Renders one amount input per installment (defaulting to the even split
+    | so editing from there is easy), and keeps a live running total against
+    | the current total payable so a mismatch is obvious before submitting
+    | rather than only failing server-side.
+    */
+
+    function currentTotalPayable()
+    {
+        const principal = parseFloat(document.getElementById('principal_amount').value || 0);
+        const loanType = document.getElementById('loanType').value;
+        const loanCategory = document.getElementById('loanCategory').value;
+        const setting = LOAN_SETTINGS.find(s => s.loan_type === loanType && s.loan_category === loanCategory);
+        const interestRate = setting ? parseFloat(setting.interest_rate || 0) : 0;
+        return parseFloat((principal + principal * (interestRate / 100)).toFixed(2));
+    }
+
+    function renderCustomInstallmentInputs()
+    {
+        const count = parseInt(document.getElementById('installment_count').value || 0);
+        const container = document.getElementById('customInstallmentInputs');
+        const totalPayable = currentTotalPayable();
+        const evenShare = count > 0 ? parseFloat((totalPayable / count).toFixed(2)) : 0;
+
+        if (!count || count < 1) {
+            container.innerHTML = '<p class="text-xs text-gray-400">Enter an installment count first.</p>';
+            return;
+        }
+
+        const existing = Array.from(container.querySelectorAll('input[data-installment]')).map(i => i.value);
+
+        container.innerHTML = Array.from({ length: count }, (_, i) => `
+            <div class="flex items-center gap-2">
+                <span class="text-xs text-gray-500 w-20 shrink-0">Installment ${i + 1}</span>
+                <input type="number" step="0.01" min="0.01" data-installment="${i}"
+                    value="${existing[i] ?? evenShare}"
+                    class="w-full border rounded-lg px-3 py-1.5 text-sm">
+            </div>
+        `).join('');
+
+        container.querySelectorAll('input[data-installment]').forEach(input => {
+            input.addEventListener('input', updateCustomInstallmentTotal);
+        });
+
+        updateCustomInstallmentTotal();
+    }
+
+    function readCustomInstallmentAmounts()
+    {
+        return Array.from(document.querySelectorAll('#customInstallmentInputs input[data-installment]'))
+            .map(input => parseFloat(input.value || 0));
+    }
+
+    function updateCustomInstallmentTotal()
+    {
+        const amounts = readCustomInstallmentAmounts();
+        const sum = parseFloat(amounts.reduce((a, b) => a + b, 0).toFixed(2));
+        const totalPayable = currentTotalPayable();
+        const label = document.getElementById('customInstallmentTotal');
+        const matches = Math.abs(sum - totalPayable) < 0.01;
+
+        label.textContent = matches
+            ? `${formatCurrency(sum)} / ${formatCurrency(totalPayable)} ✓`
+            : `${formatCurrency(sum)} / ${formatCurrency(totalPayable)} — ${sum < totalPayable ? 'short by ' + formatCurrency(totalPayable - sum) : 'over by ' + formatCurrency(sum - totalPayable)}`;
+
+        label.className = matches ? 'text-sm font-medium text-green-600' : 'text-sm font-medium text-red-600';
+
+        return matches;
+    }
+
+    document.getElementById('useCustomInstallments')?.addEventListener('change', function () {
+        document.getElementById('customInstallmentsWrap').classList.toggle('hidden', !this.checked);
+        if (this.checked) renderCustomInstallmentInputs();
+    });
+
+    document.getElementById('installment_count')?.addEventListener('input', function () {
+        if (document.getElementById('useCustomInstallments').checked) renderCustomInstallmentInputs();
+    });
+
+    document.getElementById('principal_amount')?.addEventListener('input', function () {
+        if (document.getElementById('useCustomInstallments').checked) updateCustomInstallmentTotal();
+    });
+
     function goToLoanPreview()
     {
         const principal = parseFloat(
@@ -1026,6 +1134,29 @@
             'remaining_balance'
         ).value = totalPayable;
 
+        /*
+        |--------------------------------------------------------------------------
+        | UNEVEN / CUSTOM INSTALLMENT AMOUNTS — validate and carry through
+        |--------------------------------------------------------------------------
+        */
+
+        const useCustom = document.getElementById('useCustomInstallments').checked;
+        let customAmounts = [];
+
+        if (useCustom) {
+            if (!updateCustomInstallmentTotal()) {
+                showToast('Custom installment amounts must add up to the total payable.', 'warning');
+                return;
+            }
+            customAmounts = readCustomInstallmentAmounts();
+            if (customAmounts.length !== installments || customAmounts.some(a => !(a > 0))) {
+                showToast('Enter a valid amount (greater than 0) for every installment.', 'warning');
+                return;
+            }
+        }
+
+        document.getElementById('custom_amounts').value = useCustom ? JSON.stringify(customAmounts) : '';
+
         const monthlySalary = parseFloat(
             document.getElementById('employee_monthly_salary').value || 0
         );
@@ -1077,7 +1208,18 @@
 
         document.getElementById(
             'preview_deduction'
-        ).innerText = formatCurrency(deductionPerPayroll);
+        ).innerText = useCustom
+            ? 'Custom (see below)'
+            : formatCurrency(deductionPerPayroll);
+
+        const scheduleNote = document.getElementById('preview_custom_schedule');
+        if (useCustom) {
+            scheduleNote.innerHTML = 'Custom schedule: ' +
+                customAmounts.map(a => formatCurrency(a)).join(' → ');
+            scheduleNote.classList.remove('hidden');
+        } else {
+            scheduleNote.classList.add('hidden');
+        }
 
         document.getElementById(
             'preview_installments'

@@ -121,6 +121,7 @@ document.addEventListener('DOMContentLoaded', () => {
 <?php endif; ?>
 const EMPLOYEES = <?= json_encode($employees) ?>;
 const LOANS = <?= json_encode($loans ?? []) ?>;
+const CSRF_HASH = "<?= csrf_hash() ?>";
 const CURRENT_USER_ID = <?= (int) ($currentUserId ?? 0) ?>;
 const EDIT_ICON = "<?= base_url('icons/edit.png') ?>";
 const VIEW_ICON = "<?= base_url('icons/view.png') ?>";
@@ -263,6 +264,8 @@ function htmlEsc(val)
                         data-monthly_salary="${htmlEsc(p.monthly_salary)}"
                         data-de_minimis_benefit="${htmlEsc(p.de_minimis_benefit)}"
                         data-de_minimis_breakdown='${htmlEsc(p.de_minimis_breakdown || "{}")}'
+                        data-additional_de_minimis_benefit="${htmlEsc(p.additional_de_minimis_benefit)}"
+                        data-additional_de_minimis_breakdown='${htmlEsc(p.additional_de_minimis_breakdown || "{}")}'
                         data-allowances="${htmlEsc(p.allowances)}"
 
                         data-vacation_leave="${htmlEsc(p.vacation_leave)}"
@@ -864,6 +867,22 @@ function viewLoanDetails(loanId) {
 
                     </div>
 
+                    <!-- PAYMENT SCHEDULE (uneven/custom amounts, editable
+                         while still pending) -->
+                    <div class="border rounded-xl overflow-hidden mb-6">
+
+                        <div class="bg-gray-50 px-4 py-3 border-b">
+                            <h3 class="font-semibold text-gray-700">
+                                Payment Schedule
+                            </h3>
+                        </div>
+
+                        <div id="loanScheduleSection" class="p-5">
+                            <p class="text-sm text-gray-400">Loading schedule...</p>
+                        </div>
+
+                    </div>
+
                 </div>
 
             </div>
@@ -873,6 +892,139 @@ function viewLoanDetails(loanId) {
             html;
 
         openModalById('viewLoanModal');
+
+        loadLoanSchedule(loan.id);
+}
+
+/*
+|--------------------------------------------------------------------------
+| PAYMENT SCHEDULE — VIEW + INLINE EDIT (uneven/custom installments)
+|--------------------------------------------------------------------------
+|
+| The final pending installment is deliberately shown read-only (it always
+| auto-balances server-side to guarantee the loan resolves to exactly ₱0 —
+| see LoanService::updateInstallmentAmount()); every other pending row can
+| have its amount adjusted in place.
+*/
+
+async function loadLoanSchedule(loanId) {
+
+    const section = document.getElementById('loanScheduleSection');
+    if (!section) return;
+
+    try {
+        const res = await fetch(`<?= site_url('client_portal/loans/viewSchedule') ?>/${loanId}`);
+        if (!res.ok) throw new Error('Failed to load schedule: ' + res.status);
+
+        const data = await res.json();
+        renderLoanSchedule(loanId, data.schedule || []);
+    } catch (err) {
+        console.error('loadLoanSchedule error:', err);
+        section.innerHTML = '<p class="text-sm text-red-500">Unable to load payment schedule.</p>';
+    }
+}
+
+function renderLoanSchedule(loanId, schedule) {
+
+    const section = document.getElementById('loanScheduleSection');
+    if (!section) return;
+
+    if (!schedule.length) {
+        section.innerHTML = '<p class="text-sm text-gray-400">No schedule found for this loan.</p>';
+        return;
+    }
+
+    const pendingNos = schedule
+        .filter(row => row.schedule_status === 'pending')
+        .map(row => Number(row.installment_no));
+    const lastPendingNo = pendingNos.length ? Math.max(...pendingNos) : null;
+
+    section.innerHTML = `
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="text-left text-gray-400 text-xs uppercase">
+                    <th class="pb-2">#</th>
+                    <th class="pb-2">Due Date</th>
+                    <th class="pb-2 text-right">Amount</th>
+                    <th class="pb-2 text-right">Balance After</th>
+                    <th class="pb-2">Status</th>
+                    <th class="pb-2"></th>
+                </tr>
+            </thead>
+            <tbody>
+                ${schedule.map(row => {
+                    const no = Number(row.installment_no);
+                    const isPending = row.schedule_status === 'pending';
+                    const isLastPending = no === lastPendingNo;
+                    const editable = isPending && !isLastPending;
+
+                    return `
+                        <tr class="border-t" data-installment="${no}">
+                            <td class="py-2">${no}</td>
+                            <td class="py-2">${row.due_date}</td>
+                            <td class="py-2 text-right">
+                                ${editable
+                                    ? `<input type="number" step="0.01" min="0.01" class="w-28 border rounded px-2 py-1 text-right schedule-amount-input" value="${row.amount_due}">`
+                                    : `₱${Number(row.amount_due).toLocaleString()}`
+                                }
+                                ${isLastPending ? '<span class="block text-[10px] text-gray-400">auto-balances</span>' : ''}
+                            </td>
+                            <td class="py-2 text-right">₱${Number(row.remaining_balance).toLocaleString()}</td>
+                            <td class="py-2 capitalize">${row.schedule_status}</td>
+                            <td class="py-2 text-right">
+                                ${editable
+                                    ? `<button type="button" class="text-xs text-purple-600 hover:text-purple-700 font-semibold" onclick="saveInstallmentAmount(${loanId}, ${no}, this)">Save</button>`
+                                    : ''
+                                }
+                            </td>
+                        </tr>
+                    `;
+                }).join('')}
+            </tbody>
+        </table>
+    `;
+}
+
+async function saveInstallmentAmount(loanId, installmentNo, btn) {
+
+    const row = btn.closest('tr');
+    const input = row.querySelector('.schedule-amount-input');
+    const newAmount = parseFloat(input.value || 0);
+
+    if (!(newAmount > 0)) {
+        showToast('Enter an amount greater than 0.', 'warning');
+        return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Saving...';
+
+    try {
+        const res = await fetch(
+            `<?= site_url('client_portal/loans/schedule') ?>/${loanId}/${installmentNo}`,
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': CSRF_HASH,
+                },
+                body: new URLSearchParams({ amount_due: newAmount }),
+            }
+        );
+        const data = await res.json();
+
+        if (!data.success) {
+            throw new Error(data.message || 'Unable to update this installment.');
+        }
+
+        showToast('Installment updated.', 'success');
+        renderLoanSchedule(loanId, data.schedule);
+    } catch (err) {
+        showToast(err.message, 'error');
+        btn.disabled = false;
+        btn.textContent = 'Save';
+    }
 }
 
     function loanViewField(label, value = '') {
@@ -928,7 +1080,10 @@ window.addEventListener('click', function(e)
         setVal('edit_email',             button.dataset.email);
         setVal('edit_monthly_salary',    button.dataset.monthly_salary);
         setVal('edit_de_minimis_benefit',button.dataset.de_minimis_benefit);
-        loadEditBreakdown( button.dataset.de_minimis_breakdown || '{}' ); 
+        loadEditBreakdown( button.dataset.de_minimis_breakdown || '{}' );
+        if (typeof loadAdditionalDeMinimis === 'function') {
+            loadAdditionalDeMinimis(button.dataset.additional_de_minimis_breakdown || '{}');
+        }
 
         setVal('edit_allowances',        button.dataset.allowances);
         setVal('edit_vacation_leave',    button.dataset.vacation_leave);

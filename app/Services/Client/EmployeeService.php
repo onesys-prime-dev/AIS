@@ -167,6 +167,10 @@ class EmployeeService
                 'monthly_salary' => isset($data['monthly_salary']) && $data['monthly_salary'] !== '' ? (float) $data['monthly_salary'] : null,
                 'de_minimis_benefit' => isset($data['de_minimis_benefit']) && $data['de_minimis_benefit'] !== '' ? (float) $data['de_minimis_benefit'] : 0,
                 'de_minimis_breakdown' => isset($data['de_minimis_breakdown']) && $data['de_minimis_breakdown'] !== '' ? $data['de_minimis_breakdown'] : null,
+                // Separate, additive set of BIR categories — never merged
+                // into de_minimis_benefit/_breakdown above.
+                'additional_de_minimis_benefit' => isset($data['additional_de_minimis_benefit']) && $data['additional_de_minimis_benefit'] !== '' ? (float) $data['additional_de_minimis_benefit'] : 0,
+                'additional_de_minimis_breakdown' => isset($data['additional_de_minimis_breakdown']) && $data['additional_de_minimis_breakdown'] !== '' ? $data['additional_de_minimis_breakdown'] : null,
                 'allowances' => isset($data['allowances']) && $data['allowances'] !== '' ? (float) $data['allowances'] : 0,
             ]);
 
@@ -560,6 +564,10 @@ class EmployeeService
                 'monthly_salary'     => isset($data['monthly_salary'])     && $data['monthly_salary']     !== '' ? (float) $data['monthly_salary']     : null,
                 'de_minimis_benefit' => isset($data['de_minimis_benefit']) && $data['de_minimis_benefit'] !== '' ? (float) $data['de_minimis_benefit'] : 0,
                 'de_minimis_breakdown' => isset($data['de_minimis_breakdown']) && $data['de_minimis_breakdown'] !== '' ? $data['de_minimis_breakdown'] : null,
+                // Separate, additive set of BIR categories — never merged
+                // into de_minimis_benefit/_breakdown above.
+                'additional_de_minimis_benefit' => isset($data['additional_de_minimis_benefit']) && $data['additional_de_minimis_benefit'] !== '' ? (float) $data['additional_de_minimis_benefit'] : 0,
+                'additional_de_minimis_breakdown' => isset($data['additional_de_minimis_breakdown']) && $data['additional_de_minimis_breakdown'] !== '' ? $data['additional_de_minimis_breakdown'] : null,
                 'allowances'         => isset($data['allowances'])         && $data['allowances']         !== '' ? (float) $data['allowances']         : 0,
             ] + $scheduleData;
 

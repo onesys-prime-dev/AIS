@@ -52,6 +52,7 @@ $routes->group('client_portal', ['filter' => 'auth'], function($routes){
     $routes->get ('loans/loanEmployees'             , 'Client\LoanController::getLoanEmployees');
     $routes->get ('loans/getLoans'                  , 'Client\LoanController::getLoans');
     $routes->get ('loans/viewSchedule/(:num)'       , 'Client\LoanController::viewSchedule/$1');
+    $routes->post('loans/schedule/(:num)/(:num)'    , 'Client\LoanController::updateInstallment/$1/$2');
     $routes->post ('loans/cancel/(:num)'             , 'Client\LoanController::cancelLoan/$1');
     $routes->post ('loans/complete/(:num)'           , 'Client\LoanController::completeLoan/$1');
     $routes->post('loans/update/(:num)'             , 'Client\LoanController::updateLoan/$1');
@@ -141,6 +142,7 @@ $routes->group('client_portal', ['namespace' => 'App\Controllers\Client', 'filte
     $routes->post('payroll/send/(:num)'    , 'PayrollController::sendPayslip/$1');
     
     $routes->get('payroll/getMyPayslips'         , 'PayrollController::getMyPayslips');
+    $routes->get('performance/my-summary'        , 'PerformanceController::mySummary');
     $routes->get('payroll/downloadPayslip/(:num)', 'PayrollController::downloadPayslip/$1');
     $routes->get('payroll/payslipHistory', 'PayrollController::payslipHistory');
     $routes->get('payroll/getPayslipData/(:num)', 'PayrollController::getPayslipData/$1');
@@ -193,6 +195,11 @@ $routes->group('client_portal/payroll', ['namespace' => 'App\Controllers\Client'
     $routes->post('wtax/saveBrackets',   'PayrollController::wtaxSaveBrackets');
     $routes->post('wtax/setActive'   , 'PayrollController::wtaxSetActive');
     $routes->post('wtax/createYear'  , 'PayrollController::wtaxCreateYear');
+
+    // ========== Additional De Minimis Categories (BIR) ==========
+    $routes->get ('deminimis/categories'      , 'PayrollController::getDeMinimisCategories');
+    $routes->post('deminimis/saveCategories'  , 'PayrollController::saveDeMinimisCategories');
+    $routes->post('deminimis/restoreDefaults' , 'PayrollController::restoreDeMinimisDefaults');
 
     // ========== 13th Month Pay & Annualization ==========
     $routes->post('computeYearEnd'   , 'PayrollController::computeYearEnd');

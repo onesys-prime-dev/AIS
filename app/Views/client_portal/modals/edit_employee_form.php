@@ -103,6 +103,17 @@
 .edit-btn-primary:hover {
     background: #8e73f7;
 }
+
+/* teal-* Tailwind utilities aren't in the compiled main.css safelist,
+   so this section's accent color is defined directly instead. */
+.edit-teal-icon-link {
+    color: #14b8a6;
+    transition: color .15s ease;
+}
+
+.edit-teal-icon-link:hover {
+    color: #0f766e;
+}
 </style>
 
 <form id="editEmployeeForm" method="post" class="max-h-[75vh] overflow-y-auto px-1 hide-scroll-bar">
@@ -486,6 +497,59 @@
     </div>
 
     <!-- ===================================================== -->
+    <!-- ADDITIONAL DE MINIMIS (BIR) — a separate, additive set of
+         categories from the "De Minimis Benefits" section above, which
+         stays completely untouched: different fields, different total
+         (additional_de_minimis_benefit / _breakdown), computed and added
+         on top of payroll's existing non-taxable/taxable totals rather
+         than merged into them. -->
+    <!-- ===================================================== -->
+
+    <div>
+
+        <div class="mb-3">
+            <h2 class="text-xl font-semibold text-gray-800">Additional De Minimis (BIR)</h2>
+            <p class="text-sm text-gray-500 mt-1">Other BIR-recognized categories (RR No. 29-2025), on top of the breakdown above. Amounts over a category's cap are taxed automatically when the payslip is generated.</p>
+        </div>
+
+        <div class="rounded-3xl p-6 space-y-4" style="background:#f0fdfa;">
+
+            <div class="flex items-center justify-between">
+
+                <h3 class="edit-section-title" style="color:#115e59;">Category Breakdown</h3>
+
+                <a href="<?= site_url('client_portal/payroll') ?>"
+                    title="Manage categories in Payroll Settings"
+                    class="edit-teal-icon-link">
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+
+                </a>
+
+            </div>
+
+            <div>
+                <label class="edit-form-label">Total (computed from the breakdown below)</label>
+                <div class="edit-form-input font-semibold" style="color:#115e59;">
+                    ₱<span id="edit_additional_deminimis_total">0</span>
+                </div>
+            </div>
+
+            <div id="edit_additional_deminimis_list" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <p class="text-sm text-gray-400 md:col-span-2">Loading categories...</p>
+            </div>
+
+            <input type="hidden" id="edit_additional_de_minimis_benefit" name="additional_de_minimis_benefit">
+            <input type="hidden" id="edit_additional_de_minimis_breakdown" name="additional_de_minimis_breakdown">
+
+        </div>
+
+    </div>
+
+    <!-- ===================================================== -->
     <!-- COMPENSATION & LEAVE -->
     <!-- ===================================================== -->
 
@@ -812,6 +876,99 @@ function updateEditBreakdownHidden() {
     document.getElementById('edit_other_comp_add').addEventListener('click', function () {
         addEditOtherCompRow();
     });
+
+})();
+
+/* ===================================================== */
+/* ADDITIONAL DE MINIMIS (BIR) — separate from the existing */
+/* De Minimis Benefits block above; own fields, own total.  */
+/* ===================================================== */
+(function () {
+
+    const list = document.getElementById('edit_additional_deminimis_list');
+    if (!list) return;
+
+    const totalDisplay = document.getElementById('edit_additional_deminimis_total');
+    const totalHidden = document.getElementById('edit_additional_de_minimis_benefit');
+    const breakdownHidden = document.getElementById('edit_additional_de_minimis_breakdown');
+
+    let categories = [];
+    let pendingBreakdown = null; // set if loadAdditionalDeMinimis() is called before categories finish loading
+
+    function recalc() {
+        let total = 0;
+        const breakdown = {};
+
+        list.querySelectorAll('input[data-key]').forEach(input => {
+            const value = parseFloat(input.value) || 0;
+            total += value;
+            breakdown[input.dataset.key] = value;
+        });
+
+        totalDisplay.textContent = total.toLocaleString();
+        totalHidden.value = total;
+        breakdownHidden.value = JSON.stringify(breakdown);
+    }
+
+    function applyBreakdown(breakdown) {
+        list.querySelectorAll('input[data-key]').forEach(input => {
+            input.value = breakdown[input.dataset.key] ?? '';
+        });
+        recalc();
+    }
+
+    function render() {
+        const active = categories.filter(c => Number(c.is_active) === 1);
+
+        if (!active.length) {
+            list.innerHTML = '<p class="text-sm text-gray-400 md:col-span-2">No additional categories configured yet — set them up in Payroll Settings → De Minimis Categories.</p>';
+            return;
+        }
+
+        list.innerHTML = active.map(c => {
+            const capNote = c.note || (Number(c.cap_amount) > 0
+                ? `Cap: ₱${Number(c.cap_amount).toLocaleString()} / ${c.cap_period.replace('_', ' ')}`
+                : 'No fixed peso cap');
+            return `
+            <div>
+                <label class="edit-form-label">${c.label}</label>
+                <input type="number" step="0.01" min="0" data-key="${c.category_key}" placeholder="0.00" class="edit-form-input">
+                <p class="text-xs text-gray-400 mt-1">${capNote}</p>
+            </div>
+        `;
+        }).join('');
+
+        list.querySelectorAll('input[data-key]').forEach(input => input.addEventListener('input', recalc));
+
+        if (pendingBreakdown) {
+            applyBreakdown(pendingBreakdown);
+            pendingBreakdown = null;
+        } else {
+            recalc();
+        }
+    }
+
+    window.loadAdditionalDeMinimis = function (breakdownJson) {
+        let breakdown = {};
+        try { breakdown = JSON.parse(breakdownJson || '{}'); } catch (e) { breakdown = {}; }
+
+        if (categories.length) {
+            applyBreakdown(breakdown);
+        } else {
+            pendingBreakdown = breakdown;
+        }
+    };
+
+    fetch('<?= site_url('client_portal/payroll/deminimis/categories') ?>')
+        .then(res => res.json())
+        .then(data => {
+            categories = Array.isArray(data) ? data : [];
+            render();
+        })
+        .catch(err => {
+            console.error('Failed to load additional De Minimis categories.', err);
+            list.innerHTML = '<p class="text-sm text-red-400">Failed to load categories.</p>';
+        });
 
 })();
 </script>

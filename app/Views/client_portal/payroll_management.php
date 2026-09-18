@@ -904,6 +904,23 @@ $_defaultYearMonth = "{$_year}-{$_month}";
                 </div>
             </div>
 
+            <!-- ADDITIONAL DE MINIMIS (BIR) — separate categories from Payroll Settings.
+                 Amount up to each category's cap is non-taxable; any excess is pushed
+                 into taxableOther so it actually gets withheld, per RR No. 29-2025. -->
+            <div class="section rs-card">
+                <h3 class="font-semibold">Additional De Minimis (BIR)</h3>
+                <div class="grid-3" id="additionalDeMinimisList">
+                    <p style="color:#9ca3af;font-size:.85rem;">Loading categories...</p>
+                </div>
+                <div style="display:flex;justify-content:space-between;font-size:.85rem;color:#6b7280;margin-top:8px;">
+                    <span>Non-taxable: ₱<span id="additionalDeMinimisNonTaxDisplay">0.00</span></span>
+                    <span>Taxable excess: ₱<span id="additionalDeMinimisTaxDisplay">0.00</span></span>
+                </div>
+                <input type="hidden" id="additionalDeMinimisBreakdown" value="{}">
+                <input type="hidden" id="additionalDeMinimisNonTaxable" value="0">
+                <input type="hidden" id="additionalDeMinimisTaxable" value="0">
+            </div>
+
             <!-- OTHER NON-SOCIAL COMPENSATION -->
             <div class="section rs-card">
                 <h3 class="font-semibold">Other Non-Social Compensation</h3>
@@ -1503,6 +1520,94 @@ let selectedEmployeeIds = new Set();
 // Logo URL injected from PHP
 var companyLogoUrl = <?= json_encode($companyLogoUrl) ?>;
 
+// ================= ADDITIONAL DE MINIMIS (BIR) =================
+// Categories from Payroll Settings → De Minimis Categories (RR No. 29-2025).
+// Amount up to a category's cap is non-taxable; anything entered above the
+// cap is pushed into the taxable side so it actually gets withheld.
+let DEMINIMIS_CATEGORIES = [];
+let _pendingAddlDeMinAllocations = null; // set if an employee is selected before categories finish loading
+
+function _addlDeMinCutoffDivisor() {
+    // Same halving convention used elsewhere on this page: monthly figures
+    // are halved for a semi-monthly cutoff, kept whole for a monthly one.
+    const period = document.querySelector('.period-btn.active')?.dataset.period
+        || document.getElementById('payslipPeriodType')?.value || 'first_half';
+    return period === 'monthly' ? 1 : 2;
+}
+
+function computeAdditionalDeMinimisSplit(breakdown) {
+    const divisor = _addlDeMinCutoffDivisor();
+    let nonTaxable = 0, taxable = 0;
+    DEMINIMIS_CATEGORIES.forEach(c => {
+        const amount = parseFloat(breakdown[c.category_key]) || 0;
+        const cap = parseFloat(c.cap_amount) || 0;
+        if (cap <= 0) { nonTaxable += amount; return; } // no fixed peso cap (e.g. wage % or day-count rule)
+        let effectiveCap = cap;
+        if (c.cap_period === 'monthly') effectiveCap = cap / divisor;
+        else if (c.cap_period === 'annual') effectiveCap = cap / (divisor * 12);
+        nonTaxable += Math.min(amount, effectiveCap);
+        taxable    += Math.max(0, amount - effectiveCap);
+    });
+    return { nonTaxable, taxable };
+}
+
+function renderAdditionalDeMinimisInputs() {
+    const list = document.getElementById('additionalDeMinimisList');
+    if (!list) return;
+    const active = DEMINIMIS_CATEGORIES.filter(c => Number(c.is_active) === 1);
+    if (!active.length) {
+        list.innerHTML = '<p style="color:#9ca3af;font-size:.85rem;">No additional categories configured — set them up in Payroll Settings.</p>';
+        return;
+    }
+    list.innerHTML = active.map(c => `
+        <div><label>${c.label}</label><input type="number" data-addldm-key="${c.category_key}" value="0"></div>
+    `).join('');
+    list.querySelectorAll('[data-addldm-key]').forEach(input => input.addEventListener('input', recalcAdditionalDeMinimis));
+    if (_pendingAddlDeMinAllocations) {
+        const pending = _pendingAddlDeMinAllocations;
+        _pendingAddlDeMinAllocations = null;
+        applyAdditionalDeMinimisAllocations(pending);
+    } else {
+        recalcAdditionalDeMinimis();
+    }
+}
+
+function recalcAdditionalDeMinimis() {
+    const list = document.getElementById('additionalDeMinimisList');
+    if (!list) return;
+    const breakdown = {};
+    list.querySelectorAll('[data-addldm-key]').forEach(input => {
+        breakdown[input.dataset.addldmKey] = parseFloat(input.value) || 0;
+    });
+    const { nonTaxable, taxable } = computeAdditionalDeMinimisSplit(breakdown);
+    document.getElementById('additionalDeMinimisBreakdown').value = JSON.stringify(breakdown);
+    document.getElementById('additionalDeMinimisNonTaxable').value = nonTaxable.toFixed(2);
+    document.getElementById('additionalDeMinimisTaxable').value = taxable.toFixed(2);
+    const ntEl = document.getElementById('additionalDeMinimisNonTaxDisplay');
+    const txEl = document.getElementById('additionalDeMinimisTaxDisplay');
+    if (ntEl) ntEl.textContent = nonTaxable.toFixed(2);
+    if (txEl) txEl.textContent = taxable.toFixed(2);
+}
+
+function applyAdditionalDeMinimisAllocations(allocations) {
+    if (!document.querySelector('#additionalDeMinimisList [data-addldm-key]')) {
+        _pendingAddlDeMinAllocations = allocations;
+        return;
+    }
+    const divisor = _addlDeMinCutoffDivisor();
+    document.querySelectorAll('#additionalDeMinimisList [data-addldm-key]').forEach(input => {
+        const key = input.dataset.addldmKey;
+        const monthlyAmount = parseFloat((allocations || {})[key]) || 0;
+        input.value = (monthlyAmount / divisor).toFixed(2);
+    });
+    recalcAdditionalDeMinimis();
+}
+
+fetch('<?= site_url('client_portal/payroll/deminimis/categories') ?>')
+    .then(res => res.json())
+    .then(data => { DEMINIMIS_CATEGORIES = Array.isArray(data) ? data : []; renderAdditionalDeMinimisInputs(); })
+    .catch(err => console.error('Failed to load additional De Minimis categories.', err));
+
 // ================= TAB NAVIGATION =================
 function nextTab(tabId){
     document.querySelectorAll('.tab-content').forEach(t=>t.classList.remove('active'));
@@ -1901,6 +2006,9 @@ function _buildBulkPayload(empId, d) {
         meal_allowance: gv('mealAllowance'), medical_allowance: gv('medicalAllowance') + gv('medicalAllowanceAdd'),
         salary_adjustment_non_tax: gv('salaryAdjustmentNonTax'),
         sal_non_tax_adj: gv('salNonTaxAdj'),
+        additional_de_minimis_nontax: gv('additionalDeMinimisNonTaxable'),
+        additional_de_minimis_tax: gv('additionalDeMinimisTaxable'),
+        additional_de_minimis_breakdown: document.getElementById('additionalDeMinimisBreakdown')?.value || '{}',
         de_minimis: d.nonTaxable, vl_cash_conversion: d.vlCashConversion||0,
         other_earnings_non_taxable: (d.vlCashConversion||0) + gv('salNonTaxAdj'),
         gross_pay: d.grossPay, sss_ee: d.sssDed, phic_ee: d.phicDed, hdmf_ee: d.hdmfDed,
@@ -1985,7 +2093,9 @@ function _bRowCalc(p, d) {
     const meal        = p.meal_allowance||0,   medical = p.medical_allowance||0;
     const deMin       = yearEnd+rice+uniform+laundry+meal+medical+(p.salary_adjustment_non_tax||0);
     const otherNonTax = (d.vlCashConversion||0) + (p.sal_non_tax_adj||0);
-    const nonTax      = deMin+otherNonTax;
+    const additionalDeMinNonTax = p.additional_de_minimis_nontax||0;
+    const additionalDeMinTax    = p.additional_de_minimis_tax||0;
+    const nonTax      = deMin+otherNonTax+additionalDeMinNonTax;
     const salAdj      = (p.salary_adjustment||0) + (p.override_amount||0) + (p.ned_amount||0);
     // NSD = workday NSD + Sat NSD + Sun NSD + Reg Hol NSD (matches Excel column O; no regOtNightPrem)
     const nsd = (d.nightPremium||0)+(d.satNightPrem||0)+(d.sunNightPrem||0)+(d.holNightPrem||0);
@@ -1994,7 +2104,7 @@ function _bRowCalc(p, d) {
     // Mirror computePayslipData(): cap absences at basicPay, NSD goes into netBasicPay
     const absCapped   = Math.min(absTotal, d.basicPay);
     const netBasicPay = Math.max(0, d.basicPay - absCapped + nsd);
-    const grossTaxable= netBasicPay + totalOT + salAdj + holiday;
+    const grossTaxable= netBasicPay + totalOT + salAdj + holiday + additionalDeMinTax;
     const grossComp   = grossTaxable+nonTax;
     const sssTotal    = d.sssDed||0, phic = d.phicDed||0, hdmf = d.hdmfDed||0;
     const wtRaw       = d.withholdingTax||0;   // signed: negative = refund
@@ -2208,10 +2318,12 @@ function recomputeBulkRow(empId, trigger) {
     // Step 3: compute — mirrors computePayslipData() logic exactly
     const deMin        = yearEnd + rice + uniform + laundry + meal + medical + (p.salary_adjustment_non_tax || 0);
     const otherNonTax  = (d.vlCashConversion || 0) + (p.sal_non_tax_adj || 0);
-    const nonTax       = deMin + otherNonTax;
+    const additionalDeMinNonTax = p.additional_de_minimis_nontax || 0;
+    const additionalDeMinTax    = p.additional_de_minimis_tax || 0;
+    const nonTax       = deMin + otherNonTax + additionalDeMinNonTax;
     const absCapped    = Math.min(absences, d.basicPay);           // can't deduct more than basic pay
     const netBasicPay  = Math.max(0, d.basicPay - absCapped + nsd); // NSD included in net basic pay
-    const grossTaxable = netBasicPay + ot + salAdj + holiday;       // taxable portion
+    const grossTaxable = netBasicPay + ot + salAdj + holiday + additionalDeMinTax;       // taxable portion
     const grossComp    = Math.round((grossTaxable + nonTax) * 100) / 100;  // total gross (taxable + non-taxable)
     const sssTotal     = d.sssDed || 0, phic = d.phicDed || 0, hdmf = d.hdmfDed || 0;
     const wtRaw        = d.withholdingTax || 0;  // signed: negative = refund
@@ -2472,6 +2584,9 @@ async function fillEmployeeData(employeeId, silent = false) {
     const _salAdjNonTaxEl = document.getElementById('salaryAdjustmentNonTax');
     if (_salAdjNonTaxEl) {
         _salAdjNonTaxEl.value = ((empData.other_non_taxable_default || 0) / _dmDiv).toFixed(2);
+    }
+    if (document.getElementById('additionalDeMinimisList')) {
+        applyAdditionalDeMinimisAllocations(empData.additional_de_minimis_allocations || {});
     }
 
     // 2. Fetch attendance summary
@@ -3136,7 +3251,9 @@ async function syncToRegister() {
     document.getElementById('deMinMedical').value     = (parseFloat(document.getElementById('medicalAllowance').value) + parseFloat(document.getElementById('medicalAllowanceAdd').value)) || 0;
     const totalDeMin = ['deMinYearEnd','deMinRiceSubsidy','deMinUniform','deMinLaundry','deMinMealAllowance','deMinMedical']
         .reduce((s, id) => s + (parseFloat(document.getElementById(id)?.value) || 0), 0)
-        + (parseFloat(document.getElementById('salaryAdjustmentNonTax')?.value) || 0);
+        + (parseFloat(document.getElementById('salaryAdjustmentNonTax')?.value) || 0)
+        + (parseFloat(document.getElementById('additionalDeMinimisNonTaxable')?.value) || 0);
+    const additionalDeMinTaxable = parseFloat(document.getElementById('additionalDeMinimisTaxable')?.value) || 0;
 
     const _totalSalAdj = (parseFloat(document.getElementById('salaryAdjustment')?.value) || 0)
                        + (parseFloat(document.getElementById('overrideAmount')?.value)    || 0)
@@ -3171,7 +3288,7 @@ async function syncToRegister() {
     const vlCash       = parseFloat(document.getElementById('vlCashPhp')?.value || 0);
     const salNonTaxAdj = parseFloat(document.getElementById('salNonTaxAdj')?.value || 0);
     const otherNonTax  = vlCash + salNonTaxAdj;
-    const grossTaxable = semiMonthly + overtime + nd + holPay + salAdj - absAmt;
+    const grossTaxable = semiMonthly + overtime + nd + holPay + salAdj - absAmt + additionalDeMinTaxable;
     const grossComp    = Math.round((grossTaxable + totalDeMin + otherNonTax) * 100) / 100;
 
     // Ensure period type is detected and prior-half data is loaded before computing WT.
@@ -3408,7 +3525,8 @@ function getComputedPayslipValues() {
                        safeParseFloat(document.getElementById('overrideAmount')?.value) +
                        safeParseFloat(document.getElementById('nedAmount')?.value) +
                        safeParseFloat(document.getElementById('holidayPay')?.value);
-    
+    taxableOther += safeParseFloat(document.getElementById('additionalDeMinimisTaxable')?.value);
+
     let salAdjNonTax = safeParseFloat(document.getElementById('salaryAdjustmentNonTax')?.value);
     let salNonTaxAdj = safeParseFloat(document.getElementById('salNonTaxAdj')?.value);
     let nonTaxable = safeParseFloat(document.getElementById('yearEndGifts')?.value) +
@@ -3419,6 +3537,7 @@ function getComputedPayslipValues() {
                      safeParseFloat(document.getElementById('medicalAllowance')?.value) +
                      safeParseFloat(document.getElementById('medicalAllowanceAdd')?.value) +
                      salAdjNonTax + salNonTaxAdj;
+    nonTaxable += safeParseFloat(document.getElementById('additionalDeMinimisNonTaxable')?.value);
 
     let totalDeductionsFromPay = absentAmt + undertimeAmt;
     if (totalDeductionsFromPay > basicPay) totalDeductionsFromPay = basicPay;
@@ -4128,7 +4247,8 @@ function computePayslipData() {
                        safeParseFloat(document.getElementById('overrideAmount')?.value) +
                        safeParseFloat(document.getElementById('nedAmount')?.value) +
                        safeParseFloat(document.getElementById('holidayPay')?.value);
-    
+    taxableOther += safeParseFloat(document.getElementById('additionalDeMinimisTaxable')?.value);
+
     let salAdjNonTax = safeParseFloat(document.getElementById('salaryAdjustmentNonTax')?.value);
     let salNonTaxAdj = safeParseFloat(document.getElementById('salNonTaxAdj')?.value);
     let nonTaxable = safeParseFloat(document.getElementById('yearEndGifts')?.value) +
@@ -4139,6 +4259,7 @@ function computePayslipData() {
                      safeParseFloat(document.getElementById('medicalAllowance')?.value) +
                      safeParseFloat(document.getElementById('medicalAllowanceAdd')?.value) +
                      salAdjNonTax + salNonTaxAdj;
+    nonTaxable += safeParseFloat(document.getElementById('additionalDeMinimisNonTaxable')?.value);
 
     let totalDeductionsFromPay = absentAmt + undertimeAmt;
     if (totalDeductionsFromPay > basicPay) totalDeductionsFromPay = basicPay;
@@ -4566,6 +4687,9 @@ function generateStaticPayslip() {
             medical_allowance:  safeParseFloat(document.getElementById('medicalAllowance')?.value) + safeParseFloat(document.getElementById('medicalAllowanceAdd')?.value),
             salary_adjustment_non_tax: safeParseFloat(document.getElementById('salaryAdjustmentNonTax')?.value),
             sal_non_tax_adj:    safeParseFloat(document.getElementById('salNonTaxAdj')?.value),
+            additional_de_minimis_nontax: safeParseFloat(document.getElementById('additionalDeMinimisNonTaxable')?.value),
+            additional_de_minimis_tax: safeParseFloat(document.getElementById('additionalDeMinimisTaxable')?.value),
+            additional_de_minimis_breakdown: document.getElementById('additionalDeMinimisBreakdown')?.value || '{}',
             de_minimis:  d.nonTaxable,
             vl_cash_conversion: d.vlCashConversion || 0,
             other_earnings_non_taxable: (d.vlCashConversion || 0) + safeParseFloat(document.getElementById('salNonTaxAdj')?.value),
@@ -4657,6 +4781,9 @@ async function sendPdfToEmployee() {
         uniform_allowance: safeParseFloat(document.getElementById('uniformAllowance')?.value),
         laundry_allowance: safeParseFloat(document.getElementById('laundryAllowance')?.value),
         medical_allowance: safeParseFloat(document.getElementById('medicalAllowance')?.value) + safeParseFloat(document.getElementById('medicalAllowanceAdd')?.value),
+        additional_de_minimis_nontax: safeParseFloat(document.getElementById('additionalDeMinimisNonTaxable')?.value),
+        additional_de_minimis_tax: safeParseFloat(document.getElementById('additionalDeMinimisTaxable')?.value),
+        additional_de_minimis_breakdown: document.getElementById('additionalDeMinimisBreakdown')?.value || '{}',
         de_minimis: window.currentPayslipData.nonTaxable,
         vl_cash_conversion: window.currentPayslipData.vlCashConversion || 0,
         other_earnings_non_taxable: window.currentPayslipData.vlCashConversion || 0,
@@ -4808,6 +4935,8 @@ function exportRawSheet() {
         laundry_allowance:    g('laundryAllowance'),
         medical_allowance:    g('medicalAllowance'),
         medical_allowance_add:g('medicalAllowanceAdd'),
+        additional_de_minimis_nontax: g('additionalDeMinimisNonTaxable'),
+        additional_de_minimis_tax:    g('additionalDeMinimisTaxable'),
         salary_adjustment:    g('salaryAdjustment'),
         override_amount:      g('overrideAmount'),
         ned_amount:           g('nedAmount'),

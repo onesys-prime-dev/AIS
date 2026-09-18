@@ -300,6 +300,47 @@ class LoanService
 
         /*
         |--------------------------------------------------------------------------
+        | VALIDATE CUSTOM (UNEVEN) INSTALLMENT AMOUNTS, IF PROVIDED
+        |--------------------------------------------------------------------------
+        |
+        | e.g. a ₱10,000 loan over 3 cutoffs doesn't have to be split evenly —
+        | it can be entered as 2000/5000/3000 as long as they add up to the
+        | loan's total_payable. One amount per installment_count, rounded to
+        | centavos; a centavo of rounding tolerance covers float drift.
+        */
+
+        if (!empty($data['custom_amounts'])) {
+            $customAmounts = array_map(
+                static fn($v) => round((float) $v, 2),
+                $data['custom_amounts']
+            );
+
+            if (count($customAmounts) !== $installments) {
+                throw new \Exception(
+                    'Custom schedule must have exactly ' . $installments . ' amount(s), one per installment.'
+                );
+            }
+
+            foreach ($customAmounts as $customAmount) {
+                if ($customAmount <= 0) {
+                    throw new \Exception('Each custom installment amount must be greater than 0.');
+                }
+            }
+
+            $customTotal = round(array_sum($customAmounts), 2);
+            if (abs($customTotal - $data['total_payable']) > 0.01) {
+                throw new \Exception(
+                    'Custom installment amounts must add up to the total payable of ₱' .
+                    number_format($data['total_payable'], 2) .
+                    ' (entered: ₱' . number_format($customTotal, 2) . ').'
+                );
+            }
+
+            $data['custom_amounts'] = $customAmounts;
+        }
+
+        /*
+        |--------------------------------------------------------------------------
         | SNAP START DATE TO ITS ACTUAL PAYROLL CUTOFF
         |--------------------------------------------------------------------------
         |
@@ -408,6 +449,15 @@ class LoanService
     {
         $balance = (float) $loan['total_payable'];
 
+        // Uneven/custom schedule: an admin can set per-installment amounts
+        // that don't have to be equal (e.g. ₱10,000 over 3 cutoffs as
+        // 2000/5000/3000) as long as they sum to total_payable — validated
+        // by the caller (createLoan()) before this ever runs. Falls back to
+        // the even split when not provided, so every existing caller is
+        // unaffected.
+        $customAmounts = array_map('floatval', $loan['custom_amounts'] ?? []);
+        $useCustom = !empty($customAmounts);
+
         $amount = (float) $loan['deduction_per_payroll'];
 
         $date = new \DateTime(
@@ -419,7 +469,8 @@ class LoanService
             $i <= (int) $loan['installment_count'];
             $i++
         ) {
-            $balance -= $amount;
+            $thisAmount = $useCustom ? $customAmounts[$i - 1] : $amount;
+            $balance -= $thisAmount;
             $this->scheduleModel->insert([
                 'loan_id' => $loanId,
 
@@ -427,7 +478,7 @@ class LoanService
 
                 'due_date' => $date->format('Y-m-d'),
 
-                'amount_due' => $amount,
+                'amount_due' => $thisAmount,
 
                 'remaining_balance' => max(
                     round($balance, 2),
@@ -871,5 +922,116 @@ class LoanService
         }
 
         return $breakdown;
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | UPDATE ONE PENDING INSTALLMENT'S AMOUNT (UNEVEN SCHEDULE EDITING)
+    |--------------------------------------------------------------------------
+    |
+    | Lets an admin adjust a still-pending installment after the loan is
+    | already active — e.g. circumstances changed and this cutoff's
+    | deduction needs to be lower or higher than originally scheduled.
+    |
+    | The final pending installment is deliberately never directly editable:
+    | it always auto-absorbs whatever balance remains after every other
+    | pending installment, which is what guarantees the loan resolves to
+    | exactly ₱0 no matter how the earlier ones are adjusted. Already-paid
+    | installments are untouched — editing history isn't allowed.
+    */
+
+    public function updateInstallmentAmount(int $loanId, int $installmentNo, float $newAmount): array
+    {
+        if ($newAmount <= 0) {
+            throw new \Exception('Amount must be greater than 0.');
+        }
+
+        $loan = $this->loanModel->find($loanId);
+        if (!$loan) {
+            throw new \Exception('Loan not found.');
+        }
+
+        $rows = $this->scheduleModel
+            ->where('loan_id', $loanId)
+            ->orderBy('installment_no', 'ASC')
+            ->findAll();
+
+        $byNo = [];
+        foreach ($rows as $row) {
+            $byNo[(int) $row['installment_no']] = $row;
+        }
+
+        if (!isset($byNo[$installmentNo])) {
+            throw new \Exception('Installment not found.');
+        }
+
+        $target = $byNo[$installmentNo];
+        if ($target['schedule_status'] !== 'pending') {
+            throw new \Exception('Only a pending (not yet paid) installment can be edited.');
+        }
+
+        $pendingNos = array_values(array_filter(
+            array_keys($byNo),
+            fn($no) => $byNo[$no]['schedule_status'] === 'pending'
+        ));
+        sort($pendingNos);
+        $lastPendingNo = end($pendingNos);
+
+        if ($installmentNo === $lastPendingNo) {
+            throw new \Exception('The final pending installment auto-balances to close the loan out and can\'t be edited directly — adjust an earlier installment instead.');
+        }
+
+        $db = \Config\Database::connect();
+        $db->transBegin();
+
+        try {
+            $runningBalance = ($installmentNo === 1)
+                ? (float) $loan['total_payable']
+                : (float) $byNo[$installmentNo - 1]['remaining_balance'];
+
+            $runningBalance -= $newAmount;
+
+            $this->scheduleModel->update($target['id'], [
+                'amount_due'        => round($newAmount, 2),
+                'remaining_balance' => max(round($runningBalance, 2), 0),
+            ]);
+
+            // Cascade through the remaining pending installments: amounts in
+            // between stay as they were (only remaining_balance shifts to
+            // reflect the edit above), while the last one is recomputed to
+            // absorb whatever's left, keeping the ₱0 payoff guarantee.
+            foreach ($pendingNos as $no) {
+                if ($no <= $installmentNo) {
+                    continue;
+                }
+
+                if ($no === $lastPendingNo) {
+                    $absorbAmount = round($runningBalance, 2);
+                    if ($absorbAmount <= 0) {
+                        throw new \Exception('This change leaves nothing for the final installment — reduce an earlier amount instead.');
+                    }
+                    $this->scheduleModel->update($byNo[$no]['id'], [
+                        'amount_due'        => $absorbAmount,
+                        'remaining_balance' => 0,
+                    ]);
+                    $runningBalance = 0;
+                } else {
+                    $runningBalance -= (float) $byNo[$no]['amount_due'];
+                    $this->scheduleModel->update($byNo[$no]['id'], [
+                        'remaining_balance' => max(round($runningBalance, 2), 0),
+                    ]);
+                }
+            }
+
+            $db->transCommit();
+        } catch (\Throwable $e) {
+            $db->transRollback();
+            throw $e;
+        }
+
+        return $this->scheduleModel
+            ->where('loan_id', $loanId)
+            ->orderBy('installment_no', 'ASC')
+            ->findAll();
     }
 }
