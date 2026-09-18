@@ -1373,7 +1373,7 @@
 <?= $this->endSection() ?>
 <?= $this->section('scripts') ?>
 
-<script src="<?= base_url('js/components/crud-table.js') ?>"></script>
+<script src="<?= base_url('js/components/crud-table.js') ?>?v=<?= is_file(FCPATH . 'js/components/crud-table.js') ? filemtime(FCPATH . 'js/components/crud-table.js') : time() ?>"></script>
 
 <script>
 // ── Data from PHP ─────────────────────────────────────────────────────────────

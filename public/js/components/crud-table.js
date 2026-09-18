@@ -7,7 +7,9 @@ window.createCrudTable = function ({
     sort = null
 }) {
 
-    const rowData = Array.isArray(data) ? data : [];
+    // Drop any null/undefined entry up front so every filters()/search()/sort()
+    // callback below can safely assume it always receives a real row object.
+    const rowData = (Array.isArray(data) ? data : []).filter(Boolean);
 
     const container = document.querySelector(`[data-crud-table="${tableId}"]`);
     if (!container) return;

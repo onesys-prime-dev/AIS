@@ -107,7 +107,7 @@
 
 <script src="<?= base_url('js/components/modal-handler.js') ?>"></script>
 <script src="<?= base_url('js/components/crud-actions.js') ?>"></script>
-<script src="<?= base_url('js/components/crud-table.js') ?>"></script>
+<script src="<?= base_url('js/components/crud-table.js') ?>?v=<?= is_file(FCPATH . 'js/components/crud-table.js') ? filemtime(FCPATH . 'js/components/crud-table.js') : time() ?>"></script>
 <script src="<?= base_url('js/components/password-toggle.js') ?>"></script>
 
 <script>
@@ -1301,7 +1301,9 @@ createCrudTable({
     tableId: "loanTable",
     data: LOANS,
     renderRow: loanRowTemplate,
-    filters: ({ item, query, values }) => {
+    filters: ({ item, query, values } = {}) => {
+        item = item || {};
+        values = values || {};
 
         const matchesSearch = !query || `
             ${item.employee_name}
