@@ -98,4 +98,28 @@ class FaceEmbeddingModel extends Model
     {
         return $this->where('user_id', $userId)->delete();
     }
+
+    /**
+     * Enrollment counts/latest-date for every user with at least one
+     * embedding, keyed by user_id — one aggregate query for building an
+     * admin employee list instead of N per-user lookups.
+     *
+     * @return array<int, array{count: int, latest_at: string}>
+     */
+    public function getSummaryForAllUsers(): array
+    {
+        $rows = $this->select('user_id, COUNT(*) AS count, MAX(created_at) AS latest_at')
+            ->groupBy('user_id')
+            ->findAll();
+
+        $summary = [];
+        foreach ($rows as $row) {
+            $summary[(int) $row['user_id']] = [
+                'count' => (int) $row['count'],
+                'latest_at' => $row['latest_at'],
+            ];
+        }
+
+        return $summary;
+    }
 }

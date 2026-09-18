@@ -63,6 +63,12 @@ $routes->group('client_portal', ['filter' => 'auth'], function($routes){
     $routes->get ('loans/getEmployeeLoanInfo/(:num)', 'Client\LoanController::getEmployeeLoanInfo/$1');
     $routes->get ('loans/resolveCutoffDate'         , 'Client\LoanController::resolveCutoffDate');
 
+    // -- Face Recognition (admin-managed enrollment; portal.face_recognition) --
+    $routes->get ('face-recognition/health'            , 'Client\FaceRecognitionController::health');
+    $routes->get ('face-recognition/status/(:num)'      , 'Client\FaceRecognitionController::status/$1');
+    $routes->post('face-recognition/enroll/(:num)'      , 'Client\FaceRecognitionController::enroll/$1');
+    $routes->post('face-recognition/clear/(:num)'       , 'Client\FaceRecognitionController::clear/$1');
+
     $routes->get('timesheets/daily-log'     , 'Client\TimesheetController::dailyTimeLog');
     $routes->get('timesheet/flagged'        , 'Client\TimesheetController::flaggedAttendance');
     $routes->get('timesheet/history-details', 'Client\TimesheetController::historyDetails');
@@ -121,20 +127,8 @@ $routes->group('', ['filter' => 'auth'], function($routes) {
     $routes->get('client_portal/timesheet', 'Client\TimesheetController::index');
     $routes->get('settings/customization', 'SettingsController::customization');
     $routes->post('settings/customization/save', 'SettingsController::saveCustomization');
-    $routes->get('settings/face-recognition', 'SettingsController::faceRecognition');
-    $routes->post('settings/face-recognition/enroll', 'SettingsController::enrollFace');
-    $routes->get('settings/face-recognition/status', 'SettingsController::faceRecognitionStatus');
-    $routes->get('settings/face-recognition/enrollment-status', 'SettingsController::faceEnrollmentStatus');
-    $routes->post('settings/face-recognition/clear', 'SettingsController::clearFaceEnrollment');
     $routes->post('client_portal/requests/generate-code', 'Client\RequestController::generateApprovalCode');
     $routes->get ('client_portal/requests/lookup-code'  , 'Client\RequestController::lookupCode');
-
-    $routes->get ('settings/customization'          , 'SettingsController::customization');
-    $routes->post('settings/customization/save'     , 'SettingsController::saveCustomization');
-    $routes->get ('settings/face-recognition'       , 'SettingsController::faceRecognition');
-    $routes->post('settings/face-recognition/enroll', 'SettingsController::enrollFace');
-    $routes->get ('settings/face-recognition/status', 'SettingsController::faceRecognitionStatus');
-    
 });
 
 // ================= PAYROLL ROUTES =================

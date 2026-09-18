@@ -4,20 +4,16 @@ namespace App\Controllers;
 
 use App\Models\Client\CompanyBrandingModel;
 use App\Models\Client\UserSettingsModel;
-use App\Services\FaceRecognitionService;
-use Throwable;
 
 class SettingsController extends BaseController
 {
     protected CompanyBrandingModel $brandingModel;
     protected UserSettingsModel    $userSettingsModel;
-    protected FaceRecognitionService $faceRecognitionService;
 
     public function __construct()
     {
         $this->brandingModel      = new CompanyBrandingModel();
         $this->userSettingsModel  = new UserSettingsModel();
-        $this->faceRecognitionService = new FaceRecognitionService();
     }
 
     public function customization()
@@ -151,131 +147,6 @@ class SettingsController extends BaseController
         }
 
         return redirect()->to(site_url('settings/customization'))->with('success', 'Customization updated successfully.');
-    }
-
-    public function faceRecognition()
-    {
-        $user = auth()->user();
-        if (! $user) {
-            return redirect()->to('/login');
-        }
-
-        $health = $this->faceRecognitionService->getHealthStatus();
-        $enrollment = $this->faceRecognitionService->getEnrollmentStatus((int) $user->id);
-
-        return view('settings/face_recognition', [
-            'title' => 'Face Recognition',
-            'verificationUrl' => site_url('settings/face-recognition/enroll'),
-            'currentTab' => 'face-recognition',
-            'statusUrl' => site_url('settings/face-recognition/status'),
-            'enrollmentStatusUrl' => site_url('settings/face-recognition/enrollment-status'),
-            'clearUrl' => site_url('settings/face-recognition/clear'),
-            'faceRecognitionHealth' => $health,
-            'faceEnrollmentStatus' => $enrollment,
-        ]);
-    }
-
-    public function enrollFace()
-    {
-        $user = auth()->user();
-        if (! $user) {
-            return $this->response->setStatusCode(401)->setJSON([
-                'status' => 'error',
-                'message' => 'Please sign in again before enrolling your face.',
-            ]);
-        }
-
-        $image = (string) $this->request->getPost('image');
-        if ($image === '') {
-            return $this->response->setStatusCode(422)->setJSON([
-                'status' => 'error',
-                'message' => 'Please capture an image before saving your face.',
-            ]);
-        }
-
-        $replace = (bool) $this->request->getPost('replace');
-
-        try {
-            if ($replace) {
-                $this->faceRecognitionService->clearEnrollment((int) $user->id);
-            }
-
-            $result = $this->faceRecognitionService->enrollFace($image, (string) $user->id);
-        } catch (Throwable $e) {
-            log_message('error', 'Face enrollment failed for user {userId}: {message}', [
-                'userId' => (int) $user->id,
-                'message' => $e->getMessage(),
-            ]);
-
-            return $this->response->setStatusCode(502)->setJSON([
-                'status' => 'error',
-                'message' => $this->safeErrorMessage($e, 'Face enrollment is unavailable right now. Please try again later.'),
-            ]);
-        }
-
-        return $this->response->setJSON([
-            'status' => 'success',
-            'message' => $replace ? 'Your face has been replaced successfully.' : 'Your face has been enrolled successfully.',
-            'result' => $result,
-            'enrollment' => $this->faceRecognitionService->getEnrollmentStatus((int) $user->id),
-        ]);
-    }
-
-    public function faceRecognitionStatus()
-    {
-        $user = auth()->user();
-        if (! $user) {
-            return $this->response->setStatusCode(401)->setJSON([
-                'ok' => false,
-                'message' => 'Please sign in again.',
-            ]);
-        }
-
-        return $this->response->setJSON($this->faceRecognitionService->getHealthStatus());
-    }
-
-    public function faceEnrollmentStatus()
-    {
-        $user = auth()->user();
-        if (! $user) {
-            return $this->response->setStatusCode(401)->setJSON([
-                'enrolled' => false,
-                'message' => 'Please sign in again.',
-            ]);
-        }
-
-        return $this->response->setJSON($this->faceRecognitionService->getEnrollmentStatus((int) $user->id));
-    }
-
-    public function clearFaceEnrollment()
-    {
-        $user = auth()->user();
-        if (! $user) {
-            return $this->response->setStatusCode(401)->setJSON([
-                'status' => 'error',
-                'message' => 'Please sign in again.',
-            ]);
-        }
-
-        try {
-            $this->faceRecognitionService->clearEnrollment((int) $user->id);
-        } catch (Throwable $e) {
-            log_message('error', 'Clearing face enrollment failed for user {userId}: {message}', [
-                'userId' => (int) $user->id,
-                'message' => $e->getMessage(),
-            ]);
-
-            return $this->response->setStatusCode(502)->setJSON([
-                'status' => 'error',
-                'message' => $this->safeErrorMessage($e, 'Unable to remove your enrolled face right now.'),
-            ]);
-        }
-
-        return $this->response->setJSON([
-            'status' => 'success',
-            'message' => 'Your enrolled face has been removed.',
-            'enrollment' => $this->faceRecognitionService->getEnrollmentStatus((int) $user->id),
-        ]);
     }
 
     private function getOrCreateBranding(int $companyId): array

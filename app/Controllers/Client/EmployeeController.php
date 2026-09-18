@@ -21,6 +21,78 @@ class EmployeeController extends BaseController
         }
     }
 
+    /**
+     * Every active user account with a face-enrollment summary attached —
+     * source data for the Face Recognition tab's employee list. Starts from
+     * `users` (left-joined to `employees`) rather than `employees` directly
+     * so admin-only accounts with no employee profile still show up.
+     */
+    private function buildFaceRecognitionEmployees(): array
+    {
+        $db = \Config\Database::connect();
+
+        $rows = $db->table('users u')
+            ->select("
+                u.id AS user_id,
+                u.username,
+                u.active AS status,
+                e.id AS employee_id,
+                e.employee_number,
+                e.first_name,
+                e.middle_name,
+                e.last_name,
+                MAX(ep.position) AS position,
+                MAX(ep.department) AS department,
+                MAX(ea.photo_path) AS photo_path,
+                MAX(ai.secret) AS email,
+                GROUP_CONCAT(DISTINCT agu.group) AS user_groups
+            ", false)
+            ->join('employees e', 'e.user_id = u.id', 'left')
+            ->join('employee_positions ep', 'ep.employee_id = e.id', 'left')
+            ->join('employee_accounts ea', 'ea.employee_id = e.id', 'left')
+            ->join('auth_identities ai', "ai.user_id = u.id AND ai.type = 'email_password'", 'left')
+            ->join('auth_groups_users agu', 'agu.user_id = u.id', 'left')
+            ->where('u.active', 1)
+            ->groupBy('u.id')
+            ->orderBy('COALESCE(e.first_name, u.username)', 'ASC', false)
+            ->get()
+            ->getResultArray();
+
+        $enrollmentSummary = (new \App\Models\FaceEmbeddingModel())->getSummaryForAllUsers();
+
+        return array_map(function ($row) use ($enrollmentSummary) {
+            $userId = (int) $row['user_id'];
+
+            $first  = trim((string) ($row['first_name'] ?? ''));
+            $middle = trim((string) ($row['middle_name'] ?? ''));
+            $last   = trim((string) ($row['last_name'] ?? ''));
+            $mi     = $middle !== '' ? strtoupper(substr($middle, 0, 1)) . '.' : '';
+            $name   = trim($first . ' ' . ($mi !== '' ? $mi . ' ' : '') . $last);
+
+            if ($name === '') {
+                $name = (string) ($row['username'] ?? ('User #' . $userId));
+            }
+
+            $summary = $enrollmentSummary[$userId] ?? null;
+
+            return [
+                'user_id'             => $userId,
+                'employee_id'         => $row['employee_id'] !== null ? (int) $row['employee_id'] : null,
+                'employee_number'     => $row['employee_number'],
+                'name'                => $name,
+                'position'            => $row['position'] ?: null,
+                'department'          => $row['department'] ?: null,
+                'photo_path'          => !empty($row['photo_path']) ? base_url((string) $row['photo_path']) : null,
+                'email'               => $row['email'],
+                'groups'              => $row['user_groups'] ? explode(',', $row['user_groups']) : [],
+                'status'              => (int) $row['status'],
+                'enrolled'            => $summary !== null,
+                'enrollment_count'    => $summary['count'] ?? 0,
+                'enrollment_latest_at' => $summary['latest_at'] ?? null,
+            ];
+        }, $rows);
+    }
+
     public function employeeView()
     {
         $this->ensurePayrollStaff();
@@ -190,13 +262,34 @@ class EmployeeController extends BaseController
 
         /*
         |--------------------------------------------------------------------------
+        | FACE RECOGNITION (admin-managed enrollment — superadmin/admin only)
+        |--------------------------------------------------------------------------
+        |
+        | Built from `users`, not `employees` — a superadmin/admin account may
+        | have no employees row at all, but still needs to appear here since
+        | face-verify at login applies to any authenticated user.
+        */
+
+        $faceRecognitionEmployees = [];
+        if (\App\Libraries\PortalAccess::can('face_recognition')) {
+            $faceRecognitionEmployees = $this->buildFaceRecognitionEmployees();
+        }
+
+        /*
+        |--------------------------------------------------------------------------
         | LOANS
         |--------------------------------------------------------------------------
         */
 
         $employees = array_map([\App\Libraries\PortalAccess::class, 'hideCompensation'], $employees);
         if (!\App\Libraries\PortalAccess::can('loans')) {
-            return view('client_portal/employee_main', ['employees' => $employees, 'loans' => [], 'settings' => [], 'currentUserId' => (int) $currentUser->id]);
+            return view('client_portal/employee_main', [
+                'employees' => $employees,
+                'loans' => [],
+                'settings' => [],
+                'currentUserId' => (int) $currentUser->id,
+                'faceRecognitionEmployees' => $faceRecognitionEmployees,
+            ]);
         }
         $loanModel = new LoanModel();
 
@@ -315,6 +408,8 @@ class EmployeeController extends BaseController
 
         $data['currentUserId'] =
             (int) ($currentUser->id ?? 0);
+
+        $data['faceRecognitionEmployees'] = $faceRecognitionEmployees;
 
         /*
         |--------------------------------------------------------------------------
