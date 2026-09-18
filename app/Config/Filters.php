@@ -40,7 +40,7 @@ class Filters extends BaseFilters
         'performance'   => PerformanceMetrics::class,
         'session'       => SessionAuth::class,
         'tokens'        => TokenAuth::class,
-        'auth'          => [ChainAuth::class, \App\Filters\PortalAccessFilter::class],
+        'auth'          => [ChainAuth::class, \App\Filters\PortalAccessFilter::class, \App\Filters\TrackPresence::class],
         'portalaccess' => \App\Filters\PortalAccessFilter::class,
         'faceverified'  => FaceVerified::class,
     ];

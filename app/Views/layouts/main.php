@@ -248,7 +248,7 @@ document.addEventListener("DOMContentLoaded", function () {
 <script src="<?= base_url('js/components/toast.js') ?>?v=<?= $toastJsVer ?>"></script>
 <script src="<?= base_url('js/components/notification-modals.js') ?>?v=<?= $notifJsVer ?>"></script>
 <?php if (auth()->loggedIn()): ?>
-<script src="<?= base_url('js/components/notifications-poll.js') ?>"></script>
+<script src="<?= base_url('js/components/notifications-poll.js') ?>?v=<?= is_file(FCPATH . 'js/components/notifications-poll.js') ? filemtime(FCPATH . 'js/components/notifications-poll.js') : time() ?>"></script>
 <?php endif; ?>
 <script>
 <?php if (session()->getFlashdata('success')): ?>
@@ -266,7 +266,7 @@ window.showToast(<?= json_encode(session()->getFlashdata('error')) ?>, 'error');
     window.PRESENCE_HEARTBEAT_URL = "<?= site_url('client_portal/presence/heartbeat') ?>";
     window.PRESENCE_STATUSES_URL  = "<?= site_url('client_portal/presence/statuses') ?>";
 </script>
-<script src="<?= base_url('js/components/presence.js') ?>"></script>
+<script src="<?= base_url('js/components/presence.js') ?>?v=<?= is_file(FCPATH . 'js/components/presence.js') ? filemtime(FCPATH . 'js/components/presence.js') : time() ?>"></script>
 <?php endif; ?>
 
 </body>

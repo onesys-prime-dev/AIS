@@ -1,16 +1,23 @@
 /**
  * presence.js
  * Handles:
- *   1. Heartbeat — POSTs to server every 5 minutes
+ *   1. Heartbeat — POSTs to server every minute
  *   2. Idle detection — mouse/keyboard inactivity for 10 min → Away
- *   3. Tab visibility — hidden tab → Away
- *   4. Badge polling — GETs statuses every 30 seconds and updates DOM badges
+ *   3. Badge polling — GETs statuses every 15 seconds and updates DOM badges
+ *
+ * Deliberately does NOT treat a hidden/backgrounded tab as Away by itself —
+ * switching to another app (email, Slack, a spreadsheet) while this tab
+ * stays open in the background is completely normal while still at work,
+ * and instantly flipping to Away the moment focus leaves the tab made the
+ * status flicker and feel wrong for anyone who wasn't staring at this one
+ * tab all day. Only real inactivity (no mouse/keyboard/scroll for 10 min)
+ * — regardless of which window has focus — should count as Away.
  */
 
 const Presence = (() => {
     const HEARTBEAT_INTERVAL_MS  = 60 * 1000;  // 1 minute
     const IDLE_THRESHOLD_MS      = 10 * 60 * 1000;  // 10 minutes → Away
-    const BADGE_POLL_INTERVAL_MS = 15 * 1000;        // 30 seconds
+    const BADGE_POLL_INTERVAL_MS = 15 * 1000;        // 15 seconds
 
     const HEARTBEAT_URL = window.PRESENCE_HEARTBEAT_URL || '/client_portal/presence/heartbeat';
     const STATUSES_URL  = window.PRESENCE_STATUSES_URL  || '/client_portal/presence/statuses';
@@ -33,19 +40,18 @@ const Presence = (() => {
     ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'click']
         .forEach(evt => document.addEventListener(evt, resetActivity, { passive: true }));
 
+    // Coming back to the tab is still a useful, unambiguous "I'm here" signal
+    // worth reporting immediately — it's only leaving/hiding the tab that no
+    // longer forces a status change, since that alone doesn't mean idle.
     document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'hidden') {
-            currentStatus = 'Away';
-            sendHeartbeat();   // Immediately report Away when tab hides
-        } else {
+        if (document.visibilityState === 'visible') {
             resetActivity();
             currentStatus = 'Online';
-            sendHeartbeat();   // Immediately report Online when tab returns
+            sendHeartbeat();
         }
     });
 
     const computeStatus = () => {
-        if (document.visibilityState === 'hidden') return 'Away';
         return (Date.now() - lastActivity >= IDLE_THRESHOLD_MS) ? 'Away' : 'Online';
     };
 

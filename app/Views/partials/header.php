@@ -1455,6 +1455,15 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
             else if (snippet.includes(phrase)) score += 3;
         }
 
+        // Small, deliberate tie-breaker: a direct FAQ ("How do I view my
+        // payslip?") is a more useful answer than an equally-scored
+        // troubleshooting doc section ("Why can't I see my payslip?") when
+        // the question was a plain how-to, not a "why isn't this working"
+        // complaint — e.g. both matched "payslip" + "view/see" in their
+        // title and would otherwise tie. Small enough to only ever affect
+        // near-ties, never override a genuinely stronger doc match.
+        if (entry.type === 'faq') score += 1;
+
         return score;
     }
 

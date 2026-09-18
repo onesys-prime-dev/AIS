@@ -78,6 +78,10 @@ class HelpController extends BaseController
                 'answer' => 'Go to Settings > Face Recognition and follow the enrollment steps. Once enrolled, you can use it as a faster sign-in option alongside your regular password.',
             ],
             [
+                'question' => 'How do I view my payslip?',
+                'answer' => 'Go to the Timesheet page and click "View Payslip." Pick the pay period from the dropdown to view, print, or download it.',
+            ],
+            [
                 'question' => 'What is the payslip password, and is it the same as my login password?',
                 'answer' => 'No — it\'s a separate password just for opening your payslip file, set and reset from your Profile page.',
             ],

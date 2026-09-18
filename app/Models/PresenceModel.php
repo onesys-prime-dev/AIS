@@ -25,6 +25,28 @@ class PresenceModel extends Model
         ]);
     }
 
+    /**
+     * Called on every authenticated request via the TrackPresence filter —
+     * marks the user Online from real activity anywhere in the portal, not
+     * just the dedicated heartbeat ping. Throttled to at most once every 20
+     * seconds so ordinary browsing doesn't write to the DB on every request.
+     */
+    public function touchActivity(int $userId): void
+    {
+        $db = \Config\Database::connect();
+        $row = $db->table('users')->select('last_active')->where('id', $userId)->get()->getRowArray();
+        $lastActive = $row['last_active'] ?? null;
+
+        if ($lastActive && (time() - strtotime($lastActive)) < 20) {
+            return;
+        }
+
+        $this->update($userId, [
+            'online_status' => 'Online',
+            'last_active'   => date('Y-m-d H:i:s'),
+        ]);
+    }
+
     /*
         last_active within 10 min  → trust the stored online_status (Online or Away)
         last_active 10–30 min ago  → Away (heartbeat stale)
