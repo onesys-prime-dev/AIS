@@ -5,7 +5,6 @@
 
     <div class="tabs" id="settingsTabs">
         <a href="<?= site_url('settings/customization') ?>" class="tab active">Customization</a>
-        <a href="<?= site_url('settings/face-recognition') ?>" class="tab">Face Recognition</a>
     </div>
 
     <form class="grid" method="post" action="<?= site_url('settings/customization/save') ?>" enctype="multipart/form-data">

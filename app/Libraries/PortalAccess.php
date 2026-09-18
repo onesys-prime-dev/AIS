@@ -98,6 +98,9 @@ final class PortalAccess
         if ($path === 'client_portal/timesheet/review-employees') return 'attendance_roster';
         if (preg_match('~^client_portal/employees(?:/|$)~', $path)) return 'employees';
         if (preg_match('~^client_portal/loans(?:/|$)~', $path)) return 'loans';
+        // Admin-managed face enrollment — deliberately not gated by 'employees'
+        // (see AuthGroups::PORTAL_PAYROLL_PERMISSIONS vs 'portal.face_recognition').
+        if (preg_match('~^client_portal/face-recognition(?:/|$)~', $path)) return 'face_recognition';
         if (preg_match('~^client_portal/payroll/(?:getmypayslips)$~', $path)) return 'self';
         if ($path === 'client_portal/performance/my-summary') return 'self';
         if (preg_match('~^client_portal/payroll/(?:downloadpayslip|getpayslipdata)/[0-9]+$~', $path)) return 'self';
@@ -119,7 +122,7 @@ final class PortalAccess
         if ($path === 'client_portal/requests/generate-code') return 'request_codes';
         if (preg_match('~^client_portal/announcements/(?:store|delete/[0-9]+|edit/[0-9]+|update/[0-9]+|attachments/delete/[0-9]+)$~', $path)) return 'announcements';
         if (preg_match('~^client_portal/help/(?:update/[0-9]+)$~', $path)) return 'help';
-        if (preg_match('~^settings/(?:customization(?:/save)?|face-recognition(?:/(?:enroll|status|enrollment-status|clear))?)$~', $path)) return 'self';
+        if (preg_match('~^settings/customization(?:/save)?$~', $path)) return 'self';
         if (preg_match('~^client_portal/(?:dashboard|profile(?:/(?:photo|identity|contact|username|emergency|password|payslip-password(?:/reset)?))?|presence/(?:heartbeat|statuses)|help(?:/store|/search-index)?|company-logo|time-in|time-out/[0-9]+|toggle-break/[0-9]+|requests(?:/(?:new|store|lookup-code))?|request-notifications/(?:viewed|dismiss)|announcements/(?:viewed|dismiss|download/[0-9]+)|tasks/(?:submit|saved)|timesheets/daily-log|timesheet(?:/(?:history-details|export-history|tasks/[0-9]+(?:/create)?|tasks/(?:edit|delete)/[0-9]+))?)$~', $path)) return 'self';
         return 'deny';
     }

@@ -1,11 +1,18 @@
 <?= $this->extend('layouts/main') ?>
 
+<?php if (\App\Libraries\PortalAccess::can('face_recognition')): ?>
+<?= $this->section('styles') ?>
+<link href="<?= base_url('css/face-scan.css') ?>" rel="stylesheet">
+<?= $this->endSection() ?>
+<?php endif; ?>
+
 <?= $this->section('content') ?>
 
 <div class="h-full flex flex-col min-h-0 overflow-visible">
 
     <div class="tabs">
         <button type="button" class="tab active" data-tab="employee-management">Employee Management</button>
+        <?php if (\App\Libraries\PortalAccess::can('face_recognition')): ?><button type="button" class="tab" data-tab="face-recognition">Face Recognition</button><?php endif; ?>
         <?php if (\App\Libraries\PortalAccess::can('loans')): ?><button type="button" class="tab" data-tab="loan-management">Loan Management</button><?php endif; ?>
     </div>
 
@@ -13,6 +20,10 @@
         data-panel="employee-management"
         style="display:flex;">
         <?= view('client_portal/employee_management') ?>
+    </div>
+
+    <div class="tab-panel h-full min-h-0 overflow-visible px-8 pb-8" data-panel="face-recognition" style="display:none;">
+        <?php if (\App\Libraries\PortalAccess::can('face_recognition')): ?><?= view('client_portal/employee_face_recognition') ?><?php endif; ?>
     </div>
 
     <div class="tab-panel h-full min-h-0 overflow-visible px-8 pb-8" data-panel="loan-management" style="display:none;">
@@ -55,6 +66,18 @@
         'title' => 'Employee Details',
         'content' => $content
     ]);
+    ?>
+
+    <?php
+    if (\App\Libraries\PortalAccess::can('face_recognition')) {
+    $content = view('client_portal/modals/face_recognition_form');
+
+    echo view('components/edit_loan_modal', [
+        'id' => 'faceRecognitionModal',
+        'title' => 'Face Recognition Enrollment',
+        'content' => $content
+    ]);
+    }
     ?>
 
     <?php
@@ -109,6 +132,9 @@
 <script src="<?= base_url('js/components/crud-actions.js') ?>"></script>
 <script src="<?= base_url('js/components/crud-table.js') ?>?v=<?= is_file(FCPATH . 'js/components/crud-table.js') ? filemtime(FCPATH . 'js/components/crud-table.js') : time() ?>"></script>
 <script src="<?= base_url('js/components/password-toggle.js') ?>"></script>
+<?php if (\App\Libraries\PortalAccess::can('face_recognition')): ?>
+<script src="<?= base_url('js/components/face-scan.js') ?>"></script>
+<?php endif; ?>
 
 <script>
 
@@ -121,6 +147,7 @@ document.addEventListener('DOMContentLoaded', () => {
 <?php endif; ?>
 const EMPLOYEES = <?= json_encode($employees) ?>;
 const LOANS = <?= json_encode($loans ?? []) ?>;
+const FACE_RECOGNITION_EMPLOYEES = <?= json_encode($faceRecognitionEmployees ?? []) ?>;
 const CSRF_HASH = "<?= csrf_hash() ?>";
 const CURRENT_USER_ID = <?= (int) ($currentUserId ?? 0) ?>;
 const EDIT_ICON = "<?= base_url('icons/edit.png') ?>";
@@ -613,6 +640,58 @@ function htmlEsc(val)
             </div>
         `;
     }
+
+/*
+|--------------------------------------------------------------------------
+| FACE RECOGNITION ROW
+|--------------------------------------------------------------------------
+*/
+
+function faceRecognitionRowTemplate(p) {
+    const photoUrl = p.photo_path ? p.photo_path : '';
+    const avatarInitials = (p.name || 'U').trim().substring(0, 2).toUpperCase();
+
+    const avatarHtml = photoUrl
+        ? `<div class="w-10 h-10 rounded-full" style="background-image:url('${photoUrl}');background-size:cover;background-position:center;"></div>`
+        : `<div class="w-10 h-10 bg-gray-300 rounded-full flex items-center justify-center text-xs font-bold text-gray-700">${avatarInitials}</div>`;
+
+    const statusHtml = p.enrolled
+        ? `<span class="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-semibold">Registered (${p.enrollment_count})</span>`
+        : `<span class="bg-gray-200 text-gray-500 px-3 py-1 rounded-full text-xs font-semibold">Not Registered</span>`;
+
+    return `
+        <div class="grid grid-cols-[2fr_1.2fr_1.3fr_1.3fr_1.3fr_0.8fr] items-center border-b hover:bg-gray-50">
+
+            <div class="p-4 flex items-center gap-3">
+                ${avatarHtml}
+                <span class="font-medium">
+                    ${htmlEsc(p.name)}
+                    ${Number(p.user_id) === CURRENT_USER_ID ? '<span class="ml-2 bg-blue-100 text-blue-700 px-2 py-1 rounded-full text-[10px] font-semibold align-middle">Me</span>' : ''}
+                </span>
+            </div>
+
+            <div class="p-4">${htmlEsc(p.employee_number) || '---'}</div>
+            <div class="p-4">${htmlEsc(p.department) || '---'}</div>
+            <div class="p-4">${htmlEsc(p.position) || '---'}</div>
+
+            <div class="p-4">${statusHtml}</div>
+
+            <div class="p-4 flex justify-center gap-4">
+                <div
+                    class="cursor-pointer w-7 h-7 hover:scale-110 transition"
+                    data-action="edit-face"
+                    data-user_id="${htmlEsc(p.user_id)}"
+                    data-name="${htmlEsc(p.name)}"
+                    data-enrolled="${p.enrolled ? '1' : '0'}"
+                    data-enrollment_count="${htmlEsc(p.enrollment_count)}"
+                    data-enrollment_latest_at="${htmlEsc(p.enrollment_latest_at)}">
+                    <img src="${EDIT_ICON}" class="w-6 h-6" alt="Edit">
+                </div>
+            </div>
+
+        </div>
+        `;
+}
 
 /*
 |--------------------------------------------------------------------------
@@ -1152,6 +1231,28 @@ window.addEventListener('click', function(e)
 
     /*
     |----------------------------------------------------------
+    | FACE RECOGNITION EDIT
+    |----------------------------------------------------------
+    */
+    const faceEditBtn = e.target.closest('[data-action="edit-face"]');
+
+    if (faceEditBtn)
+    {
+        if (typeof window.openFaceRecognitionModal === 'function') {
+            window.openFaceRecognitionModal({
+                user_id: Number(faceEditBtn.dataset.user_id),
+                name: faceEditBtn.dataset.name,
+                enrolled: faceEditBtn.dataset.enrolled === '1',
+                enrollment_count: Number(faceEditBtn.dataset.enrollment_count || 0),
+                enrollment_latest_at: faceEditBtn.dataset.enrollment_latest_at || null,
+            });
+        }
+
+        return;
+    }
+
+    /*
+    |----------------------------------------------------------
     | LOAN VIEW
     |----------------------------------------------------------
     */
@@ -1289,6 +1390,65 @@ createCrudTable({
         `
         .toLowerCase()
         .includes(q)
+});
+
+/*
+|--------------------------------------------------------------------------
+| CREATE FACE RECOGNITION TABLE
+|--------------------------------------------------------------------------
+*/
+
+createCrudTable({
+    tableId: "faceRecognitionTable",
+    data: FACE_RECOGNITION_EMPLOYEES,
+    renderRow: faceRecognitionRowTemplate,
+    search: (item, q) =>
+        `
+        ${item.name}
+        ${item.employee_number}
+        ${item.department}
+        ${item.position}
+        `
+        .toLowerCase()
+        .includes(q),
+    filters: ({ item, query, values } = {}) => {
+        item = item || {};
+        values = values || {};
+
+        const matchesSearch = !query || `
+            ${item.name}
+            ${item.employee_number}
+            ${item.department}
+            ${item.position}
+            `
+            .toLowerCase()
+            .includes(query);
+
+        const matchesStatus =
+            !values.face_status ||
+            (values.face_status === 'registered' ? item.enrolled : !item.enrolled);
+
+        const matchesDepartment =
+            !values.department ||
+            (item.department || '').toLowerCase() === values.department;
+
+        return matchesSearch && matchesStatus && matchesDepartment;
+    },
+    sort: ({ a, b, sortBy, sortOrder }) => {
+        let left, right;
+
+        if (sortBy === 'enrolled') {
+            left = a.enrolled ? 1 : 0;
+            right = b.enrolled ? 1 : 0;
+        } else {
+            left = String(a[sortBy] ?? '').toLowerCase();
+            right = String(b[sortBy] ?? '').toLowerCase();
+        }
+
+        if (left < right) return sortOrder === 'asc' ? -1 : 1;
+        if (left > right) return sortOrder === 'asc' ? 1 : -1;
+        return 0;
+    }
 });
 
 /*

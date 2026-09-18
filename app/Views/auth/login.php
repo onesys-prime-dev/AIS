@@ -102,6 +102,7 @@ $postLoginRedirect = $postLoginRedirect ?? site_url('/client_portal/dashboard');
     </div>
 
     <?php if ($showFaceModal): ?>
+        <link href="<?= base_url('css/face-scan.css') ?>" rel="stylesheet">
         <div class="absolute inset-0" style="background: rgba(3, 3, 2, 0.55); backdrop-filter: blur(3px);"></div>
 
         <div class="absolute inset-0 z-10 flex items-center justify-center px-4 py-10">
@@ -113,40 +114,23 @@ $postLoginRedirect = $postLoginRedirect ?? site_url('/client_portal/dashboard');
                 </div>
 
                 <div id="scan-state" style="flex: 1; display: flex; flex-direction: column;">
-                    <div id="face-scan-shell" class="relative mx-auto mt-4 overflow-hidden rounded-full bg-gray-200" style="width: 164px; height: 164px; margin-top: 10px;">
-                        <video id="face-video" autoplay playsinline muted style="width: 164px; height: 164px; object-fit: cover; display: block;"></video>
-                        <div class="pointer-events-none absolute inset-0" style="background: rgba(229, 231, 235, 0.55);"></div>
-                        <div class="pointer-events-none absolute inset-0 flex items-center justify-center text-gray-700">
-                            <svg viewBox="0 0 64 64" fill="none" style="width: 60px; height: 60px;">
-                                <path d="M18 10h-6a2 2 0 0 0-2 2v6" stroke="currentColor" stroke-width="3" stroke-linecap="round" />
-                                <path d="M46 10h6a2 2 0 0 1 2 2v6" stroke="currentColor" stroke-width="3" stroke-linecap="round" />
-                                <path d="M18 54h-6a2 2 0 0 1-2-2v-6" stroke="currentColor" stroke-width="3" stroke-linecap="round" />
-                                <path d="M46 54h6a2 2 0 0 0 2-2v-6" stroke="currentColor" stroke-width="3" stroke-linecap="round" />
-                                <circle cx="32" cy="32" r="12" stroke="currentColor" stroke-width="3" />
-                                <circle cx="27" cy="29" r="1.5" fill="currentColor" />
-                                <circle cx="37" cy="29" r="1.5" fill="currentColor" />
-                                <path d="M27 36c1.7 2 3.4 3 5 3s3.3-1 5-3" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" />
-                            </svg>
-                        </div>
-                        <div id="face-scan-line" class="pointer-events-none absolute top-1/2 -translate-y-1/2 rounded-full" style="left: 22px; right: 22px; height: 4px; background: #18c6b3; box-shadow: 0 0 14px rgba(24, 198, 179, 0.65);"></div>
+
+                    <div style="margin-top: 6px;">
+                        <?= view('components/face_scan', ['id' => 'login-face', 'size' => 200]) ?>
                     </div>
 
-                    <canvas id="face-canvas" class="hidden"></canvas>
-
-                    <div class="mt-6 text-center" style="margin-top: 28px;">
-                        <h3 class="font-bold leading-tight" style="font-size: 32px; color: #962323;">Scanning your face</h3>
-                        <p id="face-status" class="my-2 text-xs text-gray-400" style="min-height: 40px; display: flex; align-items: center; justify-content: center; padding: 0 16px; text-align: center; font-size: 13px;">
-                            Scan your face to verify your identity.
-                        </p>
+                    <div class="mt-6 text-center" style="margin-top: 20px;">
+                        <h3 class="font-bold leading-tight" style="font-size: 28px; color: #962323;">Face ID</h3>
                     </div>
 
                     <div style="margin-top: auto; padding-top: 14px;">
                         <button
-                            id="verify-face-btn"
+                            id="login-face-retry-btn"
                             type="button"
-                            class="w-full text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:bg-gray-300"
+                            hidden
+                            class="w-full text-sm font-semibold text-white transition"
                             style="border-radius: 8px; padding: 13px 18px; background: #18c6b3; font-size: 15px;">
-                            <span id="verify-face-btn-label">Scan Now</span>
+                            Try Again
                         </button>
                     </div>
                 </div>
@@ -233,37 +217,6 @@ $postLoginRedirect = $postLoginRedirect ?? site_url('/client_portal/dashboard');
             }
         }
 
-        @keyframes faceScanSweep {
-            0% {
-                transform: translateY(-22px);
-                opacity: 0.55;
-            }
-
-            50% {
-                transform: translateY(22px);
-                opacity: 1;
-            }
-
-            100% {
-                transform: translateY(-22px);
-                opacity: 0.55;
-            }
-        }
-
-        @keyframes faceScanShellPulse {
-            0% {
-                box-shadow: 0 0 0 0 rgba(24, 198, 179, 0);
-            }
-
-            50% {
-                box-shadow: 0 0 0 8px rgba(24, 198, 179, 0.14);
-            }
-
-            100% {
-                box-shadow: 0 0 0 0 rgba(24, 198, 179, 0);
-            }
-        }
-
         .face-success-ring {
             animation: faceSuccessPulse 1.5s ease-out infinite;
         }
@@ -280,163 +233,97 @@ $postLoginRedirect = $postLoginRedirect ?? site_url('/client_portal/dashboard');
             border-top-color: #18c6b3;
             animation: faceRedirectSpin 0.8s linear infinite;
         }
-
-        .face-scan-shell-verifying {
-            animation: faceScanShellPulse 1.1s ease-in-out infinite;
-        }
-
-        .face-scan-line-verifying {
-            animation: faceScanSweep 1.2s ease-in-out infinite;
-        }
     </style>
+    <script src="<?= base_url('js/components/face-scan.js') ?>"></script>
     <script>
         (() => {
-            const video = document.getElementById('face-video');
-            const canvas = document.getElementById('face-canvas');
-            const scanShell = document.getElementById('face-scan-shell');
-            const scanLine = document.getElementById('face-scan-line');
-            const verifyButton = document.getElementById('verify-face-btn');
-            const verifyButtonLabel = document.getElementById('verify-face-btn-label');
-            const status = document.getElementById('face-status');
             const scanState = document.getElementById('scan-state');
             const successState = document.getElementById('success-state');
+            const retryButton = document.getElementById('login-face-retry-btn');
             const verifyUrl = <?= json_encode($verificationUrl) ?>;
             const redirectUrlFallback = <?= json_encode($postLoginRedirect) ?>;
             const csrfTokenName = <?= json_encode(function_exists('csrf_token') ? csrf_token() : null) ?>;
             const csrfHash = <?= json_encode(function_exists('csrf_hash') ? csrf_hash() : null) ?>;
-            let mediaStream = null;
             let redirectUrl = redirectUrlFallback;
             let redirectTimer = null;
 
-            const setStatus = (message, isError = false) => {
-                status.textContent = message;
-                status.className = isError ? 'my-2 text-xs text-red-500' : 'my-2 text-xs text-gray-400';
+            const showSuccess = () => {
+                scanState.classList.add('hidden');
+                scanState.style.display = 'none';
+                successState.classList.remove('hidden');
+                successState.style.display = 'flex';
+                faceScan.stop();
+
+                if (redirectTimer) {
+                    window.clearTimeout(redirectTimer);
+                }
+
+                redirectTimer = window.setTimeout(() => {
+                    window.location.assign(redirectUrl);
+                }, 1400);
             };
 
-            const setVerifyingState = (isVerifying) => {
-                if (scanShell) {
-                    scanShell.classList.toggle('face-scan-shell-verifying', isVerifying);
-                }
-
-                if (scanLine) {
-                    scanLine.classList.toggle('face-scan-line-verifying', isVerifying);
-                }
-
-                if (verifyButtonLabel) {
-                    verifyButtonLabel.textContent = isVerifying ? 'Verifying Face...' : 'Scan Now';
-                }
-            };
-
-            const stopCamera = () => {
-                if (!mediaStream) {
-                    return;
-                }
-
-                mediaStream.getTracks().forEach((track) => track.stop());
-                mediaStream = null;
-            };
-
-            const startCamera = async () => {
-                try {
-                    mediaStream = await navigator.mediaDevices.getUserMedia({
-                        video: {
-                            facingMode: 'user',
-                            width: {
-                                ideal: 720
-                            },
-                            height: {
-                                ideal: 720
-                            }
-                        },
-                        audio: false
-                    });
-
-                    video.srcObject = mediaStream;
-                    await video.play();
-                    verifyButton.disabled = false;
-                    setStatus('Camera ready. Click scan now to verify your identity.');
-                } catch (error) {
-                    verifyButton.disabled = true;
-                    setStatus('Camera access was blocked. Please allow camera permission and refresh the page.', true);
-                    console.error(error);
-                }
-            };
-
-            const captureFrame = () => {
-                canvas.width = video.videoWidth || 720;
-                canvas.height = video.videoHeight || 720;
-
-                const context = canvas.getContext('2d');
-                context.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-                return canvas.toDataURL('image/jpeg', 0.92);
-            };
-
-            verifyButton.addEventListener('click', async () => {
-                if (!mediaStream) {
-                    setStatus('Camera is not ready yet. Please wait a moment and try again.', true);
-                    return;
-                }
-
-                verifyButton.disabled = true;
-                setVerifyingState(true);
-                setStatus('Verifying your face. Hold still for a moment.');
-
-                try {
-                    const payload = new URLSearchParams({
-                        image: captureFrame()
-                    });
+            const faceScan = window.createFaceScan({
+                id: 'login-face',
+                autoResumeAfterSuccess: false,
+                // Login is a match/verify check, not an enrollment — a
+                // background probe can safely retry it while the ring
+                // fills, and the moment it matches, the remaining segments
+                // fast-fill instead of making the user keep turning their
+                // head just to satisfy the ring's own animation.
+                earlyMatchProbe: true,
+                onStateChange: (state) => {
+                    if (retryButton) {
+                        retryButton.hidden = state !== 'error';
+                    }
+                },
+                onCapture: async (image) => {
+                    const payload = new URLSearchParams({ image });
 
                     if (csrfTokenName && csrfHash) {
                         payload.append(csrfTokenName, csrfHash);
                     }
 
-                    const response = await fetch(verifyUrl, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-                            'X-Requested-With': 'XMLHttpRequest'
-                        },
-                        body: payload
-                    });
+                    try {
+                        const response = await fetch(verifyUrl, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                                'X-Requested-With': 'XMLHttpRequest'
+                            },
+                            body: payload
+                        });
 
-                    const data = await response.json();
+                        const data = await response.json();
 
-                    if (data.status === 'success') {
-                        redirectUrl = data.redirect || redirectUrlFallback;
-                        scanState.classList.add('hidden');
-                        scanState.style.display = 'none';
-                        successState.classList.remove('hidden');
-                        successState.style.display = 'flex';
-                        setStatus(data.message || 'Verification successful.');
-                        stopCamera();
-                        if (redirectTimer) {
-                            window.clearTimeout(redirectTimer);
+                        if (data.status === 'success') {
+                            redirectUrl = data.redirect || redirectUrlFallback;
+                            window.setTimeout(showSuccess, 700);
+                            return { status: 'success', message: data.message || 'Verification successful.' };
                         }
-                        redirectTimer = window.setTimeout(() => {
-                            window.location.assign(redirectUrl);
-                        }, 1400);
-                        return;
-                    }
 
-                    setStatus(data.message || 'Face verification failed. Please try again.', true);
-                } catch (error) {
-                    console.error(error);
-                    setStatus('Unable to reach the verification service right now. Please try again.', true);
-                } finally {
-                    setVerifyingState(false);
-                    verifyButton.disabled = false;
+                        return { status: 'error', message: data.message || 'Face verification failed. Please try again.' };
+                    } catch (error) {
+                        console.error(error);
+                        return { status: 'error', message: 'Unable to reach the verification service right now. Please try again.' };
+                    }
                 }
             });
 
+            retryButton?.addEventListener('click', () => {
+                retryButton.hidden = true;
+                faceScan.stop();
+                faceScan.start();
+            });
+
             window.addEventListener('beforeunload', () => {
-                stopCamera();
+                faceScan.stop();
                 if (redirectTimer) {
                     window.clearTimeout(redirectTimer);
                 }
             });
-            verifyButton.disabled = true;
-            startCamera();
+
+            faceScan.start();
         })();
     </script>
 <?php endif; ?>
