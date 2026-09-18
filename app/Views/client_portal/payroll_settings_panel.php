@@ -12,6 +12,8 @@
             data-tab="wtax">Withholding Tax</button>
         <button type="button" class="payroll-tab px-5 py-2 text-sm font-medium rounded-t-lg border border-b-0 border-transparent"
             data-tab="holidays" onclick="loadHolidays()">Holidays</button>
+        <button type="button" class="payroll-tab px-5 py-2 text-sm font-medium rounded-t-lg border border-b-0 border-transparent"
+            data-tab="deminimis">De Minimis Categories</button>
     </div>
 
     <!-- Tab: General -->
@@ -188,6 +190,11 @@
     <!-- Tab: Withholding Tax -->
     <div class="payroll-tab-content hidden flex-1 min-h-0 flex flex-col" id="tab-wtax">
         <?= view('client_portal/wtax_brackets_panel') ?>
+    </div>
+
+    <!-- Tab: Additional De Minimis Categories (BIR) -->
+    <div class="payroll-tab-content hidden flex-1 min-h-0 flex flex-col" id="tab-deminimis">
+        <?= view('client_portal/deminimis_categories_panel') ?>
     </div>
 
     <!-- Tab: Holidays -->

@@ -4,22 +4,22 @@ namespace App\Controllers\Auth;
 
 use App\Controllers\BaseController;
 use App\Models\PresenceModel;
-use App\Services\CompreFaceService;
+use App\Services\FaceRecognitionService;
 use App\Libraries\TrustedDevicesService;
-use Config\CompreFace;
+use Config\FaceRecognition;
 use Throwable;
 
 class FaceAuthController extends BaseController
 {
     public function __construct(
-        private readonly CompreFaceService $compreFaceService = new CompreFaceService(),
+        private readonly FaceRecognitionService $faceRecognitionService = new FaceRecognitionService(),
         private readonly PresenceModel $presenceModel = new PresenceModel(),
     ) {
     }
 
     public function index()
     {
-        $faceConfig = config(CompreFace::class);
+        $faceConfig = config(FaceRecognition::class);
         if (! $faceConfig->enabled) {
             return redirect()->to('/client_portal/dashboard');
         }
@@ -51,7 +51,7 @@ class FaceAuthController extends BaseController
 
     public function verify()
     {
-        $faceConfig = config(CompreFace::class);
+        $faceConfig = config(FaceRecognition::class);
         if (! $faceConfig->enabled) {
             return $this->response->setJSON([
                 'status' => 'success',
@@ -91,7 +91,7 @@ class FaceAuthController extends BaseController
         }
 
         try {
-            $match = $this->compreFaceService->recognize($image);
+            $match = $this->faceRecognitionService->recognize($image);
         } catch (Throwable $e) {
             log_message('error', 'Face verification failed for user {userId}: {message}', [
                 'userId' => $authUserId,

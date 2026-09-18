@@ -59,6 +59,8 @@ class EmployeeController extends BaseController
             MAX(employee_positions.allowances) as allowances,
 
             MAX(employee_positions.de_minimis_breakdown) as de_minimis_breakdown,
+            MAX(employee_positions.additional_de_minimis_benefit) as additional_de_minimis_benefit,
+            MAX(employee_positions.additional_de_minimis_breakdown) as additional_de_minimis_breakdown,
 
                 MAX(employee_government_ids.sss) as sss,
                 MAX(employee_government_ids.tin) as tin,
@@ -395,6 +397,7 @@ class EmployeeController extends BaseController
                 employee_positions.employment_type, employee_positions.working_day_type,
                 employee_positions.working_days, employee_positions.start_time, employee_positions.end_time,
                 employee_positions.monthly_salary, employee_positions.de_minimis_benefit, employee_positions.de_minimis_breakdown, employee_positions.allowances,
+                employee_positions.additional_de_minimis_benefit, employee_positions.additional_de_minimis_breakdown,
                 employee_government_ids.sss, employee_government_ids.tin,
                 employee_government_ids.pagibig, employee_government_ids.philhealth,
                 ai.secret as email,

@@ -1238,6 +1238,12 @@ document.addEventListener('DOMContentLoaded', function () {
                     <img src="<?= base_url('icons/Requests.png') ?>" alt="Request" class="btn-icon">
                     <span>Request Form</span>
                 </button>
+                <button onclick="openMyPerformanceModal()" class="request-btn">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="btn-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 3v18h18M7 15l4-4 3 3 5-6" />
+                    </svg>
+                    <span>My Performance</span>
+                </button>
             </div>
         </div>
         
@@ -1707,6 +1713,13 @@ document.addEventListener('DOMContentLoaded', function () {
                 <button type="button" class="cancel-btn" onclick="closeTaskLogModal()">Close</button>
                 <button type="button" id="tl_save_btn" class="submit-btn" onclick="saveTask()">Add Task</button>
             </div>
+        </div>
+    </div>
+
+    <!-- MY PERFORMANCE MODAL -->
+    <div class="modal-overlay" id="myPerformanceModal">
+        <div class="modal">
+            <?= view('client_portal/modals/my_performance') ?>
         </div>
     </div>
 

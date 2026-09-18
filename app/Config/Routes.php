@@ -53,8 +53,9 @@ $routes->group('client_portal', ['filter' => 'auth'], function($routes){
     $routes->get ('loans/loanEmployees'             , 'Client\LoanController::getLoanEmployees');
     $routes->get ('loans/getLoans'                  , 'Client\LoanController::getLoans');
     $routes->get ('loans/viewSchedule/(:num)'       , 'Client\LoanController::viewSchedule/$1');
-    $routes->post ('loans/cancel/(:num)'            , 'Client\LoanController::cancelLoan/$1');
-    $routes->post ('loans/complete/(:num)'          , 'Client\LoanController::completeLoan/$1');
+    $routes->post('loans/schedule/(:num)/(:num)'    , 'Client\LoanController::updateInstallment/$1/$2');
+    $routes->post ('loans/cancel/(:num)'             , 'Client\LoanController::cancelLoan/$1');
+    $routes->post ('loans/complete/(:num)'           , 'Client\LoanController::completeLoan/$1');
     $routes->post('loans/update/(:num)'             , 'Client\LoanController::updateLoan/$1');
     $routes->get ('loans/settings'                  , 'Client\LoanController::getLoanSettings');
     $routes->post('loans/settings/save'             , 'Client\LoanController::saveLoanSettings');
@@ -116,9 +117,15 @@ $routes->group('', ['filter' => 'auth'], function($routes) {
     $routes->post('client_portal/announcements/update/(:num)'            , 'Client\AnnouncementController::update/$1');
 
     $routes->post('client_portal/tasks/submit', 'Client\TaskController::submitTask');
-    $routes->get ('client_portal/tasks/saved' , 'Client\TaskController::getSavedTasks');
-    $routes->get ('client_portal/timesheet'   , 'Client\TimesheetController::index');
-
+    $routes->get('client_portal/tasks/saved', 'Client\TaskController::getSavedTasks');
+    $routes->get('client_portal/timesheet', 'Client\TimesheetController::index');
+    $routes->get('settings/customization', 'SettingsController::customization');
+    $routes->post('settings/customization/save', 'SettingsController::saveCustomization');
+    $routes->get('settings/face-recognition', 'SettingsController::faceRecognition');
+    $routes->post('settings/face-recognition/enroll', 'SettingsController::enrollFace');
+    $routes->get('settings/face-recognition/status', 'SettingsController::faceRecognitionStatus');
+    $routes->get('settings/face-recognition/enrollment-status', 'SettingsController::faceEnrollmentStatus');
+    $routes->post('settings/face-recognition/clear', 'SettingsController::clearFaceEnrollment');
     $routes->post('client_portal/requests/generate-code', 'Client\RequestController::generateApprovalCode');
     $routes->get ('client_portal/requests/lookup-code'  , 'Client\RequestController::lookupCode');
 
@@ -148,10 +155,11 @@ $routes->group('client_portal', ['namespace' => 'App\Controllers\Client', 'filte
     $routes->get ('payroll/generate/(:num)', 'PayrollController::generatePayslip/$1');
     $routes->post('payroll/send/(:num)'    , 'PayrollController::sendPayslip/$1');
     
-    $routes->get('payroll/getMyPayslips'            , 'PayrollController::getMyPayslips');
-    $routes->get('payroll/downloadPayslip/(:num)'   , 'PayrollController::downloadPayslip/$1');
-    $routes->get('payroll/payslipHistory'           , 'PayrollController::payslipHistory');
-    $routes->get('payroll/getPayslipData/(:num)'    , 'PayrollController::getPayslipData/$1');
+    $routes->get('payroll/getMyPayslips'         , 'PayrollController::getMyPayslips');
+    $routes->get('performance/my-summary'        , 'PerformanceController::mySummary');
+    $routes->get('payroll/downloadPayslip/(:num)', 'PayrollController::downloadPayslip/$1');
+    $routes->get('payroll/payslipHistory', 'PayrollController::payslipHistory');
+    $routes->get('payroll/getPayslipData/(:num)', 'PayrollController::getPayslipData/$1');
     $routes->get('payroll/getPayslipActivity/(:num)', 'PayrollController::getPayslipActivity/$1');
     
     $routes->get ('payroll/getRegisterRows'       , 'PayrollController::getRegisterRows');
@@ -201,6 +209,11 @@ $routes->group('client_portal/payroll', ['namespace' => 'App\Controllers\Client'
     $routes->post('wtax/saveBrackets',   'PayrollController::wtaxSaveBrackets');
     $routes->post('wtax/setActive'   , 'PayrollController::wtaxSetActive');
     $routes->post('wtax/createYear'  , 'PayrollController::wtaxCreateYear');
+
+    // ========== Additional De Minimis Categories (BIR) ==========
+    $routes->get ('deminimis/categories'      , 'PayrollController::getDeMinimisCategories');
+    $routes->post('deminimis/saveCategories'  , 'PayrollController::saveDeMinimisCategories');
+    $routes->post('deminimis/restoreDefaults' , 'PayrollController::restoreDeMinimisDefaults');
 
     // ========== 13th Month Pay & Annualization ==========
     $routes->post('computeYearEnd'   , 'PayrollController::computeYearEnd');

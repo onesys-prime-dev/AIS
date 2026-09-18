@@ -14,5 +14,6 @@ class EmployeePositionModel extends Model
         'employee_id', 'department', 'position', 'employment_type',
         'start_time', 'end_time', 'working_day_type', 'working_days', 'break_schedule',
         'monthly_salary', 'de_minimis_benefit', 'de_minimis_breakdown', 'allowances',
+        'additional_de_minimis_benefit', 'additional_de_minimis_breakdown',
     ];
 }

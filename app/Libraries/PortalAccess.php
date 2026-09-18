@@ -62,7 +62,7 @@ final class PortalAccess
     public static function hideCompensation(array $row): array
     {
         if (self::can('compensation')) return $row;
-        foreach (['monthly_salary', 'de_minimis_benefit', 'de_minimis_breakdown', 'allowances', 'salary', 'daily_rate', 'net_pay'] as $key) unset($row[$key]);
+        foreach (['monthly_salary', 'de_minimis_benefit', 'de_minimis_breakdown', 'allowances', 'salary', 'daily_rate', 'net_pay', 'additional_de_minimis_benefit', 'additional_de_minimis_breakdown'] as $key) unset($row[$key]);
         return $row;
     }
 
@@ -82,7 +82,7 @@ final class PortalAccess
     {
         if (self::can('compensation')) return $data;
         $existing = $employeeId ? db_connect()->table('employee_positions')->where('employee_id', $employeeId)->get()->getRowArray() : [];
-        foreach (['monthly_salary', 'de_minimis_benefit', 'de_minimis_breakdown', 'allowances'] as $key) {
+        foreach (['monthly_salary', 'de_minimis_benefit', 'de_minimis_breakdown', 'allowances', 'additional_de_minimis_benefit', 'additional_de_minimis_breakdown'] as $key) {
             $data[$key] = $existing[$key] ?? null;
         }
         return $data;
@@ -99,6 +99,7 @@ final class PortalAccess
         if (preg_match('~^client_portal/employees(?:/|$)~', $path)) return 'employees';
         if (preg_match('~^client_portal/loans(?:/|$)~', $path)) return 'loans';
         if (preg_match('~^client_portal/payroll/(?:getmypayslips)$~', $path)) return 'self';
+        if ($path === 'client_portal/performance/my-summary') return 'self';
         if (preg_match('~^client_portal/payroll/(?:downloadpayslip|getpayslipdata)/[0-9]+$~', $path)) return 'self';
         if (preg_match('~^client_portal/payroll/(?:markstatus|markpaid/[0-9]+|send(?:/.*)?|sendpdf|sendstatic)$~', $path)) return 'release';
         if (preg_match('~^client_portal/payroll(?:/|$)~', $path)) return 'payroll';
@@ -118,7 +119,7 @@ final class PortalAccess
         if ($path === 'client_portal/requests/generate-code') return 'request_codes';
         if (preg_match('~^client_portal/announcements/(?:store|delete/[0-9]+|edit/[0-9]+|update/[0-9]+|attachments/delete/[0-9]+)$~', $path)) return 'announcements';
         if (preg_match('~^client_portal/help/(?:update/[0-9]+)$~', $path)) return 'help';
-        if (preg_match('~^settings/(?:customization(?:/save)?|face-recognition(?:/(?:enroll|status))?)$~', $path)) return 'self';
+        if (preg_match('~^settings/(?:customization(?:/save)?|face-recognition(?:/(?:enroll|status|enrollment-status|clear))?)$~', $path)) return 'self';
         if (preg_match('~^client_portal/(?:dashboard|profile(?:/(?:photo|identity|contact|username|emergency|password|payslip-password(?:/reset)?))?|presence/(?:heartbeat|statuses)|help(?:/store|/search-index)?|company-logo|time-in|time-out/[0-9]+|toggle-break/[0-9]+|requests(?:/(?:new|store|lookup-code))?|request-notifications/(?:viewed|dismiss)|announcements/(?:viewed|dismiss|download/[0-9]+)|tasks/(?:submit|saved)|timesheets/daily-log|timesheet(?:/(?:history-details|export-history|tasks/[0-9]+(?:/create)?|tasks/(?:edit|delete)/[0-9]+))?)$~', $path)) return 'self';
         return 'deny';
     }

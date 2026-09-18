@@ -422,7 +422,7 @@ function renderPayslipHtml(d) {
     }
 
     const grossPay = n(d.net_basic_pay) + n(d.reg_ot) + n(d.sat_ot) + n(d.sun_ot) + n(d.hol_ot)
-                   + n(d.other_earnings_taxable) + n(d.de_minimis);
+                   + n(d.other_earnings_taxable) + n(d.additional_de_minimis_tax) + n(d.de_minimis);
     const govDed   = n(d.sss_ee) + n(d.phic_ee) + n(d.hdmf_ee) + n(d.withholding_tax);
     const loanDed =
         n(d.sss_loan) +
@@ -482,6 +482,7 @@ function renderPayslipHtml(d) {
                 <td style="border:1px solid #000;padding:5px;vertical-align:top;">
                     <table style="width:100%;font-size:12px;border-collapse:collapse;">
                         <tr><td style="border:none;padding:2px 4px;">Salary adjustment:</td><td style="border:none;padding:2px 4px;text-align:right;">${fmt(d.other_earnings_taxable)}</td></tr>
+                        ${n(d.additional_de_minimis_tax) > 0 ? `<tr><td style="border:none;padding:2px 4px;">De Minimis (Taxable Excess):</td><td style="border:none;padding:2px 4px;text-align:right;">${fmt(d.additional_de_minimis_tax)}</td></tr>` : ''}
                     </table>
                 </td>
                 <td style="border:1px solid #000;padding:5px;vertical-align:top;">
