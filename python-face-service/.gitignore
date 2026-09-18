@@ -1,0 +1,9 @@
+venv/
+__pycache__/
+*.pyc
+models/*.onnx
+nssm.exe
+nssm_extracted/
+service-stdout.log
+service-stderr.log
+.env

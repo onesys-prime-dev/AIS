@@ -4,7 +4,7 @@ namespace App\Controllers\Auth;
 
 use App\Models\Client\CompanyBrandingModel;
 use App\Models\PresenceModel;
-use Config\CompreFace;
+use Config\FaceRecognition;
 use CodeIgniter\HTTP\RedirectResponse;
 use CodeIgniter\Shield\Controllers\LoginController;
 use Throwable;
@@ -74,7 +74,7 @@ class ClientAuthController extends LoginController
                 ->with('error', 'Your account has been deactivated. Please contact your administrator.');
         }
 
-        $faceConfig = config(CompreFace::class);
+        $faceConfig = config(FaceRecognition::class);
         if (! $faceConfig->enabled) {
             (new PresenceModel())->updatePresence((int) $user->id, 'Online');
             $this->clearFaceVerificationSession();

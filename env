@@ -67,3 +67,20 @@
 #--------------------------------------------------------------------
 
 # logger.threshold = 4
+
+#--------------------------------------------------------------------
+# FACIAL RECOGNITION (in-house — app/Services/FaceRecognitionService.php,
+# python-face-service/). Generate your own apiKey (must match the value in
+# python-face-service/.env) and keep enabled=false until that service is
+# running and you've re-enrolled. See python-face-service/README.md.
+#--------------------------------------------------------------------
+
+# FaceRecognition.enabled = false
+# FaceRecognition.baseUrl = 'http://127.0.0.1:8100'
+# FaceRecognition.apiKey = ''
+# FaceRecognition.similarityThreshold = 0.5
+# FaceRecognition.timeout = 60
+# FaceRecognition.connectTimeout = 10
+# FaceRecognition.healthTimeout = 10
+# FaceRecognition.maxEmbeddingsPerUser = 5
+# FaceRecognition.modelVersion = 'opencv-sface'

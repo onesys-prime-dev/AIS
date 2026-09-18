@@ -119,6 +119,8 @@ $routes->group('', ['filter' => 'auth'], function($routes) {
     $routes->get('settings/face-recognition', 'SettingsController::faceRecognition');
     $routes->post('settings/face-recognition/enroll', 'SettingsController::enrollFace');
     $routes->get('settings/face-recognition/status', 'SettingsController::faceRecognitionStatus');
+    $routes->get('settings/face-recognition/enrollment-status', 'SettingsController::faceEnrollmentStatus');
+    $routes->post('settings/face-recognition/clear', 'SettingsController::clearFaceEnrollment');
     $routes->post('client_portal/requests/generate-code', 'Client\RequestController::generateApprovalCode');
     $routes->get('client_portal/requests/lookup-code', 'Client\RequestController::lookupCode');
 });

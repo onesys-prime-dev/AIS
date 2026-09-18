@@ -2,7 +2,7 @@
 
 namespace App\Filters;
 
-use Config\CompreFace;
+use Config\FaceRecognition;
 use CodeIgniter\Filters\FilterInterface;
 use CodeIgniter\HTTP\RequestInterface;
 use CodeIgniter\HTTP\ResponseInterface;
@@ -12,7 +12,7 @@ class FaceVerified implements FilterInterface
 {
     public function before(RequestInterface $request, $arguments = null)
     {
-        $faceConfig = config(CompreFace::class);
+        $faceConfig = config(FaceRecognition::class);
         if (! $faceConfig->enabled) {
             return null;
         }
