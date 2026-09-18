@@ -31,16 +31,22 @@ class EmployeeController extends BaseController
     {
         $db = \Config\Database::connect();
 
+        // Every non-GROUP-BY column must be wrapped in an aggregate: employees.user_id
+        // is only a plain (non-unique) FK index, not a unique constraint, so MySQL
+        // can't treat e.* as functionally dependent on u.id — a bare e.first_name
+        // etc. here is rejected outright under sql_mode=ONLY_FULL_GROUP_BY (the
+        // MySQL/MariaDB default on most managed hosts, though not on this XAMPP
+        // dev setup, which is why this previously passed locally but 500'd in prod).
         $rows = $db->table('users u')
             ->select("
                 u.id AS user_id,
-                u.username,
-                u.active AS status,
-                e.id AS employee_id,
-                e.employee_number,
-                e.first_name,
-                e.middle_name,
-                e.last_name,
+                MAX(u.username) AS username,
+                MAX(u.active) AS status,
+                MAX(e.id) AS employee_id,
+                MAX(e.employee_number) AS employee_number,
+                MAX(e.first_name) AS first_name,
+                MAX(e.middle_name) AS middle_name,
+                MAX(e.last_name) AS last_name,
                 MAX(ep.position) AS position,
                 MAX(ep.department) AS department,
                 MAX(ea.photo_path) AS photo_path,
@@ -54,7 +60,7 @@ class EmployeeController extends BaseController
             ->join('auth_groups_users agu', 'agu.user_id = u.id', 'left')
             ->where('u.active', 1)
             ->groupBy('u.id')
-            ->orderBy('COALESCE(e.first_name, u.username)', 'ASC', false)
+            ->orderBy('COALESCE(MAX(e.first_name), MAX(u.username))', 'ASC', false)
             ->get()
             ->getResultArray();
 
@@ -106,17 +112,22 @@ class EmployeeController extends BaseController
         |--------------------------------------------------------------------------
         */
 
+        // employees.id is the only column MariaDB accepts unaggregated under
+        // sql_mode=ONLY_FULL_GROUP_BY — unlike MySQL 5.7+, MariaDB never added
+        // the "functionally dependent on primary key" relaxation, so every
+        // other employees.* column here must be wrapped too, even though
+        // they come from the very table being grouped by its own PK.
         $employees = $employeeModel
         ->select("
             employees.id,
-            employees.user_id,
-            employees.first_name,
-            employees.middle_name,
-            employees.last_name,
-            employees.birthdate,
-            employees.employee_number,
-            employees.gender,
-            employees.civil_status,
+            MAX(employees.user_id) as user_id,
+            MAX(employees.first_name) as first_name,
+            MAX(employees.middle_name) as middle_name,
+            MAX(employees.last_name) as last_name,
+            MAX(employees.birthdate) as birthdate,
+            MAX(employees.employee_number) as employee_number,
+            MAX(employees.gender) as gender,
+            MAX(employees.civil_status) as civil_status,
 
             MAX(employee_positions.department) as department,
             MAX(employee_positions.position) as position,
