@@ -119,10 +119,6 @@ $postLoginRedirect = $postLoginRedirect ?? site_url('/client_portal/dashboard');
                         <?= view('components/face_scan', ['id' => 'login-face', 'size' => 200]) ?>
                     </div>
 
-                    <div class="mt-6 text-center" style="margin-top: 20px;">
-                        <h3 class="font-bold leading-tight" style="font-size: 28px; color: #962323;">Face ID</h3>
-                    </div>
-
                     <div style="margin-top: auto; padding-top: 14px;">
                         <button
                             id="login-face-retry-btn"
