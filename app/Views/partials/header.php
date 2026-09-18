@@ -182,7 +182,12 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
                     <div class="ai-helper-subtitle">Answers from the Help Centre — ask anything about the system</div>
                 </div>
             </div>
-            <button type="button" id="aiHelperCloseBtn" class="ai-helper-close-btn" aria-label="Close">✕</button>
+            <div class="ai-helper-header-actions">
+                <button type="button" id="aiHelperResetBtn" class="ai-helper-close-btn" aria-label="Start a new conversation" title="Start a new conversation">
+                    <i class="fa-solid fa-rotate-right"></i>
+                </button>
+                <button type="button" id="aiHelperCloseBtn" class="ai-helper-close-btn" aria-label="Close">✕</button>
+            </div>
         </div>
 
         <div id="aiHelperThread" class="ai-helper-thread"></div>
@@ -1123,6 +1128,13 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
         margin-top:1px;
     }
 
+    .ai-helper-header-actions{
+        display:flex;
+        align-items:center;
+        gap:14px;
+        flex-shrink:0;
+    }
+
     .ai-helper-close-btn{
         background:none;
         border:none;
@@ -1378,18 +1390,65 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
         return meaningful.length > 0 ? meaningful : words;
     }
 
+    // Whole-word match instead of a raw substring test — otherwise short
+    // terms false-positive inside unrelated words (e.g. "ot" inside "not"/
+    // "photo", "pay" inside "display"), which was a real source of the
+    // assistant confidently answering with an unrelated FAQ/doc section.
+    function escapeRegExp(s) {
+        return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+
+    // Optional trailing "s" so a singular query term still matches a plural
+    // in the content and vice versa (e.g. "request" needs to match "Leave
+    // Requests") — the fix for substring false-positives above would
+    // otherwise have quietly broken this simple, very common case.
+    function containsWord(haystack, term) {
+        return new RegExp('\\b' + escapeRegExp(term) + 's?\\b', 'i').test(haystack);
+    }
+
+    // Real transcript that exposed this: asking "how to view payslip" lost
+    // to the payslip-PASSWORD FAQ instead of "Why can't I see my payslip?",
+    // purely because the query said "view" and that FAQ's title says "see" —
+    // same concept, different word, so word-boundary matching alone still
+    // picked the wrong answer. Each group below is treated as one concept:
+    // if the query uses any word in a group, it's checked against all of
+    // them in the title/snippet, not just the one the user happened to type.
+    const SYNONYM_GROUPS = [
+        ['view', 'see', 'check'],
+        ['submit', 'apply', 'request', 'file', 'send'],
+        ['login', 'signin', 'log', 'sign'],
+        ['password', 'pw', 'pass'],
+        ['ot', 'overtime'],
+        ['ut', 'undertime'],
+        ['approve', 'approval', 'authorize'],
+        ['edit', 'update', 'change', 'modify'],
+        ['add', 'create', 'new'],
+        ['delete', 'remove', 'cancel'],
+    ];
+    const SYNONYM_LOOKUP = {};
+    SYNONYM_GROUPS.forEach(function (group) {
+        group.forEach(function (word) { SYNONYM_LOOKUP[word] = group; });
+    });
+
+    function expandTerm(term) {
+        return SYNONYM_LOOKUP[term] || [term];
+    }
+
     function scoreEntry(entry, terms, rawQuery) {
         const title = (entry.title || '').toLowerCase();
         const snippet = (entry.snippet || '').toLowerCase();
         let score = 0;
 
         terms.forEach(function (term) {
-            if (title.includes(term)) score += 3;
-            if (snippet.includes(term)) score += 1;
+            const variants = expandTerm(term);
+            if (variants.some(function (v) { return containsWord(title, v); })) score += 3;
+            if (variants.some(function (v) { return containsWord(snippet, v); })) score += 1;
         });
 
         // Exact-phrase bonus: the whole query appearing verbatim is a much
-        // stronger signal than its words matching separately.
+        // stronger signal than its words matching separately. A phrase can
+        // still use a plain substring check since it's long/specific enough
+        // that word-boundary false positives aren't a real risk.
         if (rawQuery && rawQuery.trim().length >= 3) {
             const phrase = rawQuery.trim().toLowerCase();
             if (title.includes(phrase)) score += 6;
@@ -1398,6 +1457,12 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
 
         return score;
     }
+
+    // Below this, the "best" match is really just one incidental snippet hit
+    // — not something the assistant should present as a confident, direct
+    // answer. (One term found only in a snippet scores 1; this requires more
+    // than that, e.g. a title hit, an exact-phrase hit, or 3+ snippet hits.)
+    const CONFIDENT_ANSWER_THRESHOLD = 3;
 
     function buildResultLink(entry, extraClass) {
         const link = document.createElement('a');
@@ -1557,6 +1622,7 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
     const overlay = document.getElementById('aiHelperOverlay');
     const openBtn = document.getElementById('aiHelperOpenBtn');
     const closeBtn = document.getElementById('aiHelperCloseBtn');
+    const resetBtn = document.getElementById('aiHelperResetBtn');
     const thread = document.getElementById('aiHelperThread');
     const chatInput = document.getElementById('aiHelperInput');
     const sendBtn = document.getElementById('aiHelperSendBtn');
@@ -1686,6 +1752,14 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
         overlay.hidden = true;
     }
 
+    function resetConversation() {
+        history = [];
+        saveHistory(history);
+        renderThread();
+        chatInput.value = '';
+        chatInput.focus();
+    }
+
     function askQuestion(rawText) {
         const text = rawText.trim();
         if (text === '') {
@@ -1719,6 +1793,16 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
                     text: "I couldn't find anything about that in the Help Centre. Try rephrasing, or submit a help request and the support team will follow up.",
                     related: [],
                 });
+            } else if (scored[0].score < CONFIDENT_ANSWER_THRESHOLD) {
+                // The best match is too weak to state as fact — offer it (and
+                // any other weak matches) as things to check instead of
+                // answering with low-confidence content as if it were certain.
+                const maybe = scored.slice(0, 4).map(function (r) { return r.entry; });
+                history.push({
+                    role: 'assistant',
+                    text: "I'm not fully sure, but this might be related — take a look and see if it helps:",
+                    related: maybe,
+                });
             } else {
                 const best = scored[0].entry;
                 const related = scored.slice(1, 4).map(function (r) { return r.entry; });
@@ -1738,6 +1822,9 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
 
     openBtn.addEventListener('click', function () { openPanel(input.value.trim() || null); });
     closeBtn.addEventListener('click', closePanel);
+    if (resetBtn) {
+        resetBtn.addEventListener('click', resetConversation);
+    }
     overlay.addEventListener('click', function (event) {
         if (event.target === overlay) {
             closePanel();

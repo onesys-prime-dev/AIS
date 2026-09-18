@@ -519,7 +519,7 @@
 
 <?= $this->section('scripts') ?>
 <script src="<?= base_url('js/components/modal-handler.js') ?>?v=2"></script>
-<script src="<?= base_url('js/components/crud-table.js') ?>"></script>
+<script src="<?= base_url('js/components/crud-table.js') ?>?v=<?= is_file(FCPATH . 'js/components/crud-table.js') ? filemtime(FCPATH . 'js/components/crud-table.js') : time() ?>"></script>
 
 <script>
 const DAILY_DATA = <?= json_encode($dailyTimesheet) ?>;
