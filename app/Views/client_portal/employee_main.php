@@ -12,6 +12,7 @@
 
     <div class="tabs">
         <button type="button" class="tab active" data-tab="employee-management">Employee Management</button>
+        <?php if (\App\Libraries\PortalAccess::can('roles')): ?><button type="button" class="tab" data-tab="access-control">Access Control</button><?php endif; ?>
         <?php if (\App\Libraries\PortalAccess::can('face_recognition')): ?><button type="button" class="tab" data-tab="face-recognition">Face Recognition</button><?php endif; ?>
         <?php if (\App\Libraries\PortalAccess::can('loans')): ?><button type="button" class="tab" data-tab="loan-management">Loan Management</button><?php endif; ?>
     </div>
@@ -20,6 +21,10 @@
         data-panel="employee-management"
         style="display:flex;">
         <?= view('client_portal/employee_management') ?>
+    </div>
+
+    <div class="tab-panel h-full min-h-0 overflow-visible px-8 pb-8" data-panel="access-control" style="display:none;">
+        <?php if (\App\Libraries\PortalAccess::can('roles')): ?><?= view('client_portal/employee_access_control') ?><?php endif; ?>
     </div>
 
     <div class="tab-panel h-full min-h-0 overflow-visible px-8 pb-8" data-panel="face-recognition" style="display:none;">
@@ -148,7 +153,345 @@ document.addEventListener('DOMContentLoaded', () => {
 const EMPLOYEES = <?= json_encode($employees) ?>;
 const LOANS = <?= json_encode($loans ?? []) ?>;
 const FACE_RECOGNITION_EMPLOYEES = <?= json_encode($faceRecognitionEmployees ?? []) ?>;
+const ACCESS_CONTROL_ACCOUNTS = <?= json_encode($accessControlAccounts ?? []) ?>;
+const ACCESS_CONTROL_ROLE_OPTIONS = <?= json_encode($accessControlRoleOptions ?? []) ?>;
+const ACCESS_CONTROL_CURRENT_USER_ID = <?= json_encode((int) $currentUserId) ?>;
+const ACCESS_CONTROL_EMPLOYEES = <?= json_encode($accessControlEmployees ?? []) ?>;
+const ACCESS_CONTROL_TEAM_ASSIGNMENTS = <?= json_encode($accessControlTeamAssignments ?? []) ?>;
+const ACCESS_CONTROL_PERMISSIONS = <?= json_encode($accessControlPermissions ?? []) ?>;
+const ACCESS_CONTROL_PERMISSION_LABELS = <?= json_encode($accessControlPermissionLabels ?? []) ?>;
 const CSRF_HASH = "<?= csrf_hash() ?>";
+
+(function () {
+    const body = document.getElementById('accessControlBody');
+    if (!body) return; // panel not rendered (PortalAccess::can('roles') was false)
+
+    const accounts = ACCESS_CONTROL_ACCOUNTS;
+    const roleOptions = ACCESS_CONTROL_ROLE_OPTIONS;
+
+    function escapeHtml(s) {
+        return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+        });
+    }
+
+    if (!accounts.length) {
+        body.innerHTML = '<tr><td colspan="3" class="px-4 py-6 text-center text-gray-400">No accounts found.</td></tr>';
+        return;
+    }
+
+    body.innerHTML = accounts.map(function (acc) {
+        const hasRole = acc.current_role !== null && acc.current_role !== undefined;
+
+        if (acc.user_id === ACCESS_CONTROL_CURRENT_USER_ID) {
+            const label = hasRole ? (roleOptions[acc.current_role] || acc.current_role) : 'No role assigned';
+            return '<tr>' +
+                '<td class="px-4 py-3">' + escapeHtml(acc.name) + '</td>' +
+                '<td class="px-4 py-3">' + escapeHtml(acc.email || '—') + '</td>' +
+                '<td class="px-4 py-3 text-gray-400 italic">' + escapeHtml(label) + ' (you)</td>' +
+                '</tr>';
+        }
+
+        const originalValue = hasRole ? acc.current_role : '';
+        const placeholder = hasRole ? '' : '<option value="" selected disabled>No role assigned — pick one</option>';
+        const options = placeholder + Object.keys(roleOptions).map(function (key) {
+            const selected = key === acc.current_role ? ' selected' : '';
+            return '<option value="' + escapeHtml(key) + '"' + selected + '>' + escapeHtml(roleOptions[key]) + '</option>';
+        }).join('');
+        const selectBorderStyle = hasRole ? '' : ' style="border-color:#f87171;"';
+
+        return '<tr data-user-id="' + acc.user_id + '">' +
+            '<td class="px-4 py-3">' + escapeHtml(acc.name) + '</td>' +
+            '<td class="px-4 py-3">' + escapeHtml(acc.email || '—') + '</td>' +
+            '<td class="px-4 py-3">' +
+                '<select class="ac-role-select border border-gray-300 rounded-lg px-2 py-1 text-sm"' + selectBorderStyle + ' data-original="' + escapeHtml(originalValue) + '">' + options + '</select>' +
+                (hasRole ? '' : ' <span class="text-xs text-red-500">No role assigned</span>') +
+                '<button type="button" class="ac-save-btn ml-2 px-3 py-1 rounded-lg text-xs font-semibold text-white" style="display:none;background:#A891FC;" onmouseover="this.style.background=\'#9678f5\'" onmouseout="this.style.background=\'#A891FC\'">Save</button>' +
+            '</td>' +
+            '</tr>';
+    }).join('');
+
+    body.querySelectorAll('tr[data-user-id]').forEach(function (row) {
+        const select = row.querySelector('.ac-role-select');
+        const saveBtn = row.querySelector('.ac-save-btn');
+        if (!select || !saveBtn) return;
+
+        select.addEventListener('change', function () {
+            saveBtn.style.display = select.value !== select.dataset.original ? 'inline-block' : 'none';
+        });
+
+        saveBtn.addEventListener('click', function () {
+            if ((select.value === 'admin' || select.value === 'superadmin') &&
+                !confirm('Grant "' + (roleOptions[select.value] || select.value) + '" access to this account? This is a highly privileged role.')) {
+                return;
+            }
+
+            const userId = row.dataset.userId;
+            saveBtn.disabled = true;
+            saveBtn.textContent = 'Saving…';
+
+            fetch('<?= site_url('client_portal/access-control/update-role') ?>', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': CSRF_HASH,
+                },
+                body: new URLSearchParams({ user_id: userId, role: select.value }),
+            })
+                .then(function (res) { return res.json(); })
+                .then(function (data) {
+                    if (window.showToast) window.showToast(data.message || (data.success ? 'Role updated.' : 'Something went wrong.'), data.success ? 'success' : 'error');
+                    if (data.success) {
+                        select.dataset.original = select.value;
+                        saveBtn.style.display = 'none';
+                    }
+                })
+                .catch(function () {
+                    if (window.showToast) window.showToast('Something went wrong.', 'error');
+                })
+                .finally(function () {
+                    saveBtn.disabled = false;
+                    saveBtn.textContent = 'Save';
+                });
+        });
+    });
+})();
+
+// ================= TEAM HEAD ASSIGNMENTS =================
+(function () {
+    const section = document.getElementById('teamAssignmentsSection');
+    const container = document.getElementById('teamAssignmentsBody');
+    if (!section || !container) return;
+
+    function escapeHtml(s) {
+        return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+        });
+    }
+
+    const teamHeads = ACCESS_CONTROL_ACCOUNTS.filter(function (acc) { return acc.current_role === 'team_head'; });
+    if (!teamHeads.length) {
+        return; // nothing to show, section stays hidden
+    }
+    section.style.display = 'block';
+
+    container.innerHTML = teamHeads.map(function (th) {
+        const assigned = ACCESS_CONTROL_TEAM_ASSIGNMENTS[th.user_id] || [];
+        const checkboxes = ACCESS_CONTROL_EMPLOYEES.map(function (emp) {
+            const checked = assigned.indexOf(emp.employee_id) !== -1 ? ' checked' : '';
+            return '<label class="flex items-center gap-2 text-sm py-1">' +
+                '<input type="checkbox" value="' + emp.employee_id + '"' + checked + '>' +
+                escapeHtml(emp.name) +
+                '</label>';
+        }).join('');
+
+        return '<div class="rounded-2xl border border-gray-200 p-4" data-team-head-id="' + th.user_id + '">' +
+            '<div class="flex items-center justify-between">' +
+                '<span class="font-medium text-gray-800">' + escapeHtml(th.name) + '</span>' +
+                '<button type="button" class="ta-save-btn px-3 py-1 rounded-lg text-xs font-semibold text-white" style="background:#A891FC;" onmouseover="this.style.background=\'#9678f5\'" onmouseout="this.style.background=\'#A891FC\'">Save</button>' +
+            '</div>' +
+            '<div class="grid grid-cols-2 gap-1 mt-3">' + checkboxes + '</div>' +
+            '</div>';
+    }).join('');
+
+    container.querySelectorAll('[data-team-head-id]').forEach(function (card) {
+        const saveBtn = card.querySelector('.ta-save-btn');
+        saveBtn.addEventListener('click', function () {
+            const teamHeadId = card.dataset.teamHeadId;
+            const employeeIds = Array.from(card.querySelectorAll('input[type=checkbox]:checked')).map(function (cb) { return cb.value; });
+
+            saveBtn.disabled = true;
+            saveBtn.textContent = 'Saving…';
+
+            const params = new URLSearchParams({ user_id: teamHeadId });
+            employeeIds.forEach(function (id) { params.append('employee_ids[]', id); });
+
+            fetch('<?= site_url('client_portal/access-control/update-team-assignments') ?>', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': CSRF_HASH,
+                },
+                body: params,
+            })
+                .then(function (res) { return res.json(); })
+                .then(function (data) {
+                    if (window.showToast) window.showToast(data.message || (data.success ? 'Saved.' : 'Something went wrong.'), data.success ? 'success' : 'error');
+                })
+                .catch(function () {
+                    if (window.showToast) window.showToast('Something went wrong.', 'error');
+                })
+                .finally(function () {
+                    saveBtn.disabled = false;
+                    saveBtn.textContent = 'Save';
+                });
+        });
+    });
+})();
+
+// ================= ROLE PERMISSIONS =================
+(function () {
+    const section = document.getElementById('rolePermissionsSection');
+    const tabsEl = document.getElementById('rolePermissionTabs');
+    const bodyEl = document.getElementById('rolePermissionBody');
+    if (!section || !tabsEl || !bodyEl) return;
+
+    const permissions = ACCESS_CONTROL_PERMISSIONS; // { role: { permKey: bool, ... }, ... }
+    const roles = Object.keys(permissions);
+    if (!roles.length) return;
+    section.style.display = 'block';
+
+    // Sensitive permissions — toggling these ON for a role gets a confirm() prompt.
+    const SENSITIVE_PERMISSIONS = ['roles', 'payroll', 'compensation'];
+
+    function escapeHtml(s) {
+        return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+        });
+    }
+
+    let activeRole = roles[0];
+
+    function renderTabs() {
+        tabsEl.innerHTML = roles.map(function (role) {
+            const active = role === activeRole;
+            const label = (ACCESS_CONTROL_ROLE_OPTIONS[role] || role);
+            return '<button type="button" data-role="' + escapeHtml(role) + '" class="px-3 py-2 rounded-lg text-sm font-medium"' +
+                (active ? ' style="background:#A891FC;color:#fff;"' : ' style="background:#f3f4f6;color:#374151;"') +
+                '>' + escapeHtml(label) + '</button>';
+        }).join('');
+
+        tabsEl.querySelectorAll('button').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                activeRole = btn.dataset.role;
+                renderTabs();
+                renderBody();
+            });
+        });
+    }
+
+    function renderBody() {
+        const rolePerms = permissions[activeRole] || {};
+        const permKeys = Object.keys(rolePerms);
+
+        bodyEl.innerHTML = '<div class="grid grid-cols-2 gap-2" id="rpChecklist">' +
+            permKeys.map(function (key) {
+                const label = ACCESS_CONTROL_PERMISSION_LABELS[key] || key;
+                const checked = rolePerms[key] ? ' checked' : '';
+                return '<label class="flex items-center gap-2 text-sm py-1">' +
+                    '<input type="checkbox" value="' + escapeHtml(key) + '"' + checked + '>' +
+                    escapeHtml(label) +
+                    '</label>';
+            }).join('') +
+            '</div>' +
+            '<div class="flex justify-end mt-4">' +
+                '<button type="button" id="rpSaveBtn" class="px-4 py-2 rounded-lg text-sm font-semibold text-white" style="background:#A891FC;" onmouseover="this.style.background=\'#9678f5\'" onmouseout="this.style.background=\'#A891FC\'">Save Permissions</button>' +
+            '</div>';
+
+        document.getElementById('rpSaveBtn').addEventListener('click', function () {
+            const saveBtn = this;
+            const checked = Array.from(bodyEl.querySelectorAll('#rpChecklist input:checked')).map(function (cb) { return cb.value; });
+
+            const newlySensitive = checked.filter(function (p) {
+                return SENSITIVE_PERMISSIONS.indexOf(p) !== -1 && !rolePerms[p];
+            });
+            if (newlySensitive.length && !confirm(
+                'Grant ' + newlySensitive.map(function (p) { return ACCESS_CONTROL_PERMISSION_LABELS[p] || p; }).join(', ') +
+                ' to every "' + (ACCESS_CONTROL_ROLE_OPTIONS[activeRole] || activeRole) + '" account? This affects everyone currently assigned that role.'
+            )) {
+                return;
+            }
+
+            saveBtn.disabled = true;
+            saveBtn.textContent = 'Saving…';
+
+            const params = new URLSearchParams({ role: activeRole });
+            checked.forEach(function (p) { params.append('permissions[]', p); });
+
+            fetch('<?= site_url('client_portal/access-control/update-role-permissions') ?>', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': CSRF_HASH,
+                },
+                body: params,
+            })
+                .then(function (res) { return res.json(); })
+                .then(function (data) {
+                    if (window.showToast) window.showToast(data.message || (data.success ? 'Saved.' : 'Something went wrong.'), data.success ? 'success' : 'error');
+                    if (data.success) {
+                        permKeys.forEach(function (key) { rolePerms[key] = checked.indexOf(key) !== -1; });
+                    }
+                })
+                .catch(function () {
+                    if (window.showToast) window.showToast('Something went wrong.', 'error');
+                })
+                .finally(function () {
+                    saveBtn.disabled = false;
+                    saveBtn.textContent = 'Save Permissions';
+                });
+        });
+    }
+
+    renderTabs();
+    renderBody();
+})();
+
+// ================= ACCESS CONTROL SUB-TABS =================
+// Accounts / Team Head Assignments / Role Permissions used to all sit
+// stacked in one scroll area, leaving almost no room to actually work with
+// the accounts table. Splitting them into sub-tabs (same pill style as the
+// Role Permissions tabs) lets whichever one is active use the full height
+// of the panel instead of competing for space with the other two.
+(function () {
+    const tabsWrap = document.getElementById('acSubTabs');
+    if (!tabsWrap) return;
+
+    const panels = {
+        accounts: document.querySelector('[data-ac-panel="accounts"]'),
+        team: document.getElementById('teamAssignmentsSection'),
+        permissions: document.getElementById('rolePermissionsSection'),
+    };
+    const buttons = Array.from(tabsWrap.querySelectorAll('[data-ac-tab]'));
+
+    function isEligible(key) {
+        const panel = panels[key];
+        if (!panel) return false;
+        if (key === 'accounts') return true;
+        // team/permissions panels are only ever switched to 'block' by their
+        // own render logic above when they actually have content to show.
+        return panel.style.display === 'block';
+    }
+
+    buttons.forEach(function (btn) {
+        if (!isEligible(btn.dataset.acTab)) {
+            btn.style.display = 'none';
+        }
+    });
+
+    function activate(key) {
+        buttons.forEach(function (btn) {
+            const active = btn.dataset.acTab === key;
+            btn.style.background = active ? '#A891FC' : '#f3f4f6';
+            btn.style.color = active ? '#fff' : '#374151';
+        });
+        Object.keys(panels).forEach(function (k) {
+            if (panels[k]) panels[k].style.display = k === key ? 'block' : 'none';
+        });
+    }
+
+    buttons.forEach(function (btn) {
+        btn.style.cssText += ';padding:8px 12px;border-radius:8px;font-size:13px;font-weight:500;';
+        btn.addEventListener('click', function () { activate(btn.dataset.acTab); });
+    });
+
+    const firstEligible = buttons.find(function (btn) { return isEligible(btn.dataset.acTab); });
+    activate(firstEligible ? firstEligible.dataset.acTab : 'accounts');
+})();
+
 const CURRENT_USER_ID = <?= (int) ($currentUserId ?? 0) ?>;
 const EDIT_ICON = "<?= base_url('icons/edit.png') ?>";
 const VIEW_ICON = "<?= base_url('icons/view.png') ?>";
