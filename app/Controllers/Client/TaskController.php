@@ -134,4 +134,14 @@ class TaskController extends BaseController
 
         return $this->response->setJSON($tasks);
     }
+
+    public function getSavedClients()
+    {
+        $clients = (new \App\Models\Client\SavedClientsModel())
+            ->where('user_id', auth()->user()->id)
+            ->orderBy('client', 'ASC')
+            ->findAll();
+
+        return $this->response->setJSON($clients);
+    }
 }

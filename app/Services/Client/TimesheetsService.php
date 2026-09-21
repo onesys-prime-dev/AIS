@@ -6,6 +6,7 @@ use App\Models\Client\AttendanceModel;
 use App\Models\Client\TasksModel;
 use App\Models\Client\RequestModel;
 use App\Models\Client\EmployeePositionModel;
+use App\Models\Client\SavedClientsModel;
 use App\Models\Client\SavedTasksModel;
 use DateTime;
 
@@ -225,6 +226,10 @@ class TimesheetsService
             $this->saveAsPreset($userId, $taskPerformed);
         }
 
+        if (!empty($payload['save_client']) && $client !== '') {
+            $this->saveClientPreset($userId, $client);
+        }
+
         return ['success' => true, 'task' => $this->tasksModel->find($id)];
     }
 
@@ -232,6 +237,19 @@ class TimesheetsService
      * Saves a task description as a reusable preset (the "Select Preset Task"
      * dropdown), skipping the insert if this user already has an identical one.
      */
+    private function saveClientPreset(int $userId, string $client): void
+    {
+        $model = new SavedClientsModel();
+        $exists = $model->where('user_id', $userId)->where('client', $client)->first();
+        if ($exists) return;
+
+        $model->insert([
+            'user_id'  => $userId,
+            'client'   => $client,
+            'saved_at' => date('Y-m-d H:i:s'),
+        ]);
+    }
+
     private function saveAsPreset(int $userId, string $taskPerformed): void
     {
         $savedTasksModel = new SavedTasksModel();

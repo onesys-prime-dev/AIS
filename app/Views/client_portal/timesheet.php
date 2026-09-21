@@ -400,24 +400,32 @@
                         <button type="button" id="tl_cancel_edit_btn" onclick="cancelTaskEdit()" class="hidden text-xs text-purple-600 hover:text-purple-700 font-semibold">Cancel edit</button>
                     </div>
 
+                    <label class="block text-[11px] text-gray-400 mb-0.5">Select Preset Task</label>
+                    <select id="savedTasksDropdown" class="tl-field mb-2">
+                        <option value="">-- Write your task manually --</option>
+                    </select>
+
+                    <label class="block text-[11px] text-gray-400 mb-0.5">Or write your task *</label>
+                    <textarea id="task_att_text" rows="2" placeholder="e.g. Coding Session" class="tl-field resize-none mb-2"></textarea>
+
                     <div class="grid grid-cols-2 mb-2" style="gap:10px;">
                         <div>
-                            <label class="block text-[11px] text-gray-400 mb-0.5">Start Time</label>
+                            <label class="block text-[11px] text-gray-400 mb-0.5">Start Time *</label>
                             <input type="hidden" id="task_start_time">
                             <div class="tl-time-row">
-                                <select id="task_start_hour" class="tl-time-select"></select>
+                                <input type="number" id="task_start_hour" class="tl-time-select" min="1" max="12" inputmode="numeric" placeholder="hh">
                                 <span class="tl-time-colon">:</span>
-                                <select id="task_start_minute" class="tl-time-select"></select>
+                                <input type="number" id="task_start_minute" class="tl-time-select" min="0" max="59" inputmode="numeric" placeholder="mm">
                                 <select id="task_start_ampm" class="tl-time-select tl-time-ampm"></select>
                             </div>
                         </div>
                         <div>
-                            <label class="block text-[11px] text-gray-400 mb-0.5">End Time</label>
+                            <label class="block text-[11px] text-gray-400 mb-0.5">End Time *</label>
                             <input type="hidden" id="task_end_time">
                             <div class="tl-time-row">
-                                <select id="task_end_hour" class="tl-time-select"></select>
+                                <input type="number" id="task_end_hour" class="tl-time-select" min="1" max="12" inputmode="numeric" placeholder="hh">
                                 <span class="tl-time-colon">:</span>
-                                <select id="task_end_minute" class="tl-time-select"></select>
+                                <input type="number" id="task_end_minute" class="tl-time-select" min="0" max="59" inputmode="numeric" placeholder="mm">
                                 <select id="task_end_ampm" class="tl-time-select tl-time-ampm"></select>
                             </div>
                         </div>
@@ -433,11 +441,20 @@
                         <span id="tl_duration_label" class="text-[11px] font-semibold text-gray-500"></span>
                     </div>
 
-                    <label class="block text-[11px] text-gray-400 mb-0.5">Client</label>
+                    <label class="block text-[11px] text-gray-400 mb-0.5">Select Preset Client</label>
+                    <select id="savedClientsDropdown" class="tl-field mb-2">
+                        <option value="">-- Type a client manually --</option>
+                    </select>
+
+                    <label class="block text-[11px] text-gray-400 mb-0.5">Or type the client</label>
                     <input type="text" id="task_att_client" placeholder="e.g. Acme Corp" class="tl-field mb-2">
 
-                    <label class="block text-[11px] text-gray-400 mb-0.5">Task Performed</label>
-                    <textarea id="task_att_text" rows="2" placeholder="Describe the task…" class="tl-field resize-none"></textarea>
+                    <label class="text-xs text-gray-600" style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+                        <input type="checkbox" id="saveTaskToggle"> Save this task as a preset
+                    </label>
+                    <label class="text-xs text-gray-600" style="display:flex;align-items:center;gap:6px;">
+                        <input type="checkbox" id="saveClientToggle"> Save this client as a preset
+                    </label>
 
                     <p id="tl_form_error" class="text-xs text-red-600 hidden" style="margin-top:6px;"></p>
 
@@ -527,6 +544,8 @@ const TOTALS = <?= json_encode($totals) ?>;
 const TASKS_BASE_URL  = "<?= site_url('client_portal/timesheet/tasks') ?>";
 const UPDATE_TASK_URL = "<?= site_url('client_portal/timesheet/tasks/edit') ?>";
 const DELETE_TASK_URL = "<?= site_url('client_portal/timesheet/tasks/delete') ?>";
+const SAVED_TASKS_URL   = "<?= site_url('client_portal/tasks/saved') ?>";
+const SAVED_CLIENTS_URL = "<?= site_url('client_portal/tasks/saved-clients') ?>";
 
 let currentData = [...DAILY_DATA];
 
