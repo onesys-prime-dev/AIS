@@ -1694,12 +1694,22 @@ document.addEventListener('DOMContentLoaded', function () {
                         <span id="tl_duration_label" style="font-size:11px;font-weight:600;color:#6b7280;"></span>
                     </div>
 
-                    <label>Client</label>
+                    <label>Select Preset Client</label>
+                    <select id="savedClientsDropdown">
+                        <option value="">-- Type a client manually --</option>
+                    </select>
+
+                    <label>Or type the client</label>
                     <input type="text" id="task_att_client" placeholder="e.g. Acme Corp">
 
                     <label class="checkbox-container">
                         <input type="checkbox" id="saveTaskToggle">
                         Save this task as a preset
+                    </label>
+
+                    <label class="checkbox-container">
+                        <input type="checkbox" id="saveClientToggle">
+                        Save this client as a preset
                     </label>
 
                     <p id="tl_form_error" class="text-xs text-red-600 mb-2 hidden" style="margin-top:-4px;"></p>
@@ -2130,30 +2140,8 @@ document.addEventListener('DOMContentLoaded', function () {
         return String(str).replace(/[&<>]/g, m => m === '&' ? '&amp;' : (m === '<' ? '&lt;' : '&gt;'));
     }
 
-    async function loadSavedTasks() {
-        try {
-            const response = await fetch("<?= site_url('client_portal/tasks/saved') ?>");
-            const tasks = await response.json();
-
-            const dropdown = document.getElementById("savedTasksDropdown");
-            dropdown.innerHTML = '<option value="">-- Write your task manually --</option>';
-
-            tasks.forEach(task => {
-                const option = document.createElement("option");
-                option.value = task.task_performed;
-                option.text = task.task_performed;
-                dropdown.appendChild(option);
-            });
-
-            // attach change listener here after options are loaded
-            dropdown.onchange = function() {
-                document.getElementById("task_att_text").value = this.value;
-            };
-
-        } catch (err) {
-            console.error("Failed to load saved tasks:", err);
-        }
-    }
+    const SAVED_TASKS_URL   = "<?= site_url('client_portal/tasks/saved') ?>";
+    const SAVED_CLIENTS_URL = "<?= site_url('client_portal/tasks/saved-clients') ?>";
 
     /* MODALS */
     function openTaskLog() {
@@ -2161,7 +2149,6 @@ document.addEventListener('DOMContentLoaded', function () {
             if (typeof showToast === 'function') showToast('You must be clocked in to log a task.', 'warning');
             return;
         }
-        loadSavedTasks();
         const today = new Date().toISOString().slice(0, 10);
         openTaskLogModal(attendance.id, today);
     }

@@ -129,6 +129,7 @@ $routes->group('', ['filter' => 'auth'], function($routes) {
 
     $routes->post('client_portal/tasks/submit', 'Client\TaskController::submitTask');
     $routes->get('client_portal/tasks/saved', 'Client\TaskController::getSavedTasks');
+    $routes->get('client_portal/tasks/saved-clients', 'Client\TaskController::getSavedClients');
     $routes->get('client_portal/timesheet', 'Client\TimesheetController::index');
     $routes->get('settings/customization', 'SettingsController::customization');
     $routes->post('settings/customization/save', 'SettingsController::saveCustomization');

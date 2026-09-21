@@ -58,7 +58,41 @@ async function openTaskLogModal(attendanceId, date) {
     modal.style.display = 'flex';
     document.body.classList.add('overflow-hidden');
 
+    loadTaskPresets();
     await loadTasksForSession(attendanceId);
+}
+
+// Preset task / client dropdowns. Only present on pages whose modal includes them
+// (SAVED_TASKS_URL / SAVED_CLIENTS_URL are defined by the host page).
+async function loadTaskPresets() {
+    await Promise.all([
+        fillPresetDropdown('savedTasksDropdown', typeof SAVED_TASKS_URL !== 'undefined' ? SAVED_TASKS_URL : null, 'task_performed', 'task_att_text', '-- Write your task manually --'),
+        fillPresetDropdown('savedClientsDropdown', typeof SAVED_CLIENTS_URL !== 'undefined' ? SAVED_CLIENTS_URL : null, 'client', 'task_att_client', '-- Type a client manually --'),
+    ]);
+}
+
+async function fillPresetDropdown(selectId, url, field, targetId, placeholder) {
+    const select = document.getElementById(selectId);
+    if (!select || !url) return;
+    try {
+        const rows = await (await fetch(url)).json();
+        select.innerHTML = '';
+        const first = document.createElement('option');
+        first.value = '';
+        first.textContent = placeholder;
+        select.appendChild(first);
+        rows.forEach(r => {
+            const opt = document.createElement('option');
+            opt.value = r[field];
+            opt.textContent = r[field];
+            select.appendChild(opt);
+        });
+        select.onchange = function () {
+            if (this.value) document.getElementById(targetId).value = this.value;
+        };
+    } catch (e) {
+        console.error('Failed to load presets:', e);
+    }
 }
 
 // ── Start/End time entry ────────────────────────────────────────────────
@@ -486,6 +520,7 @@ async function saveTask() {
     const client          = document.getElementById('task_att_client').value.trim();
     const taskPerformed  = document.getElementById('task_att_text').value.trim();
     const saveTaskToggle  = document.getElementById('saveTaskToggle');
+    const saveClientToggle = document.getElementById('saveClientToggle');
 
     document.getElementById('tl_form_error').classList.add('hidden');
 
@@ -514,6 +549,7 @@ async function saveTask() {
                 // Only relevant on create — the Dashboard's modal has this
                 // "save as preset" checkbox, the Timesheet page's doesn't.
                 save_task: !editingId && !!(saveTaskToggle && saveTaskToggle.checked),
+                save_client: !editingId && !!(saveClientToggle && saveClientToggle.checked),
             }),
         });
         const data = await res.json();
@@ -521,6 +557,7 @@ async function saveTask() {
 
         taskLogDirty = true;
         if (saveTaskToggle) saveTaskToggle.checked = false;
+        if (saveClientToggle) saveClientToggle.checked = false;
         cancelTaskEdit();
         await loadTasksForSession(attendanceId);
         if (typeof showToast === 'function') showToast(editingId ? 'Task updated.' : 'Task added.', 'success');
