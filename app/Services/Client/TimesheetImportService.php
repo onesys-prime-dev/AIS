@@ -29,6 +29,8 @@ final class TimesheetImportService
             'time_in' => ['label'=>'Time in','required'=>true,'aliases'=>['timein','clockin','in','timeindatetime']],
             'time_out' => ['label'=>'Time out','required'=>false,'aliases'=>['timeout','clockout','out','timeoutdatetime']],
             'break_duration' => ['label'=>'Break duration','required'=>false,'aliases'=>['breakduration','break','breakminutes','breakmins','breakhours']],
+            'client' => ['label'=>'Client','required'=>false,'aliases'=>['client','clientname']],
+            'task_performed' => ['label'=>'Task performed','required'=>false,'aliases'=>['taskperformed','task','taskdescription']],
         ];
     }
 
@@ -69,8 +71,16 @@ final class TimesheetImportService
                         $cell=$sheet->getCell([$c,$r]);$value=$cell->getValue();
                         if($cell->getDataType()===\PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_FORMULA)throw new DomainException('Replace workbook formulas with values before importing.');
                         if(is_numeric($value)&&\PhpOffice\PhpSpreadsheet\Shared\Date::isDateTime($cell)){
-                            $date=\PhpOffice\PhpSpreadsheet\Shared\Date::excelToDateTimeObject((float)$value);
-                            $value=$date->format((float)$value<1?'H:i:s':'Y-m-d H:i:s');
+                            // Excel stores 8:00 AM as 0.33333333333333331; truncating that gave 07:59:59.
+                            // Round to the nearest whole second before converting.
+                            $days=(int)floor((float)$value);
+                            $seconds=(int)round(((float)$value-$days)*86400);
+                            if($seconds>=86400){$days++;$seconds-=86400;}
+                            if($days===0){$value=gmdate('H:i:s',$seconds);}
+                            else{
+                                $date=\PhpOffice\PhpSpreadsheet\Shared\Date::excelToDateTimeObject((float)$days)->setTime(0,0,0)->modify('+'.$seconds.' seconds');
+                                $value=$date->format('Y-m-d H:i:s');
+                            }
                         }
                         $row[]=$value===null?'':(string)$value;
                     }
@@ -113,7 +123,7 @@ final class TimesheetImportService
         throw new DomainException('Invalid date/time. Use YYYY-MM-DD HH:MM:SS or the selected slash-date order.');
     }
 
-    public function preview(string $path,string $extension,array $columnMap=[],array $employeeMap=[],string $dateOrder='dmy',string $breakUnit='auto',?string $periodStart=null,?string $periodEnd=null): array
+    public function preview(string $path,string $extension,array $columnMap=[],array $employeeMap=[],string $dateOrder='dmy',string $breakUnit='auto',?string $periodStart=null,?string $periodEnd=null,?int $forcedEmployeeId=null): array
     {
         if(!in_array($breakUnit,['auto','hours','minutes'],true))throw new DomainException('Choose a valid break unit.');
         if(($periodStart===null)!==($periodEnd===null))throw new DomainException('Provide both a period start and end, or neither.');
@@ -129,10 +139,16 @@ final class TimesheetImportService
         }
         $employees=$this->db->table('employees e')->select('e.id,e.user_id,e.employee_number,e.first_name,e.last_name,u.active,u.deleted_at')->join('users u','u.id=e.user_id')->get()->getResultArray();
         $byNumber=[];$byId=[];foreach($employees as $e){$byNumber[$e['employee_number']][]=$e;$byId[(int)$e['id']]=$e;}
+        // Optional: apply the whole file to one chosen employee instead of matching by employee number.
+        $forced=null;$reassigned=[];
+        if($forcedEmployeeId!==null){
+            $forced=$byId[$forcedEmployeeId]??null;
+            if(!$forced)throw new DomainException('The selected employee was not found.');
+        }
         $unmatched=[];$unmatchedLabels=[];$display=[];$records=[];$seen=[];$intervals=[];$schedules=[];$summary=['ready'=>0,'duplicate'=>0,'error'=>0,'pending'=>0,'out_of_period'=>0];
         foreach($rows as $offset=>$values){
             if(!array_filter($values,fn($v)=>trim((string)$v)!==''))continue;
-            $number=$offset+2;$view=['row'=>$number,'employee'=>'','time_in'=>'','time_out'=>'','break_hours'=>null,'total_hours'=>null,'status'=>'error','message'=>''];
+            $overrideNote='';$number=$offset+2;$view=['row'=>$number,'employee'=>'','time_in'=>'','time_out'=>'','break_hours'=>null,'total_hours'=>null,'status'=>'error','message'=>''];
             try{
                 if(count($values)>count($headers)&&array_filter(array_slice($values,count($headers)),fn($v)=>trim((string)$v)!==''))throw new DomainException('This row has data beyond the header columns. Add headers for those columns and upload again.');
                 $values=array_pad(array_slice($values,0,count($headers)),count($headers),'');
@@ -140,8 +156,20 @@ final class TimesheetImportService
                 foreach($mapping as $key=>$header)$data[$key]=$header!==''?trim((string)$raw[$header]):'';
                 foreach(self::fields() as $key=>$field)if($key!=='employee_number'&&$field['required']&&$data[$key]==='')throw new DomainException($field['label'].' is required.');
                 $identifier=$data['employee_number'];$view['employee']=$identifier;
-                if(count($byNumber[$identifier]??[])>1)throw new DomainException('Employee number is duplicated in Employee Management; correct it first.');
-                $employee=$byNumber[$identifier][0]??null;
+                if($forced){
+                    $matches=$byNumber[$identifier]??[];
+                    // The user picked the employee on purpose, so a file number that
+                    // belongs to someone else is honored but called out for review.
+                    if($identifier!==''&&$matches&&!in_array((int)$forced['id'],array_map('intval',array_column($matches,'id')),true)){
+                        $owner=$matches[0]['last_name'].', '.$matches[0]['first_name'];
+                        $reassigned[$identifier]=['number'=>$identifier,'owner'=>$owner,'count'=>($reassigned[$identifier]['count']??0)+1];
+                        $overrideNote=' File says '.$identifier.' ('.$owner.'); importing for the selected employee instead.';
+                    }
+                    $employee=$forced;
+                } else {
+                    if(count($byNumber[$identifier]??[])>1)throw new DomainException('Employee number is duplicated in Employee Management; correct it first.');
+                    $employee=$byNumber[$identifier][0]??null;
+                }
                 if(!$employee){
                     // A blank employee_number gives no evidence rows belong to the
                     // same person, so each blank row gets its own resolution bucket
@@ -158,15 +186,34 @@ final class TimesheetImportService
                 $view['employee']=$employee['employee_number'].' — '.$employee['last_name'].', '.$employee['first_name'];
                 $in=self::parseDateTime($data['time_in'],$data['date'],$dateOrder);
                 if($data['time_out']===''){
-                    // Still-open shifts (no clock-out yet in the source system) aren't
-                    // rejected outright, but they also aren't auto-inserted as a new
-                    // open attendance row here — that path is reserved for the live
-                    // clock-in/out flow, which enforces "one open session per user".
-                    // Report them so the admin can complete the clock-out in the app
-                    // (or add a time out) and re-import, without blocking this file's
-                    // other, complete rows.
-                    $view=array_replace($view,['time_in'=>$in->format('Y-m-d H:i:s')]);
-                    $view['status']='pending';$view['message']='No time out recorded; skipped. Complete the clock-out in the app or add a time out, then re-import.';
+                    // No time out is accepted only for today's shift (still in progress):
+                    // it is saved as an open clock-in the employee finishes in the app.
+                    // Any earlier day must have a time out, so it is rejected with the reason.
+                    $now=new DateTimeImmutable('now',new DateTimeZone('Asia/Manila'));
+                    $timeIn=$in->format('Y-m-d H:i:s');
+                    $schedules[$eid]??=$this->db->table('employee_positions')->where('employee_id',$eid)->get()->getRowArray()??[];
+                    $schedule=array_intersect_key($schedules[$eid],array_flip(['start_time','end_time','break_schedule','working_days','working_day_type']));
+                    $shift=AttendanceWindow::shiftDate($timeIn,$schedule);
+                    $view=array_replace($view,['time_in'=>$timeIn,'shift_date'=>$shift]);
+                    if($in>$now)throw new DomainException('Future attendance cannot be imported.');
+                    if($shift!==$now->format('Y-m-d'))throw new DomainException('No time out recorded for '.$shift.'. A shift without a time out can only be imported for today. Add the time out for this day and import again.');
+                    $break=$data['break_duration']===''?0:$data['break_duration'];
+                    if(!is_numeric($break)||!is_finite((float)$break)||(float)$break<0)throw new DomainException('Break duration must be a nonnegative number.');
+                    $unit=$breakUnit==='auto'?(str_contains(self::header($mapping['break_duration']),'min')?'minutes':'hours'):$breakUnit;
+                    $breakHours=round((float)$break/($unit==='minutes'?60:1),2);
+                    $record=['user_id'=>$uid,'time_in'=>$timeIn,'time_in_dt'=>$timeIn,'shift_date'=>$shift,'schedule_snapshot'=>json_encode($schedule,JSON_THROW_ON_ERROR),
+                        'break_log'=>'[]','breaks_taken'=>0,'break_duration'=>$breakHours,'state_version'=>0,
+                        'scheduled_start'=>$schedule['start_time']??null,'scheduled_end'=>$schedule['end_time']??null,'attendance_status'=>'present'];
+                    [$start]=AttendanceWindow::bounds($record);$record['late_minutes']=AttendanceComputationService::lateMinutes($in,$start);
+                    $existing=$this->db->table('attendance')->where('user_id',$uid)->groupStart()->where('COALESCE(shift_date, DATE(time_in))',$shift)->orWhere('time_out',null)->groupEnd()->get()->getResultArray();
+                    if($existing){
+                        if(count($existing)===1&&$existing[0]['time_in']===$timeIn&&$existing[0]['time_out']===null){
+                            $view['status']='duplicate';$view['message']='Already recorded; will be skipped without changing the existing record.';
+                        }else throw new DomainException('Conflicts with existing attendance or an open clock-in. No existing record will be overwritten.');
+                    }else{
+                        $records[]=['row'=>$number,'attendance'=>$record,'task'=>null];
+                        $view['status']='ready';$view['message']='Ready to import as an open shift (no time out yet); the employee clocks out in the app to finish it.';
+                    }
                     $summary[$view['status']]++;$display[]=$view;
                     continue;
                 }
@@ -228,9 +275,10 @@ final class TimesheetImportService
                     $payslip=$this->db->table('employee_payslips')->where('employee_id',$eid)->where('period_start <=',$shift)->where('period_end >=',$shift)->countAllResults();
                     $paid=$this->db->table('payroll')->where('employee_id',$eid)->where('month_year',substr($shift,0,7))->where('status','Paid')->countAllResults();
                     if($payslip||$paid)throw new DomainException('This period has a saved payslip or paid payroll. Resolve it through the payroll review process first.');
-                    $records[]=['row'=>$number,'attendance'=>$record];
+                    $taskText=trim((string)($data['task_performed']??''));
+                    $records[]=['row'=>$number,'attendance'=>$record,'task'=>$taskText!==''?['task_performed'=>$taskText,'client'=>trim((string)($data['client']??''))]:null];
                 }
-                $view['status']=$status;$view['message']=$message;
+                $view['status']=$status;$view['message']=$message.($status==='ready'?$overrideNote:'');
             }catch(DomainException|\InvalidArgumentException $e){$view['status']='error';$view['message']=$e->getMessage();}
             $summary[$view['status']]++;$display[]=$view;
         }
@@ -240,7 +288,7 @@ final class TimesheetImportService
             'employees'=>array_values(array_map(fn($e)=>['id'=>(int)$e['id'],'label'=>$e['employee_number'].' — '.$e['last_name'].', '.$e['first_name']],array_filter($employees,fn($e)=>(int)$e['active']&&$e['deleted_at']===null))),
             // Import is no longer all-or-nothing: any row-level error only removes
             // that row from $records, so we can still commit whatever is ready.
-            'rows'=>$display,'summary'=>$summary,'can_import'=>$summary['ready']>0,'records'=>$records,'column_map'=>$mapping,
+            'rows'=>$display,'summary'=>$summary,'reassigned'=>array_values($reassigned),'forced_employee_name'=>$forced?trim($forced['last_name'].', '.$forced['first_name']):null,'can_import'=>$summary['ready']>0,'records'=>$records,'column_map'=>$mapping,
             'file_hash'=>hash_file('sha256',$path),'date_order'=>$dateOrder,'break_unit'=>$breakUnit,
             'period_start'=>$periodStart,'period_end'=>$periodEnd];
         $result['source_columns']=array_map(static function($header,$index)use($rows){
@@ -248,24 +296,31 @@ final class TimesheetImportService
             foreach($rows as $row){$value=trim((string)($row[$index]??''));if($value!==''&&!in_array($value,$samples,true))$samples[]=mb_substr($value,0,100);if(count($samples)===3)break;}
             return ['header'=>$header,'letter'=>\PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($index+1),'samples'=>$samples];
         },$headers,array_keys($headers));
-        $result['plan_hash']=hash('sha256',json_encode([$result['file_hash'],$mapping,$employeeMap,$dateOrder,$breakUnit,$periodStart,$periodEnd,$records,$display],JSON_THROW_ON_ERROR));
+        $result['plan_hash']=hash('sha256',json_encode([$result['file_hash'],$mapping,$employeeMap,$forcedEmployeeId,$dateOrder,$breakUnit,$periodStart,$periodEnd,$records,$display],JSON_THROW_ON_ERROR));
         return $result;
     }
 
-    public function commit(string $path,string $extension,array $columns,array $employees,string $dateOrder,string $breakUnit,string $expectedHash,?string $periodStart=null,?string $periodEnd=null,?string $originalFilename=null,?int $importedBy=null): array
+    public function commit(string $path,string $extension,array $columns,array $employees,string $dateOrder,string $breakUnit,string $expectedHash,?string $periodStart=null,?string $periodEnd=null,?string $originalFilename=null,?int $importedBy=null,?int $forcedEmployeeId=null): array
     {
-        $plan=$this->preview($path,$extension,$columns,$employees,$dateOrder,$breakUnit,$periodStart,$periodEnd);
+        $plan=$this->preview($path,$extension,$columns,$employees,$dateOrder,$breakUnit,$periodStart,$periodEnd,$forcedEmployeeId);
         if(!$plan['can_import']||!hash_equals($expectedHash,$plan['plan_hash']))throw new DomainException('The file or attendance data changed. Preview again before importing.');
         $uids=array_values(array_unique(array_map(fn($r)=>(int)$r['attendance']['user_id'],$plan['records'])));sort($uids);
         $this->db->transBegin();
         try{
             foreach($uids as $uid)$this->db->query('SELECT id FROM users WHERE id = ? FOR UPDATE',[$uid])->getRowArray();
-            $checked=$this->preview($path,$extension,$columns,$employees,$dateOrder,$breakUnit,$periodStart,$periodEnd);
+            $checked=$this->preview($path,$extension,$columns,$employees,$dateOrder,$breakUnit,$periodStart,$periodEnd,$forcedEmployeeId);
             if(!$checked['can_import']||!hash_equals($expectedHash,$checked['plan_hash']))throw new DomainException('Attendance changed during confirmation. Preview again.');
             $batch=bin2hex(random_bytes(12));
             foreach($checked['records'] as $item){
                 if(!$this->db->table('attendance')->insert($item['attendance']))throw new RuntimeException('Unable to save imported attendance.');
                 $id=(int)$this->db->insertID();
+                if(!empty($item['task'])){
+                    // One task covering the imported session, so Client / Task Performed show in the Timesheet.
+                    $a=$item['attendance'];
+                    if(!$this->db->table('tasks')->insert(['attendance_id'=>$id,'user_id'=>$a['user_id'],'start_time'=>substr($a['time_in'],11,8),'end_time'=>substr($a['time_out'],11,8),
+                        'task_performed'=>$item['task']['task_performed'],'client'=>$item['task']['client']!==''?mb_substr($item['task']['client'],0,255):null,'saved_at'=>date('Y-m-d H:i:s')]))
+                        throw new RuntimeException('Unable to save imported task.');
+                }
                 if(!(($this->audit)('Timesheet import '.$batch,$id,$item['attendance']+['import_batch'=>$batch,'source_row'=>$item['row'],'source_sha256'=>$checked['file_hash']])))throw new RuntimeException('Unable to save import audit.');
             }
             if(!$this->db->transStatus()||!$this->db->transCommit())throw new RuntimeException('Import could not be committed.');

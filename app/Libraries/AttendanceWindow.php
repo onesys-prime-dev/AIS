@@ -29,6 +29,22 @@ final class AttendanceWindow
         return array_map('intval', array_values($items));
     }
 
+    /**
+     * Paid hours a full attendance of the scheduled window should give: the window
+     * length minus the scheduled break(s). Comparing against the whole window made
+     * every full day with a break count as undertime (9h window vs 8h worked).
+     */
+    public static function requiredHours(float $windowHours, array $schedule): float
+    {
+        try {
+            $breakMinutes = array_sum(self::breaks($schedule));
+        } catch (InvalidArgumentException $e) {
+            $breakMinutes = 0;
+        }
+
+        return max(0.0, round($windowHours - $breakMinutes / 60, 2));
+    }
+
     public static function shiftDate(string $timeIn, array $schedule): string
     {
         $actual = self::dateTime($timeIn);
