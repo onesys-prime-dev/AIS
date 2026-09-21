@@ -230,12 +230,12 @@ class AccountService
             return ['ok' => false, 'message' => 'Employee profile not found.'];
         }
 
-        $mime = strtolower((string) $file->getClientMimeType());
-        $ext  = strtolower((string) $file->getClientExtension());
-        $okMime = in_array($mime, ['image/jpeg', 'image/jpg', 'image/pjpeg', 'image/png', 'image/webp'], true);
-        $okExt  = in_array($ext, ['jpg', 'jpeg', 'png', 'webp'], true);
+        // Trust the file's real content, never the client-supplied name/MIME.
+        $allowedTypes = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp'];
+        $info = @getimagesize($file->getTempName());
+        $ext  = is_array($info) ? ($allowedTypes[$info['mime'] ?? ''] ?? null) : null;
 
-        if (! $okMime && ! $okExt) {
+        if ($ext === null) {
             return ['ok' => false, 'message' => 'Only JPG, PNG, or WEBP files are allowed.'];
         }
 
@@ -254,7 +254,7 @@ class AccountService
             return ['ok' => false, 'message' => 'Unable to create upload directory.'];
         }
 
-        $newName = 'user_' . $userId . '_' . date('YmdHis') . '.' . $file->getExtension();
+        $newName = 'user_' . $userId . '_' . date('YmdHis') . '.' . $ext;
 
         if (! $file->move($uploadDir, $newName, true)) {
             return ['ok' => false, 'message' => 'Failed to upload photo.'];
@@ -262,20 +262,22 @@ class AccountService
 
         $newPath = 'uploads/profile_photos/' . $newName;
 
-        if (! empty($account['photo_path'])) {
-            $oldPath = ROOTPATH . 'public/' . ltrim((string) $account['photo_path'], '/');
-            if (is_file($oldPath)) {
-                @unlink($oldPath);
-            }
-        }
-
         $ok = $this->accountModel->update((int) $account['id'], [
             'photo_path' => $newPath,
             'updated_by' => $userId,
         ]);
 
         if (! $ok) {
+            @unlink($uploadDir . DIRECTORY_SEPARATOR . $newName);
+
             return ['ok' => false, 'message' => 'Unable to save photo details.'];
+        }
+
+        if (! empty($account['photo_path'])) {
+            $oldPath = ROOTPATH . 'public/' . ltrim((string) $account['photo_path'], '/');
+            if (is_file($oldPath)) {
+                @unlink($oldPath);
+            }
         }
 
         service('activityLogger')->employeePhotoUpdated((int) $account['id']);

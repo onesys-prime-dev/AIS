@@ -35,14 +35,14 @@
 
             <div class="about-content">
 
-                <div class="about-avatar-wrap" onclick="document.getElementById('profile_photo').click()" role="button" tabindex="0" aria-label="Change profile photo" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();document.getElementById('profile_photo').click();}">
+                <label class="about-avatar-wrap" for="profile_photo" aria-label="Change profile photo" style="display:block;">
                     <?php if (! empty($identity['photo_url'])): ?>
                         <div class="about-avatar" id="aboutAvatarPreview" style="background-image:url('<?= esc((string) $identity['photo_url'], 'attr') ?>');"></div>
                     <?php else: ?>
                         <div class="about-avatar about-avatar-initials" id="aboutAvatarPreview"><?= esc($avatarInitials) ?></div>
                     <?php endif; ?>
                     <div class="about-avatar-edit-badge">&#9998;</div>
-                </div>
+                </label>
 
                 <div class="about-info">
                     <div class="name"><?= esc($identity['last_name'] ?? '') ?>, <?= esc($identity['first_name'] ?? '') ?> <?= esc($identity['middle_name'] ?? '') ?></div>
@@ -50,8 +50,9 @@
 
                     <form id="photoUploadForm" method="post" action="<?= site_url('client_portal/profile/photo') ?>" enctype="multipart/form-data" class="photo-upload-form">
                         <?= csrf_field() ?>
-                        <input id="profile_photo" type="file" name="profile_photo" accept=".jpg,.jpeg,.png,.webp" class="photo-input" hidden>
-                        <button type="button" class="photo-link-btn" onclick="document.getElementById('profile_photo').click()">Update photo</button>
+                        <input id="profile_photo" type="file" name="profile_photo" accept=".jpg,.jpeg,.png,.webp" class="photo-input" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;">
+                        <label for="profile_photo" class="photo-link-btn" style="cursor:pointer;">Update photo</label>
+                        <span class="photo-hint">JPG, PNG or WEBP. Resized and compressed automatically.</span>
                         <span id="photoUploadError" class="photo-upload-error hidden"></span>
                     </form>
                 </div>
@@ -335,53 +336,6 @@
                 <button type="submit" class="btn btn-danger">Reset Password</button>
             </div>
         </form>
-    </div>
-</div>
-
-<!-- PHOTO EDITOR MODAL -->
-<div id="photoEditorModal" class="modal-overlay hidden">
-    <div class="modal-content">
-        <div class="modal-header">
-            <h3>Edit Profile Photo</h3>
-            <button type="button" class="modal-close" onclick="closePhotoModal()">&times;</button>
-        </div>
-        
-        <div class="modal-body">
-            <div class="editor-canvas-wrapper">
-                <canvas id="photoCanvas"></canvas>
-            </div>
-            
-            <div class="editor-controls">
-                <div class="control-group">
-                    <label>Zoom</label>
-                    <div class="control-row">
-                        <input type="range" id="zoomSlider" min="1" max="3" step="0.1" value="1" class="slider" oninput="setZoom(this.value)">
-                        <span id="zoomValue" class="value">100%</span>
-                    </div>
-                </div>
-                
-                <div class="control-group">
-                    <label>Rotate</label>
-                    <div class="control-row">
-                        <button type="button" class="control-btn" onclick="rotateImage(-90)">← Rotate</button>
-                        <span id="rotateValue" class="value">0°</span>
-                        <button type="button" class="control-btn" onclick="rotateImage(90)">Rotate →</button>
-                    </div>
-                </div>
-                
-                <div class="control-group">
-                    <label>Position</label>
-                    <div class="control-row">
-                        <button type="button" class="control-btn" onclick="resetPosition()">Reset</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <div class="modal-footer">
-            <button type="button" class="btn btn-cancel" onclick="closePhotoModal()">Cancel</button>
-            <button type="button" class="btn btn-primary" onclick="confirmPhotoEdit()">Confirm & Upload</button>
-        </div>
     </div>
 </div>
 
@@ -674,36 +628,55 @@
     }
 
     .about-avatar{
-        width:80px;
-        height:80px;
+        width:96px;
+        height:96px;
         border-radius:50%;
         background:#e5e7eb;
         background-size:cover;
         background-position:center;
         flex-shrink:0;
+        box-shadow:0 0 0 3px #fff, 0 0 0 4px #e5e7eb, 0 4px 12px rgba(0,0,0,0.08);
     }
 
     .about-avatar-initials{
         display:flex;
         align-items:center;
         justify-content:center;
-        font-size:24px;
+        font-size:28px;
         font-weight:600;
         color:#6b7280;
     }
 
     .about-avatar-wrap{
         position:relative;
-        width:80px;
-        height:80px;
+        width:96px;
+        height:96px;
         flex-shrink:0;
         cursor:pointer;
         border-radius:50%;
         transition:opacity 0.15s ease;
     }
 
-    .about-avatar-wrap:hover{
-        opacity:0.85;
+    .about-avatar-wrap::after{
+        content:'Change';
+        position:absolute;
+        inset:0;
+        border-radius:50%;
+        background:rgba(17,24,39,0.55);
+        color:#fff;
+        font-size:12px;
+        font-weight:600;
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        opacity:0;
+        transition:opacity 0.15s ease;
+        pointer-events:none;
+    }
+
+    .about-avatar-wrap:hover::after,
+    .about-avatar-wrap:focus-visible::after{
+        opacity:1;
     }
 
     .about-avatar-wrap:focus-visible{
@@ -726,6 +699,7 @@
         font-size:13px;
         border:2px solid #fff;
         pointer-events:none;
+        z-index:1;
     }
 
     .photo-upload-error{
@@ -746,6 +720,8 @@
 
     .name{
         font-weight:600;
+        font-size:18px;
+        line-height:1.3;
     }
 
     .joined{
@@ -793,13 +769,26 @@
     }
 
     .photo-link-btn{
-        border:none;
-        background:transparent;
+        border:1px solid #1f8dbd;
+        background:#fff;
         color:#1f8dbd;
         font-size:12px;
+        font-weight:600;
         cursor:pointer;
-        padding:0;
-        text-decoration:underline;
+        padding:6px 14px;
+        border-radius:999px;
+        transition:background 0.15s ease, color 0.15s ease;
+    }
+
+    .photo-link-btn:hover{
+        background:#1f8dbd;
+        color:#fff;
+    }
+
+    .photo-hint{
+        width:100%;
+        font-size:11px;
+        color:#9ca3af;
     }
 
     /* ITEMS */
@@ -973,247 +962,103 @@
 </style>
 
 <script>
-    let editorState = {
-        image: null,
-        zoom: 1,
-        rotate: 0,
-        offsetX: 0,
-        offsetY: 0,
-        isDragging: false,
-        dragStartX: 0,
-        dragStartY: 0,
-        originalFile: null,
-        dragListenersBound: false
-    };
-
+    // Profile photo: pick -> auto crop/resize/compress in the browser -> upload -> update in place.
     const PHOTO_MAX_BYTES = 2 * 1024 * 1024;
-    const PHOTO_ALLOWED_TYPES = ['image/jpeg', 'image/jpg', 'image/pjpeg', 'image/png', 'image/webp'];
-    const PHOTO_ALLOWED_EXT = ['jpg', 'jpeg', 'png', 'webp'];
+    const PHOTO_SOURCE_MAX_BYTES = 30 * 1024 * 1024;
+    const PHOTO_OUTPUT_SIZE = 512;
 
-    function isPhotoFileAllowed(file) {
-        const mimeOk = PHOTO_ALLOWED_TYPES.includes((file.type || '').toLowerCase());
-        const ext = (file.name.split('.').pop() || '').toLowerCase();
-        const extOk = PHOTO_ALLOWED_EXT.includes(ext);
-        return mimeOk || extOk;
+    function photoStatus(message, type) {
+        const el = document.getElementById('photoUploadError');
+        if (el) {
+            el.textContent = message || '';
+            el.classList.toggle('hidden', !message);
+            el.style.color = type === 'error' ? '#dc2626' : '#6b7280';
+        }
+        if (message && type && window.showToast) window.showToast(message, type);
     }
 
-    function showPhotoError(message) {
-        const errEl = document.getElementById('photoUploadError');
-        if (!errEl) return;
-        errEl.textContent = message;
-        errEl.classList.remove('hidden');
+    function formatBytes(bytes) {
+        return bytes >= 1024 * 1024
+            ? (bytes / (1024 * 1024)).toFixed(1) + ' MB'
+            : Math.max(1, Math.round(bytes / 1024)) + ' KB';
     }
 
-    function clearPhotoError() {
-        const errEl = document.getElementById('photoUploadError');
-        if (!errEl) return;
-        errEl.textContent = '';
-        errEl.classList.add('hidden');
+    function loadImageFile(file) {
+        return new Promise((resolve, reject) => {
+            const url = URL.createObjectURL(file);
+            const img = new Image();
+            img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+            img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('This image could not be opened. Try a JPG, PNG, or WEBP file.')); };
+            img.src = url;
+        });
     }
 
-    // Handle file input change
-    document.getElementById('profile_photo').addEventListener('change', function(e) {
-        const file = e.target.files[0];
-        clearPhotoError();
+    // Center-crop to a square, then lower JPEG quality until it fits the size limit.
+    async function makeAvatarBlob(img) {
+        const side = Math.min(img.naturalWidth, img.naturalHeight);
+        const sx = (img.naturalWidth - side) / 2;
+        const sy = (img.naturalHeight - side) / 2;
+        const canvas = document.createElement('canvas');
+        canvas.width = PHOTO_OUTPUT_SIZE;
+        canvas.height = PHOTO_OUTPUT_SIZE;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, PHOTO_OUTPUT_SIZE, PHOTO_OUTPUT_SIZE);
+        ctx.drawImage(img, sx, sy, side, side, 0, 0, PHOTO_OUTPUT_SIZE, PHOTO_OUTPUT_SIZE);
+
+        for (const quality of [0.9, 0.8, 0.7, 0.55, 0.4, 0.3]) {
+            const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality));
+            if (!blob) throw new Error('Your browser could not process this image.');
+            if (blob.size <= PHOTO_MAX_BYTES) return blob;
+        }
+        throw new Error('Image is still too large after compression. Try a smaller photo.');
+    }
+
+    document.getElementById('profile_photo').addEventListener('change', async function (e) {
+        const input = e.target;
+        const file = input.files && input.files[0];
         if (!file) return;
 
-        if (!isPhotoFileAllowed(file)) {
-            showPhotoError('Only JPG, PNG, or WEBP files are allowed.');
-            e.target.value = '';
-            return;
-        }
-        if (file.size > PHOTO_MAX_BYTES) {
-            showPhotoError('Image must be 2MB or below.');
-            e.target.value = '';
-            return;
-        }
+        try {
+            if (!/^image\//.test(file.type) && !/\.(jpe?g|png|webp)$/i.test(file.name)) {
+                throw new Error('Only JPG, PNG, or WEBP files are allowed.');
+            }
+            if (file.size > PHOTO_SOURCE_MAX_BYTES) {
+                throw new Error('Image is too large (30MB max).');
+            }
 
-        editorState.originalFile = file;
-        const reader = new FileReader();
-        reader.onload = function(event) {
-            const img = new Image();
-            img.onload = function() {
-                editorState.image = img;
-                editorState.zoom = 1;
-                editorState.rotate = 0;
-                editorState.offsetX = 0;
-                editorState.offsetY = 0;
-                document.getElementById('zoomSlider').value = '1';
-                document.getElementById('zoomValue').textContent = '100%';
-                document.getElementById('rotateValue').textContent = '0°';
-                updatePreview();
-                openPhotoModal();
-            };
-            img.src = event.target.result;
-        };
-        reader.readAsDataURL(file);
+            photoStatus('Optimizing photo (' + formatBytes(file.size) + ')…');
+            const img = await loadImageFile(file);
+            const blob = await makeAvatarBlob(img);
+
+            photoStatus('Uploading ' + formatBytes(blob.size) + ' (compressed from ' + formatBytes(file.size) + ')…');
+            const form = document.getElementById('photoUploadForm');
+            const fd = new FormData(form);
+            fd.set('profile_photo', blob, 'profile.jpg');
+
+            const res = await fetch(form.action, {
+                method: 'POST',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                body: fd,
+            });
+            let data;
+            try { data = await res.json(); } catch (_) { throw new Error('Upload failed (server error ' + res.status + '). Please try again.'); }
+            if (!data.success) throw new Error(data.message || 'Upload failed.');
+
+            const preview = document.getElementById('aboutAvatarPreview');
+            if (preview) {
+                preview.style.backgroundImage = "url('" + URL.createObjectURL(blob) + "')";
+                preview.textContent = '';
+                preview.classList.remove('about-avatar-initials');
+            }
+            photoStatus('Profile photo updated.', 'success');
+            setTimeout(() => window.location.reload(), 900);
+        } catch (err) {
+            photoStatus(err.message || 'Something went wrong uploading the photo.', 'error');
+        } finally {
+            input.value = '';
+        }
     });
-
-    function openPhotoModal() {
-        document.getElementById('photoEditorModal').classList.remove('hidden');
-        setupCanvasDragListener();
-    }
-
-    function setZoom(value) {
-        editorState.zoom = Number.parseFloat(value) || 1;
-        updatePreview();
-    }
-
-    function closePhotoModal() {
-        document.getElementById('photoEditorModal').classList.add('hidden');
-        document.getElementById('profile_photo').value = '';
-        editorState.originalFile = null;
-    }
-
-    function updatePreview() {
-        const canvas = document.getElementById('photoCanvas');
-        const ctx = canvas.getContext('2d');
-        
-        if (!editorState.image) return;
-
-        // Update zoom display
-        document.getElementById('zoomValue').textContent = Math.round(editorState.zoom * 100) + '%';
-
-        // Set canvas size
-        canvas.width = 400;
-        canvas.height = 400;
-
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-        // Save context state
-        ctx.save();
-        
-        // Apply transformations
-        ctx.translate(canvas.width / 2, canvas.height / 2);
-        ctx.rotate((editorState.rotate * Math.PI) / 180);
-        ctx.scale(editorState.zoom, editorState.zoom);
-        ctx.translate(editorState.offsetX, editorState.offsetY);
-        
-        // Draw image centered
-        const imgWidth = editorState.image.width;
-        const imgHeight = editorState.image.height;
-        const scale = Math.min(canvas.width / imgWidth, canvas.height / imgHeight);
-        ctx.drawImage(
-            editorState.image,
-            -(imgWidth * scale) / 2,
-            -(imgHeight * scale) / 2,
-            imgWidth * scale,
-            imgHeight * scale
-        );
-
-        ctx.restore();
-    }
-
-    function rotateImage(degrees) {
-        editorState.rotate = (editorState.rotate + degrees) % 360;
-        document.getElementById('rotateValue').textContent = editorState.rotate + '°';
-        updatePreview();
-    }
-
-    function resetPosition() {
-        editorState.offsetX = 0;
-        editorState.offsetY = 0;
-        updatePreview();
-    }
-
-    function panBy(dx, dy) {
-        editorState.offsetX += dx / editorState.zoom;
-        editorState.offsetY += dy / editorState.zoom;
-        updatePreview();
-    }
-
-    function pinchDistance(touches) {
-        const dx = touches[0].clientX - touches[1].clientX;
-        const dy = touches[0].clientY - touches[1].clientY;
-        return Math.hypot(dx, dy);
-    }
-
-    function setupCanvasDragListener() {
-        if (editorState.dragListenersBound) {
-            return;
-        }
-
-        editorState.dragListenersBound = true;
-        const canvas = document.getElementById('photoCanvas');
-        const zoomSlider = document.getElementById('zoomSlider');
-        let pinchStartDist = 0;
-        let pinchStartZoom = 1;
-
-        canvas.addEventListener('mousedown', (e) => {
-            editorState.isDragging = true;
-            editorState.dragStartX = e.clientX;
-            editorState.dragStartY = e.clientY;
-        });
-
-        document.addEventListener('mousemove', (e) => {
-            if (editorState.isDragging && editorState.image) {
-                panBy(e.clientX - editorState.dragStartX, e.clientY - editorState.dragStartY);
-                editorState.dragStartX = e.clientX;
-                editorState.dragStartY = e.clientY;
-            }
-        });
-
-        document.addEventListener('mouseup', () => {
-            editorState.isDragging = false;
-        });
-
-        // Touch: one finger drags, two fingers pinch-zoom.
-        canvas.addEventListener('touchstart', (e) => {
-            if (!editorState.image) return;
-            if (e.touches.length === 1) {
-                editorState.isDragging = true;
-                editorState.dragStartX = e.touches[0].clientX;
-                editorState.dragStartY = e.touches[0].clientY;
-            } else if (e.touches.length === 2) {
-                editorState.isDragging = false;
-                pinchStartDist = pinchDistance(e.touches);
-                pinchStartZoom = editorState.zoom;
-            }
-        }, { passive: true });
-
-        canvas.addEventListener('touchmove', (e) => {
-            if (!editorState.image) return;
-            if (e.touches.length === 1 && editorState.isDragging) {
-                e.preventDefault();
-                panBy(e.touches[0].clientX - editorState.dragStartX, e.touches[0].clientY - editorState.dragStartY);
-                editorState.dragStartX = e.touches[0].clientX;
-                editorState.dragStartY = e.touches[0].clientY;
-            } else if (e.touches.length === 2 && pinchStartDist > 0) {
-                e.preventDefault();
-                const min = parseFloat(zoomSlider.min) || 1;
-                const max = parseFloat(zoomSlider.max) || 3;
-                const ratio = pinchDistance(e.touches) / pinchStartDist;
-                const newZoom = Math.min(max, Math.max(min, pinchStartZoom * ratio));
-                editorState.zoom = newZoom;
-                zoomSlider.value = newZoom.toFixed(1);
-                updatePreview();
-            }
-        }, { passive: false });
-
-        canvas.addEventListener('touchend', () => {
-            editorState.isDragging = false;
-            pinchStartDist = 0;
-        });
-    }
-
-    function confirmPhotoEdit() {
-        const confirmBtn = document.querySelector('#photoEditorModal .btn-primary');
-        if (confirmBtn) {
-            confirmBtn.disabled = true;
-            confirmBtn.textContent = 'Uploading…';
-        }
-        const canvas = document.getElementById('photoCanvas');
-        canvas.toBlob((blob) => {
-            const dataTransfer = new DataTransfer();
-            const file = new File([blob], editorState.originalFile.name, { type: 'image/png' });
-            dataTransfer.items.add(file);
-            document.getElementById('profile_photo').files = dataTransfer.files;
-
-            // Submit the form
-            document.getElementById('photoUploadForm').submit();
-            closePhotoModal();
-        }, 'image/png');
-    }
 
     // Change detection for Identity Form
     (function () {
