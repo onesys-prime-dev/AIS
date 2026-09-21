@@ -18,6 +18,14 @@ writable/uploads/*
 !writable/session/index.html
 !writable/uploads/index.html
 
+# Runtime-uploaded files (profile photos, company logos) — never source,
+# and must stay out of the deploy pipeline's rsync source tree or they get
+# wiped by --delete on every push (see .github/workflows/deploy.yml).
+public/uploads/*
+!public/uploads/announcement_attachments/
+public/uploads/announcement_attachments/*
+!public/uploads/announcement_attachments/.gitkeep
+
 phpunit.xml
 .phpunit.*.cache
 
