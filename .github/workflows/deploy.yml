@@ -124,6 +124,7 @@ jobs:
             --exclude="node_modules" \
             --exclude="tests" \
             --exclude="writable" \
+            --exclude="public/uploads" \
             --exclude="python-face-service/venv/" \
             --exclude="python-face-service/.env" \
             --exclude="python-face-service/models/" \

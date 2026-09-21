@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>Reset Your AIS Password</title>
+    <title>Reset Your Password</title>
 </head>
 
 <body style="margin:0; padding:0; background:#FAF9F6; font-family: Arial, Helvetica, sans-serif; line-height: 1.6;">
@@ -14,11 +14,11 @@
                     <tr>
                         <td style="padding:40px 40px 32px;">
                             <h2 style="margin:0 0 16px; color:#111827; font-size:22px; font-weight:700;">
-                                Reset your AIS password
+                                Reset your password
                             </h2>
 
                             <p style="margin:0 0 16px; color:#4b5563; font-size:15px;">
-                                We received a request to reset the password for your AIS account.
+                                We received a request to reset the password for your account.
                                 Click the button below to create a new one.
                             </p>
 
@@ -50,7 +50,7 @@
                             <hr style="margin:28px 0; border:none; border-top:1px solid #e5e7eb;">
 
                             <p style="margin:0; color:#9ca3af; font-size:12px;">
-                                AIS Human Resources Information System
+                                Onesys Prime Solutions Co. | Ecovis International | BGE
                             </p>
                         </td>
                     </tr>
