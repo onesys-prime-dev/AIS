@@ -625,7 +625,7 @@ class PayrollController extends BaseController
                 $reqStart = strtotime($dayScheduledStart);
                 $reqEnd   = strtotime($dayScheduledEnd);
                 if ($reqEnd < $reqStart) $reqEnd += 86400;
-                $dayRequiredHours = ($reqEnd - $reqStart) / 3600;
+                $dayRequiredHours = \App\Libraries\AttendanceWindow::requiredHours(($reqEnd - $reqStart) / 3600, $daySchedule);
             }
 
             // Same shared formula as Timesheet/live clock-in/import — full
@@ -1552,13 +1552,14 @@ class PayrollController extends BaseController
             $periodStart=$this->request->getPost('period_start');$periodEnd=$this->request->getPost('period_end');
             $periodStart=($periodStart===null||$periodStart==='')?null:(string)$periodStart;
             $periodEnd=($periodEnd===null||$periodEnd==='')?null:(string)$periodEnd;
+            $forcedEmployee=filter_var($this->request->getPost('employee_id'),FILTER_VALIDATE_INT,['options'=>['min_range'=>1]])?:null;
             $extension=strtolower(pathinfo($file->getClientName(),PATHINFO_EXTENSION));
-            $plan=(new \App\Services\Client\TimesheetImportService())->preview($file->getTempName(),$extension,$columns,$employees,$order,$unit,$periodStart,$periodEnd);
+            $plan=(new \App\Services\Client\TimesheetImportService())->preview($file->getTempName(),$extension,$columns,$employees,$order,$unit,$periodStart,$periodEnd,$forcedEmployee);
             if($plan['can_import']) {
                 $token=bin2hex(random_bytes(32));
                 session()->set('timesheet_import_preview',['token'=>$token,'user_id'=>(int)auth()->id(),'created'=>time(),
                     'columns'=>$plan['column_map'],'employees'=>$employees,'order'=>$order,'unit'=>$unit,'extension'=>$extension,
-                    'period_start'=>$periodStart,'period_end'=>$periodEnd,
+                    'period_start'=>$periodStart,'period_end'=>$periodEnd,'forced_employee'=>$forcedEmployee,
                     'file_hash'=>$plan['file_hash'],'hash'=>$plan['plan_hash']]);
                 $plan['preview_token']=$token;
             }
@@ -1582,7 +1583,7 @@ class PayrollController extends BaseController
             $file=$this->request->getFile('timesheet_file');
             if(!$file||!$file->isValid()||!hash_equals($plan['file_hash'],hash_file('sha256',$file->getTempName())))
                 throw new \DomainException('The file changed. Preview it again.');
-            $result=(new \App\Services\Client\TimesheetImportService())->commit($file->getTempName(),$plan['extension'],$plan['columns'],$plan['employees'],$plan['order'],$plan['unit'],$plan['hash'],$plan['period_start']??null,$plan['period_end']??null,$file->getClientName(),(int)auth()->id());
+            $result=(new \App\Services\Client\TimesheetImportService())->commit($file->getTempName(),$plan['extension'],$plan['columns'],$plan['employees'],$plan['order'],$plan['unit'],$plan['hash'],$plan['period_start']??null,$plan['period_end']??null,$file->getClientName(),(int)auth()->id(),$plan['forced_employee']??null);
             session()->remove('timesheet_import_preview');
             return $this->response->setJSON($result);
         } catch(\DomainException $e) {

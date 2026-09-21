@@ -240,12 +240,7 @@ class TimesheetController extends BaseController
 
     private function resolveCutoffByDate(string $date): array
     {
-        $day = (int)date('d', strtotime($date));
-        if ($day <= 15) {
-            return ['start' => date('Y-m-01', strtotime($date)), 'end' => date('Y-m-15', strtotime($date))];
-        } else {
-            return ['start' => date('Y-m-16', strtotime($date)), 'end' => date('Y-m-t', strtotime($date))];
-        }
+        return \App\Libraries\PayrollCutoff::forDate(date('Y-m-d', strtotime($date)));
     }
 
     public function historyDetails()

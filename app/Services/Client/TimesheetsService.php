@@ -441,7 +441,9 @@ class TimesheetsService
                 $windowStart = null;
                 $windowEnd = null;
             }
-            $requiredHours = $windowStart && $windowEnd ? ($windowEnd->getTimestamp() - $windowStart->getTimestamp()) / 3600 : 0;
+            $requiredHours = $windowStart && $windowEnd
+                ? \App\Libraries\AttendanceWindow::requiredHours(($windowEnd->getTimestamp() - $windowStart->getTimestamp()) / 3600, $recordSchedule ?? [])
+                : 0;
             $timeIn  = $att['time_in']  ? date('H:i:s', strtotime($att['time_in']))  : null;
             $timeOut = $att['time_out'] ? date('H:i:s', strtotime($att['time_out'])) : null;
 
@@ -555,6 +557,8 @@ class TimesheetsService
                 'attendance_id'       => $att['id'],
                 'time_in_datetime'    => $att['time_in'],
                 'time_out_datetime'   => $att['time_out'],
+                'break_hours'         => (float) ($att['break_duration'] ?? 0),
+                'out_date'            => $att['time_out'] ? substr($att['time_out'], 0, 10) : null,
                 'state_version'       => (int) ($att['state_version'] ?? 0),
                 'date'                => $date,
                 'in'                  => $timeIn ? date('h:i A', strtotime($timeIn)) : '-',
@@ -668,12 +672,7 @@ class TimesheetsService
 
     private function resolveCutoffByDate(string $date): array
     {
-        $base = new DateTime($date);
-        $day = (int) $base->format('d');
-        if ($day <= 15) {
-            return ['start' => $base->format('Y-m-01'), 'end' => $base->format('Y-m-15')];
-        }
-        return ['start' => $base->format('Y-m-16'), 'end' => $base->format('Y-m-t')];
+        return \App\Libraries\PayrollCutoff::forDate((new DateTime($date))->format('Y-m-d'));
     }
 
     private function cutoffKeyByDate(string $date): string

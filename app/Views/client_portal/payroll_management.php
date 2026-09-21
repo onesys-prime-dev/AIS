@@ -15,16 +15,13 @@ $_day      = (int)$_today->format('d');
 $_year     = $_today->format('Y');
 $_month    = $_today->format('m');
 $_lastDay  = (int)$_today->format('t');
-if ($_day <= $_cutoff) {
-    $_defaultPeriod = 'first_half';
-    $_defaultStart  = "{$_year}-{$_month}-01";
-    $_defaultEnd    = "{$_year}-{$_month}-" . str_pad($_cutoff, 2, '0', STR_PAD_LEFT);
-} else {
-    $_defaultPeriod = 'second_half';
-    $_defaultStart  = "{$_year}-{$_month}-" . str_pad($_cutoff + 1, 2, '0', STR_PAD_LEFT);
-    $_defaultEnd    = "{$_year}-{$_month}-{$_lastDay}";
-}
-$_defaultYearMonth = "{$_year}-{$_month}";
+// Default to the cutoff that actually contains today, per Payroll Settings
+// (including cross-month definitions such as Aug 26 - Sep 10).
+$_current       = \App\Libraries\PayrollCutoff::forDate($_today->format('Y-m-d'));
+$_defaultPeriod = $_current['half'];
+$_defaultStart  = $_current['start'];
+$_defaultEnd    = $_current['end'];
+$_defaultYearMonth = $_current['salary_month'];
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -1475,8 +1472,15 @@ $_defaultYearMonth = "{$_year}-{$_month}";
         <h3>Import Timesheet (CSV / XLSX)</h3>
         <form id="importTimesheetForm" enctype="multipart/form-data">
             <?= csrf_field() ?>
+            <label style="display:block;font-size:13px;font-weight:600;margin-top:8px;">1. Choose the file</label>
             <input type="file" id="timesheetImportFile" name="timesheet_file" accept=".csv,.xlsx" required>
-            <p class="text-xs text-gray-500 mt-2">Required: employee_number, time_in, time_out. Include date for time-only entries. Optional: break_duration. Maximum 5 MB and 5,000 rows; XLSX uses the first worksheet. Hours are recalculated.</p>
+            <p class="text-xs text-gray-500 mt-2">Needs time_in and time_out columns (add a date column for time-only entries). Time out may be left blank only for today's shift; earlier days must have one. Optional: break_duration, Client, Task Performed. Maximum 5 MB and 5,000 rows; XLSX uses the first worksheet. Hours are recalculated.</p>
+
+            <label for="importEmployeeSelect" style="display:block;font-size:13px;font-weight:600;margin-top:14px;">2. Who is this timesheet for?</label>
+            <select id="importEmployeeSelect" name="employee_id" style="width:100%;padding:8px;border:1px solid #d1d5db;border-radius:6px;margin-top:4px;">
+                <option value="">Match automatically using the employee_number column in the file</option>
+            </select>
+            <p id="importEmployeeHint" class="text-xs text-gray-500 mt-1">Pick an employee to import every row for that person, even if the file has no employee number or the number is wrong.</p>
 
             <div id="importColumnMapping" style="display:none; margin-top:14px;">
                 <p style="font-size:13px; color:#555; margin-bottom:8px;">
@@ -5060,12 +5064,8 @@ function exportRegister() {
 // ================= INITIALIZATION =================
 document.addEventListener('DOMContentLoaded', function() {
     loadEmployees();
-    const today = new Date();
-    const year = today.getFullYear();
-    const month = String(today.getMonth() + 1).padStart(2, '0');
-    document.getElementById('periodStart').value = `${year}-${month}-01`;
-    const lastDay = new Date(year, today.getMonth() + 1, 0).getDate();
-    document.getElementById('periodEnd').value = `${year}-${month}-${String(lastDay).padStart(2, '0')}`;
+    document.getElementById('periodStart').value = '<?= $_defaultStart ?>';
+    document.getElementById('periodEnd').value = '<?= $_defaultEnd ?>';
     
     document.getElementById('autoFillBtn')?.addEventListener('click', autoFillPayslip);
     document.getElementById('generateStaticBtn')?.addEventListener('click', generateStaticPayslip);
@@ -5090,8 +5090,39 @@ document.addEventListener('DOMContentLoaded', function() {
     
     document.getElementById('importTimesheetBtn')?.addEventListener('click', function() {
         document.getElementById('importTimesheetModal').style.display = 'block';
+        loadImportEmployeeSelect();
     });
-    
+
+    // Fills the "Who is this timesheet for?" dropdown (no fallback list on failure — better to hide
+    // the option than let someone pick a placeholder employee).
+    let importEmployeesLoaded = false;
+    async function loadImportEmployeeSelect() {
+        const select = document.getElementById('importEmployeeSelect');
+        const hint = document.getElementById('importEmployeeHint');
+        if (!select || importEmployeesLoaded) return;
+        try {
+            const res = await fetch('<?= site_url('client_portal/payroll/employees_json') ?>');
+            if (!res.ok) throw new Error('load failed');
+            const list = await res.json();
+            list.forEach(e => {
+                const opt = document.createElement('option');
+                opt.value = e.id;
+                opt.textContent = e.name;
+                select.appendChild(opt);
+            });
+            importEmployeesLoaded = true;
+            select.addEventListener('change', () => {
+                const chosen = select.options[select.selectedIndex];
+                hint.textContent = select.value
+                    ? 'Every row will be imported for ' + chosen.textContent + '. Rows whose employee number belongs to someone else are skipped.'
+                    : 'Pick an employee to import every row for that person, even if the file has no employee number or the number is wrong.';
+            });
+        } catch (e) {
+            select.style.display = 'none';
+            hint.textContent = 'Employees are matched using the employee_number column in the file.';
+        }
+    }
+
     // Every file is previewed before a separate confirmation saves attendance.
     (function() {
         const form=document.getElementById('importTimesheetForm');
@@ -5144,7 +5175,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 importFields=result.fields;
                 fields.innerHTML=(result.source_columns||result.headers.map(header=>({header,letter:'',samples:[]}))).map(column=>`<div style="padding:8px 0;border-bottom:1px solid #ddd"><label style="display:flex;align-items:center;gap:8px"><span style="flex:1;overflow-wrap:anywhere"><strong>${escape(column.letter)} ${escape(column.header)}</strong><small style="display:block;color:#666">${column.samples.map(escape).join(' / ')||'No sample values'}</small></span><select style="width:190px;padding:5px;max-width:50%" data-source-column="${escape(column.header)}"><option value="">Ignore this column</option>${result.fields.map(f=>`<option value="${escape(f.key)}" ${result.guess[f.key]===column.header?'selected':''}>${escape(f.label)}</option>`).join('')}</select></label></div>`).join('');
                 const needsMapping=result.fields.some(f=>f.required&&f.key!=='employee_number'&&!result.guess[f.key])||result.rows.some(r=>r.message.includes('Provide a date'));
-                const isClean=result.summary.error===0&&result.summary.pending===0&&result.summary.out_of_period===0;
+                const reassigned=result.reassigned||[];
+                const isClean=result.summary.error===0&&result.summary.pending===0&&result.summary.out_of_period===0&&reassigned.length===0;
                 mapping.style.display=needsMapping?'block':'none';
                 employees.innerHTML=result.unmatched_employees.map(u=>`<label style="display:block;margin:8px 0">${escape(u.label||u.value)} (${u.count} row${u.count===1?'':'s'}) <select style="width:100%;padding:6px" data-employee="${escape(u.value)}"><option value="">Select employee</option>${result.employees.map(e=>`<option value="${e.id}" ${String(employeeMap[u.value])===String(e.id)?'selected':''}>${escape(e.label)}</option>`).join('')}</select></label>`).join('');
                 employeeSection.style.display=result.unmatched_employees.length?'block':'none';
@@ -5161,7 +5193,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     if(!saved.success)throw new Error(saved.error||'Import failed. Please try again.');
                     showToast(saved.message,'success');closeImportModal();form.reset();reset();return;
                 }
-                notice.textContent=needsMapping?'Match the missing columns, then click Continue Import.':result.unmatched_employees.length?'Select the employee, then click Continue Import.':result.can_import?'Review the rows below, then click Continue Import to save the ready rows.':'Resolve the errors below, then try again.';
+                const reassignedRows=reassigned.reduce((n,r)=>n+r.count,0);
+                if(reassigned.length)review.insertAdjacentHTML('afterbegin',`<p style="padding:10px;background:#fff7ed;border:1px solid #fdba74;border-radius:6px;margin-bottom:8px"><strong>Please check:</strong> ${reassignedRows} row${reassignedRows===1?'':'s'} will be imported for <strong>${escape(result.forced_employee_name)}</strong> as you selected, even though the file's employee number belongs to someone else (${reassigned.map(r=>escape(r.number)+' = '+escape(r.owner)).join(', ')}).</p>`);
+                notice.textContent=reassigned.length&&!needsMapping?'Check the highlighted note below, then click Continue Import to confirm.':needsMapping?'Match the missing columns, then click Continue Import.':result.unmatched_employees.length?'Select the employee, then click Continue Import.':result.can_import?'Review the rows below, then click Continue Import to save the ready rows.':'Resolve the errors below, then try again.';
                 button.textContent='Continue Import';back.style.display='inline-block';
             } catch(error){invalidate();notice.textContent=error.message||'Could not reach the server. Preview again before retrying.';showToast(notice.textContent,'error');}
             finally{button.disabled=false;}

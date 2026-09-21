@@ -100,11 +100,12 @@
         <div class="flex-1 flex flex-col overflow-hidden">
 
             <!-- HEADER -->
-            <table class="min-w-[1280px] w-full text-md border-collapse table-fixed">
+            <table class="min-w-[1370px] w-full text-md border-collapse table-fixed">
                 <colgroup>
                     <col class="w-[120px]">
                     <col class="w-[100px]">
                     <col class="w-[100px]">
+                    <col class="w-[90px]">
                     <col class="w-[110px]">
                     <col class="w-[90px]">
                     <col class="w-[110px]">
@@ -124,6 +125,7 @@
                         <th class="px-4 text-left font-bold">Date</th>
                         <th class="px-4 text-left font-bold">Time In</th>
                         <th class="px-4 text-left font-bold">Time Out</th>
+                        <th class="px-4 text-right font-bold" title="Unpaid break deducted from the day">Break (hrs)</th>
 
                         <th class="px-4 text-right font-bold">Regular Hrs</th>
                         <th class="px-4 text-right font-bold">OT Hrs</th>
@@ -154,12 +156,13 @@
             <!-- BODY -->
             <div class="overflow-y-auto hide-scroll-bar flex-1">
 
-                <table class="min-w-[1280px] w-full text-sm border-collapse table-fixed">
+                <table class="min-w-[1370px] w-full text-sm border-collapse table-fixed">
 
                     <colgroup>
                         <col class="w-[120px]">
                         <col class="w-[100px]">
                         <col class="w-[100px]">
+                    <col class="w-[90px]">
                         <col class="w-[110px]">
                         <col class="w-[90px]">
                         <col class="w-[110px]">
@@ -182,12 +185,13 @@
             </div>
 
             <!-- FOOTER -->
-            <table class="min-w-[1280px] w-full text-sm border-collapse table-fixed">
+            <table class="min-w-[1370px] w-full text-sm border-collapse table-fixed">
 
                 <colgroup>
                     <col class="w-[120px]">
                     <col class="w-[100px]">
                     <col class="w-[100px]">
+                    <col class="w-[90px]">
                     <col class="w-[110px]">
                     <col class="w-[90px]">
                     <col class="w-[110px]">
@@ -215,6 +219,9 @@
                         <td class="text-center border-r border-[#C5C5C5] tracking-wide">
                             TOTALS
                         </td>
+
+                        <!-- BREAK -->
+                        <td></td>
 
                         <!-- REGULAR -->
                         <td class="px-4 text-right">
@@ -583,7 +590,7 @@ function renderTable() {
     if (!tbody) return;
     if (currentData.length === 0) {
         tbody.innerHTML = `
-            <tr><td colspan="14" class="px-6 py-12 text-center">
+            <tr><td colspan="15" class="px-6 py-12 text-center">
                 <div class="flex flex-col items-center gap-2 text-gray-400">
                     <svg class="w-10 h-10 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
@@ -599,7 +606,9 @@ function renderTable() {
     currentData.forEach((day, i) => {
         const rowBg = i % 2 === 0 ? '' : 'bg-gray-50/60';
         const timeInDisplay  = day.in  && day.in  !== '-' ? escapeHtml(day.in)  : '<span class="text-gray-400">—</span>';
-        const timeOutDisplay = day.out && day.out !== '-' ? escapeHtml(day.out) : '<span class="text-gray-400">—</span>';
+        const nextDay = day.out_date && day.out_date !== day.date ? ` <span class="text-[10px] font-semibold text-gray-400">${escapeHtml(formatDate(day.out_date))}</span>` : '';
+        const timeOutDisplay = day.out && day.out !== '-' ? escapeHtml(day.out) + nextDay : '<span class="text-gray-400">—</span>';
+        const breakDisplay = day.break_hours > 0 ? Number(day.break_hours).toFixed(2) : '<span class="text-gray-400">—</span>';
         const dayTasks = day.tasks || [];
         const clientCell = day.client
             ? `<span class="text-gray-700">${escapeHtml(day.client)}</span>`
@@ -612,6 +621,7 @@ function renderTable() {
                 <td class="px-4 py-3 whitespace-nowrap font-medium text-gray-700">${formatDate(day.date)}</td>
                 <td class="px-4 py-3 whitespace-nowrap text-gray-600">${timeInDisplay}</td>
                 <td class="px-4 py-3 whitespace-nowrap text-gray-600">${timeOutDisplay}</td>
+                <td class="px-4 py-3 text-right whitespace-nowrap text-gray-600" title="Unpaid break deducted from the day">${breakDisplay}</td>
                 <td class="px-4 py-3 text-right whitespace-nowrap">${badge(day.regular_hours, day.regular_hours.toFixed(2), 'reg')}</td>
                 <td class="px-4 py-3 text-right whitespace-nowrap">${badge(day.ot_hours, day.ot_hours.toFixed(2), 'ot')}</td>
                 <td class="px-4 py-3 text-right whitespace-nowrap" title="Worked but not approved — not counted toward Regular or OT">${badge(day.unapproved_ot_hours, day.unapproved_ot_hours.toFixed(2), 'unot')}</td>

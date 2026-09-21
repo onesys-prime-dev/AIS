@@ -443,26 +443,12 @@ class PayrollComputationService
      */
     private function resolvePreviousCutoff(string $currentStart): array
     {
-        $dt  = new \DateTime($currentStart);
-        $day = (int)$dt->format('d');
+        // Follows the cutoffs configured in Payroll Settings: the previous cut-off
+        // is the one containing the day right before the current one starts.
+        $before = (new \DateTime($currentStart))->modify('-1 day')->format('Y-m-d');
+        $prev   = \App\Libraries\PayrollCutoff::forDate($before);
 
-        if ($day <= 15) {
-            // Current period is 1st–15th → previous is 16th–EOM of last month
-            $prevMonth     = (clone $dt)->modify('first day of last month');
-            $lastDayOfPrev = (int)(clone $prevMonth)->modify('last day of this month')->format('d');
-            $y = $prevMonth->format('Y');
-            $m = $prevMonth->format('m');
-            $prevStart = "{$y}-{$m}-16";
-            $prevEnd   = "{$y}-{$m}-{$lastDayOfPrev}";
-        } else {
-            // Current period is 16th–EOM → previous is 1st–15th of same month
-            $y = $dt->format('Y');
-            $m = $dt->format('m');
-            $prevStart = "{$y}-{$m}-01";
-            $prevEnd   = "{$y}-{$m}-15";
-        }
-
-        return [$prevStart, $prevEnd];
+        return [$prev['start'], $prev['end']];
     }
 
     private function getPreviousCutoffTaxable(int $employeeId, string $currentStart): float

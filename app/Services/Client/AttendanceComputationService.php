@@ -358,7 +358,7 @@ class AttendanceComputationService{
         }
 
         if ($split['has_schedule']) {
-            $requiredHours = ($split['window_end']->getTimestamp() - $split['window_start']->getTimestamp()) / 3600;
+            $requiredHours = \App\Libraries\AttendanceWindow::requiredHours(($split['window_end']->getTimestamp() - $split['window_start']->getTimestamp()) / 3600, $schedule);
             $undertime = max(0, round($requiredHours - $split['regular_hours'], 2));
             if ($undertime > 0) {
                 $approvedUt = $this->getApprovedRequest($userId, $date, 'undertime');

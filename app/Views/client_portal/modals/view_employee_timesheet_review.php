@@ -116,7 +116,7 @@
 
     const now = new Date();
     const pad = n => String(n).padStart(2, '0');
-    startInput.value = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-01`;
+    startInput.value = '<?= \App\Libraries\PayrollCutoff::forDate(date('Y-m-d'))['start'] ?>';
     endInput.value   = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 
     const icons = {
