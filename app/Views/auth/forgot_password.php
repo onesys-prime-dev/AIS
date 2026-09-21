@@ -13,7 +13,7 @@
                     </div>
                     <h1 class="text-3xl font-bold text-gray-900 mb-2">Forgot your password?</h1>
                     <p class="text-gray-500 text-base">
-                        Enter the email address linked to your AIS account and we'll send you a link to reset your password.
+                        Enter the email address linked to your account and we'll send you a link to reset your password.
                     </p>
                 </div>
 
