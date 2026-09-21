@@ -97,6 +97,7 @@ final class PortalAccess
         if ($path === 'client_portal/employees/import') return 'compensation';
         if ($path === 'client_portal/timesheet/review-employees') return 'attendance_roster';
         if (preg_match('~^client_portal/employees(?:/|$)~', $path)) return 'employees';
+        if (preg_match('~^client_portal/access-control(?:/|$)~', $path)) return 'roles';
         if (preg_match('~^client_portal/loans(?:/|$)~', $path)) return 'loans';
         // Admin-managed face enrollment — deliberately not gated by 'employees'
         // (see AuthGroups::PORTAL_PAYROLL_PERMISSIONS vs 'portal.face_recognition').

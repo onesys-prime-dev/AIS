@@ -293,6 +293,23 @@ class EmployeeController extends BaseController
         */
 
         $employees = array_map([\App\Libraries\PortalAccess::class, 'hideCompensation'], $employees);
+
+        $accessControlAccounts = [];
+        $accessControlRoleOptions = [];
+        $accessControlEmployees = [];
+        $accessControlTeamAssignments = [];
+        $accessControlPermissions = [];
+        $accessControlPermissionLabels = [];
+        if (\App\Libraries\PortalAccess::can('roles')) {
+            $accessControlData = \App\Controllers\Client\AccessControlController::getAccountsData();
+            $accessControlAccounts = $accessControlData['accounts'];
+            $accessControlRoleOptions = $accessControlData['roleOptions'];
+            $accessControlEmployees = $accessControlData['employees'];
+            $accessControlTeamAssignments = $accessControlData['teamAssignments'];
+            $accessControlPermissions = $accessControlData['permissions'];
+            $accessControlPermissionLabels = $accessControlData['permissionLabels'];
+        }
+
         if (!\App\Libraries\PortalAccess::can('loans')) {
             return view('client_portal/employee_main', [
                 'employees' => $employees,
@@ -300,6 +317,12 @@ class EmployeeController extends BaseController
                 'settings' => [],
                 'currentUserId' => (int) $currentUser->id,
                 'faceRecognitionEmployees' => $faceRecognitionEmployees,
+                'accessControlAccounts' => $accessControlAccounts,
+                'accessControlRoleOptions' => $accessControlRoleOptions,
+                'accessControlEmployees' => $accessControlEmployees,
+                'accessControlTeamAssignments' => $accessControlTeamAssignments,
+                'accessControlPermissions' => $accessControlPermissions,
+                'accessControlPermissionLabels' => $accessControlPermissionLabels,
             ]);
         }
         $loanModel = new LoanModel();
@@ -421,6 +444,12 @@ class EmployeeController extends BaseController
             (int) ($currentUser->id ?? 0);
 
         $data['faceRecognitionEmployees'] = $faceRecognitionEmployees;
+        $data['accessControlAccounts'] = $accessControlAccounts;
+        $data['accessControlRoleOptions'] = $accessControlRoleOptions;
+        $data['accessControlEmployees'] = $accessControlEmployees;
+        $data['accessControlTeamAssignments'] = $accessControlTeamAssignments;
+        $data['accessControlPermissions'] = $accessControlPermissions;
+        $data['accessControlPermissionLabels'] = $accessControlPermissionLabels;
 
         /*
         |--------------------------------------------------------------------------

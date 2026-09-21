@@ -44,6 +44,11 @@ $routes->group('client_portal', ['filter' => 'auth'], function($routes){
     $routes->get ('employees/export'        ,'Client\EmployeeController::exportEmployees');
     $routes->get ('employees/import-history','Client\EmployeeController::importHistory');
 
+    // -- Access Control (role assignment — a tab inside Employee Management) --
+    $routes->post('access-control/update-role'              , 'Client\AccessControlController::updateRole');
+    $routes->post('access-control/update-team-assignments'  , 'Client\AccessControlController::updateTeamAssignments');
+    $routes->post('access-control/update-role-permissions'  , 'Client\AccessControlController::updateRolePermissions');
+
     // -- Loans --
     // Note: no standalone 'loans' index route — the Loans tab is rendered
     // directly via employee_main.php -> employee_loan.php; a route here

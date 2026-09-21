@@ -69,7 +69,7 @@
 
                         <div class="form-group">
                             <label>Username</label>
-                            <input type="text" name="username" value="<?= esc($identity['username'] ?? '') ?>" minlength="3" maxlength="50" pattern="[A-Za-z0-9._-]+" required>
+                            <input type="text" name="username" value="<?= esc($identity['username'] ?? '') ?>" minlength="3" maxlength="50" pattern="[A-Za-z0-9._\-]+" required>
                         </div>
 
                         <div class="form-group">
