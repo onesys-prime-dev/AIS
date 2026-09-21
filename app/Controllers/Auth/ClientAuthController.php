@@ -39,7 +39,7 @@ class ClientAuthController extends LoginController
         $throttler = service('throttler');
 
         $ipKey = 'login-ip-' . hash('sha256', $this->request->getIPAddress());
-        if (! $throttler->check($ipKey, 5, 900)) { // 5 attempts per 15mins
+        if (! $throttler->check($ipKey, 5, 180)) { // 5 attempts per 3mins
             return redirect()->route('login')
                 ->withInput()
                 ->with('error', 'Too many login attempts. Please try again in a few minutes.');
@@ -50,7 +50,7 @@ class ClientAuthController extends LoginController
         if ($identifier !== '') {
             $emailKey = 'login-email-' . hash('sha256', $identifier);
 
-            if (! $throttler->check($emailKey, 5, 900)) { // 5 attempts per 15min.
+            if (! $throttler->check($emailKey, 5, 180)) { // 5 attempts per 3min.
                 return redirect()->route('login')
                     ->withInput()
                     ->with('error', 'Too many login attempts. Please try again in a few minutes.');
