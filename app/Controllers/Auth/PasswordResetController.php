@@ -13,7 +13,7 @@ use Throwable;
 class PasswordResetController extends Controller
 {
     private const RESET_TYPE = 'password-reset';
-    private const RESET_LIFETIME = 3600; // 60 minutes
+    private const RESET_LIFETIME = 900; // 15 minutes
 
     public function forgotPassword()
     {

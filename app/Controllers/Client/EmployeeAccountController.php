@@ -147,10 +147,22 @@ class EmployeeAccountController extends BaseController
         $file = $this->request->getFile('profile_photo');
 
         if (! $file || ! $file->isValid()) {
-            return redirect()->back()->with('error', 'Please select a valid image file.');
+            $message = $file && $file->getError() === UPLOAD_ERR_INI_SIZE
+                ? 'Image must be 2MB or below.'
+                : 'Please select a valid image file.';
+
+            if ($this->request->isAJAX()) {
+                return $this->response->setJSON(['success' => false, 'message' => $message]);
+            }
+
+            return redirect()->back()->with('error', $message);
         }
 
         $result = $this->accountService->updatePhoto((int) $user->id, $file);
+
+        if ($this->request->isAJAX()) {
+            return $this->response->setJSON(['success' => $result['ok'], 'message' => $result['message']]);
+        }
 
         if (! $result['ok']) {
             return redirect()->back()->with('error', $result['message']);
