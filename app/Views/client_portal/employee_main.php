@@ -991,8 +991,21 @@ function htmlEsc(val)
 */
 
 function faceRecognitionRowTemplate(p) {
+    // Same "LastName, FirstName MI." format as employeeRowTemplate — but this
+    // table (unlike the main employee list) also includes admin/superadmin
+    // accounts with no employees row at all, so fall back to p.name (already
+    // resolved server-side to their username / "User #id") when there's no
+    // first/last name to format.
+    const hasEmployeeName = (p.first_name || '').trim() !== '' || (p.last_name || '').trim() !== '';
+    const middleName = (p.middle_name || '').trim();
+    const middleInitial = middleName ? htmlEsc(middleName.charAt(0).toUpperCase()) + '.' : '';
+    const displayName = hasEmployeeName
+        ? `${htmlEsc(p.last_name)}, ${htmlEsc(p.first_name)}${middleInitial ? ' ' + middleInitial : ''}`
+        : htmlEsc(p.name);
+
     const photoUrl = p.photo_path ? p.photo_path : '';
-    const avatarInitials = (p.name || 'U').trim().substring(0, 2).toUpperCase();
+    const avatarSource = displayName.trim();
+    const avatarInitials = avatarSource ? avatarSource.substring(0, 2).toUpperCase() : 'U';
 
     const avatarHtml = photoUrl
         ? `<div class="w-10 h-10 rounded-full" style="background-image:url('${photoUrl}');background-size:cover;background-position:center;"></div>`
@@ -1008,14 +1021,15 @@ function faceRecognitionRowTemplate(p) {
             <div class="p-4 flex items-center gap-3">
                 ${avatarHtml}
                 <span class="font-medium">
-                    ${htmlEsc(p.name)}
+                    ${displayName}
                     ${Number(p.user_id) === CURRENT_USER_ID ? '<span class="ml-2 bg-blue-100 text-blue-700 px-2 py-1 rounded-full text-[10px] font-semibold align-middle">Me</span>' : ''}
                 </span>
             </div>
 
-            <div class="p-4">${htmlEsc(p.employee_number) || '---'}</div>
-            <div class="p-4">${htmlEsc(p.department) || '---'}</div>
             <div class="p-4">${htmlEsc(p.position) || '---'}</div>
+            <div class="p-4">${htmlEsc(p.department) || '---'}</div>
+
+            <div class="p-4">${htmlEsc(p.employee_number) || '---'}</div>
 
             <div class="p-4">${statusHtml}</div>
 
@@ -1739,7 +1753,27 @@ createCrudTable({
         ${item.employee_number}
         `
         .toLowerCase()
-        .includes(q)
+        .includes(q),
+    sort: ({ a, b, sortBy, sortOrder }) => {
+        let left, right;
+
+        if (sortBy === 'name') {
+            // Sort by family name to match the displayed "LastName, FirstName"
+            // order (crud-table.js's own default sorts first_name-first instead).
+            left = (a.last_name || '').toLowerCase();
+            right = (b.last_name || '').toLowerCase();
+        } else if (sortBy === 'status') {
+            left = String(a.status ?? 0);
+            right = String(b.status ?? 0);
+        } else {
+            left = String(a[sortBy] ?? '').toLowerCase();
+            right = String(b[sortBy] ?? '').toLowerCase();
+        }
+
+        if (left < right) return sortOrder === 'asc' ? -1 : 1;
+        if (left > right) return sortOrder === 'asc' ? 1 : -1;
+        return 0;
+    }
 });
 
 /*
@@ -1755,9 +1789,9 @@ createCrudTable({
     search: (item, q) =>
         `
         ${item.name}
-        ${item.employee_number}
         ${item.position}
         ${item.department}
+        ${item.employee_number}
         `
         .toLowerCase()
         .includes(q),
@@ -1767,9 +1801,9 @@ createCrudTable({
 
         const matchesSearch = !query || `
             ${item.name}
-            ${item.employee_number}
             ${item.department}
             ${item.position}
+            ${item.employee_number}
             `
             .toLowerCase()
             .includes(query);
@@ -1790,6 +1824,14 @@ createCrudTable({
         if (sortBy === 'enrolled') {
             left = a.enrolled ? 1 : 0;
             right = b.enrolled ? 1 : 0;
+        } else if (sortBy === 'name') {
+            // Sort by family name to match the displayed "LastName, FirstName"
+            // order, not p.name (which reads "FirstName MI. LastName" and
+            // would sort by given name instead). Falls back to p.name for
+            // admin-only rows with no employee profile (no last_name at all).
+            const familyName = (row) => ((row.last_name || row.first_name || row.name || '')).toLowerCase();
+            left = familyName(a);
+            right = familyName(b);
         } else {
             left = String(a[sortBy] ?? '').toLowerCase();
             right = String(b[sortBy] ?? '').toLowerCase();

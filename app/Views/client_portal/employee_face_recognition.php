@@ -20,9 +20,9 @@
         'grid' => 'grid-cols-[2fr_1.2fr_1.3fr_1.3fr_1.3fr_0.8fr]',
         'columns' => [
             'Employee Name',
-            'ID',
             'Position',
             'Department',
+            'ID',
             'Face Status',
             'Action'
         ],
