@@ -19,10 +19,10 @@
         'tableId' => 'faceRecognitionTable',
         'grid' => 'grid-cols-[2fr_1.2fr_1.3fr_1.3fr_1.3fr_0.8fr]',
         'columns' => [
-            'Employee',
-            'Employee #',
-            'Department',
+            'Employee Name',
+            'ID',
             'Position',
+            'Department',
             'Face Status',
             'Action'
         ],

@@ -685,7 +685,14 @@ function faceRecognitionRowTemplate(p) {
                     data-enrolled="${p.enrolled ? '1' : '0'}"
                     data-enrollment_count="${htmlEsc(p.enrollment_count)}"
                     data-enrollment_latest_at="${htmlEsc(p.enrollment_latest_at)}">
-                    <img src="${EDIT_ICON}" class="w-6 h-6" alt="Edit">
+                    <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-label="Edit face enrollment">
+                        <path d="M4 8V6a2 2 0 0 1 2-2h2" />
+                        <path d="M16 4h2a2 2 0 0 1 2 2v2" />
+                        <path d="M20 16v2a2 2 0 0 1-2 2h-2" />
+                        <path d="M8 20H6a2 2 0 0 1-2-2v-2" />
+                        <circle cx="12" cy="10" r="2.2" />
+                        <path d="M8.5 17c0-2 1.5-3.2 3.5-3.2s3.5 1.2 3.5 3.2" />
+                    </svg>
                 </div>
             </div>
 
@@ -1406,8 +1413,8 @@ createCrudTable({
         `
         ${item.name}
         ${item.employee_number}
-        ${item.department}
         ${item.position}
+        ${item.department}
         `
         .toLowerCase()
         .includes(q),
