@@ -104,7 +104,6 @@ async function fillPresetDropdown(selectId, url, field, targetId, placeholder) {
 // <input id="task_start_time"/"task_end_time"> holding the canonical 24h
 // "HH:MM" value; every other function in this file reads/writes that hidden
 // input exactly as before, via setStartTimeValue()/setEndTimeValue() below.
-const TL_MINUTE_STEP = 5;
 
 function tlPad2(n) {
     return String(n).padStart(2, '0');
@@ -116,11 +115,7 @@ function populateTimeSelect(prefix) {
     const ampmSel = document.getElementById(prefix + '_ampm');
     if (!hourSel || !minSel || !ampmSel) return;
 
-    hourSel.innerHTML = '<option value=""></option>' +
-        Array.from({ length: 12 }, (_, i) => i + 1).map(h => `<option value="${h}">${h}</option>`).join('');
-    minSel.innerHTML = '<option value=""></option>' +
-        Array.from({ length: 60 / TL_MINUTE_STEP }, (_, i) => i * TL_MINUTE_STEP)
-            .map(m => `<option value="${m}">${tlPad2(m)}</option>`).join('');
+    // Hour and minute are typed number inputs (any exact minute); only AM/PM is a select.
     ampmSel.innerHTML = '<option value="AM">AM</option><option value="PM">PM</option>';
 }
 
@@ -135,17 +130,12 @@ function writeTimeSelects(prefix, hhmm) {
     if (!hhmm) { hourSel.value = ''; minSel.value = ''; ampmSel.value = 'AM'; return; }
 
     const [h, m] = hhmm.split(':').map(Number);
-    let mSnapped = Math.round(m / TL_MINUTE_STEP) * TL_MINUTE_STEP;
-    let hCarry = h;
-    // e.g. :58 rounds up to the NEXT hour's :00, not this hour's :00.
-    if (mSnapped >= 60) { mSnapped -= 60; hCarry = (hCarry + 1) % 24; }
-
-    let h12 = hCarry % 12;
+    let h12 = h % 12;
     if (h12 === 0) h12 = 12;
 
     hourSel.value = h12;
-    minSel.value  = mSnapped;
-    ampmSel.value = hCarry >= 12 ? 'PM' : 'AM';
+    minSel.value  = tlPad2(m);
+    ampmSel.value = h >= 12 ? 'PM' : 'AM';
 }
 
 // Reads the three selects for a field back into a 24h "HH:MM" string, or ''
@@ -154,11 +144,15 @@ function readTimeSelects(prefix) {
     const hourSel = document.getElementById(prefix + '_hour');
     const minSel  = document.getElementById(prefix + '_minute');
     const ampmSel = document.getElementById(prefix + '_ampm');
-    if (!hourSel || !hourSel.value || minSel.value === '') return '';
+    if (!hourSel || hourSel.value === '' || minSel.value === '') return '';
 
-    let h = parseInt(hourSel.value, 10) % 12;
+    const hour = parseInt(hourSel.value, 10);
+    const minute = parseInt(minSel.value, 10);
+    if (!(hour >= 1 && hour <= 12) || !(minute >= 0 && minute <= 59)) return '';
+
+    let h = hour % 12;
     if (ampmSel.value === 'PM') h += 12;
-    return tlPad2(h) + ':' + tlPad2(parseInt(minSel.value, 10));
+    return tlPad2(h) + ':' + tlPad2(minute);
 }
 
 function setStartTimeValue(hhmm) {
@@ -201,13 +195,27 @@ function bindTaskFormListenersOnce() {
     populateTimeSelect('task_start');
     populateTimeSelect('task_end');
 
-    ['task_start_hour', 'task_start_minute', 'task_start_ampm'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.addEventListener('change', onStartSelectChange);
-    });
-    ['task_end_hour', 'task_end_minute', 'task_end_ampm'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.addEventListener('change', onEndSelectChange);
+    [['task_start', onStartSelectChange], ['task_end', onEndSelectChange]].forEach(([prefix, handler]) => {
+        ['hour', 'minute', 'ampm'].forEach(part => {
+            const el = document.getElementById(prefix + '_' + part);
+            if (!el) return;
+            el.addEventListener('input', handler);
+            el.addEventListener('change', handler);
+        });
+
+        // On leaving a typed field, clamp to a valid value and tidy the display (e.g. 5 -> 05).
+        const hourEl = document.getElementById(prefix + '_hour');
+        const minEl  = document.getElementById(prefix + '_minute');
+        if (hourEl) hourEl.addEventListener('blur', () => {
+            if (hourEl.value === '') return;
+            hourEl.value = Math.min(12, Math.max(1, parseInt(hourEl.value, 10) || 12));
+            handler();
+        });
+        if (minEl) minEl.addEventListener('blur', () => {
+            if (minEl.value === '') return;
+            minEl.value = tlPad2(Math.min(59, Math.max(0, parseInt(minEl.value, 10) || 0)));
+            handler();
+        });
     });
 
     const timeline = document.getElementById('tl_timeline');

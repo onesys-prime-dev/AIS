@@ -413,9 +413,9 @@
                             <label class="block text-[11px] text-gray-400 mb-0.5">Start Time *</label>
                             <input type="hidden" id="task_start_time">
                             <div class="tl-time-row">
-                                <select id="task_start_hour" class="tl-time-select"></select>
+                                <input type="number" id="task_start_hour" class="tl-time-select" min="1" max="12" inputmode="numeric" placeholder="hh">
                                 <span class="tl-time-colon">:</span>
-                                <select id="task_start_minute" class="tl-time-select"></select>
+                                <input type="number" id="task_start_minute" class="tl-time-select" min="0" max="59" inputmode="numeric" placeholder="mm">
                                 <select id="task_start_ampm" class="tl-time-select tl-time-ampm"></select>
                             </div>
                         </div>
@@ -423,9 +423,9 @@
                             <label class="block text-[11px] text-gray-400 mb-0.5">End Time *</label>
                             <input type="hidden" id="task_end_time">
                             <div class="tl-time-row">
-                                <select id="task_end_hour" class="tl-time-select"></select>
+                                <input type="number" id="task_end_hour" class="tl-time-select" min="1" max="12" inputmode="numeric" placeholder="hh">
                                 <span class="tl-time-colon">:</span>
-                                <select id="task_end_minute" class="tl-time-select"></select>
+                                <input type="number" id="task_end_minute" class="tl-time-select" min="0" max="59" inputmode="numeric" placeholder="mm">
                                 <select id="task_end_ampm" class="tl-time-select tl-time-ampm"></select>
                             </div>
                         </div>
