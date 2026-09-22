@@ -59,6 +59,10 @@ class AttendanceController extends BaseController
         if (!$this->request->is('post')) return redirect()->to(site_url('client_portal/dashboard'));
         return $this->perform(function($service, $userId) use ($id) {
             $action = (string) $this->request->getPost('break_action');
+            // Set by the dashboard's own countdown when it auto-submits End Break
+            // right as the scheduled length runs out — same end action as a manual
+            // click, just flagged so the redirect can explain what happened.
+            $autoEnded = $action === 'end' && $this->request->getPost('auto_ended') === '1';
             try {
                 $service->changeBreak($userId, (int) $id, $action, $this->expectedVersion());
             } catch (DomainException $e) {
@@ -66,6 +70,9 @@ class AttendanceController extends BaseController
                     return redirect()->to(site_url('client_portal/dashboard'))->with('break_limit_reached', true);
                 }
                 throw $e;
+            }
+            if ($autoEnded) {
+                return redirect()->to(site_url('client_portal/dashboard'))->with('break_auto_ended', true);
             }
             return redirect()->to(site_url('client_portal/dashboard'))->with('success', $action === 'start' ? 'Break started!' : 'Break ended!');
         });

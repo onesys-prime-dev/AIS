@@ -133,6 +133,7 @@ class EmployeeController extends BaseController
             MAX(employees.civil_status) as civil_status,
 
             MAX(employee_positions.department) as department,
+            MAX(employee_positions.department_id) as department_id,
             MAX(employee_positions.position) as position,
             MAX(employee_positions.employment_type) as employment_type,
             MAX(employee_positions.working_day_type) as working_day_type,
@@ -140,6 +141,7 @@ class EmployeeController extends BaseController
             MAX(employee_positions.start_time) as start_time,
             MAX(employee_positions.end_time) as end_time,
             MAX(employee_positions.break_schedule) as break_schedule,
+            MAX(employee_positions.break_windows) as break_windows,
             MAX(employee_positions.monthly_salary) as monthly_salary,
             MAX(employee_positions.de_minimis_benefit) as de_minimis_benefit,
             MAX(employee_positions.allowances) as allowances,
@@ -297,35 +299,66 @@ class EmployeeController extends BaseController
 
         $employees = array_map([\App\Libraries\PortalAccess::class, 'hideCompensation'], $employees);
 
+        // Every active department, for the Add/Edit Employee forms' Department
+        // dropdown — available to anyone who can manage employees, unlike the
+        // Access Control tab's own department data (Admin/Super Admin only).
+        $activeDepartments = \Config\Database::connect()->table('departments')
+            ->select('id, name')->where('is_active', 1)->where('deleted_at', null)
+            ->orderBy('name', 'ASC')->get()->getResultArray();
+
+        // The 3 standard options, plus any other value already in use (e.g. a
+        // legacy "Regular"/"Freelance" saved before this was a fixed list) —
+        // so switching Employment Type from free text to a dropdown can never
+        // silently blank out a real employee's existing value.
+        $employmentTypeOptions = ['Part-time', 'Full-time', 'Contractual'];
+        $existingEmploymentTypes = \Config\Database::connect()->table('employee_positions')
+            ->distinct()->select('employment_type')
+            ->where('employment_type IS NOT NULL', null, false)
+            ->where('employment_type !=', '')
+            ->get()->getResultArray();
+        foreach ($existingEmploymentTypes as $row) {
+            if (! in_array($row['employment_type'], $employmentTypeOptions, true)) {
+                $employmentTypeOptions[] = $row['employment_type'];
+            }
+        }
+
         $accessControlAccounts = [];
         $accessControlRoleOptions = [];
-        $accessControlEmployees = [];
-        $accessControlTeamAssignments = [];
+        $accessControlDepartments = [];
+        $accessControlTeamHeadAccounts = [];
+        $accessControlDepartmentTeamHeads = [];
         $accessControlPermissions = [];
         $accessControlPermissionLabels = [];
-        if (\App\Libraries\PortalAccess::can('roles')) {
+        $accessControlActorIsSuperadmin = false;
+        if (\App\Libraries\PortalAccess::canManageAccessControl()) {
             $accessControlData = \App\Controllers\Client\AccessControlController::getAccountsData();
             $accessControlAccounts = $accessControlData['accounts'];
             $accessControlRoleOptions = $accessControlData['roleOptions'];
-            $accessControlEmployees = $accessControlData['employees'];
-            $accessControlTeamAssignments = $accessControlData['teamAssignments'];
+            $accessControlDepartments = $accessControlData['departments'];
+            $accessControlTeamHeadAccounts = $accessControlData['teamHeadAccounts'];
+            $accessControlDepartmentTeamHeads = $accessControlData['departmentTeamHeads'];
             $accessControlPermissions = $accessControlData['permissions'];
             $accessControlPermissionLabels = $accessControlData['permissionLabels'];
+            $accessControlActorIsSuperadmin = auth()->user()->inGroup('superadmin');
         }
 
         if (!\App\Libraries\PortalAccess::can('loans')) {
             return view('client_portal/employee_main', [
                 'employees' => $employees,
+                'activeDepartments' => $activeDepartments,
+                'employmentTypeOptions' => $employmentTypeOptions,
                 'loans' => [],
                 'settings' => [],
                 'currentUserId' => (int) $currentUser->id,
                 'faceRecognitionEmployees' => $faceRecognitionEmployees,
                 'accessControlAccounts' => $accessControlAccounts,
                 'accessControlRoleOptions' => $accessControlRoleOptions,
-                'accessControlEmployees' => $accessControlEmployees,
-                'accessControlTeamAssignments' => $accessControlTeamAssignments,
+                'accessControlDepartments' => $accessControlDepartments,
+                'accessControlTeamHeadAccounts' => $accessControlTeamHeadAccounts,
+                'accessControlDepartmentTeamHeads' => $accessControlDepartmentTeamHeads,
                 'accessControlPermissions' => $accessControlPermissions,
                 'accessControlPermissionLabels' => $accessControlPermissionLabels,
+                'accessControlActorIsSuperadmin' => $accessControlActorIsSuperadmin,
             ]);
         }
         $loanModel = new LoanModel();
@@ -438,6 +471,8 @@ class EmployeeController extends BaseController
         */
 
         $data['employees'] = $employees;
+        $data['activeDepartments'] = $activeDepartments;
+        $data['employmentTypeOptions'] = $employmentTypeOptions;
 
         $data['loans'] = $formattedLoans;
 
@@ -449,10 +484,12 @@ class EmployeeController extends BaseController
         $data['faceRecognitionEmployees'] = $faceRecognitionEmployees;
         $data['accessControlAccounts'] = $accessControlAccounts;
         $data['accessControlRoleOptions'] = $accessControlRoleOptions;
-        $data['accessControlEmployees'] = $accessControlEmployees;
-        $data['accessControlTeamAssignments'] = $accessControlTeamAssignments;
+        $data['accessControlDepartments'] = $accessControlDepartments;
+        $data['accessControlTeamHeadAccounts'] = $accessControlTeamHeadAccounts;
+        $data['accessControlDepartmentTeamHeads'] = $accessControlDepartmentTeamHeads;
         $data['accessControlPermissions'] = $accessControlPermissions;
         $data['accessControlPermissionLabels'] = $accessControlPermissionLabels;
+        $data['accessControlActorIsSuperadmin'] = $accessControlActorIsSuperadmin;
 
         /*
         |--------------------------------------------------------------------------
@@ -531,7 +568,7 @@ class EmployeeController extends BaseController
                 employees.first_name, employees.middle_name, employees.last_name,
                 employees.birthdate, employees.employee_number,
                 employees.gender, employees.civil_status,
-                employee_positions.department, employee_positions.position,
+                employee_positions.department, employee_positions.department_id, employee_positions.position,
                 employee_positions.employment_type, employee_positions.working_day_type,
                 employee_positions.working_days, employee_positions.start_time, employee_positions.end_time,
                 employee_positions.monthly_salary, employee_positions.de_minimis_benefit, employee_positions.de_minimis_breakdown, employee_positions.allowances,

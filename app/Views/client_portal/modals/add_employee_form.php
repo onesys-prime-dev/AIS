@@ -426,9 +426,9 @@
 
                         <select name="employment_type" class="form-select">
                             <option value="">Select employment type</option>
-                            <option>Part-time</option>
-                            <option>Full-time</option>
-                            <option>Contractual</option>
+                            <?php foreach ($employmentTypeOptions ?? [] as $type): ?>
+                                <option value="<?= esc($type) ?>"><?= esc($type) ?></option>
+                            <?php endforeach; ?>
                         </select>
                     </div>
 
@@ -528,6 +528,7 @@
                         </button>
 
                         <input type="hidden" name="break_schedule" id="add_break_schedule_input">
+                        <input type="hidden" name="break_windows" id="add_break_windows_input">
                     </div>
 
                 </div>
@@ -574,10 +575,12 @@
                                 Department
                             </label>
 
-                            <input type="text"
-                                name="department"
-                                placeholder="e.g., Information Technology"
-                                class="form-input">
+                            <select name="department_id" class="form-input">
+                                <option value="">-- Select department --</option>
+                                <?php foreach ($activeDepartments ?? [] as $dept): ?>
+                                    <option value="<?= esc($dept['id']) ?>"><?= esc($dept['name']) ?></option>
+                                <?php endforeach; ?>
+                            </select>
                         </div>
 
                         <div>
@@ -960,18 +963,52 @@
 function toggleAddScheduleTime(type) {
     const row = document.getElementById('add_schedule_time_row');
     if (row) row.style.display = (type === 'flexible') ? 'none' : '';
+    // Time-of-day windows only make sense against a fixed daily schedule.
+    toggleBreakWindowUI('add', type);
 }
 
-// ---- Break Schedule (each break has its own duration) ----
-function breakRowTemplate(prefix, idx, minutes) {
-    return `<div class="flex items-center gap-2" data-break-row>
-        <span class="text-xs text-gray-500 w-16 shrink-0">Break ${idx + 1}</span>
-        <input type="number" min="1" step="1" value="${minutes}"
-            class="form-input flex-1" data-break-minutes
-            oninput="syncBreakSchedule('${prefix}')" placeholder="Minutes">
-        <span class="text-xs text-gray-400 shrink-0">min</span>
-        <button type="button" onclick="removeBreakRow('${prefix}', this)"
-            class="text-red-400 hover:text-red-600 text-xs shrink-0">✕</button>
+function toggleBreakWindowUI(prefix, workingDayType) {
+    const list = document.getElementById(prefix + '_break_list');
+    if (!list) return;
+    const show = workingDayType !== 'flexible';
+    list.querySelectorAll('[data-break-window]').forEach(el => { el.style.display = show ? '' : 'none'; });
+}
+
+// ---- Break Schedule (each break has its own duration + optional time-of-day policy) ----
+// Window modes: 'flexible' (no restriction, today's default behavior),
+// 'strict' (Start Break only works inside the window, and the break is
+// capped to the window's end even if that's short of the full duration),
+// 'slightly_strict' (Start Break only works inside the window, but once
+// started the full scheduled duration always applies).
+function breakRowTemplate(prefix, idx, minutes, windowVal) {
+    windowVal = windowVal || null;
+    const mode = windowVal ? windowVal.mode : 'flexible';
+    const start = windowVal ? windowVal.start : '';
+    const end = windowVal ? windowVal.end : '';
+    const showTimes = mode !== 'flexible' ? '' : 'display:none;';
+    return `<div class="space-y-1.5 border border-gray-100 rounded-lg p-2" data-break-row>
+        <div class="flex items-center gap-2">
+            <span class="text-xs text-gray-500 w-16 shrink-0">Break ${idx + 1}</span>
+            <input type="number" min="1" step="1" value="${minutes}"
+                class="form-input flex-1" data-break-minutes
+                oninput="syncBreakSchedule('${prefix}')" placeholder="Minutes">
+            <span class="text-xs text-gray-400 shrink-0">min</span>
+            <button type="button" onclick="removeBreakRow('${prefix}', this)"
+                class="text-red-400 hover:text-red-600 text-xs shrink-0">✕</button>
+        </div>
+        <div class="flex items-center gap-2 pl-[4.5rem]" data-break-window>
+            <select class="form-select text-xs flex-1" data-break-mode
+                onchange="syncBreakSchedule('${prefix}'); this.closest('[data-break-row]').querySelector('[data-break-times]').style.display = this.value === 'flexible' ? 'none' : '';">
+                <option value="flexible" ${mode === 'flexible' ? 'selected' : ''}>Flexible — anytime</option>
+                <option value="slightly_strict" ${mode === 'slightly_strict' ? 'selected' : ''}>Slightly strict — must start in window, full duration either way</option>
+                <option value="strict" ${mode === 'strict' ? 'selected' : ''}>Strict — must start and end within window</option>
+            </select>
+        </div>
+        <div class="flex items-center gap-2 pl-[4.5rem]" data-break-times style="${showTimes}">
+            <input type="time" class="form-input text-xs" data-break-window-start value="${start}" oninput="syncBreakSchedule('${prefix}')">
+            <span class="text-xs text-gray-400">to</span>
+            <input type="time" class="form-input text-xs" data-break-window-end value="${end}" oninput="syncBreakSchedule('${prefix}')">
+        </div>
     </div>`;
 }
 
@@ -979,7 +1016,7 @@ function addBreakRow(prefix, minutes) {
     const list = document.getElementById(prefix + '_break_list');
     if (!list) return;
     const idx = list.querySelectorAll('[data-break-row]').length;
-    list.insertAdjacentHTML('beforeend', breakRowTemplate(prefix, idx, minutes || 60));
+    list.insertAdjacentHTML('beforeend', breakRowTemplate(prefix, idx, minutes || 60, null));
     syncBreakSchedule(prefix);
 }
 
@@ -996,22 +1033,36 @@ function removeBreakRow(prefix, btn) {
 function syncBreakSchedule(prefix) {
     const list = document.getElementById(prefix + '_break_list');
     const input = document.getElementById(prefix + '_break_schedule_input');
+    const windowsInput = document.getElementById(prefix + '_break_windows_input');
     if (!list || !input) return;
-    const minutes = Array.from(list.querySelectorAll('[data-break-minutes]'))
-        .map(el => parseInt(el.value, 10) || 0)
-        .filter(v => v > 0);
-    input.value = JSON.stringify(minutes);
+    const rows = Array.from(list.querySelectorAll('[data-break-row]'));
+    const minutes = rows.map(row => parseInt(row.querySelector('[data-break-minutes]').value, 10) || 0);
+    const keep = minutes.map(v => v > 0);
+    input.value = JSON.stringify(minutes.filter((v, i) => keep[i]));
+
+    if (windowsInput) {
+        const windows = rows.map(row => {
+            const mode = row.querySelector('[data-break-mode]')?.value || 'flexible';
+            if (mode === 'flexible') return null;
+            const start = row.querySelector('[data-break-window-start]')?.value || '';
+            const end = row.querySelector('[data-break-window-end]')?.value || '';
+            if (!start || !end) return null;
+            return { mode, start, end };
+        });
+        windowsInput.value = JSON.stringify(windows.filter((v, i) => keep[i]));
+    }
 }
 
-// Replace the current break list with a specific set of minutes (used when
-// populating the Edit form from an existing employee's saved break_schedule).
-function rebuildBreakRows(prefix, minutesArray) {
+// Replace the current break list with a specific set of minutes/windows (used
+// when populating the Edit form from an existing employee's saved schedule).
+function rebuildBreakRows(prefix, minutesArray, windowsArray) {
     const list = document.getElementById(prefix + '_break_list');
     if (!list) return;
     list.innerHTML = '';
-    (minutesArray && minutesArray.length ? minutesArray : [60]).forEach(m => {
+    const minutes = (minutesArray && minutesArray.length ? minutesArray : [60]);
+    minutes.forEach((m, i) => {
         const idx = list.querySelectorAll('[data-break-row]').length;
-        list.insertAdjacentHTML('beforeend', breakRowTemplate(prefix, idx, m));
+        list.insertAdjacentHTML('beforeend', breakRowTemplate(prefix, idx, m, (windowsArray && windowsArray[i]) || null));
     });
     syncBreakSchedule(prefix);
 }

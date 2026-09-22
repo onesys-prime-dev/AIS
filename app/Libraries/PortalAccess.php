@@ -17,21 +17,42 @@ final class PortalAccess
         return self::can('requests', $user) || self::can('team', $user);
     }
 
+    /**
+     * Access Control (assigning portal roles, Team Head assignments, and role
+     * permission edits) is restricted to Admin and Super Admin accounts only —
+     * a hard rule on top of (and independent from) the editable portal.roles
+     * permission, which other roles can still hold for unrelated purposes
+     * (e.g. canEditEmployee() below, or the registration role selector).
+     */
+    public static function canManageAccessControl(?object $user = null): bool
+    {
+        $user ??= auth()->user();
+        return $user !== null && ($user->inGroup('superadmin') || $user->inGroup('admin'));
+    }
+
     public static function reviewsAttendance(?object $user = null): bool
     {
         return self::can('attendance', $user) || self::can('team', $user);
     }
 
     /** Explicit assignments, never a guessed relationship based on a department/job title. */
+    /**
+     * Everyone this user can review — every employee in every department this
+     * user is a Team Head for (department_team_heads), not a manually picked
+     * per-employee list.
+     */
     public static function teamUserIds(?object $user = null): array
     {
         $user ??= auth()->user();
         if (!$user || !self::can('team', $user)) return [];
         $db = db_connect();
-        if (!$db->tableExists('team_access_assignments')) return [];
-        return array_map('intval', array_column($db->table('team_access_assignments a')
-            ->select('e.user_id')->join('employees e', 'e.id=a.employee_id')
-            ->where('a.team_head_user_id', (int) $user->id)->get()->getResultArray(), 'user_id'));
+        if (!$db->tableExists('department_team_heads')) return [];
+        return array_map('intval', array_column($db->table('department_team_heads dth')
+            ->select('e.user_id', false)
+            ->join('employee_positions ep', 'ep.department_id = dth.department_id')
+            ->join('employees e', 'e.id = ep.employee_id')
+            ->where('dth.team_head_user_id', (int) $user->id)
+            ->get()->getResultArray(), 'user_id'));
     }
 
     public static function canReviewEmployee(int $employeeId, ?object $user = null): bool
@@ -97,7 +118,7 @@ final class PortalAccess
         if ($path === 'client_portal/employees/import') return 'compensation';
         if ($path === 'client_portal/timesheet/review-employees') return 'attendance_roster';
         if (preg_match('~^client_portal/employees(?:/|$)~', $path)) return 'employees';
-        if (preg_match('~^client_portal/access-control(?:/|$)~', $path)) return 'roles';
+        if (preg_match('~^client_portal/access-control(?:/|$)~', $path)) return 'access_control';
         if (preg_match('~^client_portal/loans(?:/|$)~', $path)) return 'loans';
         // Admin-managed face enrollment — deliberately not gated by 'employees'
         // (see AuthGroups::PORTAL_PAYROLL_PERMISSIONS vs 'portal.face_recognition').

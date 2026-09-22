@@ -1338,16 +1338,38 @@ document.addEventListener('DOMContentLoaded', function () {
             <div class="buttons">
                 <!-- functioning break button -->
                 <?php if ($currentAttendance): ?>
+                <?php
+                $allBreaksTaken = empty($currentAttendance['break_start']) && $totalBreakSlots > 0 && (int) ($currentAttendance['breaks_taken'] ?? 0) >= $totalBreakSlots;
+                // Strict/Slightly-strict slots block Start Break outside their
+                // configured window — same rule the server enforces in
+                // AttendanceSessionService::changeBreak(), so the button
+                // never invites a click the server would reject anyway.
+                $windowBlocked = empty($currentAttendance['break_start']) && !empty($breakWindow) && !$breakWindowAllowed;
+                $windowTimeLabel = $windowBlocked
+                    ? date('g:i A', strtotime($breakWindow['start'])) . ' – ' . date('g:i A', strtotime($breakWindow['end']))
+                    : '';
+                $breakDisabled = $allBreaksTaken || $windowBlocked;
+                $breakTitle = $allBreaksTaken
+                    ? 'All scheduled breaks have been used'
+                    : ($windowBlocked ? "This break can only be started between {$windowTimeLabel}" : '');
+                ?>
                 <form method="post" id="breakForm" class="break-form" action="<?= site_url('client_portal/toggle-break/'.$currentAttendance['id']) ?>" onsubmit="return handleBreakSubmit(this)">
                     <?= csrf_field() ?>
                     <input type="hidden" name="attendance_token" value="<?= esc($attendanceToken) ?>">
                     <input type="hidden" name="state_version" value="<?= (int) ($currentAttendance['state_version'] ?? 0) ?>">
                     <input type="hidden" name="break_action" value="<?= empty($currentAttendance['break_start']) ? 'start' : 'end' ?>">
-                    <button type="submit" aria-label="<?= empty($currentAttendance['break_start']) ? 'Start break' : 'End break' ?>"
+                    <input type="hidden" name="auto_ended" id="breakAutoEndedField" value="0">
+                    <button type="submit" id="breakBtn"
+                    aria-label="<?= $allBreaksTaken ? 'All breaks taken' : ($windowBlocked ? 'Break not available yet' : (empty($currentAttendance['break_start']) ? 'Start break' : 'End break')) ?>"
+                    title="<?= esc($breakTitle) ?>"
+                    <?= $breakDisabled ? 'disabled' : '' ?>
                     class="icon-btn coffee <?= $currentAttendance['break_start'] ? 'on-break' : '' ?>">
                         <span></span><span></span><span></span>
                     </button>
                 </form>
+                <?php if ($windowTimeLabel): ?>
+                <div class="text-xs text-gray-400 text-center mt-1"><?= esc($windowTimeLabel) ?></div>
+                <?php endif; ?>
 
                     <?php endif; ?>
 
@@ -2089,6 +2111,47 @@ document.addEventListener('DOMContentLoaded', function () {
             </div>
         </div>
 
+        <!-- START BREAK CONFIRMATION MODAL -->
+        <div class="modal-overlay" id="startBreakConfirmModal">
+            <div class="modal">
+
+                <div class="modal-header">
+                    <span>Start Break?</span>
+                    <button
+                        type="button"
+                        onclick="closeStartBreakConfirmModal()"
+                    >
+                        ✕
+                    </button>
+                </div>
+
+                <div class="modal-body">
+                    <p id="startBreakConfirmText">
+                        This uses one of your scheduled breaks. Once started, ending it — even right away — still counts the full scheduled time.
+                    </p>
+                </div>
+
+                <div class="modal-footer">
+                    <button
+                        type="button"
+                        class="cancel-btn"
+                        onclick="closeStartBreakConfirmModal()"
+                    >
+                        Cancel
+                    </button>
+
+                    <button
+                        type="button"
+                        class="submit-btn"
+                        onclick="confirmStartBreak()"
+                    >
+                        Start Break
+                    </button>
+                </div>
+
+            </div>
+        </div>
+
         <!-- BREAK LIMIT REACHED MODAL -->
         <div class="modal-overlay" id="breakLimitModal">
             <div class="modal">
@@ -2779,6 +2842,11 @@ document.addEventListener('DOMContentLoaded', function () {
     const BREAK_MINUTES = <?= max(1, (int) ($nextBreakMinutes ?? 60)) ?>;
     const TOTAL_BREAK_SLOTS = <?= (int) ($totalBreakSlots ?? 0) ?>;
     const BREAKS_TAKEN = <?= (int) ($currentAttendance['breaks_taken'] ?? 0) ?>;
+    // Time-of-day policy for the NEXT (not-yet-taken) break slot, if any —
+    // null/'flexible' means no restriction, same as before this existed.
+    const BREAK_WINDOW_MODE = <?= json_encode($breakWindow['mode'] ?? null) ?>;
+    const BREAK_WINDOW_START = <?= json_encode($breakWindow['start'] ?? null) ?>;
+    const BREAK_WINDOW_END = <?= json_encode($breakWindow['end'] ?? null) ?>;
 
     let shiftRemaining = SHIFT_MINUTES;
     let breakRemaining = 0;
@@ -2886,16 +2954,36 @@ document.addEventListener('DOMContentLoaded', function () {
 
     }
 
+    // Guards the auto-submit below so a slow round trip (or the interval
+    // firing again before the page navigates away) can't submit End Break
+    // twice — the server tolerates a repeat safely either way, but this
+    // avoids the redundant request.
+    let breakAutoEndTriggered = false;
+
     setInterval(()=>{
 
         if(!isClockedIn) return;
 
         if(onBreak){
-            // Reaching zero does not end a break; only the server-confirmed End
-            // Break action does. It keeps counting into negative minutes so the
-            // display can show how far overdue the break is.
             breakRemaining--;
             updateDisplay();
+
+            // The break's scheduled length is up — end it automatically
+            // instead of leaving "On Break" showing indefinitely if the
+            // employee forgot to click End Break. Pay is unaffected: the
+            // deduction is always the fixed scheduled length either way,
+            // whether ended manually, automatically, or at clock-out.
+            if (breakRemaining <= 0 && !breakAutoEndTriggered) {
+                breakAutoEndTriggered = true;
+                const form = document.getElementById('breakForm');
+                if (form) {
+                    const action = form.querySelector('input[name="break_action"]');
+                    const autoFlag = document.getElementById('breakAutoEndedField');
+                    if (action) action.value = 'end';
+                    if (autoFlag) autoFlag.value = '1';
+                    form.submit(); // bypasses onsubmit/handleBreakSubmit — no confirm dialog fires here
+                }
+            }
         }else{
             if(shiftRemaining > 0){
                 shiftRemaining--;
@@ -2917,7 +3005,6 @@ document.addEventListener('DOMContentLoaded', function () {
         now.getFullYear();
 
     updateDisplay();
-    if (breakBtn) breakBtn.disabled = true;
 
     // Every path that finalizes a clock-out (direct, after the undertime modal,
     // after the missed-clockout modal) funnels through here so a fast double
@@ -3111,6 +3198,16 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('breakLimitModal').style.display = 'none';
     }
 
+    // '13:00' -> '1:00 PM'
+    function formatWindowTime(hhmm)
+    {
+        if (!hhmm) return '';
+        const [h, m] = hhmm.split(':').map(Number);
+        const period = h >= 12 ? 'PM' : 'AM';
+        const hour12 = ((h % 12) || 12);
+        return hour12 + ':' + String(m).padStart(2, '0') + ' ' + period;
+    }
+
     // Starting a break when every scheduled slot is already used always fails
     // server-side, so catch it here and skip the round trip (and the page's
     // loading overlay) entirely — just show the same modal immediately.
@@ -3120,11 +3217,51 @@ document.addEventListener('DOMContentLoaded', function () {
             document.getElementById('breakLimitModal').style.display = 'flex';
             return false;
         }
+        // Starting a break locks in a full scheduled slot the instant it
+        // starts — ending it, even seconds later, still deducts the whole
+        // slot, not the actual time taken. Confirm only on the way in, since
+        // that's the one action with a real (and otherwise unconfirmed) cost.
+        // Uses the app's own modal, not a native confirm() popup, to match
+        // the rest of the dashboard's styling.
+        const action = form.querySelector('input[name="break_action"]')?.value;
+        if (action === 'start') {
+            const remainingAfter = Math.max(0, TOTAL_BREAK_SLOTS - BREAKS_TAKEN - 1);
+            const textEl = document.getElementById('startBreakConfirmText');
+            if (textEl) {
+                let windowNote = '';
+                if (BREAK_WINDOW_MODE === 'strict') {
+                    windowNote = ' This break must start and end within ' + formatWindowTime(BREAK_WINDOW_START) + '–' + formatWindowTime(BREAK_WINDOW_END) + ' — starting late means less break time, not more.';
+                } else if (BREAK_WINDOW_MODE === 'slightly_strict') {
+                    windowNote = ' You\'ll still get the full ' + BREAK_MINUTES + ' minutes even if you start a little late, as long as it\'s within ' + formatWindowTime(BREAK_WINDOW_START) + '–' + formatWindowTime(BREAK_WINDOW_END) + '.';
+                }
+                textEl.textContent = 'This is a ' + BREAK_MINUTES + '-minute break. It counts the full ' + BREAK_MINUTES + ' minutes '
+                    + 'even if you end it early, and ' + (TOTAL_BREAK_SLOTS > 0
+                        ? ("you'll have " + remainingAfter + ' break' + (remainingAfter === 1 ? '' : 's') + ' left after this one.')
+                        : "it uses one of your scheduled breaks.") + windowNote;
+            }
+            document.getElementById('startBreakConfirmModal').style.display = 'flex';
+            return false;
+        }
         return true;
+    }
+
+    function closeStartBreakConfirmModal()
+    {
+        document.getElementById('startBreakConfirmModal').style.display = 'none';
+    }
+
+    function confirmStartBreak()
+    {
+        closeStartBreakConfirmModal();
+        document.getElementById('breakForm').submit(); // bypasses onsubmit/handleBreakSubmit — already confirmed
     }
 
     <?php if (session()->getFlashdata('break_limit_reached')): ?>
     document.getElementById('breakLimitModal').style.display = 'flex';
+    <?php endif; ?>
+
+    <?php if (!empty($breakAutoEnded) || session()->getFlashdata('break_auto_ended')): ?>
+    if (window.showToast) window.showToast('Your break was automatically ended — the scheduled time was up.', 'info');
     <?php endif; ?>
 
 </script>

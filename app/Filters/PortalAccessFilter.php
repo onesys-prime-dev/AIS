@@ -28,6 +28,7 @@ final class PortalAccessFilter implements FilterInterface
             'attendance_roster' => PortalAccess::reviewsAttendance($user),
             'review_attendance' => PortalAccess::canReviewEmployee((int) $request->getGet('employee_id'), $user),
             'review_request' => PortalAccess::canReviewRequest((int) basename($path), $user),
+            'access_control' => PortalAccess::canManageAccessControl($user),
             'deny' => false,
             default => PortalAccess::can($required, $user),
         };

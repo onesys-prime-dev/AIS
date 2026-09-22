@@ -84,12 +84,13 @@ const Presence = (() => {
     // ── Badge Polling ─────────────────────────────────────────────────────────
 
     const BADGE_CLASSES = {
-        Online:   'bg-green-200 text-green-700',
-        Away:     'bg-yellow-200 text-yellow-700',
-        Offline:  'bg-gray-200 text-gray-500',
-        Inactive: 'bg-red-200 text-red-600',
+        Online:    'bg-green-200 text-green-700',
+        Away:      'bg-yellow-200 text-yellow-700',
+        Offline:   'bg-gray-200 text-gray-500',
+        Inactive:  'bg-red-200 text-red-600',
+        'On Break': 'bg-orange-100 text-orange-700',
         // fallback — Active is the old manual-only state label
-        Active:   'bg-green-200 text-green-700',
+        Active:    'bg-green-200 text-green-700',
     };
 
     const updateBadges = async () => {

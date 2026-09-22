@@ -25,6 +25,55 @@ class EmployeeService
         $this->leaveBalanceModel = new LeaveBalanceModel();
     }
 
+    /** The only working_day_type values the rest of the app actually knows
+     *  about — 'flexible' in particular disables scheduled start/end time in
+     *  payroll and attendance aggregation (PayrollController::getAttendanceSummary(),
+     *  PayrollAggregationService), so an unrecognized value here is never
+     *  allowed to slip through and silently behave as "fixed". */
+    private const KNOWN_WORKING_DAY_TYPES = ['full_weekdays', 'weekday_with_rest', 'weekend_shift', 'custom', 'flexible'];
+
+    private function resolveWorkingDayType(array $data, string $fallback = 'full_weekdays'): string
+    {
+        $submitted = trim((string) ($data['working_day_type'] ?? ''));
+        return in_array($submitted, self::KNOWN_WORKING_DAY_TYPES, true) ? $submitted : $fallback;
+    }
+
+    /**
+     * Resolves a submitted department_id into the ['department_id', 'department']
+     * pair actually written to employee_positions — the free-text 'department'
+     * column is kept in sync from the department's real name so existing
+     * reads of it (reports, exports, filters) keep working unchanged while
+     * assignment itself now always goes through the curated department list.
+     */
+    private function resolveDepartment(array $data, ?string $fallbackName = null, ?int $fallbackId = null): array
+    {
+        $departmentId = isset($data['department_id']) && $data['department_id'] !== '' ? (int) $data['department_id'] : null;
+        if ($departmentId === null) {
+            return ['department_id' => $fallbackId, 'department' => trim((string) ($data['department'] ?? '')) ?: $fallbackName];
+        }
+
+        $dept = \Config\Database::connect()->table('departments')->where('id', $departmentId)->where('deleted_at', null)->get()->getRowArray();
+        if (! $dept) {
+            throw new \Exception('Selected department was not found.');
+        }
+
+        return ['department_id' => $departmentId, 'department' => $dept['name']];
+    }
+
+    /** Registration has no department picker — it falls back to a fixed
+     *  name ('General'/'Payroll'), so that name is found-or-created here
+     *  rather than left with no department_id at all. */
+    private function findOrCreateDepartmentByName(string $name): int
+    {
+        $db = \Config\Database::connect();
+        $existing = $db->table('departments')->where('name', $name)->where('deleted_at', null)->first();
+        if ($existing) {
+            return (int) $existing['id'];
+        }
+        $db->table('departments')->insert(['name' => $name, 'is_active' => 1, 'created_at' => date('Y-m-d H:i:s'), 'updated_at' => date('Y-m-d H:i:s')]);
+        return (int) $db->insertID();
+    }
+
     public function createEmployee(array $data)
     {
         $db = \Config\Database::connect();
@@ -55,12 +104,13 @@ class EmployeeService
 
             $startTime = trim((string) ($data['start_time'] ?? ''));
             $endTime = trim((string) ($data['end_time'] ?? ''));
-            $workingDayType = trim((string) ($data['working_day_type'] ?? 'full_weekdays')) ?: 'full_weekdays';
+            $workingDayType = $this->resolveWorkingDayType($data);
             $workingDays = array_values(array_filter(array_map(
                 static fn ($day) => strtolower(trim((string) $day)),
                 (array) ($data['working_days'] ?? [])
             )));
             $breakSchedule = $this->parseBreakSchedule($data['break_schedule'] ?? null);
+            $breakWindows = $this->parseBreakWindows($data['break_windows'] ?? null, count($breakSchedule));
 
             if ($startTime === '' || $endTime === '') {
                 throw new \Exception('Start time and end time are required.');
@@ -154,9 +204,12 @@ class EmployeeService
                 throw new \Exception(json_encode($this->govModel->errors()));
             }
 
+            $resolvedDepartment = $this->resolveDepartment($data);
+
             $this->posModel->insert([
                 'employee_id' => $employeeId,
-                'department' => $data['department'],
+                'department' => $resolvedDepartment['department'],
+                'department_id' => $resolvedDepartment['department_id'],
                 'position' => $data['position'],
                 'employment_type' => $data['employment_type'],
                 'working_day_type' => $workingDayType,
@@ -164,6 +217,7 @@ class EmployeeService
                 'end_time' => $endTime,
                 'working_days' => json_encode($workingDays),
                 'break_schedule' => json_encode($breakSchedule),
+                'break_windows' => json_encode($breakWindows),
                 'monthly_salary' => isset($data['monthly_salary']) && $data['monthly_salary'] !== '' ? (float) $data['monthly_salary'] : null,
                 'de_minimis_benefit' => isset($data['de_minimis_benefit']) && $data['de_minimis_benefit'] !== '' ? (float) $data['de_minimis_benefit'] : 0,
                 'de_minimis_breakdown' => isset($data['de_minimis_breakdown']) && $data['de_minimis_breakdown'] !== '' ? $data['de_minimis_breakdown'] : null,
@@ -231,7 +285,7 @@ class EmployeeService
         $department = trim((string) ($details['department'] ?? '')) ?: ($role === 'client_payroll_staff' ? 'Payroll' : 'General');
         $position = trim((string) ($details['position'] ?? '')) ?: ($role === 'client_payroll_staff' ? 'Client Payroll Staff' : 'Employee');
         $employmentType = trim((string) ($details['employment_type'] ?? '')) ?: 'Regular';
-        $workingDayType = trim((string) ($details['working_day_type'] ?? 'full_weekdays')) ?: 'full_weekdays';
+        $workingDayType = $this->resolveWorkingDayType($details);
         $workingDays = array_values(array_filter(array_map(
             static fn ($day) => strtolower(trim((string) $day)),
             (array) ($details['working_days'] ?? ['mon', 'tue', 'wed', 'thu', 'fri'])
@@ -271,6 +325,7 @@ class EmployeeService
             $this->posModel->insert([
                 'employee_id' => $employeeId,
                 'department' => $department,
+                'department_id' => $this->findOrCreateDepartmentByName($department),
                 'position' => $position,
                 'employment_type' => $employmentType,
                 'working_day_type' => $workingDayType,
@@ -311,6 +366,48 @@ class EmployeeService
             }
         }
         return [60];
+    }
+
+    /**
+     * Parses the break_windows form field (a JSON array parallel to
+     * break_schedule, e.g. '[{"mode":"strict","start":"12:00","end":"13:00"},null]')
+     * into a clean array the same length as $breakCount. Any entry that isn't
+     * a valid window object becomes null (Flexible — no restriction, today's
+     * behavior), so a malformed submission degrades safely instead of
+     * blocking the whole save.
+     */
+    private function parseBreakWindows($raw, int $breakCount): array
+    {
+        $decoded = is_string($raw) && $raw !== '' ? json_decode($raw, true) : null;
+        $items = is_array($decoded) ? array_values($decoded) : [];
+
+        $windows = [];
+        for ($i = 0; $i < $breakCount; $i++) {
+            $item = $items[$i] ?? null;
+            $windows[] = $this->validateBreakWindow($item);
+        }
+
+        return $windows;
+    }
+
+    private function validateBreakWindow($item): ?array
+    {
+        if (!is_array($item)) {
+            return null;
+        }
+
+        $mode = (string) ($item['mode'] ?? 'flexible');
+        if (!in_array($mode, ['strict', 'slightly_strict'], true)) {
+            return null;
+        }
+
+        $start = trim((string) ($item['start'] ?? ''));
+        $end = trim((string) ($item['end'] ?? ''));
+        if (!preg_match('/^\d{2}:\d{2}$/', $start) || !preg_match('/^\d{2}:\d{2}$/', $end) || $start === $end) {
+            return null;
+        }
+
+        return ['mode' => $mode, 'start' => $start, 'end' => $end];
     }
 
     private function generateEmployeeNumber()
@@ -397,7 +494,11 @@ class EmployeeService
             }
 
             if (isset($data['working_day_type']) && trim((string) $data['working_day_type']) !== '') {
-                $scheduleData['working_day_type'] = trim((string) $data['working_day_type']);
+                $submittedType = trim((string) $data['working_day_type']);
+                if (! in_array($submittedType, self::KNOWN_WORKING_DAY_TYPES, true)) {
+                    throw new \Exception('Invalid working day type.');
+                }
+                $scheduleData['working_day_type'] = $submittedType;
             }
 
             if (isset($data['working_days'])) {
@@ -413,7 +514,13 @@ class EmployeeService
             }
 
             if (isset($data['break_schedule']) && trim((string) $data['break_schedule']) !== '') {
-                $scheduleData['break_schedule'] = json_encode($this->parseBreakSchedule($data['break_schedule']));
+                $parsedBreaks = $this->parseBreakSchedule($data['break_schedule']);
+                $scheduleData['break_schedule'] = json_encode($parsedBreaks);
+                // break_windows is only ever submitted alongside break_schedule
+                // (same form, same JS sync), so it's parsed here too, aligned
+                // to the same slot count. Absent field = leave every slot
+                // Flexible (an empty array is still valid JSON for "none").
+                $scheduleData['break_windows'] = json_encode($this->parseBreakWindows($data['break_windows'] ?? null, count($parsedBreaks)));
             }
 
             /*
@@ -557,8 +664,15 @@ class EmployeeService
                 ->where('employee_id', $employeeId)
                 ->first();
 
+            $resolvedDepartment = $this->resolveDepartment(
+                $data,
+                $existingPosition['department'] ?? null,
+                isset($existingPosition['department_id']) ? (int) $existingPosition['department_id'] : null
+            );
+
             $positionData = [
-                'department'         => $data['department']      ?? null,
+                'department'         => $resolvedDepartment['department'],
+                'department_id'      => $resolvedDepartment['department_id'],
                 'position'           => $data['position']        ?? null,
                 'employment_type'    => $data['employment_type'] ?? null,
                 'monthly_salary'     => isset($data['monthly_salary'])     && $data['monthly_salary']     !== '' ? (float) $data['monthly_salary']     : null,

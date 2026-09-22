@@ -30,6 +30,79 @@ final class AttendanceWindow
     }
 
     /**
+     * Break slots for an IN-PROGRESS attendance, preferring the employee's
+     * CURRENTLY configured break schedule over the schedule_snapshot frozen
+     * at clock-in. Unlike start/end time and required-hours math (which stay
+     * frozen for historical/payroll accuracy — see requiredHours() below,
+     * still snapshot-based), how many breaks someone gets and how long they
+     * are is low-stakes enough to be live: an admin's mid-shift edit takes
+     * effect immediately, so what the employee is shown on the Dashboard
+     * always matches what starting/ending a break will actually do
+     * server-side (both read through this same method).
+     */
+    public static function liveBreakSlots(array $attendance, array $currentPosition): array
+    {
+        $live = $currentPosition['break_schedule'] ?? null;
+        $liveItems = is_array($live) ? $live : json_decode((string) $live, true);
+        if (is_array($liveItems) && $liveItems) {
+            return self::breaks(['break_schedule' => $liveItems]);
+        }
+        // No live schedule on file (e.g. position row missing) — fall back
+        // to whatever the snapshot/legacy path would have used.
+        return self::breaks(self::schedule($attendance, $currentPosition));
+    }
+
+    /**
+     * Per-slot time-of-day policy, parallel to liveBreakSlots() by index.
+     * Always reads the CURRENT employee_positions row (never the snapshot) —
+     * same live-vs-snapshot rule as liveBreakSlots(): an admin's mid-shift
+     * edit to a break's window takes effect immediately. A missing/short/
+     * malformed entry means that slot is Flexible (no window), so this never
+     * throws — callers can trust every index up to count(liveBreakSlots())
+     * returns something, even if it's null.
+     */
+    public static function liveBreakWindows(array $currentPosition): array
+    {
+        $raw = $currentPosition['break_windows'] ?? null;
+        $items = is_array($raw) ? $raw : json_decode((string) $raw, true);
+        return is_array($items) ? array_values($items) : [];
+    }
+
+    /**
+     * Whether `$now` (a full attendance datetime) falls inside the given
+     * slot's window, resolved against the attendance's own shift date so an
+     * overnight shift's "12:00"-"13:00" window means the calendar day the
+     * shift actually runs on, same as bounds() does for start/end time.
+     * A null/Flexible window is always allowed.
+     */
+    public static function withinBreakWindow(?array $window, array $attendance, string $now): bool
+    {
+        if (!$window || empty($window['start']) || empty($window['end'])) return true;
+        $date = $attendance['shift_date'] ?? substr((string) $attendance['time_in'], 0, 10);
+        $start = self::dateTime($date . ' ' . $window['start'] . ':00');
+        $end = self::dateTime($date . ' ' . $window['end'] . ':00');
+        if ($end <= $start) $end = $end->modify('+1 day');
+        $moment = self::dateTime($now);
+        return $moment >= $start && $moment <= $end;
+    }
+
+    /**
+     * For a Strict slot, the latest minute the break may run to (the window's
+     * own end) — the break is capped there even if the scheduled duration
+     * would run longer. Slightly-strict/Flexible/no-window slots return null
+     * (no cap; the scheduled duration always applies in full).
+     */
+    public static function breakWindowEnd(?array $window, array $attendance): ?DateTimeImmutable
+    {
+        if (!$window || ($window['mode'] ?? null) !== 'strict' || empty($window['end'])) return null;
+        $date = $attendance['shift_date'] ?? substr((string) $attendance['time_in'], 0, 10);
+        $start = !empty($window['start']) ? self::dateTime($date . ' ' . $window['start'] . ':00') : null;
+        $end = self::dateTime($date . ' ' . $window['end'] . ':00');
+        if ($start && $end <= $start) $end = $end->modify('+1 day');
+        return $end;
+    }
+
+    /**
      * Paid hours a full attendance of the scheduled window should give: the window
      * length minus the scheduled break(s). Comparing against the whole window made
      * every full day with a break count as undertime (9h window vs 8h worked).

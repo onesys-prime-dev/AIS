@@ -22,7 +22,7 @@ final class AttendanceSessionService
     }
 
     /** Lock the stable user row even before their first attendance row exists. */
-    private function write(int $userId, callable $work): array
+    private function write(int $userId, callable $work): ?array
     {
         $this->db->transBegin();
         try {
@@ -52,7 +52,7 @@ final class AttendanceSessionService
         $employee = $this->db->table('employees')->where('user_id', $userId)->get()->getRowArray();
         if (!$employee) throw new DomainException('Your account needs an employee profile before you can clock in.');
         $row = $this->db->table('employee_positions')->where('employee_id', $employee['id'])->get()->getRowArray() ?? [];
-        return array_intersect_key($row, array_flip(['start_time', 'end_time', 'break_schedule', 'working_days', 'working_day_type']));
+        return array_intersect_key($row, array_flip(['start_time', 'end_time', 'break_schedule', 'break_windows', 'working_days', 'working_day_type']));
     }
 
     private function owned(int $userId, int $id): array
@@ -99,14 +99,67 @@ final class AttendanceSessionService
     private function endBreak(array $row, string $now): array
     {
         AttendanceWindow::elapsedHours($row['break_start'], $now);
-        $schedule = AttendanceWindow::schedule($row, $this->currentSchedule((int) $row['user_id']));
-        $slots = AttendanceWindow::breaks($schedule); $taken = (int) $row['breaks_taken'];
+        $current = $this->currentSchedule((int) $row['user_id']);
+        $slots = AttendanceWindow::liveBreakSlots($row, $current); $taken = (int) $row['breaks_taken'];
         $minutes = $slots[$taken] ?? $slots[array_key_last($slots)];
+        $policy = 'preset';
+
+        // Strict slots are capped to the window's own end, even if the
+        // scheduled duration would otherwise run longer — e.g. a 60-minute
+        // Strict break starting at 12:50 in a 12:00-13:00 window only
+        // deducts the remaining 10 minutes, never the full 60.
+        $windows = AttendanceWindow::liveBreakWindows($current);
+        $window = $windows[$taken] ?? null;
+        $cap = AttendanceWindow::breakWindowEnd($window, $row);
+        if ($cap) {
+            $capMinutes = max(0, (int) round(($cap->getTimestamp() - AttendanceWindow::dateTime($row['break_start'])->getTimestamp()) / 60));
+            if ($capMinutes < $minutes) {
+                $minutes = $capMinutes;
+                $policy = 'strict_window_capped';
+            }
+        }
+
         $log = json_decode((string) ($row['break_log'] ?? '[]'), true) ?: [];
-        $log[] = ['start' => $row['break_start'], 'end' => $now, 'deducted_minutes' => $minutes, 'policy' => 'preset'];
+        $log[] = ['start' => $row['break_start'], 'end' => $now, 'deducted_minutes' => $minutes, 'policy' => $policy];
         return ['break_start' => null, 'break_start_dt' => null, 'break_end' => $now, 'break_end_dt' => $now,
             'break_duration' => round((float) ($row['break_duration'] ?? 0) + $minutes / 60, 2),
             'breaks_taken' => $taken + 1, 'break_log' => json_encode($log, JSON_THROW_ON_ERROR)];
+    }
+
+    /**
+     * Closes an open break the moment its scheduled length is up, instead of
+     * leaving the employee shown as "on break" indefinitely if they forget to
+     * click End Break. Pay is unaffected either way — endBreak() always
+     * deducts the fixed scheduled slot length, never the actual time spent —
+     * this only keeps the live status accurate. Returns null when there's
+     * nothing to do (not on break, already clocked out, or not yet overdue).
+     */
+    public function autoEndBreakIfOverdue(int $userId, int $id, int $expected): ?array
+    {
+        return $this->write($userId, function () use ($userId, $id, $expected) {
+            $row = $this->owned($userId, $id);
+            $this->version($row, $expected);
+            if ($row['time_out'] !== null || empty($row['break_start'])) return null;
+
+            $now = $this->now();
+            $current = $this->currentSchedule($userId);
+            $slots = AttendanceWindow::liveBreakSlots($row, $current);
+            $taken = (int) $row['breaks_taken'];
+            $scheduledMinutes = $slots[$taken] ?? ($slots[array_key_last($slots)] ?? 0);
+            if ($scheduledMinutes <= 0) return null;
+
+            // A Strict slot is "overdue" the moment its window ends, even if
+            // that's earlier than the scheduled duration would otherwise run
+            // (endBreak() will cap the deduction to the same window end).
+            $windows = AttendanceWindow::liveBreakWindows($current);
+            $cap = AttendanceWindow::breakWindowEnd($windows[$taken] ?? null, $row);
+            $overdue = $cap
+                ? AttendanceWindow::dateTime($now) >= $cap
+                : (AttendanceWindow::elapsedHours($row['break_start'], $now) * 60) >= $scheduledMinutes;
+            if (!$overdue) return null;
+
+            return $this->save($row, $this->endBreak($row, $now), 'Break auto-ended (scheduled duration reached)');
+        });
     }
 
     public function changeBreak(int $userId, int $id, string $action, int $expected): array
@@ -116,8 +169,24 @@ final class AttendanceSessionService
             if ($row['time_out'] !== null) throw new DomainException('This attendance is already clocked out.');
             $now = $this->now(); AttendanceWindow::elapsedHours($row['time_in'], $now);
             if ($action === 'start' && empty($row['break_start'])) {
-                $slots = AttendanceWindow::breaks(AttendanceWindow::schedule($row, $this->currentSchedule($userId)));
-                if ((int) $row['breaks_taken'] >= count($slots)) throw new DomainException('All scheduled breaks have been used.');
+                $current = $this->currentSchedule($userId);
+                $slots = AttendanceWindow::liveBreakSlots($row, $current);
+                $taken = (int) $row['breaks_taken'];
+                if ($taken >= count($slots)) throw new DomainException('All scheduled breaks have been used.');
+
+                // Strict/Slightly-strict slots only allow starting inside their
+                // configured window; Flexible (or unconfigured) slots are
+                // unrestricted, same as before this feature existed.
+                $windows = AttendanceWindow::liveBreakWindows($current);
+                $window = $windows[$taken] ?? null;
+                if (!AttendanceWindow::withinBreakWindow($window, $row, $now)) {
+                    throw new DomainException(sprintf(
+                        'This break can only be started between %s and %s.',
+                        date('g:i A', strtotime($window['start'])),
+                        date('g:i A', strtotime($window['end']))
+                    ));
+                }
+
                 return $this->save($row, ['break_start' => $now, 'break_start_dt' => $now], 'Break started');
             }
             if ($action === 'end' && !empty($row['break_start'])) return $this->save($row, $this->endBreak($row, $now), 'Break ended');

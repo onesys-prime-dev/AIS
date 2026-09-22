@@ -248,17 +248,23 @@
 
                 <div>
                     <label class="edit-form-label">Working Day Type</label>
-                    <select id="edit_working_day_type" name="working_day_type" class="edit-form-select">
-                        <option value="full_weekdays">Full Weekdays (Mon-Fri)</option>
-                        <option value="weekday_with_rest">Weekday Schedule with One Rest Day</option>
-                        <option value="weekend_shift">Weekend Shift (Sat-Sun)</option>
-                        <option value="custom">Custom Schedule</option>
+                    <select id="edit_working_day_type" name="working_day_type" class="edit-form-select" onchange="toggleEditScheduleTime(this.value)">
+                        <option value="full_weekdays">Fixed – Mon to Fri</option>
+                        <option value="weekday_with_rest">Fixed – Weekdays with 1 Rest Day</option>
+                        <option value="weekend_shift">Fixed – Weekend Shift (Sat–Sun)</option>
+                        <option value="custom">Fixed – Custom Days</option>
+                        <option value="flexible">Flexible – No Fixed Start Time</option>
                     </select>
                 </div>
 
                 <div>
                     <label class="edit-form-label">Employment Type</label>
-                    <input type="text" id="edit_employment_type" name="employment_type" class="edit-form-input">
+                    <select id="edit_employment_type" name="employment_type" class="edit-form-select">
+                        <option value="">Select employment type</option>
+                        <?php foreach ($employmentTypeOptions ?? [] as $type): ?>
+                            <option value="<?= esc($type) ?>"><?= esc($type) ?></option>
+                        <?php endforeach; ?>
+                    </select>
                 </div>
 
             </div>
@@ -301,7 +307,7 @@
                 </div>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="edit_schedule_time_row">
 
                 <div>
                     <label class="edit-form-label">Start Time</label>
@@ -329,6 +335,7 @@
                 </button>
 
                 <input type="hidden" name="break_schedule" id="edit_break_schedule_input">
+                <input type="hidden" name="break_windows" id="edit_break_windows_input">
             </div>
 
         </div>
@@ -352,7 +359,12 @@
 
                 <div>
                     <label class="edit-form-label">Department</label>
-                    <input type="text" id="edit_department" name="department" class="edit-form-input">
+                    <select id="edit_department_id" name="department_id" class="edit-form-input">
+                        <option value="">-- Select department --</option>
+                        <?php foreach ($activeDepartments ?? [] as $dept): ?>
+                            <option value="<?= esc($dept['id']) ?>"><?= esc($dept['name']) ?></option>
+                        <?php endforeach; ?>
+                    </select>
                 </div>
 
                 <div>
@@ -678,6 +690,12 @@
 </form>
 
 <script>
+function toggleEditScheduleTime(type) {
+    const row = document.getElementById('edit_schedule_time_row');
+    if (row) row.style.display = (type === 'flexible') ? 'none' : '';
+    if (typeof toggleBreakWindowUI === 'function') toggleBreakWindowUI('edit', type);
+}
+
 document.getElementById('editEmployeeForm').addEventListener('submit', function(e) {
 
     const checkedDays = document.querySelectorAll(

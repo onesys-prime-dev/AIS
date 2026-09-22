@@ -52,6 +52,10 @@ class PresenceModel extends Model
         last_active 10–30 min ago  → Away (heartbeat stale)
         last_active 30+ min ago    → Offline
         never sent a heartbeat     → Offline
+        currently on a break       → On Break (overrides all of the above —
+            checked directly against the open attendance record, not presence
+            heartbeats, so it's accurate even if the employee stepped away
+            from their device during the break)
      */
     public function getAllPresenceStatuses(): array
     {
@@ -60,10 +64,16 @@ class PresenceModel extends Model
         $rows = $db->table('users u')
             ->select('u.id as user_id, u.active as status, u.online_status, u.last_active, e.id as employee_id')
             ->join('employees e', 'e.user_id = u.id')
-            ->where('u.active', 1)  
+            ->where('u.active', 1)
             ->get()
             ->getResultArray();
-                log_message('debug', 'Presence rows: ' . json_encode($rows)); 
+                log_message('debug', 'Presence rows: ' . json_encode($rows));
+
+        $onBreakUserIds = array_column(
+            $db->table('attendance')->select('user_id')->where('time_out', null)->where('break_start IS NOT NULL', null, false)->get()->getResultArray(),
+            'user_id'
+        );
+        $onBreakUserIds = array_flip(array_map('intval', $onBreakUserIds));
 
         $now     = time();
         $result  = [];
@@ -78,6 +88,10 @@ class PresenceModel extends Model
                 $effective = 'Away';
             } else {
                 $effective = 'Offline';
+            }
+
+            if (isset($onBreakUserIds[(int) $row['user_id']])) {
+                $effective = 'On Break';
             }
 
             $result[$row['employee_id']] = $effective;

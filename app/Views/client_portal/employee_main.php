@@ -12,7 +12,7 @@
 
     <div class="tabs">
         <button type="button" class="tab active" data-tab="employee-management">Employee Management</button>
-        <?php if (\App\Libraries\PortalAccess::can('roles')): ?><button type="button" class="tab" data-tab="access-control">Access Control</button><?php endif; ?>
+        <?php if (\App\Libraries\PortalAccess::canManageAccessControl()): ?><button type="button" class="tab" data-tab="access-control">Access Control</button><?php endif; ?>
         <?php if (\App\Libraries\PortalAccess::can('face_recognition')): ?><button type="button" class="tab" data-tab="face-recognition">Face Recognition</button><?php endif; ?>
         <?php if (\App\Libraries\PortalAccess::can('loans')): ?><button type="button" class="tab" data-tab="loan-management">Loan Management</button><?php endif; ?>
     </div>
@@ -24,7 +24,7 @@
     </div>
 
     <div class="tab-panel h-full min-h-0 overflow-visible px-8 pb-8" data-panel="access-control" style="display:none;">
-        <?php if (\App\Libraries\PortalAccess::can('roles')): ?><?= view('client_portal/employee_access_control') ?><?php endif; ?>
+        <?php if (\App\Libraries\PortalAccess::canManageAccessControl()): ?><?= view('client_portal/employee_access_control') ?><?php endif; ?>
     </div>
 
     <div class="tab-panel h-full min-h-0 overflow-visible px-8 pb-8" data-panel="face-recognition" style="display:none;">
@@ -43,7 +43,7 @@
 <?= $this->section('modals') ?>
 
     <?php
-    $content = view('client_portal/modals/add_employee_form');
+    $content = view('client_portal/modals/add_employee_form', ['activeDepartments' => $activeDepartments ?? [], 'employmentTypeOptions' => $employmentTypeOptions ?? []]);
     echo view('components/add_employee_modal', [
         'id' => 'employeeModal',
         'title' => 'Employee Management',
@@ -52,7 +52,7 @@
     ?>
 
     <?php
-    $content = view('client_portal/modals/edit_employee_form');
+    $content = view('client_portal/modals/edit_employee_form', ['activeDepartments' => $activeDepartments ?? [], 'employmentTypeOptions' => $employmentTypeOptions ?? []]);
     echo view('components/edit_employee_modal', [
         'id' => 'editEmployeeModal',
         'title' => 'Employee Management',
@@ -156,94 +156,165 @@ const FACE_RECOGNITION_EMPLOYEES = <?= json_encode($faceRecognitionEmployees ?? 
 const ACCESS_CONTROL_ACCOUNTS = <?= json_encode($accessControlAccounts ?? []) ?>;
 const ACCESS_CONTROL_ROLE_OPTIONS = <?= json_encode($accessControlRoleOptions ?? []) ?>;
 const ACCESS_CONTROL_CURRENT_USER_ID = <?= json_encode((int) $currentUserId) ?>;
-const ACCESS_CONTROL_EMPLOYEES = <?= json_encode($accessControlEmployees ?? []) ?>;
-const ACCESS_CONTROL_TEAM_ASSIGNMENTS = <?= json_encode($accessControlTeamAssignments ?? []) ?>;
+const ACCESS_CONTROL_DEPARTMENTS = <?= json_encode($accessControlDepartments ?? []) ?>;
+const ACCESS_CONTROL_TEAM_HEAD_ACCOUNTS = <?= json_encode($accessControlTeamHeadAccounts ?? []) ?>;
+const ACCESS_CONTROL_DEPARTMENT_TEAM_HEADS = <?= json_encode($accessControlDepartmentTeamHeads ?? []) ?>;
 const ACCESS_CONTROL_PERMISSIONS = <?= json_encode($accessControlPermissions ?? []) ?>;
 const ACCESS_CONTROL_PERMISSION_LABELS = <?= json_encode($accessControlPermissionLabels ?? []) ?>;
+const ACCESS_CONTROL_ACTOR_IS_SUPERADMIN = <?= json_encode((bool) ($accessControlActorIsSuperadmin ?? false)) ?>;
 const CSRF_HASH = "<?= csrf_hash() ?>";
 
+function acEscapeHtml(s) {
+    return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+    });
+}
+
+// Shared across the Accounts and Departments sections below, so giving
+// someone the Team Head role in Accounts immediately makes them pickable
+// in the Departments section's Team Head list — no page refresh needed.
+let acTeamHeadAccounts = ACCESS_CONTROL_TEAM_HEAD_ACCOUNTS.slice();
+
+// ================= ACCOUNTS (multi-role) =================
 (function () {
     const body = document.getElementById('accessControlBody');
-    if (!body) return; // panel not rendered (PortalAccess::can('roles') was false)
+    if (!body) return; // panel not rendered (PortalAccess::canManageAccessControl() was false)
 
     const accounts = ACCESS_CONTROL_ACCOUNTS;
     const roleOptions = ACCESS_CONTROL_ROLE_OPTIONS;
-
-    function escapeHtml(s) {
-        return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
-            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
-        });
-    }
 
     if (!accounts.length) {
         body.innerHTML = '<tr><td colspan="3" class="px-4 py-6 text-center text-gray-400">No accounts found.</td></tr>';
         return;
     }
 
-    body.innerHTML = accounts.map(function (acc) {
-        const hasRole = acc.current_role !== null && acc.current_role !== undefined;
+    function roleBadges(roles) {
+        if (!roles.length) return '<span class="text-xs text-red-500">No role assigned</span>';
+        return roles.map(function (r) {
+            return '<span class="inline-flex items-center rounded-full bg-gray-100 text-gray-700 px-2 py-1 text-xs font-medium mr-2 mb-1">' + acEscapeHtml(roleOptions[r] || r) + '</span>';
+        }).join('');
+    }
 
+    function setPillSelected(pill, selected) {
+        pill.dataset.selected = selected ? '1' : '0';
+        pill.style.background = selected ? '#A891FC' : '#f3f4f6';
+        pill.style.color = selected ? '#fff' : '#374151';
+    }
+
+    function currentSelection(container) {
+        return Array.from(container.querySelectorAll('.ac-role-pill[data-selected="1"]')).map(function (p) { return p.dataset.role; });
+    }
+
+    function sameRoles(a, b) {
+        const sa = a.slice().sort().join(',');
+        const sb = b.slice().sort().join(',');
+        return sa === sb;
+    }
+
+    // Roles are always shown as clickable pills — no separate "Edit" step to
+    // find first. Save only appears once the selection actually differs from
+    // what's saved, same as the original single-role dropdown used to work.
+    body.innerHTML = accounts.map(function (acc) {
         if (acc.user_id === ACCESS_CONTROL_CURRENT_USER_ID) {
-            const label = hasRole ? (roleOptions[acc.current_role] || acc.current_role) : 'No role assigned';
             return '<tr>' +
-                '<td class="px-4 py-3">' + escapeHtml(acc.name) + '</td>' +
-                '<td class="px-4 py-3">' + escapeHtml(acc.email || '—') + '</td>' +
-                '<td class="px-4 py-3 text-gray-400 italic">' + escapeHtml(label) + ' (you)</td>' +
+                '<td class="px-4 py-3">' + acEscapeHtml(acc.name) + '</td>' +
+                '<td class="px-4 py-3">' + acEscapeHtml(acc.email || '—') + '</td>' +
+                '<td class="px-4 py-3 text-gray-400 italic">' + roleBadges(acc.roles) + ' (you)</td>' +
                 '</tr>';
         }
 
-        const originalValue = hasRole ? acc.current_role : '';
-        const placeholder = hasRole ? '' : '<option value="" selected disabled>No role assigned — pick one</option>';
-        const options = placeholder + Object.keys(roleOptions).map(function (key) {
-            const selected = key === acc.current_role ? ' selected' : '';
-            return '<option value="' + escapeHtml(key) + '"' + selected + '>' + escapeHtml(roleOptions[key]) + '</option>';
+        const isSuperadminLocked = acc.roles.indexOf('superadmin') !== -1 && !ACCESS_CONTROL_ACTOR_IS_SUPERADMIN;
+        if (isSuperadminLocked) {
+            return '<tr>' +
+                '<td class="px-4 py-3">' + acEscapeHtml(acc.name) + '</td>' +
+                '<td class="px-4 py-3">' + acEscapeHtml(acc.email || '—') + '</td>' +
+                '<td class="px-4 py-3">' + roleBadges(acc.roles) + '<div class="text-xs text-gray-400 italic mt-1">Only Super Admin can change a Super Admin account.</div></td>' +
+                '</tr>';
+        }
+
+        const selectable = Object.keys(roleOptions).filter(function (key) {
+            return key !== 'superadmin' || ACCESS_CONTROL_ACTOR_IS_SUPERADMIN;
+        });
+        const pills = selectable.map(function (key) {
+            const selected = acc.roles.indexOf(key) !== -1;
+            return '<button type="button" class="ac-role-pill px-3 py-1 rounded-full text-xs font-medium" data-role="' + acEscapeHtml(key) + '" data-selected="' + (selected ? '1' : '0') + '" style="background:' + (selected ? '#A891FC' : '#f3f4f6') + ';color:' + (selected ? '#fff' : '#374151') + ';">' + acEscapeHtml(roleOptions[key]) + '</button>';
         }).join('');
-        const selectBorderStyle = hasRole ? '' : ' style="border-color:#f87171;"';
 
         return '<tr data-user-id="' + acc.user_id + '">' +
-            '<td class="px-4 py-3">' + escapeHtml(acc.name) + '</td>' +
-            '<td class="px-4 py-3">' + escapeHtml(acc.email || '—') + '</td>' +
-            '<td class="px-4 py-3">' +
-                '<select class="ac-role-select border border-gray-300 rounded-lg px-2 py-1 text-sm"' + selectBorderStyle + ' data-original="' + escapeHtml(originalValue) + '">' + options + '</select>' +
-                (hasRole ? '' : ' <span class="text-xs text-red-500">No role assigned</span>') +
-                '<button type="button" class="ac-save-btn ml-2 px-3 py-1 rounded-lg text-xs font-semibold text-white" style="display:none;background:#A891FC;" onmouseover="this.style.background=\'#9678f5\'" onmouseout="this.style.background=\'#A891FC\'">Save</button>' +
+            '<td class="px-4 py-3" style="vertical-align:top;">' + acEscapeHtml(acc.name) + '</td>' +
+            '<td class="px-4 py-3" style="vertical-align:top;">' + acEscapeHtml(acc.email || '—') + '</td>' +
+            '<td class="px-4 py-3" style="vertical-align:top;">' +
+                '<div class="flex flex-wrap gap-2 ac-role-checklist">' + pills + '</div>' +
+                '<button type="button" class="ac-save-btn mt-2 px-3 py-1 rounded-lg text-xs font-semibold text-white" style="display:none;background:#A891FC;" onmouseover="this.style.background=\'#9678f5\'" onmouseout="this.style.background=\'#A891FC\'">Save</button>' +
             '</td>' +
             '</tr>';
     }).join('');
 
     body.querySelectorAll('tr[data-user-id]').forEach(function (row) {
-        const select = row.querySelector('.ac-role-select');
-        const saveBtn = row.querySelector('.ac-save-btn');
-        if (!select || !saveBtn) return;
+        const userId = row.dataset.userId;
+        const acc = accounts.find(function (a) { return String(a.user_id) === String(userId); });
+        if (!acc) return;
 
-        select.addEventListener('change', function () {
-            saveBtn.style.display = select.value !== select.dataset.original ? 'inline-block' : 'none';
+        const checklist = row.querySelector('.ac-role-checklist');
+        const saveBtn = row.querySelector('.ac-save-btn');
+        if (!checklist || !saveBtn) return;
+        const pills = Array.from(checklist.querySelectorAll('.ac-role-pill'));
+
+        function refreshSaveVisibility() {
+            saveBtn.style.display = sameRoles(currentSelection(checklist), acc.roles) ? 'none' : 'inline-block';
+        }
+
+        pills.forEach(function (pill) {
+            pill.addEventListener('click', function () {
+                const nowSelected = pill.dataset.selected !== '1';
+                if (pill.dataset.role === 'employee' && nowSelected) {
+                    pills.forEach(function (p) { setPillSelected(p, p === pill); });
+                } else {
+                    setPillSelected(pill, nowSelected);
+                    if (nowSelected) {
+                        const employeePill = pills.find(function (p) { return p.dataset.role === 'employee'; });
+                        if (employeePill) setPillSelected(employeePill, false);
+                    }
+                }
+                refreshSaveVisibility();
+            });
         });
 
         saveBtn.addEventListener('click', function () {
-            if ((select.value === 'admin' || select.value === 'superadmin') &&
-                !confirm('Grant "' + (roleOptions[select.value] || select.value) + '" access to this account? This is a highly privileged role.')) {
+            const checked = currentSelection(checklist);
+
+            if ((checked.indexOf('admin') !== -1 || checked.indexOf('superadmin') !== -1) &&
+                !confirm('Save this role change? The account will have Admin and/or Super Admin access.')) {
                 return;
             }
 
-            const userId = row.dataset.userId;
             saveBtn.disabled = true;
             saveBtn.textContent = 'Saving…';
 
-            fetch('<?= site_url('client_portal/access-control/update-role') ?>', {
+            const params = new URLSearchParams({ user_id: userId });
+            checked.forEach(function (r) { params.append('roles[]', r); });
+
+            fetch('<?= site_url('client_portal/access-control/update-roles') ?>', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded',
                     'X-Requested-With': 'XMLHttpRequest',
                     'X-CSRF-TOKEN': CSRF_HASH,
                 },
-                body: new URLSearchParams({ user_id: userId, role: select.value }),
+                body: params,
             })
                 .then(function (res) { return res.json(); })
                 .then(function (data) {
-                    if (window.showToast) window.showToast(data.message || (data.success ? 'Role updated.' : 'Something went wrong.'), data.success ? 'success' : 'error');
+                    if (window.showToast) window.showToast(data.message || (data.success ? 'Roles updated.' : 'Something went wrong.'), data.success ? 'success' : 'error');
                     if (data.success) {
-                        select.dataset.original = select.value;
+                        const wasTeamHead = acc.roles.indexOf('team_head') !== -1;
+                        const isTeamHead = checked.indexOf('team_head') !== -1;
+                        if (isTeamHead && !wasTeamHead) {
+                            acTeamHeadAccounts.push({ user_id: acc.user_id, name: acc.name });
+                        } else if (!isTeamHead && wasTeamHead) {
+                            acTeamHeadAccounts = acTeamHeadAccounts.filter(function (t) { return t.user_id !== acc.user_id; });
+                        }
+                        acc.roles = checked;
                         saveBtn.style.display = 'none';
                     }
                 })
@@ -258,77 +329,189 @@ const CSRF_HASH = "<?= csrf_hash() ?>";
     });
 })();
 
-// ================= TEAM HEAD ASSIGNMENTS =================
+// ================= DEPARTMENTS =================
 (function () {
-    const section = document.getElementById('teamAssignmentsSection');
-    const container = document.getElementById('teamAssignmentsBody');
-    if (!section || !container) return;
+    const container = document.getElementById('departmentsList');
+    if (!container) return;
 
-    function escapeHtml(s) {
-        return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
-            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
-        });
+    // Local, mutable copy so add/rename/deactivate can update the UI without a full reload.
+    let departments = ACCESS_CONTROL_DEPARTMENTS.slice();
+    const deptTeamHeads = Object.assign({}, ACCESS_CONTROL_DEPARTMENT_TEAM_HEADS);
+
+    function post(url, params) {
+        return fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-TOKEN': CSRF_HASH,
+            },
+            body: params,
+        }).then(function (res) { return res.json(); });
     }
 
-    const teamHeads = ACCESS_CONTROL_ACCOUNTS.filter(function (acc) { return acc.current_role === 'team_head'; });
-    if (!teamHeads.length) {
-        return; // nothing to show, section stays hidden
-    }
-    section.style.display = 'block';
+    function render() {
+        if (!departments.length) {
+            container.innerHTML = '<p class="text-sm text-gray-400 text-center py-6">No departments yet — add one above.</p>';
+            return;
+        }
 
-    container.innerHTML = teamHeads.map(function (th) {
-        const assigned = ACCESS_CONTROL_TEAM_ASSIGNMENTS[th.user_id] || [];
-        const checkboxes = ACCESS_CONTROL_EMPLOYEES.map(function (emp) {
-            const checked = assigned.indexOf(emp.employee_id) !== -1 ? ' checked' : '';
-            return '<label class="flex items-center gap-2 text-sm py-1">' +
-                '<input type="checkbox" value="' + emp.employee_id + '"' + checked + '>' +
-                escapeHtml(emp.name) +
-                '</label>';
+        function teamHeadSummary(d) {
+            const assigned = deptTeamHeads[d.id] || [];
+            if (!assigned.length) return '<span style="color:#f87171;">No Team Head assigned</span>';
+            const names = assigned.map(function (uid) {
+                const th = acTeamHeadAccounts.find(function (t) { return t.user_id === uid; });
+                return th ? acEscapeHtml(th.name) : null;
+            }).filter(Boolean);
+            return 'Team Head: ' + names.join(', ');
+        }
+
+        // Each department is a compact one-line summary by default — the full
+        // rename / Team Head / deactivate controls only appear once you click
+        // Manage, so having several departments on screen doesn't mean several
+        // full edit forms all open at once.
+        container.innerHTML = departments.map(function (d) {
+            return '<div class="rounded-2xl border border-gray-200 p-4" data-department-id="' + d.id + '">' +
+                '<div class="flex items-center justify-between flex-wrap gap-2">' +
+                    '<div>' +
+                        '<span class="font-medium text-gray-800 dept-name-display">' + acEscapeHtml(d.name) + '</span> ' +
+                        '<button type="button" class="dept-toggle-employees-btn text-xs underline" style="color:#9ca3af;">' + d.employee_count + ' employee' + (d.employee_count === 1 ? '' : 's') + '</button>' +
+                        '<div class="text-xs text-gray-400 mt-0.5 dept-team-head-summary">' + teamHeadSummary(d) + '</div>' +
+                    '</div>' +
+                    '<button type="button" class="dept-manage-btn text-xs font-semibold" style="color:#9678f5;">Manage</button>' +
+                '</div>' +
+                '<div class="dept-employees-list text-xs text-gray-500 mt-2" style="display:none;">' +
+                    (d.employees.length ? d.employees.map(function (e) { return acEscapeHtml(e.name); }).join(', ') : 'No employees in this department yet.') +
+                '</div>' +
+                '<div class="dept-manage-panel mt-3 pt-3 border-t border-gray-100" style="display:none;"></div>' +
+                '</div>';
         }).join('');
 
-        return '<div class="rounded-2xl border border-gray-200 p-4" data-team-head-id="' + th.user_id + '">' +
-            '<div class="flex items-center justify-between">' +
-                '<span class="font-medium text-gray-800">' + escapeHtml(th.name) + '</span>' +
-                '<button type="button" class="ta-save-btn px-3 py-1 rounded-lg text-xs font-semibold text-white" style="background:#A891FC;" onmouseover="this.style.background=\'#9678f5\'" onmouseout="this.style.background=\'#A891FC\'">Save</button>' +
-            '</div>' +
-            '<div class="grid grid-cols-2 gap-1 mt-3">' + checkboxes + '</div>' +
-            '</div>';
-    }).join('');
+        function renderManagePanel(d) {
+            const assigned = deptTeamHeads[d.id] || [];
+            const teamHeadChecks = acTeamHeadAccounts.length
+                ? acTeamHeadAccounts.map(function (th) {
+                    const checked = assigned.indexOf(th.user_id) !== -1 ? ' checked' : '';
+                    return '<label class="flex items-center gap-2 text-sm py-1">' +
+                        '<input type="checkbox" class="dth-box" value="' + th.user_id + '"' + checked + '>' +
+                        acEscapeHtml(th.name) +
+                        '</label>';
+                }).join('')
+                : '<p class="text-xs text-gray-400 col-span-2">No accounts hold the Team Head role yet.</p>';
 
-    container.querySelectorAll('[data-team-head-id]').forEach(function (card) {
-        const saveBtn = card.querySelector('.ta-save-btn');
-        saveBtn.addEventListener('click', function () {
-            const teamHeadId = card.dataset.teamHeadId;
-            const employeeIds = Array.from(card.querySelectorAll('input[type=checkbox]:checked')).map(function (cb) { return cb.value; });
+            return '<div class="flex items-center gap-2 mb-3">' +
+                    '<input type="text" class="dept-name-input border border-gray-300 rounded-lg px-2 py-1 text-sm" value="' + acEscapeHtml(d.name) + '" style="width:200px;">' +
+                    '<button type="button" class="dept-rename-btn text-xs font-semibold" style="color:#9678f5;">Save name</button>' +
+                    '<button type="button" class="dept-deactivate-btn text-xs ml-auto" style="color:#9ca3af;" onmouseover="this.style.color=\'#dc2626\'" onmouseout="this.style.color=\'#9ca3af\'">Deactivate department</button>' +
+                '</div>' +
+                '<div class="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-1">Team Head(s)</div>' +
+                '<div class="grid grid-cols-2 gap-1">' + teamHeadChecks + '</div>' +
+                '<div class="flex justify-end mt-2">' +
+                    '<button type="button" class="dth-save-btn px-3 py-1 rounded-lg text-xs font-semibold text-white" style="background:#A891FC;" onmouseover="this.style.background=\'#9678f5\'" onmouseout="this.style.background=\'#A891FC\'">Save Team Heads</button>' +
+                '</div>';
+        }
 
-            saveBtn.disabled = true;
-            saveBtn.textContent = 'Saving…';
+        container.querySelectorAll('[data-department-id]').forEach(function (card) {
+            const id = card.dataset.departmentId;
 
-            const params = new URLSearchParams({ user_id: teamHeadId });
-            employeeIds.forEach(function (id) { params.append('employee_ids[]', id); });
+            card.querySelector('.dept-toggle-employees-btn').addEventListener('click', function () {
+                const list = card.querySelector('.dept-employees-list');
+                list.style.display = list.style.display === 'none' ? 'block' : 'none';
+            });
 
-            fetch('<?= site_url('client_portal/access-control/update-team-assignments') ?>', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'X-CSRF-TOKEN': CSRF_HASH,
-                },
-                body: params,
-            })
-                .then(function (res) { return res.json(); })
-                .then(function (data) {
-                    if (window.showToast) window.showToast(data.message || (data.success ? 'Saved.' : 'Something went wrong.'), data.success ? 'success' : 'error');
-                })
-                .catch(function () {
-                    if (window.showToast) window.showToast('Something went wrong.', 'error');
-                })
-                .finally(function () {
-                    saveBtn.disabled = false;
-                    saveBtn.textContent = 'Save';
-                });
+            const panel = card.querySelector('.dept-manage-panel');
+            const manageBtn = card.querySelector('.dept-manage-btn');
+            manageBtn.addEventListener('click', function () {
+                const dep = departments.find(function (d) { return String(d.id) === String(id); });
+                const opening = panel.style.display === 'none';
+                panel.style.display = opening ? 'block' : 'none';
+                manageBtn.textContent = opening ? 'Close' : 'Manage';
+                if (opening) {
+                    panel.innerHTML = renderManagePanel(dep);
+                    wireManagePanel(card, panel, id);
+                }
+            });
         });
-    });
+
+        function wireManagePanel(card, panel, id) {
+            panel.querySelector('.dept-rename-btn').addEventListener('click', function () {
+                const btn = this;
+                const newName = panel.querySelector('.dept-name-input').value.trim();
+                if (!newName) return;
+                btn.disabled = true;
+                post('<?= site_url('client_portal/access-control/departments/rename') ?>', new URLSearchParams({ id: id, name: newName }))
+                    .then(function (data) {
+                        if (window.showToast) window.showToast(data.message || (data.success ? 'Renamed.' : 'Something went wrong.'), data.success ? 'success' : 'error');
+                        if (data.success) {
+                            const dep = departments.find(function (d) { return String(d.id) === String(id); });
+                            if (dep) dep.name = newName;
+                            card.querySelector('.dept-name-display').textContent = newName;
+                        }
+                    })
+                    .catch(function () { if (window.showToast) window.showToast('Something went wrong.', 'error'); })
+                    .finally(function () { btn.disabled = false; });
+            });
+
+            panel.querySelector('.dept-deactivate-btn').addEventListener('click', function () {
+                const dep = departments.find(function (d) { return String(d.id) === String(id); });
+                if (!confirm('Deactivate "' + (dep ? dep.name : 'this department') + '"? Its Team Head assignments will be cleared. Employees already in it keep their record but the department will no longer be selectable.')) return;
+                post('<?= site_url('client_portal/access-control/departments/deactivate') ?>', new URLSearchParams({ id: id }))
+                    .then(function (data) {
+                        if (window.showToast) window.showToast(data.message || (data.success ? 'Deactivated.' : 'Something went wrong.'), data.success ? 'success' : 'error');
+                        if (data.success) {
+                            departments = departments.filter(function (d) { return String(d.id) !== String(id); });
+                            delete deptTeamHeads[id];
+                            render();
+                        }
+                    })
+                    .catch(function () { if (window.showToast) window.showToast('Something went wrong.', 'error'); });
+            });
+
+            panel.querySelector('.dth-save-btn').addEventListener('click', function () {
+                const btn = this;
+                const checked = Array.from(panel.querySelectorAll('.dth-box:checked')).map(function (cb) { return cb.value; });
+                btn.disabled = true;
+                btn.textContent = 'Saving…';
+
+                const params = new URLSearchParams({ department_id: id });
+                checked.forEach(function (uid) { params.append('team_head_user_ids[]', uid); });
+
+                post('<?= site_url('client_portal/access-control/departments/team-heads') ?>', params)
+                    .then(function (data) {
+                        if (window.showToast) window.showToast(data.message || (data.success ? 'Saved.' : 'Something went wrong.'), data.success ? 'success' : 'error');
+                        if (data.success) {
+                            deptTeamHeads[id] = checked.map(Number);
+                            card.querySelector('.dept-team-head-summary').innerHTML = teamHeadSummary({ id: id });
+                        }
+                    })
+                    .catch(function () { if (window.showToast) window.showToast('Something went wrong.', 'error'); })
+                    .finally(function () { btn.disabled = false; btn.textContent = 'Save Team Heads'; });
+            });
+        }
+    }
+
+    render();
+
+    const addBtn = document.getElementById('addDepartmentBtn');
+    const nameInput = document.getElementById('newDepartmentName');
+    if (addBtn && nameInput) {
+        addBtn.addEventListener('click', function () {
+            const name = nameInput.value.trim();
+            if (!name) return;
+            addBtn.disabled = true;
+            post('<?= site_url('client_portal/access-control/departments/create') ?>', new URLSearchParams({ name: name }))
+                .then(function (data) {
+                    if (window.showToast) window.showToast(data.message || (data.success ? 'Added.' : 'Something went wrong.'), data.success ? 'success' : 'error');
+                    if (data.success) {
+                        departments.push({ id: data.id, name: name, employee_count: 0, employees: [] });
+                        nameInput.value = '';
+                        render();
+                    }
+                })
+                .catch(function () { if (window.showToast) window.showToast('Something went wrong.', 'error'); })
+                .finally(function () { addBtn.disabled = false; });
+        });
+    }
 })();
 
 // ================= ROLE PERMISSIONS =================
@@ -452,18 +635,16 @@ const CSRF_HASH = "<?= csrf_hash() ?>";
 
     const panels = {
         accounts: document.querySelector('[data-ac-panel="accounts"]'),
-        team: document.getElementById('teamAssignmentsSection'),
+        departments: document.getElementById('departmentsSection'),
         permissions: document.getElementById('rolePermissionsSection'),
     };
     const buttons = Array.from(tabsWrap.querySelectorAll('[data-ac-tab]'));
 
     function isEligible(key) {
-        const panel = panels[key];
-        if (!panel) return false;
-        if (key === 'accounts') return true;
-        // team/permissions panels are only ever switched to 'block' by their
-        // own render logic above when they actually have content to show.
-        return panel.style.display === 'block';
+        // Accounts, Departments and Role Permissions are all always available —
+        // unlike the old per-employee Team Head picker, Departments doesn't
+        // depend on any data already existing (you add the first one here).
+        return !!panels[key];
     }
 
     buttons.forEach(function (btn) {
@@ -616,6 +797,7 @@ function htmlEsc(val)
                         data-address="${htmlEsc(p.address)}"
 
                         data-department="${htmlEsc(p.department)}"
+                        data-department_id="${htmlEsc(p.department_id)}"
                         data-position="${htmlEsc(p.position)}"
                         data-employment_type="${htmlEsc(p.employment_type)}"
 
@@ -624,6 +806,7 @@ function htmlEsc(val)
                         data-start_time="${htmlEsc(p.start_time)}"
                         data-end_time="${htmlEsc(p.end_time)}"
                         data-break_schedule='${htmlEsc(p.break_schedule || "[]")}'
+                        data-break_windows='${htmlEsc(p.break_windows || "[]")}'
 
                         data-sss="${htmlEsc(p.sss)}"
                         data-tin="${htmlEsc(p.tin)}"
@@ -1517,7 +1700,7 @@ window.addEventListener('click', function(e)
         setVal('edit_mobile_number',     button.dataset.mobile_number);
         setVal('edit_address',           button.dataset.address);
 
-        setVal('edit_department',        button.dataset.department);
+        setVal('edit_department_id',     button.dataset.department_id);
         setVal('edit_position',          button.dataset.position);
         setVal('edit_employment_type',   button.dataset.employment_type);
         setVal('edit_email',             button.dataset.email);
@@ -1546,6 +1729,7 @@ window.addEventListener('click', function(e)
         setVal('edit_status',            button.dataset.status);
 
         setVal('edit_working_day_type',  button.dataset.working_day_type);
+        if (typeof toggleEditScheduleTime === 'function') toggleEditScheduleTime(button.dataset.working_day_type);
         setVal('edit_start_time',        button.dataset.start_time);
         setVal('edit_end_time',          button.dataset.end_time);
         if (typeof toggleEditScheduleTime === 'function') toggleEditScheduleTime(button.dataset.working_day_type);
@@ -1554,7 +1738,9 @@ window.addEventListener('click', function(e)
         if (typeof rebuildBreakRows === 'function') {
             let breakMinutes = [];
             try { breakMinutes = JSON.parse(button.dataset.break_schedule || '[]'); } catch (e) { breakMinutes = []; }
-            rebuildBreakRows('edit', Array.isArray(breakMinutes) && breakMinutes.length ? breakMinutes : [60]);
+            let breakWindows = [];
+            try { breakWindows = JSON.parse(button.dataset.break_windows || '[]'); } catch (e) { breakWindows = []; }
+            rebuildBreakRows('edit', Array.isArray(breakMinutes) && breakMinutes.length ? breakMinutes : [60], breakWindows);
         }
 
         // Restore working day checkboxes

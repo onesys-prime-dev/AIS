@@ -45,9 +45,12 @@ $routes->group('client_portal', ['filter' => 'auth'], function($routes){
     $routes->get ('employees/import-history','Client\EmployeeController::importHistory');
 
     // -- Access Control (role assignment — a tab inside Employee Management) --
-    $routes->post('access-control/update-role'              , 'Client\AccessControlController::updateRole');
-    $routes->post('access-control/update-team-assignments'  , 'Client\AccessControlController::updateTeamAssignments');
-    $routes->post('access-control/update-role-permissions'  , 'Client\AccessControlController::updateRolePermissions');
+    $routes->post('access-control/update-roles'              , 'Client\AccessControlController::updateRoles');
+    $routes->post('access-control/update-role-permissions'    , 'Client\AccessControlController::updateRolePermissions');
+    $routes->post('access-control/departments/create'         , 'Client\AccessControlController::createDepartment');
+    $routes->post('access-control/departments/rename'         , 'Client\AccessControlController::renameDepartment');
+    $routes->post('access-control/departments/deactivate'     , 'Client\AccessControlController::deactivateDepartment');
+    $routes->post('access-control/departments/team-heads'     , 'Client\AccessControlController::updateDepartmentTeamHeads');
 
     // -- Loans --
     // Note: no standalone 'loans' index route — the Loans tab is rendered
