@@ -28,8 +28,18 @@ echo "Application files OK."
 
 echo "[2/6] Database migrations..."
 
-echo "WARNING: Automatic migrations are temporarily disabled."
-echo "Migration state must be reconciled before enabling migrations."
+# Default namespace only (App). Deliberately NOT --all: the Shield/Settings
+# package tables are not tracked in the migrations table on this server, so
+# running their migrations would try to re-create tables that already exist.
+echo "Migration status before:"
+php spark migrate:status
+
+if ! php spark migrate; then
+    echo "ERROR: Database migration failed. Deployment aborted."
+    exit 1
+fi
+
+echo "Database migrations: OK"
 
 echo "[3/6] Clearing CodeIgniter cache..."
 
