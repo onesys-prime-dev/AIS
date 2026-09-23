@@ -139,8 +139,10 @@ class PayrollController extends BaseController
 
         $payslipModel = new \App\Models\Client\EmployeePayslipModel();
         $data['payslips'] = $payslipModel
-            ->select("employee_payslips.*, CONCAT(employees.first_name,' ',employees.last_name) AS employee_name")
+            ->select("employee_payslips.*, CONCAT(employees.first_name,' ',employees.last_name) AS employee_name,
+                ea.bank, ea.account_number, ea.swift_code, ea.bank_address", false)
             ->join('employees', 'employees.id = employee_payslips.employee_id')
+            ->join('employee_accounts as ea', 'ea.employee_id = employees.id', 'left')
             ->orderBy('employee_payslips.created_at', 'DESC')
             ->findAll();
 
@@ -2387,8 +2389,10 @@ class PayrollController extends BaseController
     {
         $payslipModel = new \App\Models\Client\EmployeePayslipModel();
         $payslips = $payslipModel
-            ->select('employee_payslips.*, CONCAT(employees.first_name, " ", employees.last_name) as employee_name')
+            ->select("employee_payslips.*, CONCAT(employees.first_name, ' ', employees.last_name) as employee_name,
+                ea.bank, ea.account_number, ea.swift_code, ea.bank_address", false)
             ->join('employees', 'employees.id = employee_payslips.employee_id')
+            ->join('employee_accounts as ea', 'ea.employee_id = employees.id', 'left')
             ->orderBy('employee_payslips.created_at', 'DESC')
             ->findAll();
 

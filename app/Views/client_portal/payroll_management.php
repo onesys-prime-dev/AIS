@@ -747,8 +747,9 @@ $_defaultYearMonth = $_current['salary_month'];
                             <span id="bulkBtnSpinner" style="display:none;">⏳</span>
                         </button>
                         <button type="button" id="bulkSendAllBtn" onclick="sendBulkAll()" style="display:none;
-                            background:#16a34a;color:#fff;border:none;border-radius:8px;padding:9px 20px;font-size:13px;font-weight:600;cursor:pointer;">
-                            ✉ Send All
+                            background:#16a34a;color:#fff;border:none;border-radius:8px;padding:9px 20px;font-size:13px;font-weight:600;cursor:pointer;align-items:center;">
+                            <span id="bulkSendBtnSpinner" class="btn-spinner" style="display:none;width:18px;height:18px;border-width:3px;"></span>
+                            <span id="bulkSendBtnText">✉ Send All</span>
                         </button>
                         <button type="button" id="bulkExportBtn" onclick="exportBulkCSV()" style="display:none;
                             background:#374151;color:#fff;border:none;border-radius:8px;padding:9px 20px;font-size:13px;font-weight:600;cursor:pointer;">
@@ -765,6 +766,11 @@ $_defaultYearMonth = $_current['salary_month'];
              the actual table below. -->
         <div id="bulkReviewPanel" style="display:none;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;">
             <div id="bulkReviewSummary" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 12px;font-size:13px;font-weight:600;color:#374151;background:#f9fafb;"></div>
+            <div id="bulkSendProgressWrap" style="display:none;padding:0 12px 10px;background:#f9fafb;">
+                <div style="height:10px;background:#e5e7eb;border-radius:6px;overflow:hidden;">
+                    <div id="bulkSendProgressFill" style="height:100%;width:0%;background:#16a34a;border-radius:6px;transition:width .2s ease;"></div>
+                </div>
+            </div>
             <div id="bulkReviewDetails" style="display:none;">
                 <div style="display:grid;grid-template-columns:2fr 1.1fr 1.1fr 1.2fr 90px;background:#DCDCDC;color:#737373;font-size:13px;font-weight:700;border-top:1px solid #e5e7eb;border-bottom:1px solid #9E9E9E;">
                     <div style="padding:8px 12px;">Employee</div>
@@ -2027,6 +2033,41 @@ function _buildBulkPayload(empId, d) {
     };
 }
 
+// Re-applies whatever CSV import / Raw Sheet table edits are currently
+// sitting in this employee's payload/d onto the Individual-mode form
+// fields — fillEmployeeData() only knows how to recompute fresh baseline
+// values from attendance/schedule, it has no idea an import happened, so
+// without this View would silently show pre-import numbers even though
+// Send (which reads payload/d directly, not these form fields) already
+// sends the correct edited ones. Every field set here is read directly by
+// getComputedPayslipValues() (confirmed: none of them get recalculated
+// from an hours field at generation time), so setting them straight from
+// payload/d is safe and doesn't touch fillEmployeeData's own logic at all.
+function _applyBulkOverridesToForm(p, d) {
+    const sv = (id, v) => { const el = document.getElementById(id); if (el) el.value = Number(v||0).toFixed(2); };
+    sv('yearEndGifts', p.year_end_gifts); sv('riceSubsidy', p.rice_subsidy);
+    sv('uniformAllowance', p.uniform_allowance); sv('laundryAllowance', p.laundry_allowance);
+    sv('mealAllowance', p.meal_allowance);
+    // p.medical_allowance is the already-combined medicalAllowance + medicalAllowanceAdd
+    // total (see _buildBulkPayload) — the original split can't be recovered from it,
+    // so the full amount goes in the base field and the "Additional" one is zeroed;
+    // the combined total fed into the calculation is what matters for correctness.
+    sv('medicalAllowance', p.medical_allowance); sv('medicalAllowanceAdd', 0);
+    sv('additionalDeMinimisNonTaxable', p.additional_de_minimis_nontax);
+    sv('additionalDeMinimisTaxable', p.additional_de_minimis_tax);
+    sv('salaryAdjustment', p.salary_adjustment); sv('overrideAmount', p.override_amount); sv('nedAmount', p.ned_amount);
+    sv('holidayPay', p.holiday_pay);
+    sv('sssSalaryLoan', p.sss_loan); sv('sssCalamityLoan', p.calamity_loan);
+    sv('hdmfLoan', p.hdmf_loan); sv('hdmfMplLoan', p.hdmf_mpl_loan); sv('hdmfCalamityLoan', p.hdmf_calamity_loan);
+    sv('advSalary', p.salary_advance); sv('advCash', p.cash_advance); sv('advEmergency', p.emergency_advance);
+    sv('absentPhp', d.absentAmt); sv('utPhp', d.undertimeAmt);
+    sv('workdayOtPhp', d.regOt); sv('regOtGt10Php', d.regOtGt10); sv('regOtNightPhp', d.regOtNightPrem);
+    sv('workdayNightDiffPhp', d.nightPremium);
+    sv('satOtPhp', d.satOt); sv('satOtGt10Php', d.satOtGt10); sv('satNightDiffPhp', d.satNightPrem);
+    sv('sunOtPhp', d.sunOt); sv('sunOtGt10Php', d.sunOtGt10); sv('sunNightDiffPhp', d.sunNightPrem);
+    sv('holOtPhp', d.holOt); sv('holOtGt10Php', d.holOtGt10); sv('holNightDiffPhp', d.holNightPrem);
+}
+
 async function viewBulkPayslip(idx) {
     const item = bulkGeneratedPayloads[idx];
     if (!item) return;
@@ -2036,6 +2077,8 @@ async function viewBulkPayslip(idx) {
     await fillEmployeeData(item.empId, true);
     document.getElementById('empName').value = item.empName;
     document.getElementById('selectedEmployeeId').value = item.empId;
+    // Then layer any CSV import / table edits back on top of that fresh baseline.
+    _applyBulkOverridesToForm(item.payload, item.d);
     // Also sync to payslip tab so user can see it there
     await syncToRegister();
     syncToPayslip();
@@ -2046,13 +2089,36 @@ async function viewBulkPayslip(idx) {
 async function sendBulkAll() {
     if (!bulkGeneratedPayloads.length) { showToast('Generate payslips first.', 'warning'); return; }
     const sendBtn = document.getElementById('bulkSendAllBtn');
+    const spinner = document.getElementById('bulkSendBtnSpinner');
+    const btnText = document.getElementById('bulkSendBtnText');
     const msgEl   = document.getElementById('bulkStatusMsg');
     const reviewSumm = document.getElementById('bulkReviewSummary');
+    const progressWrap = document.getElementById('bulkSendProgressWrap');
+    const progressFill = document.getElementById('bulkSendProgressFill');
     sendBtn.disabled = true;
-    sendBtn.textContent = 'Sending…';
+    // Setting sendBtn.textContent here used to wipe out the spinner/text
+    // child spans entirely, leaving nothing but plain text to show progress
+    // — no visible animation, easy to mistake for a frozen button on a
+    // batch that takes a while. Target the spans instead so the spinner
+    // actually spins.
+    if (spinner) spinner.style.display = 'inline-block';
+    if (btnText) btnText.textContent = 'Sending…';
+    if (progressWrap) progressWrap.style.display = 'block';
+    if (progressFill) { progressFill.style.width = '0%'; progressFill.style.background = '#16a34a'; }
 
-    let sent = 0, failed = 0;
+    let sent = 0, failed = 0, processed = 0;
+    let firstErrMsg = '';
+    const total = bulkGeneratedPayloads.length;
     for (const { empId, empName, payload } of bulkGeneratedPayloads) {
+        processed++;
+        // Visible progress — without this, a batch of 20+ (each one a real
+        // PDF render + email send, not instant) just sits on "Sending…" with
+        // no sign of life for however long that actually takes.
+        if (btnText) btnText.textContent = `Sending ${processed} of ${total}…`;
+        reviewSumm.innerHTML = `<span class="btn-spinner" style="border-color:rgba(55,65,81,.25);border-top-color:#374151;"></span> <strong>Sending ${processed} of ${total}</strong> — please wait, this can take a while for a large batch…`;
+        reviewSumm.style.color = '#6b7280';
+        if (progressFill) progressFill.style.width = Math.round((processed - 1) / total * 100) + '%';
+
         const statusEl = document.getElementById('bcell-status-'+empId);
         try {
             // Save record
@@ -2072,18 +2138,35 @@ async function sendBulkAll() {
             if (statusEl) statusEl.innerHTML = '<span style="color:#16a34a;font-size:11px;font-weight:700;">✓ Sent</span>';
             sent++;
         } catch(err) {
-            if (statusEl) statusEl.innerHTML = '<span style="color:#dc2626;font-size:11px;">✗ Error</span>';
+            if (statusEl) statusEl.innerHTML = `<span style="color:#dc2626;font-size:11px;cursor:help;" title="${String(err.message||err).replace(/"/g,'&quot;')}">✗ Error ⓘ</span>`;
             console.error('Send error for '+empName+':', err);
+            if (!firstErrMsg) firstErrMsg = String(err.message || err);
             failed++;
         }
     }
 
     sendBtn.disabled = false;
-    sendBtn.textContent = sent > 0 ? '✉ Send All Payslips' : '✉ Retry';
+    if (spinner) spinner.style.display = 'none';
+    if (btnText) btnText.textContent = sent > 0 ? '✉ Send All Payslips' : '✉ Retry';
+    if (progressFill) { progressFill.style.width = '100%'; progressFill.style.background = failed ? (sent ? '#d97706' : '#dc2626') : '#16a34a'; }
+    if (progressWrap) setTimeout(() => { progressWrap.style.display = 'none'; }, 1500);
     reviewSumm.textContent = sent + ' sent' + (failed ? ', ' + failed + ' failed' : '') + '.';
     reviewSumm.style.color = failed ? '#dc2626' : '#16a34a';
     msgEl.textContent = '';
     if (sent > 0 && !failed) sendBtn.style.display = 'none';
+
+    if (typeof showToast === 'function') {
+        if (!sent && !failed) {
+            // Shouldn't happen (bulkGeneratedPayloads was non-empty going in), but
+            // covers it rather than silently showing nothing either way.
+            showToast('Nothing was sent.', 'warning');
+        } else if (failed) {
+            const reason = firstErrMsg ? ` (${firstErrMsg})` : '';
+            showToast(`${sent} payslip(s) sent, ${failed} failed${reason} — hover the status column for each one's reason.`, sent ? 'warning' : 'error');
+        } else {
+            showToast(`${sent} payslip(s) sent successfully.`, 'success');
+        }
+    }
 }
 
 // ================= BULK CSV EXPORT =================
@@ -2135,17 +2218,29 @@ function exportBulkCSV(type = 'raw') {
     if (!bulkGeneratedPayloads.length) { showToast('Nothing to export — generate payslips first.', 'warning'); return; }
     const esc = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
     const fmt = v => Number(v||0).toFixed(2);
+    // Full parity with the Individual payslip's editable fields — every
+    // column below round-trips through importBulkCSV() (see the mapping
+    // there). 'overtime'/'nsd' stay as read-only reference totals (they're
+    // derived from the granular reg/sat/sun/hol columns, so there's no
+    // single field to write an edit back into).
     const headers = [
         'employee_id','employee_name','period_start','period_end',
         'monthly_basic_salary','semi_monthly_basic_salary',
         'year_end_gifts','rice_subsidy','uniform_allowance','laundry_allowance','meal_allowance','medical_allowance',
-        'other_non_taxable_compensation','salary_adjustment','overtime','nsd','absences_tardiness','holiday_pay',
+        'additional_de_minimis_nontax','additional_de_minimis_tax',
+        'other_non_taxable_compensation','salary_adjustment','override_amount','ned_amount',
+        'reg_ot','reg_ot_gt10','reg_ot_night','workday_night_diff',
+        'sat_ot','sat_ot_gt10','sat_night_prem',
+        'sun_ot','sun_ot_gt10','sun_night_prem',
+        'hol_ot','hol_ot_gt10','hol_night_prem',
+        'overtime','nsd','absent_amt','undertime_amt','holiday_pay',
         'gross_compensation','gross_taxable_compensation','non_taxable_compensation',
         'sss_rss','sss_wisp','sss_total','phic','hdmf',
         'regular_net_taxable','net_taxable_prev_cutoff','monthly_taxable_compensation',
         'wt_bracket','wt_basic','wt_pct','wt_basic_amt','wt_excess',
         'wt_paid_last_cutoff','withholding_tax_payable',
-        'sss_loan_salary','sss_loan_calamity','advances_to_employees','tax_adjustment_refund',
+        'sss_loan_salary','sss_loan_calamity','hdmf_loan','hdmf_mpl_loan','hdmf_calamity_loan',
+        'salary_advance','cash_advance','emergency_advance','tax_adjustment_refund',
         'net_pay'
     ];
     const rows = bulkGeneratedPayloads.map(({empId, empName, payload: p, d}) => {
@@ -2154,13 +2249,20 @@ function exportBulkCSV(type = 'raw') {
             empId, empName, d.periodStart||'', d.periodEnd||'',
             fmt(c.monthly), fmt(c.semi),
             fmt(c.yearEnd), fmt(c.rice), fmt(c.uniform), fmt(c.laundry), fmt(c.meal), fmt(c.medical),
-            fmt(c.otherNonTax), fmt(c.salAdj), fmt(c.totalOT), fmt(c.nsd), fmt(c.absTotal), fmt(c.holiday),
+            fmt(p.additional_de_minimis_nontax), fmt(p.additional_de_minimis_tax),
+            fmt(c.otherNonTax), fmt(p.salary_adjustment), fmt(p.override_amount), fmt(p.ned_amount),
+            fmt(d.regOt), fmt(d.regOtGt10), fmt(d.regOtNightPrem), fmt(d.nightPremium),
+            fmt(d.satOt), fmt(d.satOtGt10), fmt(d.satNightPrem),
+            fmt(d.sunOt), fmt(d.sunOtGt10), fmt(d.sunNightPrem),
+            fmt(d.holOt), fmt(d.holOtGt10), fmt(d.holNightPrem),
+            fmt(c.totalOT), fmt(c.nsd), fmt(d.absentAmt), fmt(d.undertimeAmt), fmt(p.holiday_pay),
             fmt(c.grossComp), fmt(c.grossTaxable), fmt(c.nonTax),
             fmt(c.sssRss), fmt(c.sssWisp), fmt(c.sssTotal), fmt(c.phic), fmt(c.hdmf),
             fmt(c.regNetTax), fmt(c.netTaxPrev), fmt(c.monthlyTax),
             fmt(c.wtBracket), fmt(c.wtBasic), fmt(c.wtPct), fmt(c.wtBasicAmt), fmt(c.wtExcess),
             fmt(c.wtPaid), fmt(c.wt),
-            fmt(c.sssLoan), fmt(c.calLoan), fmt(c.advances), fmt(c.taxAdj),
+            fmt(c.sssLoan), fmt(c.calLoan), fmt(c.hdmfLoan), fmt(c.hdmfMplLoan), fmt(c.hdmfCalamityLoan),
+            fmt(c.advances), fmt(c.cashAdvance), fmt(c.emergencyAdvance), fmt(c.taxAdj),
             fmt(c.netPay)
         ];
     });
@@ -2310,65 +2412,71 @@ function recomputeBulkRow(empId, trigger) {
     // Step 2: read all editable fields (first matching input — both tables are now in sync)
     const gf = f => parseFloat(document.querySelector(`input[data-emp="${empId}"][data-f="${f}"]`)?.value) || 0;
 
-    const yearEnd  = gf('year_end'),  rice    = gf('rice'),    uniform = gf('uniform');
-    const laundry  = gf('laundry'),   meal    = gf('meal'),    medical = gf('medical');
-    const salAdj   = gf('sal_adj'),   ot      = gf('ot'),      nsd     = gf('nsd');
-    const absences = gf('absences'),  holiday = gf('holiday');
-    const sssLoan  = gf('sss_loan'),  calLoan = gf('cal_loan'), advances = gf('advances');
-    // HDMF loan and calamity advance aren't editable columns in the register — read from payload/d
-    const hdmfLoan = p.hdmf_loan || d.hdmfLoan || 0;
-    const calAdv   = p.cal_adv   || d.calAdv   || 0;
-
-    // Step 3: compute — mirrors computePayslipData() logic exactly
-    const deMin        = yearEnd + rice + uniform + laundry + meal + medical + (p.salary_adjustment_non_tax || 0);
-    const otherNonTax  = (d.vlCashConversion || 0) + (p.sal_non_tax_adj || 0);
-    const additionalDeMinNonTax = p.additional_de_minimis_nontax || 0;
-    const additionalDeMinTax    = p.additional_de_minimis_tax || 0;
-    const nonTax       = deMin + otherNonTax + additionalDeMinNonTax;
-    const absCapped    = Math.min(absences, d.basicPay);           // can't deduct more than basic pay
-    const netBasicPay  = Math.max(0, d.basicPay - absCapped + nsd); // NSD included in net basic pay
-    const grossTaxable = netBasicPay + ot + salAdj + holiday + additionalDeMinTax;       // taxable portion
-    const grossComp    = Math.round((grossTaxable + nonTax) * 100) / 100;  // total gross (taxable + non-taxable)
-    const sssTotal     = d.sssDed || 0, phic = d.phicDed || 0, hdmf = d.hdmfDed || 0;
-    const wtRaw        = d.withholdingTax || 0;  // signed: negative = refund
-    const wt           = Math.max(0, wtRaw);     // deduction (non-negative for display)
-    const taxAdj       = Math.max(0, -wtRaw);    // refund (non-negative for display)
-    const regNetTax    = grossTaxable - sssTotal - phic - hdmf;
-    const totalDed     = sssTotal + phic + hdmf + wt + sssLoan + calLoan + hdmfLoan + advances + calAdv;
-    const netPay       = grossComp - totalDed + taxAdj;
-
-    // Step 4: update all computed spans in BOTH tables simultaneously
-    const sf = (f, v) => document.querySelectorAll(`span[data-emp="${empId}"][data-f="${f}"]`).forEach(el => { el.textContent = _bfmt(v); });
-    sf('gross_comp',    grossComp);
-    sf('gross_taxable', grossTaxable);
-    sf('non_taxable',   nonTax);
-    sf('sss_total',     sssTotal);
-    sf('phic',          phic);
-    sf('hdmf',          hdmf);
-    sf('reg_net_tax',   regNetTax);
-    sf('wt',            wt);
-    sf('tax_adj',       taxAdj);
-    sf('net_pay',       netPay);
-
-    // Step 5: persist to payload so Send uses updated values
+    // Step 3: write each edited cell into the SAME p/d fields _bRowCalc() and
+    // the CSV import read — this used to be a second, independent formula
+    // that duplicated _bRowCalc()'s math (and had drifted out of sync with
+    // it: missing the HDMF MPL/Calamity loans and Cash/Emergency advances,
+    // so editing any cell here after a CSV import silently discarded those
+    // fields from what Send actually transmitted). Now there is exactly one
+    // formula, so this can never drift from the import/export again.
     Object.assign(p, {
-        year_end_gifts:yearEnd, rice_subsidy:rice, uniform_allowance:uniform,
-        laundry_allowance:laundry, meal_allowance:meal, medical_allowance:medical,
-        salary_adjustment:salAdj, holiday_pay:holiday,
-        sss_loan:sssLoan, calamity_loan:calLoan, hdmf_loan:hdmfLoan,
-        salary_advance:advances, cal_adv:calAdv,
-        de_minimis:deMin, gross_pay:grossComp, net_pay:netPay
+        year_end_gifts: gf('year_end'), rice_subsidy: gf('rice'), uniform_allowance: gf('uniform'),
+        laundry_allowance: gf('laundry'), meal_allowance: gf('meal'), medical_allowance: gf('medical'),
+        salary_adjustment: gf('sal_adj'), holiday_pay: gf('holiday'),
+        sss_loan: gf('sss_loan'), calamity_loan: gf('cal_loan'), salary_advance: gf('advances'),
     });
-    d.absentAmt = absences; d.grossPay = grossComp; d.netPay = netPay;
-    d.taxableOther = salAdj + holiday; d.totalDeductions = totalDed; d.nonTaxable = nonTax;
+    // The Raw Sheet table's single "OT"/"NSD"/"Absences" cells are a blunt
+    // view over what CSV import can edit as separate reg/sat/sun/hol
+    // components — editing the blunt cell here collapses the whole amount
+    // into the primary bucket and zeroes the others, same precedent CSV
+    // import has always used for these same three combined columns.
+    if (trigger?.dataset.f === 'ot') {
+        d.regOt = gf('ot'); d.regOtGt10 = 0; d.satOt = 0; d.satOtGt10 = 0; d.sunOt = 0; d.sunOtGt10 = 0; d.holOt = 0; d.holOtGt10 = 0;
+    }
+    if (trigger?.dataset.f === 'nsd') {
+        d.nightPremium = gf('nsd'); d.regOtNightPrem = 0; d.satNightPrem = 0; d.sunNightPrem = 0; d.holNightPrem = 0;
+    }
+    if (trigger?.dataset.f === 'absences') {
+        d.absentAmt = gf('absences'); d.undertimeAmt = 0;
+    }
 
-    // Step 6: live-update payslip list card and bulk panel row
+    // Step 4: recompute every total from the single source of truth.
+    const c = _bRowCalc(p, d);
+
+    // Step 5: update all computed spans in BOTH tables simultaneously
+    const sf = (f, v) => document.querySelectorAll(`span[data-emp="${empId}"][data-f="${f}"]`).forEach(el => { el.textContent = _bfmt(v); });
+    sf('gross_comp',    c.grossComp);
+    sf('gross_taxable', c.grossTaxable);
+    sf('non_taxable',   c.nonTax);
+    sf('sss_total',     c.sssTotal);
+    sf('phic',          c.phic);
+    sf('hdmf',          c.hdmf);
+    sf('reg_net_tax',   c.regNetTax);
+    sf('wt',            c.wt);
+    sf('tax_adj',       c.taxAdj);
+    sf('net_pay',       c.netPay);
+
+    // Step 6: persist to payload so Send uses updated values
+    d.netBasicPay = c.netBasicPay; d.totalOvertime = c.totalOT; d.nonTaxable = c.nonTax;
+    d.grossPay = c.grossComp; d.netPay = c.netPay;
+    Object.assign(p, {
+        net_basic_pay: d.netBasicPay, total_overtime: d.totalOvertime, overtime_pay: d.totalOvertime,
+        night_diff_pay: d.nightPremium||0, absent_amt: d.absentAmt||0, undertime_amt: d.undertimeAmt||0,
+        reg_ot: d.regOt||0, reg_ot_gt10: d.regOtGt10||0, reg_ot_night: d.regOtNightPrem||0,
+        sat_ot: d.satOt||0, sat_ot_gt10: d.satOtGt10||0, sat_night_prem: d.satNightPrem||0,
+        sun_ot: d.sunOt||0, sun_ot_gt10: d.sunOtGt10||0, sun_night_prem: d.sunNightPrem||0,
+        hol_ot: d.holOt||0, hol_ot_gt10: d.holOtGt10||0, hol_night_prem: d.holNightPrem||0,
+        de_minimis: d.nonTaxable, gross_pay: d.grossPay, net_pay: d.netPay,
+    });
+    d.totalDeductions = c.sssTotal + c.phic + c.hdmf + c.wt + c.sssLoan + c.calLoan + c.hdmfLoan + c.hdmfMplLoan + c.hdmfCalamityLoan + c.advances + c.cashAdvance + c.emergencyAdvance + c.calAdv;
+
+    // Step 7: live-update payslip list card and bulk panel row
     const grossEl = document.getElementById('bpgross-'+empId);
     const netEl   = document.getElementById('bpnet-'+empId);
-    if (grossEl) grossEl.textContent = '₱'+_bfmt(grossComp);
-    if (netEl)   netEl.textContent   = '₱'+_bfmt(netPay);
+    if (grossEl) grossEl.textContent = '₱'+_bfmt(c.grossComp);
+    if (netEl)   netEl.textContent   = '₱'+_bfmt(c.netPay);
     const bcNet = document.getElementById('bcell-net-'+empId);
-    if (bcNet) bcNet.innerHTML = '<strong>₱'+_bfmt(netPay)+'</strong>';
+    if (bcNet) bcNet.innerHTML = '<strong>₱'+_bfmt(c.netPay)+'</strong>';
 }
 
 async function sendSingleBulk(idx, btn) {
@@ -2390,9 +2498,10 @@ async function sendSingleBulk(idx, btn) {
         // Also update bulk panel review row status
         const statusEl = document.getElementById('bcell-status-'+item.empId);
         if (statusEl) statusEl.innerHTML = '<span style="color:#16a34a;font-size:11px;font-weight:700;">✓ Sent</span>';
+        if (typeof showToast === 'function') showToast(`Payslip sent to ${item.empName}.`, 'success');
     } catch(err) {
         btn.disabled = false; btn.textContent = 'Retry';
-        showToast('Send failed: ' + err.message, 'error');
+        if (typeof showToast === 'function') showToast('Send failed: ' + err.message, 'error');
     }
 }
 
@@ -2426,33 +2535,80 @@ function importBulkCSV(type, input) {
             const idx = bulkGeneratedPayloads.findIndex(b => String(b.empId) === String(empId));
             if (idx === -1) return;
             const { payload: p, d } = bulkGeneratedPayloads[idx];
-            // Map CSV columns → payload/d fields
-            if (row['year_end_gifts']          !== undefined) p.year_end_gifts      = n(row['year_end_gifts']);
-            if (row['rice_subsidy']            !== undefined) p.rice_subsidy        = n(row['rice_subsidy']);
-            if (row['uniform_allowance']       !== undefined) p.uniform_allowance   = n(row['uniform_allowance']);
-            if (row['laundry_allowance']       !== undefined) p.laundry_allowance   = n(row['laundry_allowance']);
-            if (row['meal_allowance']          !== undefined) p.meal_allowance      = n(row['meal_allowance']);
-            if (row['medical_allowance']       !== undefined) p.medical_allowance   = n(row['medical_allowance']);
-            if (row['salary_adjustment']       !== undefined) p.salary_adjustment   = n(row['salary_adjustment']);
-            if (row['sss_loan_salary']         !== undefined) p.sss_loan            = n(row['sss_loan_salary']);
-            if (row['sss_loan_calamity']       !== undefined) p.calamity_loan       = n(row['sss_loan_calamity']);
-            if (row['advances_to_employees']   !== undefined) p.salary_advance      = n(row['advances_to_employees']);
-            if (row['absences_tardiness']      !== undefined) d.absentAmt           = n(row['absences_tardiness']);
-            if (row['nsd'] !== undefined) {
-                d.nightPremium = n(row['nsd']);
-                // Zero individual night prems — imported NSD total already covers all of them
-                d.regOtNightPrem=0; d.satNightPrem=0; d.sunNightPrem=0; d.holNightPrem=0;
-            }
-            if (row['holiday_pay'] !== undefined) {
-                p.holiday_pay = n(row['holiday_pay']);
-                // Zero sat/sun/hol OT — imported holiday total already covers them
-                d.satOt=0; d.satOtGt10=0; d.sunOt=0; d.sunOtGt10=0; d.holOt=0; d.holOtGt10=0;
-            }
-            if (row['overtime'] !== undefined) {
-                d.regOt=n(row['overtime']); d.satOt=0; d.sunOt=0; d.holOt=0;
-                d.regOtGt10=0; d.satOtGt10=0; d.sunOtGt10=0; d.holOtGt10=0;
-                d.regOtNightPrem=0; d.satNightPrem=0; d.sunNightPrem=0; d.holNightPrem=0;
-            }
+
+            // Full parity with Individual's editable fields. Two kinds of
+            // targets here, matching how _bRowCalc(p, d) actually reads
+            // them: the de-minimis/loan/override-style fields live on `p`
+            // (the object that gets sent as-is to save/send), while the
+            // hours-based OT/night-diff/absence fields live on `d` (set at
+            // Generate time from that employee's actual computed hours).
+            // 'overtime'/'nsd' are read-only reference totals in the export
+            // (derived from the granular columns below) — not accepted here,
+            // since there's no single field to write such an edit back into.
+            const setP = (key, target) => { if (row[key] !== undefined && row[key] !== '') p[target] = n(row[key]); };
+            const setD = (key, target) => { if (row[key] !== undefined && row[key] !== '') d[target] = n(row[key]); };
+
+            setP('year_end_gifts', 'year_end_gifts');
+            setP('rice_subsidy', 'rice_subsidy');
+            setP('uniform_allowance', 'uniform_allowance');
+            setP('laundry_allowance', 'laundry_allowance');
+            setP('meal_allowance', 'meal_allowance');
+            setP('medical_allowance', 'medical_allowance');
+            setP('additional_de_minimis_nontax', 'additional_de_minimis_nontax');
+            setP('additional_de_minimis_tax', 'additional_de_minimis_tax');
+            setP('salary_adjustment', 'salary_adjustment');
+            setP('override_amount', 'override_amount');
+            setP('ned_amount', 'ned_amount');
+            setP('holiday_pay', 'holiday_pay');
+            setP('sss_loan_salary', 'sss_loan');
+            setP('sss_loan_calamity', 'calamity_loan');
+            setP('hdmf_loan', 'hdmf_loan');
+            setP('hdmf_mpl_loan', 'hdmf_mpl_loan');
+            setP('hdmf_calamity_loan', 'hdmf_calamity_loan');
+            setP('salary_advance', 'salary_advance');
+            setP('cash_advance', 'cash_advance');
+            setP('emergency_advance', 'emergency_advance');
+
+            setD('reg_ot', 'regOt');
+            setD('reg_ot_gt10', 'regOtGt10');
+            setD('reg_ot_night', 'regOtNightPrem');
+            setD('workday_night_diff', 'nightPremium');
+            setD('sat_ot', 'satOt');
+            setD('sat_ot_gt10', 'satOtGt10');
+            setD('sat_night_prem', 'satNightPrem');
+            setD('sun_ot', 'sunOt');
+            setD('sun_ot_gt10', 'sunOtGt10');
+            setD('sun_night_prem', 'sunNightPrem');
+            setD('hol_ot', 'holOt');
+            setD('hol_ot_gt10', 'holOtGt10');
+            setD('hol_night_prem', 'holNightPrem');
+            setD('absent_amt', 'absentAmt');
+            setD('undertime_amt', 'undertimeAmt');
+
+            // Re-derive every total this row's edits could have touched —
+            // _bRowCalc() is the same single source of truth the on-screen
+            // tables and the CSV export both already use, so this keeps the
+            // payload that Send actually transmits consistent with whatever
+            // the table shows after this import (savePayslipRecord/sendPdf
+            // trust net_pay etc. as given, they don't recompute server-side).
+            const c = _bRowCalc(p, d);
+            d.netBasicPay = c.netBasicPay;
+            d.totalOvertime = c.totalOT;
+            d.nonTaxable = c.nonTax;
+            d.grossPay = c.grossComp;
+            d.netPay = c.netPay;
+            Object.assign(p, {
+                net_basic_pay: d.netBasicPay,
+                total_overtime: d.totalOvertime, overtime_pay: d.totalOvertime,
+                night_diff_pay: d.nightPremium||0,
+                absent_amt: d.absentAmt||0, undertime_amt: d.undertimeAmt||0,
+                reg_ot: d.regOt||0, reg_ot_gt10: d.regOtGt10||0, reg_ot_night: d.regOtNightPrem||0,
+                sat_ot: d.satOt||0, sat_ot_gt10: d.satOtGt10||0, sat_night_prem: d.satNightPrem||0,
+                sun_ot: d.sunOt||0, sun_ot_gt10: d.sunOtGt10||0, sun_night_prem: d.sunNightPrem||0,
+                hol_ot: d.holOt||0, hol_ot_gt10: d.holOtGt10||0, hol_night_prem: d.holNightPrem||0,
+                de_minimis: d.nonTaxable, gross_pay: d.grossPay, net_pay: d.netPay,
+            });
+
             matched++;
         });
         input.value = '';

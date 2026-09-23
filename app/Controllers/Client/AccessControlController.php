@@ -244,7 +244,7 @@ class AccessControlController extends BaseController
         }
 
         $db = \Config\Database::connect();
-        $existing = $db->table('departments')->where('name', $name)->where('deleted_at', null)->first();
+        $existing = $db->table('departments')->where('name', $name)->where('deleted_at', null)->get()->getRowArray();
         if ($existing) {
             return $this->response->setJSON(['success' => false, 'message' => 'A department with that name already exists.']);
         }
@@ -274,7 +274,7 @@ class AccessControlController extends BaseController
             return $this->response->setJSON(['success' => false, 'message' => 'Department not found.']);
         }
 
-        $dupe = $db->table('departments')->where('name', $name)->where('id !=', $id)->where('deleted_at', null)->first();
+        $dupe = $db->table('departments')->where('name', $name)->where('id !=', $id)->where('deleted_at', null)->get()->getRowArray();
         if ($dupe) {
             return $this->response->setJSON(['success' => false, 'message' => 'A department with that name already exists.']);
         }
@@ -327,7 +327,7 @@ class AccessControlController extends BaseController
         }
 
         $db = \Config\Database::connect();
-        $dept = $db->table('departments')->where('id', $departmentId)->where('is_active', 1)->where('deleted_at', null)->first();
+        $dept = $db->table('departments')->where('id', $departmentId)->where('is_active', 1)->where('deleted_at', null)->get()->getRowArray();
         if (! $dept) {
             return $this->response->setJSON(['success' => false, 'message' => 'Department not found.']);
         }

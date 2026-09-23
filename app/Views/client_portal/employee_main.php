@@ -1669,8 +1669,8 @@ function renderLoanSchedule(loanId, schedule) {
                     <th class="pb-2">#</th>
                     <th class="pb-2">Due Date</th>
                     <th class="pb-2 text-right">Amount</th>
-                    <th class="pb-2 text-right">Balance After</th>
-                    <th class="pb-2">Status</th>
+                    <th class="pb-2 pr-4 text-right">Balance After</th>
+                    <th class="pb-2 pl-3">Status</th>
                     <th class="pb-2"></th>
                 </tr>
             </thead>
@@ -1692,8 +1692,8 @@ function renderLoanSchedule(loanId, schedule) {
                                 }
                                 ${isLastPending ? '<span class="block text-[10px] text-gray-400">auto-balances</span>' : ''}
                             </td>
-                            <td class="py-2 text-right">₱${Number(row.remaining_balance).toLocaleString()}</td>
-                            <td class="py-2 capitalize">${row.schedule_status}</td>
+                            <td class="py-2 pr-4 text-right">₱${Number(row.remaining_balance).toLocaleString()}</td>
+                            <td class="py-2 pl-3 capitalize">${row.schedule_status}</td>
                             <td class="py-2 text-right">
                                 ${editable
                                     ? `<button type="button" class="text-xs text-purple-600 hover:text-purple-700 font-semibold" onclick="saveInstallmentAmount(${loanId}, ${no}, this)">Save</button>`

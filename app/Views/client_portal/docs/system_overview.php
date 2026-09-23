@@ -39,7 +39,7 @@
             <tr>
                 <td>Payroll</td>
                 <td>Payroll Staff only</td>
-                <td>6 tabs: Payroll Status, Generate Payslip, Payroll Settings, 13th Month &amp; Annualization, Payroll Register &amp; History, Audit Log.</td>
+                <td>6 tabs: Payroll Status, Generate Payslip, Payroll Settings, 13th Month &amp; Annualization, Payroll Output, Audit Log.</td>
             </tr>
             <tr>
                 <td>Employee</td>

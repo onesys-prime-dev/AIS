@@ -82,6 +82,7 @@
                 <input
                     type="number"
                     step="0.01"
+                    min="0.01"
                     name="principal_amount"
                     id="principal_amount"
                     placeholder="Enter principal amount"
@@ -1021,9 +1022,13 @@
 
     function goToLoanPreview()
     {
-        const principal = parseFloat(
-            document.getElementById('principal_amount').value || 0
-        );
+        // Read the raw string separately from the parsed number — "0" is a
+        // valid, non-empty value the user actually typed, but `!principal`
+        // below would treat parseFloat("0") === 0 as falsy and wrongly
+        // report it as a missing field (BL-031). Emptiness is judged on the
+        // raw string; validity of the amount itself is checked afterward.
+        const principalRaw = document.getElementById('principal_amount').value;
+        const principal = parseFloat(principalRaw || 0);
 
         const installments = parseInt(
             document.getElementById('installment_count').value || 1
@@ -1065,7 +1070,7 @@
         ).value = frequency;
 
         if (
-            !principal ||
+            principalRaw === '' ||
             !installments ||
             !startDate ||
             !employee
@@ -1073,6 +1078,19 @@
         {
             showToast(
                 'Please complete all required fields.', 'warning'
+            );
+
+            return;
+        }
+
+        // Zero/negative principal previously slipped straight through here
+        // (a negative number is truthy in JS, so `!principal` never caught
+        // it) and let the user proceed to the next step with an invalid
+        // loan amount (BL-031).
+        if (principal <= 0)
+        {
+            showToast(
+                'Principal amount must be greater than 0.', 'warning'
             );
 
             return;

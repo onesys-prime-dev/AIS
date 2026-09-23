@@ -487,7 +487,11 @@ function handleTimelineClick(e) {
 }
 
 function startEditTask(taskId) {
-    const task = taskLogTasks.find(t => t.id === taskId);
+    // t.id comes back from the JSON API as a string; taskId is parsed as a
+    // number from the unquoted onclick="startEditTask(${t.id})" attribute —
+    // "57" === 57 is always false, so this silently found nothing and
+    // clicking Edit did nothing at all (TS_03). Compare as strings.
+    const task = taskLogTasks.find(t => String(t.id) === String(taskId));
     if (!task) return;
 
     document.getElementById('task_editing_id').value = taskId;

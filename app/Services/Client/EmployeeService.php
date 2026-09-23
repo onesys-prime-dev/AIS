@@ -66,7 +66,7 @@ class EmployeeService
     private function findOrCreateDepartmentByName(string $name): int
     {
         $db = \Config\Database::connect();
-        $existing = $db->table('departments')->where('name', $name)->where('deleted_at', null)->first();
+        $existing = $db->table('departments')->where('name', $name)->where('deleted_at', null)->get()->getRowArray();
         if ($existing) {
             return (int) $existing['id'];
         }

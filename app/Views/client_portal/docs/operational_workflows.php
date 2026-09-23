@@ -21,7 +21,7 @@
     <h3>Payroll Processing</h3>
     <p>All done from the Payroll section, which has 6 tabs:</p>
     <ol>
-        <li><strong>Payroll Register &amp; History</strong> — attendance and approved requests for the cutoff are pulled together here.</li>
+        <li><strong>Payroll Output</strong> — Raw Sheet, Register, Payslip, History, and Bank File live here: the cutoff's attendance and approved requests are pulled together, reviewed, and turned into payslips and a bank disbursement file.</li>
         <li><strong>Payroll Status</strong> — Payroll Staff reviews the figures and updates the status as it moves toward release.</li>
         <li><strong>Generate Payslip</strong> — payslips are produced from the finalized payroll and become visible to employees.</li>
         <li><strong>13th Month &amp; Annualization</strong> — computed and processed separately when due, not part of a regular cutoff.</li>
