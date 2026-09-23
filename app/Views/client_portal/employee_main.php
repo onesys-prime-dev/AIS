@@ -1173,6 +1173,13 @@ function htmlEsc(val)
 |--------------------------------------------------------------------------
 */
 
+const FACE_REQUIREMENT_LABELS = { default: 'System Default', required: 'Always Require', exempt: 'Exempt' };
+const FACE_REQUIREMENT_BADGE_CLASSES = {
+    default: 'bg-gray-200 text-gray-500',
+    required: 'bg-green-100 text-green-700',
+    exempt: 'bg-blue-100 text-blue-700',
+};
+
 function faceRecognitionRowTemplate(p) {
     // Same "LastName, FirstName MI." format as employeeRowTemplate — but this
     // table (unlike the main employee list) also includes admin/superadmin
@@ -1200,14 +1207,18 @@ function faceRecognitionRowTemplate(p) {
 
     const requirement = p.face_requirement || 'default';
     const requirementHtml = `
-        <select class="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white"
-            data-face-requirement-select data-user_id="${htmlEsc(p.user_id)}"
-            data-previous-value="${requirement}"
-            onchange="updateFaceRequirement(this)">
-            <option value="default" ${requirement === 'default' ? 'selected' : ''}>System Default</option>
-            <option value="required" ${requirement === 'required' ? 'selected' : ''}>Always Require</option>
-            <option value="exempt" ${requirement === 'exempt' ? 'selected' : ''}>Exempt</option>
-        </select>`;
+        <div class="relative inline-block" data-face-requirement-cell data-user_id="${htmlEsc(p.user_id)}" data-value="${requirement}">
+            <button type="button" class="${FACE_REQUIREMENT_BADGE_CLASSES[requirement]} px-3 py-1 rounded-full text-xs font-semibold cursor-pointer inline-flex items-center gap-1"
+                data-face-requirement-badge onclick="toggleFaceRequirementMenu(this)">
+                ${FACE_REQUIREMENT_LABELS[requirement]}
+                <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <div class="hidden absolute left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-md text-xs z-10 overflow-hidden w-40" data-face-requirement-menu>
+                <button type="button" class="block w-full text-left px-3 py-2 hover:bg-gray-50" onclick="selectFaceRequirement(this, 'default')">System Default</button>
+                <button type="button" class="block w-full text-left px-3 py-2 hover:bg-gray-50" onclick="selectFaceRequirement(this, 'required')">Always Require</button>
+                <button type="button" class="block w-full text-left px-3 py-2 hover:bg-gray-50" onclick="selectFaceRequirement(this, 'exempt')">Exempt</button>
+            </div>
+        </div>`;
 
     return `
         <div class="grid items-center border-b hover:bg-gray-50" style="grid-template-columns: 2fr 1fr 1.1fr 1fr 1.1fr 1.3fr 0.8fr;">
@@ -1256,11 +1267,44 @@ function faceRecognitionRowTemplate(p) {
 // Inline control on the Face Recognition table itself (not tucked inside
 // the enroll modal) — System Default follows the global FaceRecognition.enabled
 // switch, Always Require / Exempt override it for just this one account.
-function updateFaceRequirement(selectEl) {
-    const userId = selectEl.dataset.user_id;
-    const value = selectEl.value;
-    const previous = selectEl.dataset.previousValue || 'default';
-    selectEl.disabled = true;
+// Rendered as a colored badge (same pill style as the Face Status column)
+// with a small click-to-open menu, rather than a plain <select>.
+function closeAllFaceRequirementMenus(except) {
+    document.querySelectorAll('[data-face-requirement-menu]').forEach(menu => {
+        if (menu !== except) menu.classList.add('hidden');
+    });
+}
+
+function toggleFaceRequirementMenu(badgeBtn) {
+    const menu = badgeBtn.closest('[data-face-requirement-cell]').querySelector('[data-face-requirement-menu]');
+    const willOpen = menu.classList.contains('hidden');
+    closeAllFaceRequirementMenus();
+    menu.classList.toggle('hidden', !willOpen);
+}
+
+document.addEventListener('click', function (e) {
+    if (!e.target.closest('[data-face-requirement-cell]')) closeAllFaceRequirementMenus();
+});
+
+function selectFaceRequirement(optionBtn, value) {
+    const cell = optionBtn.closest('[data-face-requirement-cell]');
+    const badge = cell.querySelector('[data-face-requirement-badge]');
+    const menu = cell.querySelector('[data-face-requirement-menu]');
+    const userId = cell.dataset.user_id;
+    const previous = cell.dataset.value || 'default';
+    menu.classList.add('hidden');
+
+    if (value === previous) return;
+
+    const applyBadge = (val) => {
+        badge.className = `${FACE_REQUIREMENT_BADGE_CLASSES[val]} px-3 py-1 rounded-full text-xs font-semibold cursor-pointer inline-flex items-center gap-1`;
+        badge.innerHTML = `${FACE_REQUIREMENT_LABELS[val]}
+            <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+    };
+
+    // Optimistic update — reverted below if the save fails.
+    applyBadge(value);
+    cell.dataset.value = value;
 
     const params = new URLSearchParams({ requirement: value });
 
@@ -1276,19 +1320,19 @@ function updateFaceRequirement(selectEl) {
         .then(res => res.json())
         .then(data => {
             if (data.status === 'success') {
-                selectEl.dataset.previousValue = value;
                 if (window.showToast) window.showToast('Face verification requirement updated.', 'success');
             } else {
-                selectEl.value = previous;
+                cell.dataset.value = previous;
+                applyBadge(previous);
                 if (window.showToast) window.showToast(data.message || 'Unable to update this setting.', 'warning');
             }
         })
         .catch(err => {
             console.error(err);
-            selectEl.value = previous;
+            cell.dataset.value = previous;
+            applyBadge(previous);
             if (window.showToast) window.showToast('Unable to reach the server right now.', 'warning');
-        })
-        .finally(() => { selectEl.disabled = false; });
+        });
 }
 
 /*

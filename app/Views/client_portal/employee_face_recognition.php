@@ -27,7 +27,7 @@
             'Department',
             'ID',
             'Face Status',
-            'Login Verification',
+            'Face Verification',
             'Action'
         ],
         'filters' => [
