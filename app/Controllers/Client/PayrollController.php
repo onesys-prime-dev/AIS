@@ -634,7 +634,7 @@ class PayrollController extends BaseController
             // against its scheduled start across the midnight boundary.
             $firstRecDate = date('Y-m-d', strtotime($recs[0]['time_in']));
             $dayWindowStart = $dayScheduledStart ? new \DateTime($firstRecDate . ' ' . $dayScheduledStart) : null;
-            $tardyMinutes += AttendanceComputationService::lateMinutes(new \DateTime($recs[0]['time_in']), $dayWindowStart);
+            $tardyMinutes += AttendanceComputationService::lateMinutes(new \DateTime($recs[0]['time_in']), $dayWindowStart, (int) ($daySchedule['tardiness_grace_minutes'] ?? 0));
 
             $dayNsd           = 0.0;
             $dayBreak         = 0.0;
@@ -661,7 +661,8 @@ class PayrollController extends BaseController
                     (float) ($rec['break_duration'] ?? 0),
                     $recSchedule['start_time'] ?? null,
                     $recSchedule['end_time'] ?? null,
-                    $recDate
+                    $recDate,
+                    (int) ($recSchedule['ot_grace_minutes'] ?? 0)
                 );
                 $dayRegularHours += $split['regular_hours'];
                 $dayExcessHours  += $split['excess_hours'];

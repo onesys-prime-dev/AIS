@@ -13,6 +13,7 @@ class EmployeePositionModel extends Model
     protected $allowedFields = [
         'employee_id', 'department', 'department_id', 'position', 'employment_type',
         'start_time', 'end_time', 'working_day_type', 'working_days', 'break_schedule', 'break_windows',
+        'tardiness_grace_minutes', 'ot_grace_minutes',
         'monthly_salary', 'de_minimis_benefit', 'de_minimis_breakdown', 'allowances',
         'additional_de_minimis_benefit', 'additional_de_minimis_breakdown',
     ];

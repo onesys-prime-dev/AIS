@@ -512,6 +512,28 @@
                                 class="form-input">
                         </div>
 
+                        <div>
+                            <label class="block text-sm text-gray-600 mb-2">
+                                Tardiness Grace Period (minutes)
+                                <span class="text-xs text-gray-400">(clocking in this many minutes late still counts as on time)</span>
+                            </label>
+
+                            <input type="number" min="0" step="1" value="0"
+                                name="tardiness_grace_minutes"
+                                class="form-input">
+                        </div>
+
+                        <div>
+                            <label class="block text-sm text-gray-600 mb-2">
+                                Overtime Grace Period (minutes)
+                                <span class="text-xs text-gray-400">(this many minutes early/late at the schedule edge isn't counted as OT)</span>
+                            </label>
+
+                            <input type="number" min="0" step="1" value="0"
+                                name="ot_grace_minutes"
+                                class="form-input">
+                        </div>
+
                     </div>
 
                     <div>

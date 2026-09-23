@@ -359,6 +359,7 @@ class TimesheetsService
             'night_diff'          => 0,
             'unapproved_ot_hours' => 0,
             'undertime_hours'     => 0,
+            'unapproved_undertime_hours' => 0,
         ];
 
         $db = db_connect();
@@ -455,17 +456,26 @@ class TimesheetsService
             $otHours           = 0;
             $unapprovedOtHours = 0;
             $undertimeHours    = 0;
+            $unapprovedUndertimeHours = 0;
             $tardyMinutes      = 0;
             $nightDiff         = 0;
             $hasSchedule       = (bool) ($scheduledStart && $scheduledEnd);
             $hasApprovedOt     = isset($approvedOtDates[$date]);
+            // Same split as OT above (approved-request lookup, not the
+            // attendance row's own attendance_status), so "Undertime" here
+            // means the same thing "OT Hrs" does: only the approved portion,
+            // with unapproved shown/totaled separately — previously this
+            // lookup was built ($approvedUtDates) but never actually used,
+            // so every undertime minute was shown as one blended number
+            // regardless of approval, unlike OT which always split.
+            $hasApprovedUt     = isset($approvedUtDates[$date]);
 
             // Tardiness only depends on the clock-in time, not the clock-out —
             // computed here, unconditionally, so a still-open shift (clocked in
             // late, not yet clocked out) still shows it instead of silently
             // showing nothing until the employee eventually clocks out.
             if ($timeIn) {
-                $tardyMinutes = AttendanceComputationService::lateMinutes(new DateTime($att['time_in']), $windowStart);
+                $tardyMinutes = AttendanceComputationService::lateMinutes(new DateTime($att['time_in']), $windowStart, (int) (($recordSchedule ?? [])['tardiness_grace_minutes'] ?? 0));
             }
 
             if ($timeIn && $timeOut) {
@@ -488,7 +498,8 @@ class TimesheetsService
                     (float) ($att['break_duration'] ?? 0),
                     $scheduledStart,
                     $scheduledEnd,
-                    $date
+                    $date,
+                    (int) (($recordSchedule ?? [])['ot_grace_minutes'] ?? 0)
                 );
                 $start = $split['span_start'];
                 $end   = $split['span_end'];
@@ -504,7 +515,12 @@ class TimesheetsService
                 // during the shift the employee simply wasn't there (late arrival,
                 // early leave, etc.), independent of any OT worked outside it.
                 if ($hasSchedule) {
-                    $undertimeHours = max(0, round($requiredHours - $regularHours, 2));
+                    $shortfall = max(0, round($requiredHours - $regularHours, 2));
+                    if ($hasApprovedUt) {
+                        $undertimeHours = $shortfall;
+                    } else {
+                        $unapprovedUndertimeHours = $shortfall;
+                    }
                 }
 
 
@@ -570,6 +586,7 @@ class TimesheetsService
                 'night_diff'          => $nightDiff,
                 'unapproved_ot_hours' => $unapprovedOtHours,
                 'undertime_hours'     => $undertimeHours,
+                'unapproved_undertime_hours' => $unapprovedUndertimeHours,
                 'remarks'             => $remarks,
                 'task_performed'      => $taskPerformed,
                 'client'              => $taskClient,
@@ -583,6 +600,7 @@ class TimesheetsService
             $totals['night_diff']          += $nightDiff;
             $totals['unapproved_ot_hours'] += $unapprovedOtHours;
             $totals['undertime_hours']     += $undertimeHours;
+            $totals['unapproved_undertime_hours'] += $unapprovedUndertimeHours;
         }
 
         return [
