@@ -566,22 +566,26 @@ class EmployeeController extends BaseController
     {
         $this->ensurePayrollStaff();
 
+        // Same ONLY_FULL_GROUP_BY fix as the other queries in this file —
+        // every non-GROUP-BY column wrapped in an aggregate, since MariaDB
+        // rejects a bare column even from the table being grouped by its
+        // own primary key.
         $employeeModel = new EmployeeModel();
         $employee = $employeeModel
             ->select("
-                employees.id, employees.user_id,
-                employees.first_name, employees.middle_name, employees.last_name,
-                employees.birthdate, employees.employee_number,
-                employees.gender, employees.civil_status,
-                employee_positions.department, employee_positions.department_id, employee_positions.position,
-                employee_positions.employment_type, employee_positions.working_day_type,
-                employee_positions.working_days, employee_positions.start_time, employee_positions.end_time,
-                employee_positions.monthly_salary, employee_positions.de_minimis_benefit, employee_positions.de_minimis_breakdown, employee_positions.allowances,
-                employee_positions.additional_de_minimis_benefit, employee_positions.additional_de_minimis_breakdown,
-                employee_government_ids.sss, employee_government_ids.tin,
-                employee_government_ids.pagibig, employee_government_ids.philhealth,
-                ai.secret as email,
-                users.active as status, users.online_status,
+                employees.id, MAX(employees.user_id) as user_id,
+                MAX(employees.first_name) as first_name, MAX(employees.middle_name) as middle_name, MAX(employees.last_name) as last_name,
+                MAX(employees.birthdate) as birthdate, MAX(employees.employee_number) as employee_number,
+                MAX(employees.gender) as gender, MAX(employees.civil_status) as civil_status,
+                MAX(employee_positions.department) as department, MAX(employee_positions.department_id) as department_id, MAX(employee_positions.position) as position,
+                MAX(employee_positions.employment_type) as employment_type, MAX(employee_positions.working_day_type) as working_day_type,
+                MAX(employee_positions.working_days) as working_days, MAX(employee_positions.start_time) as start_time, MAX(employee_positions.end_time) as end_time,
+                MAX(employee_positions.monthly_salary) as monthly_salary, MAX(employee_positions.de_minimis_benefit) as de_minimis_benefit, MAX(employee_positions.de_minimis_breakdown) as de_minimis_breakdown, MAX(employee_positions.allowances) as allowances,
+                MAX(employee_positions.additional_de_minimis_benefit) as additional_de_minimis_benefit, MAX(employee_positions.additional_de_minimis_breakdown) as additional_de_minimis_breakdown,
+                MAX(employee_government_ids.sss) as sss, MAX(employee_government_ids.tin) as tin,
+                MAX(employee_government_ids.pagibig) as pagibig, MAX(employee_government_ids.philhealth) as philhealth,
+                MAX(ai.secret) as email,
+                MAX(users.active) as status, MAX(users.online_status) as online_status,
                 COALESCE(MAX(CASE WHEN agu.group = 'client_payroll_staff' THEN 'client_payroll_staff' WHEN agu.group = 'employee' THEN 'employee' ELSE NULL END), 'employee') as account_role,
                 MAX(ea.mobile_number) as mobile_number,
                 MAX(ea.address) as address,
@@ -767,36 +771,42 @@ class EmployeeController extends BaseController
 
         $employeeModel = new EmployeeModel();
 
+        // Every non-GROUP-BY column must be wrapped in an aggregate under
+        // sql_mode=ONLY_FULL_GROUP_BY (MariaDB's default on most managed
+        // hosts, incl. this app's — see the identical fix already applied
+        // to employeeView()'s query and buildFaceRecognitionEmployees()) —
+        // MariaDB rejects a bare column even when it's from the very table
+        // being grouped by its own primary key, unlike MySQL 5.7+.
         $employees = $employeeModel
 
             ->select("
                 employees.id,
-                employees.employee_number,
-                employees.first_name,
-                employees.middle_name,
-                employees.last_name,
-                employees.birthdate,
-                employees.gender,
-                employees.civil_status,
+                MAX(employees.employee_number) as employee_number,
+                MAX(employees.first_name) as first_name,
+                MAX(employees.middle_name) as middle_name,
+                MAX(employees.last_name) as last_name,
+                MAX(employees.birthdate) as birthdate,
+                MAX(employees.gender) as gender,
+                MAX(employees.civil_status) as civil_status,
 
-                employee_positions.department,
-                employee_positions.position,
-                employee_positions.employment_type,
-                employee_positions.working_day_type,
-                employee_positions.working_days,
-                employee_positions.start_time,
-                employee_positions.end_time,
-                employee_positions.monthly_salary,
-                employee_positions.de_minimis_benefit,
-                employee_positions.de_minimis_breakdown,
-                employee_positions.allowances,
+                MAX(employee_positions.department) as department,
+                MAX(employee_positions.position) as position,
+                MAX(employee_positions.employment_type) as employment_type,
+                MAX(employee_positions.working_day_type) as working_day_type,
+                MAX(employee_positions.working_days) as working_days,
+                MAX(employee_positions.start_time) as start_time,
+                MAX(employee_positions.end_time) as end_time,
+                MAX(employee_positions.monthly_salary) as monthly_salary,
+                MAX(employee_positions.de_minimis_benefit) as de_minimis_benefit,
+                MAX(employee_positions.de_minimis_breakdown) as de_minimis_breakdown,
+                MAX(employee_positions.allowances) as allowances,
 
-                employee_government_ids.sss,
-                employee_government_ids.tin,
-                employee_government_ids.pagibig,
-                employee_government_ids.philhealth,
+                MAX(employee_government_ids.sss) as sss,
+                MAX(employee_government_ids.tin) as tin,
+                MAX(employee_government_ids.pagibig) as pagibig,
+                MAX(employee_government_ids.philhealth) as philhealth,
 
-                ai.secret as email,
+                MAX(ai.secret) as email,
 
                 MAX(ea.mobile_number) as mobile_number,
                 MAX(ea.address) as address,
@@ -805,7 +815,7 @@ class EmployeeController extends BaseController
                 MAX(ea.account_number) as account_number,
                 MAX(ea.swift_code) as swift_code,
 
-                users.active as status
+                MAX(users.active) as status
             ", false)
 
             ->join(

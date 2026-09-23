@@ -105,8 +105,11 @@ class AccessControlController extends BaseController
         // Departments (active only, for the picker) — id/name plus how many
         // employees currently sit in each, so an admin can see at a glance
         // before deactivating one.
+        // MAX(d.name) not a bare d.name: MariaDB's ONLY_FULL_GROUP_BY rejects
+        // a bare column even from the table being grouped by its own PK —
+        // see the identical fix already applied throughout EmployeeController.
         $departmentRows = $db->table('departments d')
-            ->select('d.id, d.name, COUNT(ep.id) AS employee_count', false)
+            ->select('d.id, MAX(d.name) AS name, COUNT(ep.id) AS employee_count', false)
             ->join('employee_positions ep', 'ep.department_id = d.id', 'left')
             ->where('d.is_active', 1)
             ->where('d.deleted_at', null)
