@@ -1210,7 +1210,7 @@ function faceRecognitionRowTemplate(p) {
         </select>`;
 
     return `
-        <div class="grid grid-cols-[2fr_1fr_1.1fr_1fr_1.1fr_1.3fr_0.8fr] items-center border-b hover:bg-gray-50">
+        <div class="grid items-center border-b hover:bg-gray-50" style="grid-template-columns: 2fr 1fr 1.1fr 1fr 1.1fr 1.3fr 0.8fr;">
 
             <div class="p-4 flex items-center gap-3">
                 ${avatarHtml}

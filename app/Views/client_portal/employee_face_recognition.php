@@ -17,7 +17,10 @@
     <?= view('components/crud_table', [
         'title' => 'Employee Face Enrollment',
         'tableId' => 'faceRecognitionTable',
-        'grid' => 'grid-cols-[2fr_1fr_1.1fr_1fr_1.1fr_1.3fr_0.8fr]',
+        // Raw CSS value, not a Tailwind arbitrary class — public/css/main.css
+        // is a precompiled build (no Node/npm available to rebuild it here),
+        // so a brand-new grid-cols-[...] class would never actually apply.
+        'gridStyle' => '2fr 1fr 1.1fr 1fr 1.1fr 1.3fr 0.8fr',
         'columns' => [
             'Employee Name',
             'Position',

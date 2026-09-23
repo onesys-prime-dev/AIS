@@ -124,7 +124,17 @@
     <!-- TABLE -->
     <div class="flex flex-col flex-1 min-h-0">
         <!-- HEAD -->
-        <div class="grid <?= esc($grid) ?> bg-[#DCDCDC] text-[#737373] border border-[#9E9E9E] rounded-lg overflow-hidden text-sm font-medium">
+        <?php
+        // gridStyle (raw CSS grid-template-columns value) always renders
+        // correctly regardless of whether it's been through the Tailwind
+        // build (public/css/main.css is precompiled, not JIT — an arbitrary
+        // grid-cols-[...] class that was never compiled in silently does
+        // nothing and every cell stacks vertically instead). Prefer it when
+        // given; existing callers that only pass a precompiled `grid` class
+        // keep working exactly as before.
+        ?>
+        <div class="grid <?= empty($gridStyle) ? esc($grid) : '' ?> bg-[#DCDCDC] text-[#737373] border border-[#9E9E9E] rounded-lg overflow-hidden text-sm font-medium"
+            <?= !empty($gridStyle) ? 'style="grid-template-columns: ' . esc($gridStyle) . ';"' : '' ?>>
             <?php foreach ($columns as $col): ?>
             <div class="p-4 text-base font-bold <?= $col === 'Action' ? 'text-center' : '' ?>">
                 <?= esc($col) ?>
