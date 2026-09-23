@@ -2002,6 +2002,14 @@ function activateTab(tabKey)
                 : 'none';
 
     });
+
+    // Reflect the active tab in the URL (?tab=...) so a refresh — or a
+    // shared link — lands back on this same tab instead of always
+    // resetting to Employee Management. replaceState (not pushState) so
+    // switching tabs doesn't spam the browser's back/forward history.
+    const tabUrl = new URL(window.location.href);
+    tabUrl.searchParams.set('tab', tabKey);
+    window.history.replaceState({}, '', tabUrl);
 }
 
 tabs.forEach(tab => {
@@ -2013,7 +2021,15 @@ tabs.forEach(tab => {
 
 });
 
-activateTab('employee-management');
+// Honor ?tab= from the URL on load, but only if it names a tab actually
+// rendered for this user's role — PHP already only renders the tab
+// buttons a user is allowed to see, so checking against the live DOM here
+// is sufficient (no separate allow-list to keep in sync). Falls back to
+// Employee Management for a missing/invalid/unauthorized value.
+const requestedTab = new URLSearchParams(window.location.search).get('tab');
+const hasRequestedTab = requestedTab && Array.from(tabs).some(tab => tab.dataset.tab === requestedTab);
+
+activateTab(hasRequestedTab ? requestedTab : 'employee-management');
 /*
 |--------------------------------------------------------------------------
 | CREATE EMPLOYEE TABLE

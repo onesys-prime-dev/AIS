@@ -6,7 +6,7 @@
 
     <p class="helper-text">
         Center <span id="face-modal-employee-name" class="font-semibold text-gray-800">this employee</span>'s
-        face in the circle, then slowly turn their head to complete the ring — it captures automatically.
+        face in the circle, tap Capture Face, then slowly turn their head to complete the ring — it captures automatically.
     </p>
 
     <?= view('components/face_scan', ['id' => 'enroll-face', 'size' => 220]) ?>
@@ -116,6 +116,12 @@
 
     let targetUserId = null;
 
+    // True whenever the employee currently loaded has no face on file yet —
+    // the next "Capture Face" click should run the full 2-pass first-time
+    // sequence instead of a single "Capture Another Angle" pass. Kept in
+    // sync by renderEnrollment(), which already tracks enrolled/not-enrolled.
+    let firstEnrollmentPending = false;
+
     const setHealth = (ok, message) => {
         healthBanner.textContent = message;
         healthBanner.className = 'health-banner ' + (ok ? 'ok' : 'error');
@@ -132,6 +138,8 @@
 
     function renderEnrollment(enrollment) {
         if (!enrollment) return;
+
+        firstEnrollmentPending = !enrollment.enrolled;
 
         if (enrollment.enrolled) {
             removeButton.hidden = false;
@@ -174,10 +182,10 @@
 
         faceScanInstance = window.createFaceScan({
         id: 'enroll-face',
-        // One capture per explicit "arm" (auto on first-time enrollment,
-        // otherwise via Capture Another Angle) — freezes on success instead
-        // of endlessly re-capturing while the modal sits open, since each
-        // capture writes a new embedding row.
+        // Every "arm" is explicit — a button click, never auto-started on
+        // modal open — and freezes on success instead of endlessly
+        // re-capturing while the modal sits open, since each capture writes
+        // a new embedding row.
         autoResumeAfterSuccess: false,
         onStateChange: (state) => {
             const busy = state === 'positioning' || state === 'scanning' || state === 'pass-complete' || state === 'capturing';
@@ -218,7 +226,11 @@
     }
 
     captureButton.addEventListener('click', () => {
-        getFaceScan().resume({ scansRequired: 1 });
+        // First capture for a not-yet-enrolled employee runs the full 2-pass
+        // sequence (still auto-continuing pass 1 -> pass 2 with no extra
+        // click, same as before); every click after that is a single manual
+        // pass for one more sample.
+        getFaceScan().resume({ scansRequired: firstEnrollmentPending ? 2 : 1 });
     });
 
     removeButton.addEventListener('click', async () => {
@@ -272,18 +284,17 @@
 
         openModalById('faceRecognitionModal');
 
+        // Camera preview only on open — scanning never auto-starts, for
+        // either an already-enrolled or a brand-new employee. The admin has
+        // to tap "Capture Face" / "Capture Another Angle" to arm a scan;
+        // captureButton's click handler decides 2 passes vs. 1 based on
+        // firstEnrollmentPending (set by renderEnrollment() above).
         const scan = getFaceScan();
-        if (enrollment.enrolled) {
-            // Already has a face on file — show the live feed but don't
-            // silently add another sample just from opening this modal.
-            scan.start();
-            scan.pause();
-            scan.setStatus('Face already on file. Tap "Capture Another Angle" to add a sample.');
-        } else {
-            // First-time enrollment: two full passes back-to-back, no
-            // manual click needed (mirrors Face ID's own two-scan setup).
-            scan.start({ scansRequired: 2 });
-        }
+        scan.start();
+        scan.pause();
+        scan.setStatus(enrollment.enrolled
+            ? 'Face already on file. Tap "Capture Another Angle" to add a sample.'
+            : 'Tap "Capture Face" to begin scanning.');
 
         refreshHealth();
     };
@@ -294,8 +305,13 @@
         if (!closeBtn && !overlay) return;
 
         const modal = closeBtn ? closeBtn.closest('.modal-overlay') : overlay;
-        if (modal && modal.id === 'faceRecognitionModal' && faceScanInstance) {
-            faceScanInstance.stop();
+        if (modal && modal.id === 'faceRecognitionModal') {
+            if (faceScanInstance) faceScanInstance.stop();
+            // The Face Recognition table (enrollment counts/status per row)
+            // was built server-side when the page first loaded, so it won't
+            // reflect anything captured/removed in this modal without a
+            // fresh page load.
+            location.reload();
         }
     });
 
