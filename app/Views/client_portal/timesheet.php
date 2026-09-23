@@ -567,7 +567,9 @@ let currentData = [...DAILY_DATA];
 
 function escapeHtml(str) {
     if (!str) return '';
-    return str.replace(/[&<>]/g, m => m === '&' ? '&amp;' : (m === '<' ? '&lt;' : '&gt;'));
+    return String(str).replace(/[&<>"']/g, m => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
+    })[m]);
 }
 
 function formatDate(dateStr) {
@@ -626,6 +628,12 @@ function renderTable() {
         const taskCell = dayTasks.length
             ? `<span class="text-gray-700">${escapeHtml(dayTasks[0].task_performed)}</span>${dayTasks.length > 1 ? `<span class="ml-1 text-[10px] font-semibold text-purple-500 cursor-pointer hover:underline" onclick="openTaskLogModal(${day.attendance_id}, '${day.date}')">+${dayTasks.length - 1} more</span>` : ''}`
             : `<span class="text-gray-300">—</span>`;
+        const actionCell = day.attendance_id
+            ? `<div class="cursor-pointer w-7 h-7 hover:scale-110 transition inline-block"
+                    onclick="openTaskLogModal(${day.attendance_id}, '${day.date}')">
+                   <img src="<?= base_url('icons/edit.png') ?>" class="w-7 h-7" alt="Edit">
+               </div>`
+            : '<span class="text-gray-300">—</span>';
         html += `
             <tr class="border-b border-gray-100 hover:bg-purple-50/40 transition-colors ${rowBg}">
                 <td class="px-4 py-3 whitespace-nowrap font-medium text-gray-700">${formatDate(day.date)}</td>
@@ -643,12 +651,7 @@ function renderTable() {
                 <td class="px-4 py-3 text-sm text-gray-500" title="${escapeHtml(day.remarks)}">${escapeHtml(day.remarks) || '<span class="text-gray-300">—</span>'}</td>
                 <td class="px-4 py-3 text-sm" title="${escapeHtml(day.client)}">${clientCell}</td>
                 <td class="px-4 py-3 text-sm" title="${escapeHtml(day.task_performed)}">${taskCell}</td>
-                <td class="px-4 py-3 text-center whitespace-nowrap">
-                    <div class="cursor-pointer w-7 h-7 hover:scale-110 transition inline-block"
-                         onclick="openTaskLogModal(${day.attendance_id}, '${day.date}')">
-                        <img src="<?= base_url('icons/edit.png') ?>" class="w-7 h-7" alt="Edit">
-                    </div>
-                </td>
+                <td class="px-4 py-3 text-center whitespace-nowrap">${actionCell}</td>
             </tr>
         `;
     });
