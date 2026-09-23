@@ -128,6 +128,23 @@
     padding-right: 40px;
 }
 
+/* This shell was already responsive (width:100% capped by max-width), just
+   tightening the padding on very narrow phones so more of the actual
+   content width is usable — 24px on the overlay + 24px on the box each
+   side was ~96px of pure padding on a 375px screen. */
+@media (max-width: 480px) {
+    .modal-overlay.civm-overlay {
+        padding: 10px;
+    }
+    .civm-box {
+        padding: 16px;
+    }
+    .civm-title {
+        font-size: 18px;
+        padding-right: 32px;
+    }
+}
+
 /* ANIMATION */
 @keyframes civmModalPop {
 

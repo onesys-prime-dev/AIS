@@ -5,6 +5,9 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
 <header class="app-header">
     <!-- LEFT SIDE -->
     <div class="header-left">
+        <button type="button" id="sidebarToggleBtn" class="sidebar-toggle-btn" aria-label="Open menu" onclick="openMobileSidebar()">
+            <i class="fa-solid fa-bars"></i>
+        </button>
         <form class="search-box" action="<?= site_url('client_portal/help') ?>" method="get" id="headerSearchForm" data-search-index-url="<?= site_url('client_portal/help/search-index') ?>" autocomplete="off">
             <button type="submit" class="search-icon-btn" aria-label="Search Help Centre">
                 <i class="fa-solid fa-magnifying-glass search-icon"></i>
@@ -163,6 +166,10 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
 
             <!-- USER DROPDOWN -->
             <div id="userDropdown" class="user-dropdown">
+                <div class="user-dropdown-identity">
+                    <div class="user-dropdown-name"><?= esc($displayName !== '' ? $displayName : 'User') ?></div>
+                    <div class="user-dropdown-email"><?= esc($displayEmail) ?></div>
+                </div>
                 <a href="<?= site_url('client_portal/profile') ?>">Profile</a>
                 <a href="<?= site_url('settings/customization') ?>">Settings</a>
                 <a href="<?= site_url('logout') ?>">Logout</a>
@@ -1001,7 +1008,7 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
         right:0;
         top:55px;
 
-        width:160px;
+        width:200px;
 
         background:var(--dropdown-bg);
 
@@ -1014,6 +1021,32 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
         overflow:hidden;
 
         z-index:9999;
+    }
+
+    /* Name/email — always here (not just on mobile), since the header's own
+       .user-info text is now hidden below 768px (see the mobile section
+       further down) and the avatar alone doesn't say whose account it is. */
+    .user-dropdown-identity{
+        padding:12px 15px;
+        border-bottom:1px solid #f0f0f0;
+    }
+
+    .user-dropdown-name{
+        font-weight:600;
+        font-size: calc(13px * var(--font-scale, 1));
+        color:var(--dropdown-text);
+        white-space:nowrap;
+        overflow:hidden;
+        text-overflow:ellipsis;
+    }
+
+    .user-dropdown-email{
+        font-size: calc(11px * var(--font-scale, 1));
+        color:#9ca3af;
+        white-space:nowrap;
+        overflow:hidden;
+        text-overflow:ellipsis;
+        margin-top:2px;
     }
 
     .user-dropdown a{
@@ -1332,6 +1365,62 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
             width:100%;
             height:100%;
             border-radius:0;
+        }
+    }
+
+    /* MOBILE HEADER — .search-box alone was a fixed 420px (wider than most
+       phones on its own), and the sidebar had no way to be hidden at all
+       (see partials/sidebar.php), so the whole header just overflowed
+       sideways on a small screen rather than adapting. */
+    .sidebar-toggle-btn{
+        display:none;
+        background:none;
+        border:none;
+        font-size:20px;
+        color:var(--header-text);
+        cursor:pointer;
+        padding:8px;
+        flex-shrink:0;
+        line-height:1;
+    }
+
+    @media (max-width: 767px){
+        .sidebar-toggle-btn{
+            display:flex;
+            align-items:center;
+            justify-content:center;
+        }
+
+        .app-header{
+            height:auto;
+            min-height:64px;
+            padding:10px 12px;
+            gap:8px;
+        }
+
+        .header-left{
+            flex:1;
+            min-width:0;
+        }
+
+        .search-box{
+            width:auto;
+            flex:1;
+            min-width:0;
+        }
+
+        /* Icon + "Ask" label together no longer fit next to a flexible
+           search box on a phone — keep the icon, drop the label. */
+        .ai-helper-open-btn span{
+            display:none;
+        }
+
+        /* Name/email text next to the avatar is the next thing to overflow
+           once the search box and hamburger are already sharing the row —
+           the avatar (still tappable, still opens the same dropdown with
+           the name/email visible inside it) is enough on a phone. */
+        .user-info{
+            display:none;
         }
     }
 

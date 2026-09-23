@@ -808,6 +808,15 @@
 @media (max-width: 768px) {
     .request-review-modal { max-height: calc(100vh - 1rem); }
     .request-review-modal-body { grid-template-columns: 1fr; }
+
+    /* .request-grid's minmax(400px, 1fr) guaranteed horizontal overflow on
+       any screen under 400px wide — even a single column couldn't fit. */
+    .request-grid { grid-template-columns: 1fr; }
+
+    /* Ratio-based grids (approval codes list, etc.) don't overflow, but 6
+       columns crammed into a phone width is unreadable rather than broken —
+       collapse to a single column same as the modal body above. */
+    .approval-codes-grid { grid-template-columns: 1fr; }
 }
 
 /* ── Staff Detail Modal (payroll staff — approved/rejected, read-only) ── */

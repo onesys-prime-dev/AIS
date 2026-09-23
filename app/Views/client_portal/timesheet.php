@@ -17,15 +17,15 @@
     $isPayrollAdmin = $isPayrollAdmin ?? false;
 ?>
 
-<div class="h-full flex flex-col min-h-0 overflow-hidden px-8 pb-8">
+<div id="timesheetPageRoot" class="h-full flex flex-col min-h-0 overflow-hidden px-8 pb-8">
 
     <!-- Page Header (unchanged) -->
-    <div class="flex justify-between items-center my-4">
+    <div class="flex justify-between items-center my-4 flex-wrap gap-3">
         <div class="p-1">
             <h1 class="text-3xl font-bold text-gray-800 mb-1">Timesheets</h1>
             <p class="text-gray-500 text-sm">Manage timesheets here.</p>
         </div>
-        <div class="flex items-center gap-4">
+        <div class="flex items-center gap-4 flex-wrap">
             <button type="button"
                 data-modal-open="viewDailyTimeLog"
                 onclick="openModalById('viewDailyTimeLog')"
@@ -97,8 +97,14 @@
             </div>
         </div>
 
-        <!-- TABLE -->
-        <div class="flex-1 flex flex-col overflow-hidden">
+        <!-- TABLE — the header/body/footer tables below are all a fixed
+             1370px min-width (16 columns). Previously this container just
+             clipped anything past the viewport with no way to reach it at
+             all on a phone; now it scrolls horizontally as one unit (all
+             three tables move together since they're stacked in the same
+             scroll container), while the body's own vertical scroll (for
+             rows) stays independent, exactly as before. -->
+        <div class="flex-1 flex flex-col overflow-x-auto" style="overflow-y:hidden;">
 
             <!-- HEADER -->
             <table class="min-w-[1370px] w-full text-md border-collapse table-fixed">
@@ -503,6 +509,16 @@
     </div>
 
     <style>
+        @media (max-width: 640px){
+            #timesheetPageRoot{
+                padding-left:12px;
+                padding-right:12px;
+            }
+            #timesheetPageRoot h1{
+                font-size:22px;
+            }
+        }
+
         @keyframes tlModalPop{ from{ transform:scale(0.95); opacity:0; } to{ transform:scale(1); opacity:1; } }
 
         .tl-field{

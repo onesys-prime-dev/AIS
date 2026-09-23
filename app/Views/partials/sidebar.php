@@ -1,6 +1,12 @@
 <aside class="sidebar">
     <div class="sidebar-inner">
 
+        <!-- Mobile-only close button — the backdrop (tap-outside) also
+             closes it, but an explicit close affordance is expected. -->
+        <button type="button" class="sidebar-close-btn" aria-label="Close menu" onclick="closeMobileSidebar()">
+            <i class="fa-solid fa-xmark"></i>
+        </button>
+
         <!-- LOGO -->
         <div class="logo-box">
             <?php $logoUrl = $activeCompanyBranding['logo_url'] ?? null; ?>
@@ -181,4 +187,66 @@
         width:100%;
     }
 
+    /* MOBILE — the sidebar is otherwise a fixed 120px column with no way to
+       hide it, which eats ~30% of a phone screen permanently. Below 768px it
+       becomes an off-canvas panel: out of normal flow (so the content area
+       gets its full width back), slid in via a class toggled by the header's
+       hamburger button (see partials/header.php). */
+    .sidebar-backdrop{
+        display:none;
+        position:fixed;
+        inset:0;
+        background:rgba(0,0,0,.45);
+        z-index:999;
+    }
+    .sidebar-close-btn{
+        display:none;
+        position:absolute;
+        top:10px;
+        right:10px;
+        background:none;
+        border:none;
+        color:var(--sidebar-text);
+        font-size:18px;
+        cursor:pointer;
+        padding:6px;
+        z-index:1;
+    }
+    @media (max-width: 767px){
+        .sidebar{
+            position:fixed;
+            top:0; left:0;
+            height:100vh;
+            z-index:1000;
+            transform:translateX(-100%);
+            transition:transform .25s ease;
+            box-shadow:4px 0 24px rgba(0,0,0,.3);
+        }
+        .sidebar.mobile-open{
+            transform:translateX(0);
+        }
+        .sidebar-close-btn{
+            display:block;
+        }
+        .sidebar-backdrop.mobile-open{
+            display:block;
+        }
+    }
 </style>
+
+<div id="sidebarBackdrop" class="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
+
+<script>
+    function openMobileSidebar() {
+        document.querySelector('.sidebar')?.classList.add('mobile-open');
+        document.getElementById('sidebarBackdrop')?.classList.add('mobile-open');
+        document.body.style.overflow = 'hidden';
+    }
+    function closeMobileSidebar() {
+        document.querySelector('.sidebar')?.classList.remove('mobile-open');
+        document.getElementById('sidebarBackdrop')?.classList.remove('mobile-open');
+        document.body.style.overflow = '';
+    }
+    window.openMobileSidebar = openMobileSidebar;
+    window.closeMobileSidebar = closeMobileSidebar;
+</script>
