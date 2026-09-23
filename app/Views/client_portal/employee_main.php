@@ -807,6 +807,8 @@ function htmlEsc(val)
                         data-end_time="${htmlEsc(p.end_time)}"
                         data-break_schedule='${htmlEsc(p.break_schedule || "[]")}'
                         data-break_windows='${htmlEsc(p.break_windows || "[]")}'
+                        data-tardiness_grace_minutes="${htmlEsc(p.tardiness_grace_minutes ?? 0)}"
+                        data-ot_grace_minutes="${htmlEsc(p.ot_grace_minutes ?? 0)}"
 
                         data-sss="${htmlEsc(p.sss)}"
                         data-tin="${htmlEsc(p.tin)}"
@@ -1827,6 +1829,8 @@ window.addEventListener('click', function(e)
         if (typeof toggleEditScheduleTime === 'function') toggleEditScheduleTime(button.dataset.working_day_type);
         setVal('edit_start_time',        button.dataset.start_time);
         setVal('edit_end_time',          button.dataset.end_time);
+        setVal('edit_tardiness_grace_minutes', button.dataset.tardiness_grace_minutes || 0);
+        setVal('edit_ot_grace_minutes',        button.dataset.ot_grace_minutes || 0);
         if (typeof toggleEditScheduleTime === 'function') toggleEditScheduleTime(button.dataset.working_day_type);
 
         // Restore break schedule (falls back to a single 60-min break if unset)

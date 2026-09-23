@@ -111,6 +111,8 @@ class EmployeeService
             )));
             $breakSchedule = $this->parseBreakSchedule($data['break_schedule'] ?? null);
             $breakWindows = $this->parseBreakWindows($data['break_windows'] ?? null, count($breakSchedule));
+            $tardinessGraceMinutes = $this->parseGraceMinutes($data['tardiness_grace_minutes'] ?? null);
+            $otGraceMinutes = $this->parseGraceMinutes($data['ot_grace_minutes'] ?? null);
 
             if ($startTime === '' || $endTime === '') {
                 throw new \Exception('Start time and end time are required.');
@@ -218,6 +220,8 @@ class EmployeeService
                 'working_days' => json_encode($workingDays),
                 'break_schedule' => json_encode($breakSchedule),
                 'break_windows' => json_encode($breakWindows),
+                'tardiness_grace_minutes' => $tardinessGraceMinutes,
+                'ot_grace_minutes' => $otGraceMinutes,
                 'monthly_salary' => isset($data['monthly_salary']) && $data['monthly_salary'] !== '' ? (float) $data['monthly_salary'] : null,
                 'de_minimis_benefit' => isset($data['de_minimis_benefit']) && $data['de_minimis_benefit'] !== '' ? (float) $data['de_minimis_benefit'] : 0,
                 'de_minimis_breakdown' => isset($data['de_minimis_breakdown']) && $data['de_minimis_breakdown'] !== '' ? $data['de_minimis_breakdown'] : null,
@@ -410,6 +414,21 @@ class EmployeeService
         return ['mode' => $mode, 'start' => $start, 'end' => $end];
     }
 
+    /**
+     * A grace-period minutes field (tardiness or OT) — clamped to a sane
+     * 0-120 range and defaulted to 0 (no grace, today's exact-minute
+     * behavior) for anything blank, negative, or malformed, so a bad
+     * submission degrades safely instead of blocking the whole save.
+     */
+    private function parseGraceMinutes($raw): int
+    {
+        $minutes = filter_var($raw, FILTER_VALIDATE_INT);
+        if ($minutes === false || $minutes < 0) {
+            return 0;
+        }
+        return min(120, $minutes);
+    }
+
     private function generateEmployeeNumber()
     {
         $year = date('Y');
@@ -491,6 +510,14 @@ class EmployeeService
 
             if (isset($data['end_time']) && trim((string) $data['end_time']) !== '') {
                 $scheduleData['end_time'] = trim((string) $data['end_time']);
+            }
+
+            if (isset($data['tardiness_grace_minutes'])) {
+                $scheduleData['tardiness_grace_minutes'] = $this->parseGraceMinutes($data['tardiness_grace_minutes']);
+            }
+
+            if (isset($data['ot_grace_minutes'])) {
+                $scheduleData['ot_grace_minutes'] = $this->parseGraceMinutes($data['ot_grace_minutes']);
             }
 
             if (isset($data['working_day_type']) && trim((string) $data['working_day_type']) !== '') {

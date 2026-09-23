@@ -192,7 +192,7 @@ final class TimesheetImportService
                     $now=new DateTimeImmutable('now',new DateTimeZone('Asia/Manila'));
                     $timeIn=$in->format('Y-m-d H:i:s');
                     $schedules[$eid]??=$this->db->table('employee_positions')->where('employee_id',$eid)->get()->getRowArray()??[];
-                    $schedule=array_intersect_key($schedules[$eid],array_flip(['start_time','end_time','break_schedule','working_days','working_day_type']));
+                    $schedule=array_intersect_key($schedules[$eid],array_flip(['start_time','end_time','break_schedule','working_days','working_day_type','tardiness_grace_minutes','ot_grace_minutes']));
                     $shift=AttendanceWindow::shiftDate($timeIn,$schedule);
                     $view=array_replace($view,['time_in'=>$timeIn,'shift_date'=>$shift]);
                     if($in>$now)throw new DomainException('Future attendance cannot be imported.');
@@ -204,7 +204,7 @@ final class TimesheetImportService
                     $record=['user_id'=>$uid,'time_in'=>$timeIn,'time_in_dt'=>$timeIn,'shift_date'=>$shift,'schedule_snapshot'=>json_encode($schedule,JSON_THROW_ON_ERROR),
                         'break_log'=>'[]','breaks_taken'=>0,'break_duration'=>$breakHours,'state_version'=>0,
                         'scheduled_start'=>$schedule['start_time']??null,'scheduled_end'=>$schedule['end_time']??null,'attendance_status'=>'present'];
-                    [$start]=AttendanceWindow::bounds($record);$record['late_minutes']=AttendanceComputationService::lateMinutes($in,$start);
+                    [$start]=AttendanceWindow::bounds($record);$record['late_minutes']=AttendanceComputationService::lateMinutes($in,$start,(int)($schedule['tardiness_grace_minutes']??0));
                     $existing=$this->db->table('attendance')->where('user_id',$uid)->groupStart()->where('COALESCE(shift_date, DATE(time_in))',$shift)->orWhere('time_out',null)->groupEnd()->get()->getResultArray();
                     if($existing){
                         if(count($existing)===1&&$existing[0]['time_in']===$timeIn&&$existing[0]['time_out']===null){
@@ -228,7 +228,7 @@ final class TimesheetImportService
                 $breakHours=round((float)$break/($unit==='minutes'?60:1),2);
                 if($breakHours>($out->getTimestamp()-$in->getTimestamp())/3600)throw new DomainException('Break duration exceeds the attendance span.');
                 $schedules[$eid]??=$this->db->table('employee_positions')->where('employee_id',$eid)->get()->getRowArray()??[];
-                $schedule=array_intersect_key($schedules[$eid],array_flip(['start_time','end_time','break_schedule','working_days','working_day_type']));
+                $schedule=array_intersect_key($schedules[$eid],array_flip(['start_time','end_time','break_schedule','working_days','working_day_type','tardiness_grace_minutes','ot_grace_minutes']));
                 $timeIn=$in->format('Y-m-d H:i:s');$timeOut=$out->format('Y-m-d H:i:s');
                 $shift=AttendanceWindow::shiftDate($timeIn,$schedule);
                 if($periodStart!==null&&($shift<$periodStart||$shift>$periodEnd)){
@@ -246,7 +246,7 @@ final class TimesheetImportService
                     'breaks_taken'=>0,'break_log'=>null,'state_version'=>0,'scheduled_start'=>$schedule['start_time']??null,'scheduled_end'=>$schedule['end_time']??null,
                     'total_hours'=>AttendanceWindow::elapsedHours($timeIn,$timeOut,$breakHours),'night_diff_hours'=>AttendanceWindow::nightHours($timeIn,$timeOut)];
                 if($record['total_hours']>999.99||$record['night_diff_hours']>999.99||$breakHours>999.99)throw new DomainException('Attendance span exceeds supported limits.');
-                [$start]=AttendanceWindow::bounds($record);$record['late_minutes']=AttendanceComputationService::lateMinutes($in,$start);
+                [$start]=AttendanceWindow::bounds($record);$record['late_minutes']=AttendanceComputationService::lateMinutes($in,$start,(int)($schedule['tardiness_grace_minutes']??0));
                 $analysis=(new AttendanceComputationService())->analyzeClockOut($uid,$timeOut,$record);$ot=$analysis['overtime'];$ut=$analysis['undertime'];
                 // Paid-window-restricted (not the full worked span, which the line
                 // above set as a placeholder for the sanity-limit check only) — same

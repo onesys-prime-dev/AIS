@@ -12,6 +12,7 @@
         'night_diff' => 0,
         'unapproved_ot_hours' => 0,
         'undertime_hours' => 0,
+        'unapproved_undertime_hours' => 0,
     ];
     $isPayrollAdmin = $isPayrollAdmin ?? false;
 ?>
@@ -112,6 +113,7 @@
                     <col class="w-[100px]">
                     <col class="w-[110px]">
                     <col class="w-[100px]">
+                    <col class="w-[130px]">
                     <col class="w-[110px]">
                     <col class="w-[150px]">
                     <col class="w-[130px]">
@@ -132,7 +134,8 @@
                         <th class="px-4 text-right font-bold" title="Worked but not approved — not counted toward Regular or OT">Unapproved OT</th>
                         <th class="px-4 text-right font-bold">RDOT Hrs</th>
                         <th class="px-4 text-right font-bold">Tardy (min)</th>
-                        <th class="px-4 text-right font-bold" title="Time missed within the scheduled window (late arrival, early leave, etc.)">Undertime</th>
+                        <th class="px-4 text-right font-bold" title="Approved undertime — excused, no pay impact">Undertime</th>
+                        <th class="px-4 text-right font-bold" title="Time missed that wasn't approved — counted against you">Unapproved UT</th>
                         <th class="px-4 text-right font-bold">Night Diff</th>
 
                         <th class="px-4 text-left font-bold">Remarks</th>
@@ -198,6 +201,7 @@
                     <col class="w-[100px]">
                     <col class="w-[110px]">
                     <col class="w-[100px]">
+                    <col class="w-[130px]">
                     <col class="w-[110px]">
                     <col class="w-[150px]">
                     <col class="w-[130px]">
@@ -251,6 +255,11 @@
                         <!-- UNDERTIME -->
                         <td class="px-4 text-right">
                             <span id="totalUndertime">0.00</span>
+                        </td>
+
+                        <!-- UNAPPROVED UNDERTIME -->
+                        <td class="px-4 text-right">
+                            <span id="totalUnapprovedUndertime">0.00</span>
                         </td>
 
                         <!-- NIGHT DIFF -->
@@ -577,9 +586,10 @@ function badge(value, formatted, type) {
         reg:   'text-gray-800 font-medium',
         unot:  'bg-red-100 text-red-700',
         ut:    'bg-orange-100 text-orange-700',
+        uut:   'bg-red-100 text-red-700',
     };
     const cls = styles[type] || 'text-gray-800';
-    const pill = ['ot','rdot','tardy','nd','unot','ut'].includes(type);
+    const pill = ['ot','rdot','tardy','nd','unot','ut','uut'].includes(type);
     return pill
         ? `<span class="inline-block ${cls} px-2 py-0.5 rounded-full text-xs font-semibold">${formatted}</span>`
         : `<span class="${cls}">${formatted}</span>`;
@@ -590,7 +600,7 @@ function renderTable() {
     if (!tbody) return;
     if (currentData.length === 0) {
         tbody.innerHTML = `
-            <tr><td colspan="15" class="px-6 py-12 text-center">
+            <tr><td colspan="16" class="px-6 py-12 text-center">
                 <div class="flex flex-col items-center gap-2 text-gray-400">
                     <svg class="w-10 h-10 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
@@ -627,7 +637,8 @@ function renderTable() {
                 <td class="px-4 py-3 text-right whitespace-nowrap" title="Worked but not approved — not counted toward Regular or OT">${badge(day.unapproved_ot_hours, day.unapproved_ot_hours.toFixed(2), 'unot')}</td>
                 <td class="px-4 py-3 text-right whitespace-nowrap">${badge(day.rdot_hours, day.rdot_hours.toFixed(2), 'rdot')}</td>
                 <td class="px-4 py-3 text-right whitespace-nowrap">${badge(Math.round(day.tardy_minutes), Math.round(day.tardy_minutes), 'tardy')}</td>
-                <td class="px-4 py-3 text-right whitespace-nowrap" title="Time missed within the scheduled window">${badge(day.undertime_hours, day.undertime_hours.toFixed(2), 'ut')}</td>
+                <td class="px-4 py-3 text-right whitespace-nowrap" title="Approved undertime — excused, no pay impact">${badge(day.undertime_hours, day.undertime_hours.toFixed(2), 'ut')}</td>
+                <td class="px-4 py-3 text-right whitespace-nowrap" title="Time missed that wasn't approved — counted against you">${badge(day.unapproved_undertime_hours, day.unapproved_undertime_hours.toFixed(2), 'uut')}</td>
                 <td class="px-4 py-3 text-right whitespace-nowrap">${badge(day.night_diff, day.night_diff.toFixed(2), 'nd')}</td>
                 <td class="px-4 py-3 text-sm text-gray-500" title="${escapeHtml(day.remarks)}">${escapeHtml(day.remarks) || '<span class="text-gray-300">—</span>'}</td>
                 <td class="px-4 py-3 text-sm" title="${escapeHtml(day.client)}">${clientCell}</td>
@@ -654,8 +665,9 @@ function renderTable() {
         acc.night_diff          += day.night_diff || 0;
         acc.unapproved_ot_hours += day.unapproved_ot_hours || 0;
         acc.undertime_hours     += day.undertime_hours || 0;
+        acc.unapproved_undertime_hours += day.unapproved_undertime_hours || 0;
         return acc;
-    }, { regular_hours: 0, ot_hours: 0, rdot_hours: 0, tardy_minutes: 0, night_diff: 0, unapproved_ot_hours: 0, undertime_hours: 0 });
+    }, { regular_hours: 0, ot_hours: 0, rdot_hours: 0, tardy_minutes: 0, night_diff: 0, unapproved_ot_hours: 0, undertime_hours: 0, unapproved_undertime_hours: 0 });
 
     document.getElementById('totalRegular').innerText = shown.regular_hours.toFixed(2);
     document.getElementById('totalOt').innerText = shown.ot_hours.toFixed(2);
@@ -663,6 +675,7 @@ function renderTable() {
     document.getElementById('totalRdot').innerText = shown.rdot_hours.toFixed(2);
     document.getElementById('totalTardy').innerText = Math.round(shown.tardy_minutes);
     document.getElementById('totalUndertime').innerText = shown.undertime_hours.toFixed(2);
+    document.getElementById('totalUnapprovedUndertime').innerText = shown.unapproved_undertime_hours.toFixed(2);
     document.getElementById('totalNightDiff').innerText = shown.night_diff.toFixed(2);
 }
 

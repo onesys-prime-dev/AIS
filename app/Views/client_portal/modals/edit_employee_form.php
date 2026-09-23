@@ -319,6 +319,20 @@
                     <input type="time" id="edit_end_time" name="end_time" class="edit-form-input">
                 </div>
 
+                <div>
+                    <label class="edit-form-label">Tardiness Grace Period (minutes)
+                        <span class="text-xs text-gray-400 font-normal">(clocking in this many minutes late still counts as on time)</span>
+                    </label>
+                    <input type="number" min="0" step="1" id="edit_tardiness_grace_minutes" name="tardiness_grace_minutes" class="edit-form-input">
+                </div>
+
+                <div>
+                    <label class="edit-form-label">Overtime Grace Period (minutes)
+                        <span class="text-xs text-gray-400 font-normal">(this many minutes early/late at the schedule edge isn't counted as OT)</span>
+                    </label>
+                    <input type="number" min="0" step="1" id="edit_ot_grace_minutes" name="ot_grace_minutes" class="edit-form-input">
+                </div>
+
             </div>
 
             <div>

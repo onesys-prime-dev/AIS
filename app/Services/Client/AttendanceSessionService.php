@@ -52,7 +52,7 @@ final class AttendanceSessionService
         $employee = $this->db->table('employees')->where('user_id', $userId)->get()->getRowArray();
         if (!$employee) throw new DomainException('Your account needs an employee profile before you can clock in.');
         $row = $this->db->table('employee_positions')->where('employee_id', $employee['id'])->get()->getRowArray() ?? [];
-        return array_intersect_key($row, array_flip(['start_time', 'end_time', 'break_schedule', 'break_windows', 'working_days', 'working_day_type']));
+        return array_intersect_key($row, array_flip(['start_time', 'end_time', 'break_schedule', 'break_windows', 'working_days', 'working_day_type', 'tardiness_grace_minutes', 'ot_grace_minutes']));
     }
 
     private function owned(int $userId, int $id): array
@@ -88,7 +88,7 @@ final class AttendanceSessionService
                 'break_duration' => 0, 'state_version' => 0, 'scheduled_start' => $schedule['start_time'] ?? null,
                 'scheduled_end' => $schedule['end_time'] ?? null, 'attendance_status' => 'present'];
             [$start] = AttendanceWindow::bounds($row);
-            $row['late_minutes'] = AttendanceComputationService::lateMinutes(AttendanceWindow::dateTime($now), $start);
+            $row['late_minutes'] = AttendanceComputationService::lateMinutes(AttendanceWindow::dateTime($now), $start, (int) ($schedule['tardiness_grace_minutes'] ?? 0));
             if (!$this->db->table('attendance')->insert($row)) throw new RuntimeException('Clock-in could not be saved.');
             $row['id'] = (int) $this->db->insertID();
             if (!(($this->audit)('Clocked in', $row['id'], [], $row))) throw new RuntimeException('Clock-in audit could not be saved.');
