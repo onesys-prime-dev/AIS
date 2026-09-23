@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - staging
+      - testing
       - main
 
 jobs:
@@ -175,6 +176,183 @@ jobs:
         run: |
           echo "=========================================="
           echo "AIS staging deployment successful!"
+          echo "Branch: ${GITHUB_REF_NAME}"
+          echo "Path: ${DEPLOY_PATH}"
+          echo "=========================================="
+
+
+  # ============================================================
+  # TESTING DEPLOYMENT
+  # ============================================================
+  deploy-testing:
+
+    # Separate checkout of the app in its own directory on the same VPS —
+    # does NOT share DEPLOY_PATH with staging. NOTE: deploy.sh hardcodes
+    # FACE_SERVICE="ais-face-service" regardless of which directory it runs
+    # from, so a testing deploy restarts the same systemd unit staging's
+    # face-recognition relies on (and vice versa) — there's no separate
+    # "ais-face-service-testing" unit on the VPS. Acceptable for now; revisit
+    # if testing and staging start getting pushed to around the same time.
+    if: github.ref == 'refs/heads/testing'
+
+    runs-on: ubuntu-latest
+
+    env:
+      SSH_PORT: 22
+      DEPLOY_PATH: /home/onesystesting/htdocs/AIS-testing
+
+    steps:
+
+      # ==========================================================
+      # CHECKOUT
+      # ==========================================================
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+
+      # ==========================================================
+      # PHP
+      # ==========================================================
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          extensions: mbstring, intl, mysqli, zip
+          coverage: none
+
+      - name: Install Composer dependencies
+        run: |
+          composer install \
+            --no-dev \
+            --optimize-autoloader \
+            --no-interaction
+
+
+      # ==========================================================
+      # NODE / TAILWIND CSS
+      # ==========================================================
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install Node dependencies
+        run: |
+          rm -rf node_modules
+          npm ci
+
+      # ==========================================================
+      # BUILD TAILWIND CSS
+      # ==========================================================
+      - name: Build Tailwind CSS
+        run: |
+          npm run build:css:min
+
+      # ==========================================================
+      # VERIFY CSS BUILD
+      # ==========================================================
+      - name: Verify CSS build
+        run: |
+          if [ ! -f "public/css/main.css" ]; then
+            echo "ERROR: Tailwind CSS build was not generated."
+            exit 1
+          fi
+
+          echo "Tailwind CSS build found."
+          ls -lh public/css/main.css
+
+
+      # ==========================================================
+      # SSH
+      # ==========================================================
+      - name: Install SSH Key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.VPS_PRIVATE_KEY }}
+
+
+      # ==========================================================
+      # VERIFY VPS DEPLOYMENT DIRECTORY
+      # ==========================================================
+      - name: Verify deployment directory
+        run: |
+          ssh \
+            -p ${SSH_PORT} \
+            -o StrictHostKeyChecking=no \
+            ${{ secrets.VPS_USERNAME_TESTING }}@${{ secrets.VPS_HOST }} << EOF
+
+          mkdir -p ${DEPLOY_PATH}
+
+          echo "Deployment directory:"
+          ls -ld ${DEPLOY_PATH}
+
+          EOF
+
+
+      # ==========================================================
+      # DEPLOY
+      # ==========================================================
+      - name: Deploy AIS to testing
+        run: |
+          rsync -az --delete \
+            --exclude=".git" \
+            --exclude=".github" \
+            --exclude=".env" \
+            --exclude="node_modules" \
+            --exclude="tests" \
+            --exclude="writable" \
+            --exclude="public/uploads" \
+            --exclude="python-face-service/venv/" \
+            --exclude="python-face-service/.env" \
+            --exclude="python-face-service/models/" \
+            -e "ssh -p ${SSH_PORT} -o StrictHostKeyChecking=no" \
+            ./ \
+            ${{ secrets.VPS_USERNAME_TESTING }}@${{ secrets.VPS_HOST }}:${DEPLOY_PATH}
+
+
+      # ==========================================================
+      # RUN VPS DEPLOYMENT SCRIPT
+      # ==========================================================
+      - name: Run VPS deployment script
+        run: |
+          ssh \
+            -p ${SSH_PORT} \
+            -o StrictHostKeyChecking=no \
+            ${{ secrets.VPS_USERNAME_TESTING }}@${{ secrets.VPS_HOST }} << EOF
+
+          cd ${DEPLOY_PATH}
+
+          echo "=== SSH USER ==="
+          whoami
+          id
+
+          echo "=== SYSTEMCTL PATH ==="
+          command -v systemctl
+          ls -l /usr/bin/systemctl
+
+          echo "=== SUDO PERMISSIONS ==="
+          sudo -n -l
+
+          echo "=== SUDO TEST ==="
+          sudo -n /usr/bin/systemctl is-active ais-face-service
+
+          echo "=== DEPLOY SCRIPT ==="
+          grep -n "systemctl" deploy.sh
+
+          echo "=== RUN DEPLOYMENT ==="
+          bash deploy.sh
+
+          EOF
+
+
+      # ==========================================================
+      # DEPLOYMENT COMPLETE
+      # ==========================================================
+      - name: Deployment complete
+        run: |
+          echo "=========================================="
+          echo "AIS testing deployment successful!"
           echo "Branch: ${GITHUB_REF_NAME}"
           echo "Path: ${DEPLOY_PATH}"
           echo "=========================================="
