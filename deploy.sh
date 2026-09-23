@@ -10,8 +10,28 @@ set -Eeuo pipefail
 # correct for both instead of always sending it back to staging's directory
 # (which a different site-user has no permission to even cd into).
 APP_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-FACE_SERVICE="ais-face-service"
-FACE_URL="http://127.0.0.1:8100"
+
+# Derived, not hardcoded, so this one script stays correct for every site
+# copy on this VPS instead of only the original staging one:
+#   - FACE_SERVICE: the systemd unit name. "AIS" (staging) keeps the
+#     original "ais-face-service"; any other site directory ("AIS-testing")
+#     gets "ais-face-service-<suffix>" (e.g. "ais-face-service-testing").
+#     Each site's Linux user needs its own NOPASSWD sudoers rule for its own
+#     unit name — see facial-recognition-setup-guide.md.
+#   - FACE_URL: read straight from this site's own python-face-service/.env
+#     PORT (falls back to 8100 if unset/missing), since staging and testing
+#     each run their own face-service instance on a different port to avoid
+#     binding the same 127.0.0.1 port twice on one VPS.
+SITE_NAME="$(basename "$APP_PATH")"
+if [ "$SITE_NAME" = "AIS" ]; then
+    FACE_SERVICE="ais-face-service"
+else
+    FACE_SERVICE="ais-face-service-$(echo "$SITE_NAME" | sed 's/^AIS-//' | tr '[:upper:]' '[:lower:]')"
+fi
+
+FACE_PORT="$(grep -E '^PORT=' "$APP_PATH/python-face-service/.env" 2>/dev/null | head -n1 | cut -d= -f2 | tr -d '[:space:]')"
+FACE_PORT="${FACE_PORT:-8100}"
+FACE_URL="http://127.0.0.1:${FACE_PORT}"
 
 echo "=========================================="
 echo "AIS Deployment"
@@ -66,8 +86,8 @@ echo "[5/6] Restarting face recognition service..."
 
 echo "Testing sudo permission..."
 
-if ! sudo -n /usr/bin/systemctl is-active ais-face-service >/dev/null 2>&1; then
-    echo "ERROR: onesys cannot access ais-face-service through sudo."
+if ! sudo -n /usr/bin/systemctl is-active "$FACE_SERVICE" >/dev/null 2>&1; then
+    echo "ERROR: $(whoami) cannot access $FACE_SERVICE through sudo."
     sudo -n -l
     exit 1
 fi
