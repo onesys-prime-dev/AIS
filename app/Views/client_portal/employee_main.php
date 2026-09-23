@@ -1198,8 +1198,19 @@ function faceRecognitionRowTemplate(p) {
         ? `<span class="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-semibold">Registered (${p.enrollment_count})</span>`
         : `<span class="bg-gray-200 text-gray-500 px-3 py-1 rounded-full text-xs font-semibold">Not Registered</span>`;
 
+    const requirement = p.face_requirement || 'default';
+    const requirementHtml = `
+        <select class="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white"
+            data-face-requirement-select data-user_id="${htmlEsc(p.user_id)}"
+            data-previous-value="${requirement}"
+            onchange="updateFaceRequirement(this)">
+            <option value="default" ${requirement === 'default' ? 'selected' : ''}>System Default</option>
+            <option value="required" ${requirement === 'required' ? 'selected' : ''}>Always Require</option>
+            <option value="exempt" ${requirement === 'exempt' ? 'selected' : ''}>Exempt</option>
+        </select>`;
+
     return `
-        <div class="grid grid-cols-[2fr_1.2fr_1.3fr_1.3fr_1.3fr_0.8fr] items-center border-b hover:bg-gray-50">
+        <div class="grid grid-cols-[2fr_1fr_1.1fr_1fr_1.1fr_1.3fr_0.8fr] items-center border-b hover:bg-gray-50">
 
             <div class="p-4 flex items-center gap-3">
                 ${avatarHtml}
@@ -1215,6 +1226,8 @@ function faceRecognitionRowTemplate(p) {
             <div class="p-4">${htmlEsc(p.employee_number) || '---'}</div>
 
             <div class="p-4">${statusHtml}</div>
+
+            <div class="p-4">${requirementHtml}</div>
 
             <div class="p-4 flex justify-center gap-4">
                 <div
@@ -1238,6 +1251,44 @@ function faceRecognitionRowTemplate(p) {
 
         </div>
         `;
+}
+
+// Inline control on the Face Recognition table itself (not tucked inside
+// the enroll modal) — System Default follows the global FaceRecognition.enabled
+// switch, Always Require / Exempt override it for just this one account.
+function updateFaceRequirement(selectEl) {
+    const userId = selectEl.dataset.user_id;
+    const value = selectEl.value;
+    const previous = selectEl.dataset.previousValue || 'default';
+    selectEl.disabled = true;
+
+    const params = new URLSearchParams({ requirement: value });
+
+    fetch(`<?= site_url('client_portal/face-recognition/requirement') ?>/${userId}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-CSRF-TOKEN': CSRF_HASH,
+        },
+        body: params,
+    })
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === 'success') {
+                selectEl.dataset.previousValue = value;
+                if (window.showToast) window.showToast('Face verification requirement updated.', 'success');
+            } else {
+                selectEl.value = previous;
+                if (window.showToast) window.showToast(data.message || 'Unable to update this setting.', 'warning');
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            selectEl.value = previous;
+            if (window.showToast) window.showToast('Unable to reach the server right now.', 'warning');
+        })
+        .finally(() => { selectEl.disabled = false; });
 }
 
 /*

@@ -76,6 +76,7 @@ $routes->group('client_portal', ['filter' => 'auth'], function($routes){
     $routes->get ('face-recognition/status/(:num)'      , 'Client\FaceRecognitionController::status/$1');
     $routes->post('face-recognition/enroll/(:num)'      , 'Client\FaceRecognitionController::enroll/$1');
     $routes->post('face-recognition/clear/(:num)'       , 'Client\FaceRecognitionController::clear/$1');
+    $routes->post('face-recognition/requirement/(:num)' , 'Client\FaceRecognitionController::setRequirement/$1');
 
     $routes->get('timesheets/daily-log'     , 'Client\TimesheetController::dailyTimeLog');
     $routes->get('timesheet/flagged'        , 'Client\TimesheetController::flaggedAttendance');

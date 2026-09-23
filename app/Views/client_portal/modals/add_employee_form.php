@@ -1070,6 +1070,38 @@ function rebuildBreakRows(prefix, minutesArray, windowsArray) {
 // Seed one default break (60 min) so the list isn't empty on a fresh form
 addBreakRow('add', 60);
 
+// Closing this modal never cleared it (modal-handler.js just hides it), so
+// reopening "New Employee" after a previous attempt showed whatever was
+// last typed/added — including old break rows with stale duration/window
+// settings. Called right before the modal opens (see the "New Employee"
+// button in employee_management.php) so every open starts from a clean
+// single 60-minute Flexible break, step 1, and no leftover allocations.
+function resetAddEmployeeForm() {
+    const form = document.getElementById('employeeForm');
+    if (!form) return;
+    form.reset();
+
+    rebuildBreakRows('add', [60], []);
+
+    const otherList = document.getElementById('other_comp_list');
+    if (otherList) otherList.innerHTML = '';
+    deMinimisBreakdownState.allocations = {};
+    deMinimisBreakdownState.other = [];
+    writeDeMinimisBreakdown();
+
+    // form.reset() already restored the Working Day Type select to its
+    // first <option> (Fixed – Mon to Fri) — re-run the dependent toggles
+    // so the schedule-time row and break-window fields match that.
+    const workingDayType = document.getElementById('add_working_day_type');
+    if (workingDayType) toggleAddScheduleTime(workingDayType.value);
+
+    // Re-trigger the De Minimis total/allocated/remaining recalculation
+    // (its listener is closed over locally, so an input event is the hook).
+    document.getElementById('de_minimis_total')?.dispatchEvent(new Event('input'));
+
+    if (typeof resetSteps === 'function') resetSteps();
+}
+
 // Form validation
 document.getElementById('employeeForm').addEventListener('submit', function(e) {
     const email = document.querySelector('input[name="email"]').value.trim();

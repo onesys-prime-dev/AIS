@@ -17,13 +17,14 @@
     <?= view('components/crud_table', [
         'title' => 'Employee Face Enrollment',
         'tableId' => 'faceRecognitionTable',
-        'grid' => 'grid-cols-[2fr_1.2fr_1.3fr_1.3fr_1.3fr_0.8fr]',
+        'grid' => 'grid-cols-[2fr_1fr_1.1fr_1fr_1.1fr_1.3fr_0.8fr]',
         'columns' => [
             'Employee Name',
             'Position',
             'Department',
             'ID',
             'Face Status',
+            'Login Verification',
             'Action'
         ],
         'filters' => [

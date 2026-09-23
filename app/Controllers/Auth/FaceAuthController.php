@@ -3,6 +3,7 @@
 namespace App\Controllers\Auth;
 
 use App\Controllers\BaseController;
+use App\Libraries\AccountSettings;
 use App\Models\PresenceModel;
 use App\Services\FaceRecognitionService;
 use App\Libraries\TrustedDevicesService;
@@ -17,14 +18,19 @@ class FaceAuthController extends BaseController
     ) {
     }
 
+    /** Same rule as ClientAuthController::isFaceRequiredFor() — kept in sync manually since the two controllers don't share a base. */
+    private function isFaceRequiredFor(int $userId): bool
+    {
+        $override = AccountSettings::getFaceRequirement($userId);
+        return $override ?? config(FaceRecognition::class)->enabled;
+    }
+
     public function index()
     {
-        $faceConfig = config(FaceRecognition::class);
-        if (! $faceConfig->enabled) {
-            return redirect()->to('/client_portal/dashboard');
-        }
-
         if (! auth()->loggedIn()) {
+            if (! config(FaceRecognition::class)->enabled) {
+                return redirect()->to('/client_portal/dashboard');
+            }
             return redirect()->route('login');
         }
 
@@ -41,6 +47,10 @@ class FaceAuthController extends BaseController
                 ->with('error', 'Your verification session expired. Please sign in again.');
         }
 
+        if (! $this->isFaceRequiredFor($tempUserId)) {
+            return redirect()->to('/client_portal/dashboard');
+        }
+
         return view('auth/login', [
             'title' => 'Face Verification',
             'showFaceVerification' => true,
@@ -51,15 +61,6 @@ class FaceAuthController extends BaseController
 
     public function verify()
     {
-        $faceConfig = config(FaceRecognition::class);
-        if (! $faceConfig->enabled) {
-            return $this->response->setJSON([
-                'status' => 'success',
-                'message' => 'Face verification is currently disabled.',
-                'redirect' => site_url('/client_portal/dashboard'),
-            ]);
-        }
-
         if (! auth()->loggedIn()) {
             return $this->response->setStatusCode(401)->setJSON([
                 'status' => 'error',
@@ -70,6 +71,14 @@ class FaceAuthController extends BaseController
 
         $tempUserId = (int) session('temp_user_id');
         $authUserId = (int) auth()->id();
+
+        if (! $this->isFaceRequiredFor($authUserId)) {
+            return $this->response->setJSON([
+                'status' => 'success',
+                'message' => 'Face verification is not required for this account.',
+                'redirect' => site_url('/client_portal/dashboard'),
+            ]);
+        }
 
         if ($tempUserId < 1 || $tempUserId !== $authUserId) {
             auth()->logout();

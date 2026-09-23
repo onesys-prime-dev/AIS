@@ -80,6 +80,8 @@ class EmployeeController extends BaseController
             }
 
             $summary = $enrollmentSummary[$userId] ?? null;
+            $override = \App\Libraries\AccountSettings::getFaceRequirement($userId);
+            $faceRequirement = $override === null ? 'default' : ($override ? 'required' : 'exempt');
 
             return [
                 'user_id'             => $userId,
@@ -98,6 +100,7 @@ class EmployeeController extends BaseController
                 'enrolled'            => $summary !== null,
                 'enrollment_count'    => $summary['count'] ?? 0,
                 'enrollment_latest_at' => $summary['latest_at'] ?? null,
+                'face_requirement'    => $faceRequirement,
             ];
         }, $rows);
     }

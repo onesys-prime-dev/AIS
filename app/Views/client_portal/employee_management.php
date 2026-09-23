@@ -61,7 +61,7 @@
             </button>
 
             <!-- ADD EMPLOYEE -->
-            <button type="button" data-modal-open="employeeModal" onclick="openModalById('employeeModal')" class="bg-[#FF2D2D] hover:bg-[#ff2d2dd2] 
+            <button type="button" data-modal-open="employeeModal" onclick="if (typeof resetAddEmployeeForm === 'function') resetAddEmployeeForm(); openModalById('employeeModal')" class="bg-[#FF2D2D] hover:bg-[#ff2d2dd2]
                     text-white px-4 py-3 rounded-lg shadow-sm inline-flex items-center gap-2 whitespace-nowrap h-auto w-auto shrink-0 transition">
                 <div class="w-5 h-5 shrink-0 flex items-center justify-center">
                     <img src="<?= base_url('icons/add.png'); ?>" alt="Add" class="w-5 h-5 object-contain block">

@@ -119,6 +119,54 @@ class FaceRecognitionController extends BaseController
         ]);
     }
 
+    /**
+     * Per-account override of whether face verification is required at
+     * login: 'default' (follow the global FaceRecognition.enabled switch —
+     * every account starts here), 'required' (always gate this account),
+     * or 'exempt' (never gate this account). Independent of enrollment —
+     * an admin can require/exempt someone regardless of whether they've
+     * enrolled a face yet.
+     */
+    public function setRequirement(int $userId)
+    {
+        $this->ensureCanManage();
+
+        try {
+            $userId = $this->resolveUserId($userId);
+        } catch (\App\Exceptions\ValidationException $e) {
+            return $this->response->setStatusCode(404)->setJSON([
+                'status' => 'error',
+                'message' => $e->getMessage(),
+            ]);
+        }
+
+        $requirement = (string) $this->request->getPost('requirement');
+        $map = ['default' => null, 'required' => true, 'exempt' => false];
+        if (! array_key_exists($requirement, $map)) {
+            return $this->response->setStatusCode(422)->setJSON([
+                'status' => 'error',
+                'message' => 'Invalid requirement value.',
+            ]);
+        }
+
+        \App\Libraries\AccountSettings::setFaceRequirement($userId, $map[$requirement]);
+
+        service('activityLogger')->log(
+            'updated',
+            'user_settings',
+            "Face verification requirement set to \"{$requirement}\" for user #{$userId}",
+            $userId,
+            null,
+            ['user_id' => $userId, 'face_recognition_required' => $map[$requirement]]
+        );
+
+        return $this->response->setJSON([
+            'status' => 'success',
+            'message' => 'Face verification requirement updated.',
+            'requirement' => $requirement,
+        ]);
+    }
+
     public function clear(int $userId)
     {
         $this->ensureCanManage();

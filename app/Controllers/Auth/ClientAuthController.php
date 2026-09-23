@@ -74,8 +74,7 @@ class ClientAuthController extends LoginController
                 ->with('error', 'Your account has been deactivated. Please contact your administrator.');
         }
 
-        $faceConfig = config(FaceRecognition::class);
-        if (! $faceConfig->enabled) {
+        if (! $this->isFaceRequiredFor((int) $user->id)) {
             (new PresenceModel())->updatePresence((int) $user->id, 'Online');
             $this->clearFaceVerificationSession();
 
@@ -110,6 +109,20 @@ class ClientAuthController extends LoginController
                 'info',
                 'You have been logged out successfully.'
             );
+    }
+
+    /**
+     * Per-account override (Face Recognition admin page) wins over the
+     * global switch either way — "Always Require" still gates this account
+     * even with the feature globally off, and "Exempt" skips it even with
+     * the feature globally on. No override (every account, by default)
+     * falls back to the global switch. Shared with FaceAuthController and
+     * the FaceVerified filter so all three agree on the same answer.
+     */
+    private function isFaceRequiredFor(int $userId): bool
+    {
+        $override = \App\Libraries\AccountSettings::getFaceRequirement($userId);
+        return $override ?? config(FaceRecognition::class)->enabled;
     }
 
     private function clearFaceVerificationSession(): void
