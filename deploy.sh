@@ -2,7 +2,14 @@
 
 set -Eeuo pipefail
 
-APP_PATH="/home/onesys/htdocs/AIS"
+# Resolves to wherever this script actually lives, not a hardcoded staging
+# path — deploy.yml's "Run VPS deployment script" step already `cd`s into
+# the right DEPLOY_PATH (staging's /home/onesys/htdocs/AIS, or testing's
+# /home/onesystesting/htdocs/AIS-testing, each a different Linux user) before
+# invoking `bash deploy.sh`, so re-deriving it here keeps this one script
+# correct for both instead of always sending it back to staging's directory
+# (which a different site-user has no permission to even cd into).
+APP_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FACE_SERVICE="ais-face-service"
 FACE_URL="http://127.0.0.1:8100"
 
