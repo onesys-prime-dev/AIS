@@ -805,17 +805,6 @@ class PayrollController extends BaseController
                 $adjustments
             );
 
-            /*
-            |--------------------------------------------------------------------------
-            | DEBUG COMPUTED
-            |--------------------------------------------------------------------------
-            */
-
-            log_message(
-                'error',
-                'COMPUTED DATA: ' . print_r($computed, true)
-            );
-
             $txModel = new PayrollTransactionModel();
 
             $cleanTxData = [
@@ -870,17 +859,6 @@ class PayrollController extends BaseController
 
                 'computed_at' => date('Y-m-d H:i:s')
             ];
-
-            /*
-            |--------------------------------------------------------------------------
-            | DEBUG CLEAN TX
-            |--------------------------------------------------------------------------
-            */
-
-            log_message(
-                'error',
-                'CLEAN TX DATA: ' . print_r($cleanTxData, true)
-            );
 
             $txModel->insert($cleanTxData);
 
@@ -1834,39 +1812,6 @@ class PayrollController extends BaseController
         )->getResultArray();
 
         return $this->response->setJSON($settings);
-    }
-
-    public function sendStatic()
-    {
-        try {
-            $data = $this->request->getJSON(true);
-            $employeeId = $data['employee_id'];
-            
-            $employeeModel = new EmployeeModel();
-            $employee = $employeeModel->find($employeeId);
-            if (!$employee) throw new \App\Exceptions\ValidationException('Employee not found');
-
-            $emailAddress = $this->getUserEmail($employee['user_id']);
-
-            if (!$emailAddress) {
-                throw new \App\Exceptions\ValidationException('Employee email not found');
-            }
-
-            $html = view('client_portal/email_payslip', ['data' => $data, 'employee' => $employee]);
-
-            $email = service('email');
-            $email->setTo($emailAddress);
-            $email->setSubject("Payslip for period {$data['period_start']} to {$data['period_end']}");
-            $email->setMessage($html);
-
-            if ($email->send()) {
-                return $this->response->setJSON(['success' => true]);
-            } else {
-                throw new \App\Exceptions\ValidationException('Failed to send email');
-            }
-        } catch (\Exception $e) {
-            return $this->jsonError($e, 'Unable to send payslip email.');
-        }
     }
 
     public function sendPdf()

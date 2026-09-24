@@ -245,7 +245,6 @@ $routes->group('client_portal', ['namespace' => 'App\Controllers\Client', 'filte
     $routes->post('payroll/send/(:num)'            , 'PayrollController::sendPayslip/$1');
 
     $routes->get ('payroll'                           , 'PayrollController::payrollView');
-    $routes->post('payroll/sendStatic'                , 'PayrollController::sendStatic');
     $routes->post('payroll/sendPdf'                   , 'PayrollController::sendPdf');
     $routes->post('payroll/savePayslipRecord'         , 'PayrollController::savePayslipRecord');
     $routes->get ('payroll/getAllPayslips'            , 'PayrollController::getAllPayslips');
