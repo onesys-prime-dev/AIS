@@ -613,6 +613,39 @@ function badge(value, formatted, type) {
         : `<span class="${cls}">${formatted}</span>`;
 }
 
+// Remarks arrive as one "; "-joined string ("Unapproved Overtime; Unapproved
+// Undertime (left early)"), which wrapped into a 4-line wall of gray text in
+// the narrow column. Split it back into separate items — only at a "; " that
+// sits OUTSIDE parentheses, since a leave/undertime reason can itself contain
+// "; " — and show each as its own color-coded chip so the meaning (approved /
+// unapproved / leave / missed clock-out) reads at a glance.
+function splitRemarks(str) {
+    const parts = [];
+    let depth = 0, cur = '';
+    for (let i = 0; i < str.length; i++) {
+        const ch = str[i];
+        if (ch === '(') depth++;
+        else if (ch === ')') depth = Math.max(0, depth - 1);
+        if (depth === 0 && ch === ';' && str[i + 1] === ' ') { parts.push(cur.trim()); cur = ''; i++; continue; }
+        cur += ch;
+    }
+    if (cur.trim()) parts.push(cur.trim());
+    return parts.filter(Boolean);
+}
+
+function remarksChips(remarks) {
+    const items = splitRemarks(String(remarks || ''));
+    if (!items.length) return '<span class="text-gray-300">—</span>';
+    return '<div style="display:flex;flex-direction:column;align-items:flex-start;gap:4px;">' + items.map(item => {
+        let cls = 'bg-gray-100 text-gray-700';
+        if (/^unapproved/i.test(item)) cls = 'bg-red-100 text-red-700';
+        else if (/^missed clock-out/i.test(item)) cls = 'bg-yellow-100 text-yellow-700';
+        else if (/leave/i.test(item)) cls = 'bg-blue-100 text-blue-700';
+        else if (/^approved/i.test(item)) cls = 'bg-green-100 text-green-700';
+        return `<span class="${cls} px-2 py-0.5 rounded-full text-xs font-semibold" style="white-space:normal;line-height:1.3;" title="${escapeHtml(item)}">${escapeHtml(item)}</span>`;
+    }).join('') + '</div>';
+}
+
 function renderTable() {
     const tbody = document.getElementById('tableBody');
     if (!tbody) return;
@@ -664,7 +697,7 @@ function renderTable() {
                 <td class="px-4 py-3 text-right whitespace-nowrap" title="Approved undertime — excused, no pay impact">${badge(day.undertime_hours, day.undertime_hours.toFixed(2), 'ut')}</td>
                 <td class="px-4 py-3 text-right whitespace-nowrap" title="Time missed that wasn't approved — counted against you">${badge(day.unapproved_undertime_hours, day.unapproved_undertime_hours.toFixed(2), 'uut')}</td>
                 <td class="px-4 py-3 text-right whitespace-nowrap">${badge(day.night_diff, day.night_diff.toFixed(2), 'nd')}</td>
-                <td class="px-4 py-3 text-sm text-gray-500" title="${escapeHtml(day.remarks)}">${escapeHtml(day.remarks) || '<span class="text-gray-300">—</span>'}</td>
+                <td class="px-4 py-3 text-sm" title="${escapeHtml(day.remarks)}">${remarksChips(day.remarks)}</td>
                 <td class="px-4 py-3 text-sm" title="${escapeHtml(day.client)}">${clientCell}</td>
                 <td class="px-4 py-3 text-sm" title="${escapeHtml(day.task_performed)}">${taskCell}</td>
                 <td class="px-4 py-3 text-center whitespace-nowrap">${actionCell}</td>
