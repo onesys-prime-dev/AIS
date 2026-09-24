@@ -325,7 +325,12 @@ class AttendanceComputationService{
             $windowStart = new \DateTime($windowDate . ' ' . $scheduledStart);
             $windowEnd = new \DateTime($windowDate . ' ' . $scheduledEnd);
             if ($windowEnd < $windowStart) $windowEnd->modify('+1 day');
-            $overlapStart = max($start, $windowStart);
+            // Clock-in seconds are floored to the minute here, matching
+            // lateMinutes(): 7:30:30 is 0 minutes late, so it must not also
+            // lose a minute of regular hours (which showed up as a phantom
+            // 0.02 undertime on a shift that ran past the scheduled end).
+            $startFloored = (clone $start)->setTime((int) $start->format('G'), (int) $start->format('i'), 0);
+            $overlapStart = max($startFloored, $windowStart);
             $overlapEnd = min($end, $windowEnd);
             $windowMinutes = 0;
             if ($overlapStart < $overlapEnd) {
