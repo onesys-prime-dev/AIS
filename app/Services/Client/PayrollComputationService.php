@@ -180,6 +180,23 @@ class PayrollComputationService
         $currentTaxable = $basicPay + $nightDiff + $overtime + $otherTaxable;
         $withholdingTax = $this->calculateSemiMonthlyWithholdingTax($currentTaxable);
 
+        // The payroll page already computes these per period (contributions on
+        // 2nd half only, tax on net taxable with the cumulative 2nd-half method,
+        // as in the Excel register). When it sends them, store those exact
+        // figures so this record matches the payslip shown; the formulas above
+        // are only a fallback for callers that don't send them. A negative
+        // withholding_tax is a refund: it is not stored as a deduction but is
+        // added back to net pay below.
+        $taxRefund = 0.0;
+        if (isset($adjustments['sss_ee'], $adjustments['phic_ee'], $adjustments['hdmf_ee'], $adjustments['withholding_tax'])) {
+            $sss  = max(0.0, (float) $adjustments['sss_ee']);
+            $phic = max(0.0, (float) $adjustments['phic_ee']);
+            $hdmf = max(0.0, (float) $adjustments['hdmf_ee']);
+            $sentTax        = (float) $adjustments['withholding_tax'];
+            $withholdingTax = max(0.0, $sentTax);
+            $taxRefund      = max(0.0, -$sentTax);
+        }
+
         // =========================================================
         // LOAN DEDUCTIONS
         // =========================================================
@@ -263,7 +280,8 @@ class PayrollComputationService
 
         $netPay =
             $totalEarnings -
-            $totalDeductions;
+            $totalDeductions +
+            $taxRefund;
 
         // =========================================================
         // RETURN PAYROLL DATA
