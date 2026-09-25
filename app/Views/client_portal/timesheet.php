@@ -1009,11 +1009,13 @@ async function submitAttendanceCorrection(event, attendanceId) {
         let result;
         try { result = await res.json(); } catch (e) { throw new Error(res.status === 403 ? 'Session expired or request blocked. Refresh the page and try again.' : 'Unexpected server response (' + res.status + ').'); }
         if (!result.success) throw new Error(result.message || 'Correction failed.');
-        statusEl.textContent = 'Saved.'; statusEl.style.color = '#16a34a';
-        setTimeout(() => {
-            refreshAttendanceBadge();
-            if (attendanceTab === 'all') searchAttendanceRecords(arState.page); else loadAttendanceIssues();
-        }, 800);
+        // The main table above (Remarks, hours, tardy, etc.) is baked into the page
+        // as DAILY_DATA/TOTALS at load time — it does not re-fetch on its own, so a
+        // correction here would otherwise show as saved in this modal but invisible
+        // in the table until a manual refresh. Reload, same as task-log.js does for
+        // its own edits, so the table and modal lists both come back current.
+        statusEl.textContent = 'Saved. Refreshing…'; statusEl.style.color = '#16a34a';
+        setTimeout(() => location.reload(), 700);
     } catch (err) {
         statusEl.textContent = err.message || 'Could not save.'; statusEl.style.color = '#c0392b';
     }
