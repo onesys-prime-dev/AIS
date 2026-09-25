@@ -104,6 +104,7 @@ window.createCrudTable = function ({
         });
 
         const status = values.status || '';
+        const onlineStatus = values.online_status || '';
         const department = values.department || '';
         const employmentType = values.employment_type || '';
 
@@ -142,6 +143,11 @@ window.createCrudTable = function ({
             const eType = (e.employment_type ?? '').toLowerCase();
 
             const eStatus = e.status == 1 ? 'active' : 'inactive';
+            // Only an active employee ever shows a presence badge (an inactive
+            // row shows "Inactive" instead, never Online/Away/Offline) — so a
+            // stale online_status left over on an inactive record must not
+            // make them match a Presence filter the table never actually shows them under.
+            const eOnlineStatus = eStatus === 'active' ? (e.online_status ?? '').toLowerCase() : '';
 
 
             const matchSearch =
@@ -149,7 +155,7 @@ window.createCrudTable = function ({
                     ? true
                     : (
                         !q ||
-                        [fullName, ePosition, eDepartment, eNumber, eType, eStatus]
+                        [fullName, ePosition, eDepartment, eNumber, eType, eStatus, eOnlineStatus]
                             .join(' ')
                             .includes(q)
                     );
@@ -157,6 +163,9 @@ window.createCrudTable = function ({
 
             const matchStatus =
                 !status || eStatus === status;
+
+            const matchOnlineStatus =
+                !onlineStatus || eOnlineStatus === onlineStatus;
 
             const matchDepartment =
                 !department || eDepartment === department;
@@ -168,6 +177,7 @@ window.createCrudTable = function ({
             return (
                 matchSearch &&
                 matchStatus &&
+                matchOnlineStatus &&
                 matchDepartment &&
                 matchEmploymentType
             );

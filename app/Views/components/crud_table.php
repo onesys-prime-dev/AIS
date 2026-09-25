@@ -55,6 +55,22 @@
                 ['value' => 'inactive', 'label' => 'Inactive'],
             ],
         ],
+        // Presence (Online/Away/Offline) is a separate thing from Active/Inactive
+        // above — that's account status, this is whether they're at their desk
+        // right now. A snapshot at page load, same as Department/Employment
+        // Type below; it won't track someone going online after you've opened
+        // Filters, since those live-update via presence.js's own polling, not
+        // a page reload.
+        [
+            'key' => 'online_status',
+            'label' => 'Presence',
+            'options' => [
+                ['value' => '', 'label' => 'All'],
+                ['value' => 'online', 'label' => 'Online'],
+                ['value' => 'away', 'label' => 'Away'],
+                ['value' => 'offline', 'label' => 'Offline'],
+            ],
+        ],
         [
             'key' => 'department',
             'label' => 'Department',
