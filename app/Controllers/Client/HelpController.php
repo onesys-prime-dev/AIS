@@ -97,6 +97,30 @@ class HelpController extends BaseController
                 'question' => 'Why is my notification bell count wrong?',
                 'answer' => 'The unread count only reflects notifications loaded when the page was opened. Refresh the page if you were just told about something new.',
             ],
+            // The four below were added after real test questions against the
+            // AI Helper turned up either no confident answer at all (clock
+            // in/out — a core daily action) or a confidently WRONG one: "how
+            // do I view announcements" was matching the payslip FAQ purely on
+            // the word "view", and "how do I edit my profile" was matching an
+            // unrelated announcement-editing-permission troubleshooting note,
+            // because nothing in the Help Centre actually covered either
+            // topic from a plain employee's own point of view.
+            [
+                'question' => 'How do I clock in or clock out?',
+                'answer' => 'Both are on the Dashboard. Clock In starts your shift; once you\'re in, the same button becomes Clock Out. There\'s also a break toggle next to it for unpaid breaks.',
+            ],
+            [
+                'question' => 'How do I view announcements?',
+                'answer' => 'Announcements appear in the notification bell (top right of every page) and on your Dashboard. Click one to read it in full.',
+            ],
+            [
+                'question' => 'How do I edit my profile?',
+                'answer' => 'Go to Profile (from the account menu, top right) to update your photo, contact info, and other personal details.',
+            ],
+            [
+                'question' => 'I forgot my login password — how do I reset it?',
+                'answer' => 'Use "Forgot password?" on the login page to get a reset link by email. This is separate from your payslip password — resetting one doesn\'t change the other.',
+            ],
         ];
     }
 
