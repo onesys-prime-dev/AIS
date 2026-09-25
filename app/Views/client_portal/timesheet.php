@@ -25,7 +25,7 @@
             <h1 class="text-3xl font-bold text-gray-800 mb-1">Timesheets</h1>
             <p class="text-gray-500 text-sm">Manage timesheets here.</p>
         </div>
-        <div class="flex items-center gap-4 flex-wrap">
+        <div class="timesheet-header-actions flex items-center gap-4 flex-wrap">
             <button type="button"
                 data-modal-open="viewDailyTimeLog"
                 onclick="openModalById('viewDailyTimeLog')"
@@ -77,11 +77,11 @@
     </div>
 
     <!-- Main Card -->
-    <div class="bg-white h-full rounded-2xl shadow-lg border border-gray-400 flex flex-col overflow-hidden">
+    <div class="timesheet-main-card bg-white flex-1 min-h-0 rounded-2xl shadow-lg border border-gray-400 flex flex-col overflow-hidden">
 
         <!-- Filter bar -->
-        <div class="px-5 py-4 border-b border-gray-200 flex justify-between items-center gap-4 flex-wrap">
-            <div class="relative w-72">
+        <div class="timesheet-filter-bar px-5 py-4 border-b border-gray-200 flex justify-between items-center gap-4 flex-wrap">
+            <div class="timesheet-search relative w-72">
                 <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-500">
                     <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                         <path fill-rule="evenodd" d="M10.5 3.75a6.75 6.75 0 1 0 0 13.5 6.75 6.75 0 0 0 0-13.5ZM2.25 10.5a8.25 8.25 0 1 1 14.59 5.28l4.69 4.69a.75.75 0 1 1-1.06 1.06l-4.69-4.69A8.25 8.25 0 0 1 2.25 10.5Z" clip-rule="evenodd"/>
@@ -90,7 +90,7 @@
                 <input type="text" id="searchInput" placeholder="Search date, remarks…"
                     class="w-full bg-gray-100 text-gray-700 text-sm pl-10 pr-4 py-2.5 rounded-lg outline-none focus:ring-2 focus:ring-purple-400 border border-transparent focus:border-purple-300">
             </div>
-            <div class="flex gap-3">
+            <div class="timesheet-filter-controls flex gap-3">
                 <select id="sortBy" class="bg-gray-100 text-gray-700 text-sm border border-gray-200 rounded-lg px-3 py-2.5 outline-none focus:ring-2 focus:ring-purple-400">
                     <option value="date">Sort: Date</option>
                     <option value="regular_hours">Sort: Regular Hrs</option>
@@ -560,13 +560,63 @@
     </div>
 
     <style>
-        @media (max-width: 640px){
+        @media (max-width: 900px){
             #timesheetPageRoot{
                 padding-left:12px;
                 padding-right:12px;
             }
             #timesheetPageRoot h1{
                 font-size:22px;
+            }
+
+            .timesheet-header-actions{
+                width:100%;
+                display:grid;
+                grid-template-columns:repeat(2, minmax(0, 1fr));
+                gap:8px;
+            }
+
+            .timesheet-header-actions > button{
+                width:100%;
+                min-height:48px;
+                justify-content:center;
+                padding:9px 10px;
+                text-align:center;
+            }
+
+            .timesheet-filter-bar{
+                align-items:stretch;
+                padding:12px;
+                gap:10px;
+            }
+
+            .timesheet-search,
+            .timesheet-filter-controls{
+                width:100%;
+            }
+
+            .timesheet-filter-controls > select{
+                flex:1 1 0;
+                min-width:0;
+            }
+        }
+
+        @media (max-width: 380px){
+            .timesheet-header-actions{
+                grid-template-columns:1fr;
+            }
+        }
+
+        @media (max-width: 900px) and (orientation: portrait){
+            #timesheetPageRoot{
+                overflow-x:hidden;
+                overflow-y:auto;
+            }
+
+            .timesheet-main-card{
+                flex:0 0 auto;
+                height:calc(100dvh - 260px);
+                min-height:520px;
             }
         }
 

@@ -35,13 +35,13 @@
 
 <?= view('partials/loading_overlay') ?>
 
-<div class="flex h-screen overflow-hidden">
+<div class="app-shell flex h-screen overflow-hidden">
 
     <!-- Sidebar -->
     <?= view('partials/sidebar') ?>
 
     <!-- Main area -->
-    <div class="flex-1 flex flex-col overflow-hidden">
+    <div class="app-main flex-1 flex flex-col overflow-hidden min-w-0">
 
         <!-- Header -->
         <?php
@@ -65,13 +65,54 @@
         <?= view('partials/header', ['headerIdentity' => $headerIdentity, 'notifications' => $notifications]) ?>
 
         <!-- Page Content -->
-        <main class="flex-1 flex flex-col min-h-0">
+        <main class="app-content flex-1 flex flex-col min-h-0 min-w-0">
             <?= $this->renderSection('content') ?>
         </main>
 
     </div>
 
 </div>
+
+<style>
+    html,
+    body {
+        width: 100%;
+        max-width: 100%;
+        overflow-x: hidden;
+    }
+
+    .app-shell {
+        width: 100%;
+        max-width: 100vw;
+    }
+
+    .app-main,
+    .app-content,
+    .app-content > * {
+        min-width: 0;
+    }
+
+    @media (max-width: 900px) {
+        .app-shell {
+            min-height: 100dvh;
+            height: 100dvh;
+        }
+
+        .app-content {
+            overflow-x: hidden;
+            overflow-y: auto;
+            overscroll-behavior-y: contain;
+        }
+    }
+
+    @media (max-width: 900px) and (pointer: coarse) {
+        .app-shell input:not([type="checkbox"]):not([type="radio"]),
+        .app-shell select,
+        .app-shell textarea {
+            font-size: 16px !important;
+        }
+    }
+</style>
 
 <script>
 window.notificationViewedUrl = <?= json_encode(site_url('client_portal/announcements/viewed')) ?>;

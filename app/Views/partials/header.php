@@ -5,7 +5,7 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
 <header class="app-header">
     <!-- LEFT SIDE -->
     <div class="header-left">
-        <button type="button" id="sidebarToggleBtn" class="sidebar-toggle-btn" aria-label="Open menu" onclick="openMobileSidebar()">
+        <button type="button" id="sidebarToggleBtn" class="sidebar-toggle-btn" aria-label="Open menu" aria-controls="appSidebar" aria-expanded="false" onclick="openMobileSidebar()">
             <i class="fa-solid fa-bars"></i>
         </button>
         <form class="search-box" action="<?= site_url('client_portal/help') ?>" method="get" id="headerSearchForm" data-search-index-url="<?= site_url('client_portal/help/search-index') ?>" autocomplete="off">
@@ -1384,7 +1384,7 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
         line-height:1;
     }
 
-    @media (max-width: 767px){
+    @media (max-width: 900px){
         .sidebar-toggle-btn{
             display:flex;
             align-items:center;
@@ -1396,11 +1396,35 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
             min-height:64px;
             padding:10px 12px;
             gap:8px;
+            display:grid;
+            grid-template-columns:minmax(0, 1fr) auto;
         }
 
         .header-left{
             flex:1;
             min-width:0;
+        }
+
+        .header-right{
+            gap:8px;
+            height:auto;
+            min-width:0;
+            padding:0;
+        }
+
+        .header-notif-wrapper,
+        .user-profile{
+            padding:6px;
+        }
+
+        .avatar{
+            width:40px;
+            height:40px;
+            font-size:13px;
+        }
+
+        .user-profile{
+            gap:5px;
         }
 
         .search-box{
@@ -1421,6 +1445,116 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
            the name/email visible inside it) is enough on a phone. */
         .user-info{
             display:none;
+        }
+
+        .header-notif-dropdown{
+            position:fixed;
+            top:72px;
+            left:8px;
+            right:8px;
+            width:auto;
+            height:min(500px, calc(100dvh - 84px));
+            max-height:calc(100dvh - 84px);
+        }
+
+        .user-dropdown{
+            position:fixed;
+            top:72px;
+            right:8px;
+            width:min(240px, calc(100vw - 16px));
+        }
+    }
+
+    @media (max-width: 480px){
+        .app-header{
+            display:flex;
+            flex-wrap:wrap;
+            align-content:center;
+            padding:8px 10px 10px;
+            min-height:112px;
+        }
+
+        .header-left{
+            order:2;
+            width:100%;
+            flex:0 0 100%;
+            display:grid;
+            grid-template-columns:44px minmax(0, 1fr) 44px;
+            grid-template-areas:
+                "menu spacer assistant"
+                "search search search";
+            gap:6px 8px;
+            padding-right:96px;
+        }
+
+        .sidebar-toggle-btn{
+            grid-area:menu;
+            width:44px;
+            height:44px;
+            padding:0;
+        }
+
+        .search-box{
+            grid-area:search;
+            width:auto;
+            margin-right:-96px;
+        }
+
+        .ai-helper-open-btn{
+            grid-area:assistant;
+            width:44px;
+            height:44px;
+            padding:0;
+            justify-content:center;
+        }
+
+        .search-input{
+            height:40px;
+            padding-left:40px;
+            padding-right:12px;
+            font-size:13px;
+        }
+
+        .header-right{
+            position:absolute;
+            top:8px;
+            right:8px;
+            gap:2px;
+        }
+
+        .header-notif-wrapper,
+        .user-profile{
+            min-width:44px;
+            min-height:44px;
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            padding:2px;
+        }
+
+        .dropdown-icon{
+            display:none;
+        }
+
+        .header-notif-dropdown{
+            top:120px;
+            height:calc(100dvh - 128px);
+            max-height:calc(100dvh - 128px);
+            border-radius:12px;
+        }
+
+        .header-notif-header{
+            height:auto;
+            min-height:52px;
+            padding:10px 12px;
+        }
+
+        .header-notif-mark-read{
+            font-size:11px;
+        }
+
+        .user-dropdown{
+            top:60px;
         }
     }
 

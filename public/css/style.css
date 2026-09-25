@@ -239,3 +239,37 @@
 .modal-overlay.hidden {
     display: none !important;
 }
+
+@media (max-width: 900px) {
+    .tabs {
+        min-height: 56px;
+        gap: 8px;
+        padding: 9px 12px;
+        overflow-x: auto;
+        overflow-y: hidden;
+        scroll-snap-type: x proximity;
+        scrollbar-width: none;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .tabs::-webkit-scrollbar {
+        display: none;
+    }
+
+    .tab {
+        flex: 0 0 auto;
+        min-height: 38px;
+        padding: 8px 12px;
+        border-radius: 8px;
+        white-space: nowrap;
+        scroll-snap-align: start;
+    }
+
+    .tab.active {
+        background: rgba(255, 255, 255, 0.12);
+    }
+
+    .tab.active::after {
+        bottom: -9px;
+    }
+}

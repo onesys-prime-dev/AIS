@@ -1,4 +1,4 @@
-<aside class="sidebar">
+<aside id="appSidebar" class="sidebar" aria-label="Primary navigation" aria-hidden="false">
     <div class="sidebar-inner">
 
         <!-- Mobile-only close button — the backdrop (tap-outside) also
@@ -197,7 +197,7 @@
         position:fixed;
         inset:0;
         background:rgba(0,0,0,.45);
-        z-index:999;
+        z-index:1001;
     }
     .sidebar-close-btn{
         display:none;
@@ -212,24 +212,85 @@
         padding:6px;
         z-index:1;
     }
-    @media (max-width: 767px){
+    @media (max-width: 900px){
         .sidebar{
             position:fixed;
             top:0; left:0;
-            height:100vh;
-            z-index:1000;
+            width:min(82vw, 300px);
+            height:100dvh;
+            z-index:1002;
             transform:translateX(-100%);
-            transition:transform .25s ease;
+            transition:transform .25s ease, visibility 0s linear .25s;
             box-shadow:4px 0 24px rgba(0,0,0,.3);
+            align-items:stretch;
+            visibility:hidden;
         }
         .sidebar.mobile-open{
             transform:translateX(0);
+            visibility:visible;
+            transition-delay:0s;
+        }
+        .sidebar-inner{
+            align-items:stretch;
+            overflow-y:auto;
+            overscroll-behavior:contain;
+        }
+        .logo-box{
+            min-height:76px;
+            padding:10px 20px;
+            justify-content:flex-start;
+        }
+        .logo{
+            width:54px;
+            height:54px;
+        }
+        .menu{
+            align-items:stretch;
+            gap:6px;
+            padding:14px 12px;
+        }
+        .menu-item{
+            width:100%;
+            height:52px;
+            min-height:52px;
+            flex-direction:row;
+            justify-content:flex-start;
+            gap:14px;
+            padding:0 16px;
+            border-radius:12px;
+            font-size:calc(14px * var(--font-scale, 1));
+        }
+        .menu-item:hover{
+            transform:none;
+        }
+        .menu-item .icon{
+            width:24px;
+            height:24px;
+            flex:0 0 24px;
+        }
+        .bottom-menu{
+            align-items:stretch;
+            padding:12px;
         }
         .sidebar-close-btn{
             display:block;
+            width:44px;
+            height:44px;
+            padding:0;
+        }
+        .sidebar-backdrop{
+            display:block;
+            opacity:0;
+            visibility:hidden;
+            pointer-events:none;
+            transition:opacity .2s ease, visibility 0s linear .2s;
         }
         .sidebar-backdrop.mobile-open{
             display:block;
+            opacity:1;
+            visibility:visible;
+            pointer-events:auto;
+            transition-delay:0s;
         }
     }
 </style>
@@ -245,14 +306,48 @@
         // open at a time.
         document.getElementById('notifDropdown')?.style.setProperty('display', 'none');
         document.getElementById('userDropdown')?.style.setProperty('display', 'none');
-        document.querySelector('.sidebar')?.classList.add('mobile-open');
+        const sidebar = document.getElementById('appSidebar');
+        const toggle = document.getElementById('sidebarToggleBtn');
+        sidebar?.classList.add('mobile-open');
+        sidebar?.setAttribute('aria-hidden', 'false');
+        toggle?.setAttribute('aria-expanded', 'true');
         document.getElementById('sidebarBackdrop')?.classList.add('mobile-open');
         document.body.style.overflow = 'hidden';
+        window.setTimeout(() => sidebar?.querySelector('.sidebar-close-btn')?.focus(), 50);
     }
     function closeMobileSidebar() {
-        document.querySelector('.sidebar')?.classList.remove('mobile-open');
+        const sidebar = document.getElementById('appSidebar');
+        const toggle = document.getElementById('sidebarToggleBtn');
+        const wasOpen = sidebar?.classList.contains('mobile-open');
+        sidebar?.classList.remove('mobile-open');
+        if (window.matchMedia('(max-width: 900px)').matches) {
+            sidebar?.setAttribute('aria-hidden', 'true');
+        }
+        toggle?.setAttribute('aria-expanded', 'false');
         document.getElementById('sidebarBackdrop')?.classList.remove('mobile-open');
         document.body.style.overflow = '';
+        if (wasOpen) toggle?.focus();
+    }
+    document.querySelectorAll('#appSidebar a').forEach(link => {
+        link.addEventListener('click', closeMobileSidebar);
+    });
+    document.addEventListener('keydown', event => {
+        if (event.key === 'Escape') closeMobileSidebar();
+    });
+    window.addEventListener('resize', () => {
+        const sidebar = document.getElementById('appSidebar');
+        if (window.innerWidth > 900) {
+            sidebar?.classList.remove('mobile-open');
+            sidebar?.setAttribute('aria-hidden', 'false');
+            document.getElementById('sidebarBackdrop')?.classList.remove('mobile-open');
+            document.getElementById('sidebarToggleBtn')?.setAttribute('aria-expanded', 'false');
+            document.body.style.overflow = '';
+        } else if (!sidebar?.classList.contains('mobile-open')) {
+            sidebar?.setAttribute('aria-hidden', 'true');
+        }
+    });
+    if (window.matchMedia('(max-width: 900px)').matches) {
+        document.getElementById('appSidebar')?.setAttribute('aria-hidden', 'true');
     }
     window.openMobileSidebar = openMobileSidebar;
     window.closeMobileSidebar = closeMobileSidebar;

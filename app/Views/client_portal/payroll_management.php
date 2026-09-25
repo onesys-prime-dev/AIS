@@ -680,6 +680,56 @@ $_defaultYearMonth = $_current['salary_month'];
     width: 100%;
     margin-bottom: 12px;
 }
+
+@media (max-width: 900px) {
+    #payrollOuterCard {
+        height: auto;
+        min-height: 0;
+        padding: 14px !important;
+        border-radius: 14px;
+    }
+
+    .grid-2,
+    .grid-3,
+    .grid-4,
+    .grid-5,
+    .ot-grid,
+    .loan-grid {
+        grid-template-columns: 1fr;
+    }
+
+    #bulkSetupSection > div:first-child,
+    #bulkSetupSection > div:first-child > div:last-child > div:first-child {
+        grid-template-columns: 1fr !important;
+    }
+
+    .mode-switch {
+        width: 100%;
+        max-width: 280px;
+    }
+
+    .sub-tabs {
+        overflow-x: auto;
+        gap: 18px;
+        scrollbar-width: none;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .sub-tabs::-webkit-scrollbar {
+        display: none;
+    }
+
+    .sub-tab {
+        flex: 0 0 auto;
+        white-space: nowrap;
+    }
+
+    .import-modal-content {
+        width: calc(100vw - 20px) !important;
+        max-height: calc(100dvh - 20px);
+        overflow-y: auto;
+    }
+}
 </style>
 </head>
 <body class="p-6">

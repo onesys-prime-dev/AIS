@@ -8,7 +8,7 @@
 
 <?= $this->section('content') ?>
 
-<div class="h-full flex flex-col min-h-0 overflow-visible">
+<div id="employeePortalRoot" class="h-full flex flex-col min-h-0 overflow-visible min-w-0">
 
     <div class="tabs">
         <button type="button" class="tab active" data-tab="employee-management">Employee Management</button>
@@ -17,26 +17,39 @@
         <?php if (\App\Libraries\PortalAccess::can('loans')): ?><button type="button" class="tab" data-tab="loan-management">Loan Management</button><?php endif; ?>
     </div>
 
-    <div class="tab-panel h-full min-h-0 overflow-visible px-8 pb-8"
+    <div class="employee-tab-panel tab-panel h-full min-h-0 overflow-visible px-8 pb-8 min-w-0"
         data-panel="employee-management"
         style="display:flex;">
         <?= view('client_portal/employee_management') ?>
     </div>
 
-    <div class="tab-panel h-full min-h-0 overflow-visible px-8 pb-8" data-panel="access-control" style="display:none;">
+    <div class="employee-tab-panel tab-panel h-full min-h-0 overflow-visible px-8 pb-8 min-w-0" data-panel="access-control" style="display:none;">
         <?php if (\App\Libraries\PortalAccess::canManageAccessControl()): ?><?= view('client_portal/employee_access_control') ?><?php endif; ?>
     </div>
 
-    <div class="tab-panel h-full min-h-0 overflow-visible px-8 pb-8" data-panel="face-recognition" style="display:none;">
+    <div class="employee-tab-panel tab-panel h-full min-h-0 overflow-visible px-8 pb-8 min-w-0" data-panel="face-recognition" style="display:none;">
         <?php if (\App\Libraries\PortalAccess::can('face_recognition')): ?><?= view('client_portal/employee_face_recognition') ?><?php endif; ?>
     </div>
 
-    <div class="tab-panel h-full min-h-0 overflow-visible px-8 pb-8" data-panel="loan-management" style="display:none;">
+    <div class="employee-tab-panel tab-panel h-full min-h-0 overflow-visible px-8 pb-8 min-w-0" data-panel="loan-management" style="display:none;">
         <?php if (\App\Libraries\PortalAccess::can('loans')): ?><?= view('client_portal/employee_loan') ?><?php endif; ?>
     </div>
 
 
 </div>
+
+<style>
+    @media (max-width: 900px) {
+        #employeePortalRoot {
+            overflow-y: auto;
+        }
+
+        #employeePortalRoot .employee-tab-panel {
+            height: auto;
+            padding: 0 12px 16px;
+        }
+    }
+</style>
 
 <?= $this->endSection() ?>
 

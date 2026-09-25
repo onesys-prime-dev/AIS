@@ -71,6 +71,34 @@ class SettingsController extends BaseController
             return redirect()->back()->withInput()->with('error', implode(' ', $this->validator->getErrors()));
         }
 
+        // Validate the optional logo before saving the other preferences. This
+        // prevents a rejected upload from producing a misleading partial save.
+        $canManageLogo = \App\Libraries\PortalAccess::can('branding');
+        $logoFile      = $canManageLogo ? $this->request->getFile('company_logo') : null;
+        $logoMimeType  = null;
+        $removeLogo    = $canManageLogo && $this->request->getPost('remove_company_logo') === '1';
+        $allowedLogoTypes = [
+            'image/png'     => 'png',
+            'image/jpeg'    => 'jpg',
+            'image/svg+xml' => 'svg',
+        ];
+
+        if (! $removeLogo && $logoFile && $logoFile->getError() !== UPLOAD_ERR_NO_FILE) {
+            if (! $logoFile->isValid()) {
+                return redirect()->back()->withInput()->with('error', 'Logo upload failed: ' . $logoFile->getErrorString());
+            }
+
+            $logoMimeType = (string) $logoFile->getMimeType();
+
+            if (! isset($allowedLogoTypes[$logoMimeType])) {
+                return redirect()->back()->withInput()->with('error', 'Logo must be PNG, JPG, or SVG.');
+            }
+
+            if ($logoFile->getSize() > 3 * 1024 * 1024) {
+                return redirect()->back()->withInput()->with('error', 'Logo must be 3MB or below.');
+            }
+        }
+
         $userId = (int) $user->id;
 
         // Load existing settings first so we don't overwrite unrelated keys
@@ -91,21 +119,32 @@ class SettingsController extends BaseController
         }
 
         // --- Logo upload: only for client_payroll_staff ---
-        if (\App\Libraries\PortalAccess::can('branding')) {
-            $logoFile = $this->request->getFile('company_logo');
+        if ($canManageLogo) {
+            if ($removeLogo) {
+                $companyId = $this->resolveActiveCompanyId();
+                $branding  = $this->getOrCreateBranding($companyId);
 
-            if ($logoFile && $logoFile->isValid() && ! $logoFile->hasMoved()) {
-                $allowedMime = ['image/png', 'image/jpeg', 'image/svg+xml'];
-                $mimeType    = (string) $logoFile->getClientMimeType();
+                if (! empty($branding['id'])) {
+                    $logoRemoved = $this->brandingModel->update((int) $branding['id'], [
+                        'logo_path'          => null,
+                        'logo_original_name' => null,
+                        'logo_mime_type'     => null,
+                        'logo_size'          => null,
+                        'updated_by'         => $userId,
+                    ]);
 
-                if (! in_array($mimeType, $allowedMime, true)) {
-                    return redirect()->back()->withInput()->with('error', 'Logo must be PNG, JPG, or SVG.');
+                    if (! $logoRemoved) {
+                        return redirect()->back()->withInput()->with('error', 'Unable to remove the company logo.');
+                    }
                 }
 
-                if ($logoFile->getSizeByUnit('mb') > 3) {
-                    return redirect()->back()->withInput()->with('error', 'Logo must be 3MB or below.');
+                if (! empty($branding['logo_path'])) {
+                    $oldPath = ROOTPATH . 'public/' . ltrim((string) $branding['logo_path'], '/');
+                    if (is_file($oldPath)) {
+                        @unlink($oldPath);
+                    }
                 }
-
+            } elseif ($logoFile && $logoFile->isValid() && ! $logoFile->hasMoved()) {
                 $companyId = $this->resolveActiveCompanyId();
                 $branding  = $this->getOrCreateBranding($companyId);
                 $uploadDir = ROOTPATH . 'public/uploads/company_logos/company_' . $companyId;
@@ -114,7 +153,7 @@ class SettingsController extends BaseController
                     return redirect()->back()->withInput()->with('error', 'Unable to create logo upload directory.');
                 }
 
-                $extension = strtolower((string) $logoFile->getExtension());
+                $extension = $allowedLogoTypes[$logoMimeType];
                 $newName   = 'logo_' . date('YmdHis') . '_' . bin2hex(random_bytes(4)) . '.' . $extension;
 
                 if (! $logoFile->move($uploadDir, $newName, true)) {
@@ -123,30 +162,41 @@ class SettingsController extends BaseController
 
                 $newPath = 'uploads/company_logos/company_' . $companyId . '/' . $newName;
 
+                $logoData = [
+                    'logo_path'          => $newPath,
+                    'logo_original_name' => (string) $logoFile->getClientName(),
+                    'logo_mime_type'     => $logoMimeType,
+                    'logo_size'          => (int) $logoFile->getSize(),
+                    'updated_by'         => $userId,
+                ];
+
+                $logoSaved = ! empty($branding['id'])
+                    ? $this->brandingModel->update((int) $branding['id'], $logoData)
+                    : $this->brandingModel->insert(array_merge($logoData, ['company_id' => $companyId])) !== false;
+
+                if (! $logoSaved) {
+                    @unlink($uploadDir . DIRECTORY_SEPARATOR . $newName);
+                    return redirect()->back()->withInput()->with('error', 'Unable to save the company logo.');
+                }
+
                 if (! empty($branding['logo_path'])) {
                     $oldPath = ROOTPATH . 'public/' . ltrim((string) $branding['logo_path'], '/');
                     if (is_file($oldPath)) {
                         @unlink($oldPath);
                     }
                 }
-
-                $logoData = [
-                    'logo_path'          => $newPath,
-                    'logo_original_name' => (string) $logoFile->getClientName(),
-                    'logo_mime_type'     => $mimeType,
-                    'logo_size'          => (int) $logoFile->getSize(),
-                    'updated_by'         => $userId,
-                ];
-
-                if (! empty($branding['id'])) {
-                    $this->brandingModel->update((int) $branding['id'], $logoData);
-                } else {
-                    $this->brandingModel->insert(array_merge($logoData, ['company_id' => $companyId]));
-                }
             }
         }
 
-        return redirect()->to(site_url('settings/customization'))->with('success', 'Customization updated successfully.');
+        $redirectTo = trim((string) $this->request->getPost('redirect_to'));
+        $isSafeLocalRedirect = $redirectTo !== ''
+            && preg_match('#^/(?!/)#', $redirectTo) === 1
+            && ! str_contains($redirectTo, "\r")
+            && ! str_contains($redirectTo, "\n");
+
+        return redirect()
+            ->to($isSafeLocalRedirect ? $redirectTo : site_url('settings/customization'))
+            ->with('success', 'Customization updated successfully.');
     }
 
     private function getOrCreateBranding(int $companyId): array

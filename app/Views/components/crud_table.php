@@ -1,17 +1,17 @@
 <div 
-    class="bg-white rounded-2xl shadow-lg p-5 h-full border border-gray-400 relative flex flex-col min-h-0"
+    class="crud-table-card bg-white rounded-2xl shadow-lg p-5 h-full border border-gray-400 relative flex flex-col min-h-0 min-w-0"
     data-crud-table="<?= esc($tableId) ?>">
 
     <!-- Header -->
-    <div class="flex justify-between items-center mb-5">
+    <div class="crud-table-toolbar flex justify-between items-center mb-5 gap-3">
         <h2 class="text-xl font-bold text-gray-700">
             <?= esc($title ?? 'Records') ?>
         </h2>
 
-        <div class="flex items-center gap-4">
+        <div class="crud-table-controls flex items-center gap-4">
 
             <!-- Search -->
-            <div class="relative w-[350px]">
+            <div class="crud-table-search relative w-[350px]">
                 <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-600">
                     <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                     <path fill-rule="evenodd"
@@ -138,7 +138,7 @@
     </div>
 
     <!-- TABLE -->
-    <div class="flex flex-col flex-1 min-h-0">
+    <div class="crud-table-scroll flex flex-col flex-1 min-h-0 min-w-0">
         <!-- HEAD -->
         <?php
         // gridStyle (raw CSS grid-template-columns value) always renders
@@ -149,7 +149,7 @@
         // given; existing callers that only pass a precompiled `grid` class
         // keep working exactly as before.
         ?>
-        <div class="grid <?= empty($gridStyle) ? esc($grid) : '' ?> bg-[#DCDCDC] text-[#737373] border border-[#9E9E9E] rounded-lg overflow-hidden text-sm font-medium"
+        <div class="crud-grid-head grid <?= empty($gridStyle) ? esc($grid) : '' ?> bg-[#DCDCDC] text-[#737373] border border-[#9E9E9E] rounded-lg overflow-hidden text-sm font-medium"
             <?= !empty($gridStyle) ? 'style="grid-template-columns: ' . esc($gridStyle) . ';"' : '' ?>>
             <?php foreach ($columns as $col): ?>
             <div class="p-4 text-base font-bold <?= $col === 'Action' ? 'text-center' : '' ?>">
@@ -162,3 +162,61 @@
     </div>
 
 </div>
+
+<style>
+    .crud-table-scroll {
+        overflow-x: auto;
+        overscroll-behavior-x: contain;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .crud-grid-head,
+    .crud-body {
+        min-width: 900px;
+    }
+
+    @media (max-width: 900px) {
+        .crud-table-card {
+            height: auto;
+            min-height: 0;
+            padding: 14px;
+            border-radius: 14px;
+        }
+
+        .crud-table-toolbar,
+        .crud-table-controls {
+            width: 100%;
+            align-items: stretch;
+            flex-wrap: wrap;
+        }
+
+        .crud-table-toolbar {
+            flex-direction: column;
+            margin-bottom: 14px;
+        }
+
+        .crud-table-search {
+            width: 100%;
+            flex: 1 1 220px;
+        }
+
+        .crud-filter-toggle {
+            min-height: 44px;
+            justify-content: center;
+        }
+
+        .crud-filter-dropdown {
+            top: 132px;
+            left: 14px;
+            right: 14px;
+            width: auto;
+            max-height: calc(100dvh - 170px);
+            overflow-y: auto;
+        }
+
+        .crud-grid-head,
+        .crud-body {
+            min-width: 780px;
+        }
+    }
+</style>

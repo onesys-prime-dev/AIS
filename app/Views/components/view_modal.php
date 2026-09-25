@@ -79,6 +79,12 @@
     animation: civmModalPop .18s ease;
 
     z-index: 1;
+
+    max-height: calc(100dvh - 48px);
+
+    overflow-y: auto;
+
+    overscroll-behavior: contain;
 }
 
 /* CLOSE BUTTON */
@@ -138,10 +144,20 @@
     }
     .civm-box {
         padding: 16px;
+        max-height: calc(100dvh - 20px);
+        border-radius: 14px;
     }
     .civm-title {
         font-size: 18px;
         padding-right: 32px;
+        margin-bottom: 16px;
+    }
+
+    .civm-box input:not([type="checkbox"]):not([type="radio"]),
+    .civm-box select,
+    .civm-box textarea,
+    .civm-box button {
+        max-width: 100%;
     }
 }
 

@@ -805,7 +805,40 @@
 .review-action-btn.approve { background: #16a34a; }
 .review-action-btn.cancel  { background: #6b7280; }
 
-@media (max-width: 640px) {
+@media (max-width: 900px) {
+    .requests-content-container {
+        padding-left: 0.75rem;
+        padding-right: 0.75rem;
+        padding-bottom: 1rem;
+    }
+
+    .page-title {
+        font-size: 1.5rem;
+        line-height: 2rem;
+    }
+
+    .tab-bar {
+        width: 100%;
+        overflow-x: auto;
+        padding-bottom: 4px;
+        scrollbar-width: none;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .tab-bar::-webkit-scrollbar {
+        display: none;
+    }
+
+    .tab-btn {
+        flex: 0 0 auto;
+        min-height: 42px;
+    }
+
+    .request-cards-container {
+        padding: 1rem;
+        border-radius: 0.875rem;
+    }
+
     /* .page-header was a plain flex row with no wrap — the title plus
        Generate Code + the status dropdown just ran off the right edge on a
        phone, with the dropdown unreachable past the edge. */
@@ -826,10 +859,11 @@
     .generate-code-btn,
     .filter-dropdown{
         flex: 1 1 auto;
+        min-height: 44px;
     }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 900px) {
     .request-review-modal { max-height: calc(100vh - 1rem); }
     .request-review-modal-body { grid-template-columns: 1fr; }
 
