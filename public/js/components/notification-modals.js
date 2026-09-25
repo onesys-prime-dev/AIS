@@ -1,3 +1,10 @@
+// Closes the mobile sidebar (partials/sidebar.php) if it's open. That file
+// defines closeMobileSidebar() globally, but only on pages that include the
+// sidebar at all — guarded so this still works standalone elsewhere.
+function closeMobileSidebarIfOpen() {
+    if (typeof window.closeMobileSidebar === 'function') window.closeMobileSidebar();
+}
+
 window.toggleNotif = function () {
     const menu = document.getElementById('notifDropdown');
     if (!menu) return;
@@ -10,6 +17,7 @@ window.toggleNotif = function () {
     menu.style.display = 'block';
     const userMenu = document.getElementById('userDropdown');
     if (userMenu) userMenu.style.display = 'none';
+    closeMobileSidebarIfOpen();
 };
 
 window.toggleUserMenu = function () {
@@ -24,6 +32,7 @@ window.toggleUserMenu = function () {
     menu.style.display = 'block';
     const notifMenu = document.getElementById('notifDropdown');
     if (notifMenu) notifMenu.style.display = 'none';
+    closeMobileSidebarIfOpen();
 };
 
 window.handleNotificationKey = function (event, el) {

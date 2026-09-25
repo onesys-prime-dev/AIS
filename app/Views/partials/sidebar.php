@@ -238,6 +238,13 @@
 
 <script>
     function openMobileSidebar() {
+        // The header's notification/user dropdowns (notification-modals.js)
+        // don't know about this sidebar and vice versa, so nothing closed
+        // the other one — both could end up open at once on a phone, stacked
+        // as two overlapping overlays. Only one of the three should ever be
+        // open at a time.
+        document.getElementById('notifDropdown')?.style.setProperty('display', 'none');
+        document.getElementById('userDropdown')?.style.setProperty('display', 'none');
         document.querySelector('.sidebar')?.classList.add('mobile-open');
         document.getElementById('sidebarBackdrop')?.classList.add('mobile-open');
         document.body.style.overflow = 'hidden';
