@@ -1626,7 +1626,38 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
     // Requests") — the fix for substring false-positives above would
     // otherwise have quietly broken this simple, very common case.
     function containsWord(haystack, term) {
-        return new RegExp('\\b' + escapeRegExp(term) + 's?\\b', 'i').test(haystack);
+        if (new RegExp('\\b' + escapeRegExp(term) + 's?\\b', 'i').test(haystack)) {
+            return true;
+        }
+        // Typo tolerance: a real assistant doesn't lose "annoucement" or
+        // "atendance" to zero matches just because a letter is missing or
+        // swapped. Only for words long enough that a 1-edit fuzzy match is
+        // still a meaningful signal (short words like "ot"/"ut" would false-
+        // positive against half the dictionary at that tolerance).
+        if (term.length < 5) {
+            return false;
+        }
+        const words = haystack.toLowerCase().match(/[a-z]+/g) || [];
+        return words.some(function (w) {
+            return Math.abs(w.length - term.length) <= 1 && levenshtein(w, term) <= 1;
+        });
+    }
+
+    // Classic edit-distance DP, capped at maxDist so a couple of retyped
+    // words per query never becomes an expensive full scan over the index.
+    function levenshtein(a, b) {
+        if (Math.abs(a.length - b.length) > 1) return 2; // short-circuit: can't be within 1
+        const dp = [];
+        for (let i = 0; i <= a.length; i++) dp.push([i]);
+        for (let j = 1; j <= b.length; j++) dp[0][j] = j;
+        for (let i = 1; i <= a.length; i++) {
+            for (let j = 1; j <= b.length; j++) {
+                dp[i][j] = a[i - 1] === b[j - 1]
+                    ? dp[i - 1][j - 1]
+                    : 1 + Math.min(dp[i - 1][j - 1], dp[i - 1][j], dp[i][j - 1]);
+            }
+        }
+        return dp[a.length][b.length];
     }
 
     // Real transcript that exposed this: asking "how to view payslip" lost
@@ -1695,6 +1726,38 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
     // answer. (One term found only in a snippet scores 1; this requires more
     // than that, e.g. a title hit, an exact-phrase hit, or 3+ snippet hits.)
     const CONFIDENT_ANSWER_THRESHOLD = 3;
+
+    // Small talk — a real assistant doesn't run "thanks" or "hi" through the
+    // FAQ scorer (best case a weak/irrelevant match, worst case none at all,
+    // either way a poor first impression). Checked before scoring, on the
+    // raw text so punctuation ("Hi!", "thanks!!") doesn't need stripping by
+    // the caller. Order matters: bye/thanks are checked before the very
+    // loose greeting pattern so e.g. "thanks a lot" can't be mistaken for it.
+    const SMALL_TALK = [
+        { pattern: /^\s*(thanks|thank you|thx|ty|appreciate it)\b/i,
+          replies: ['You\'re welcome! Anything else I can help with?', 'Anytime! Let me know if something else comes up.'] },
+        { pattern: /^\s*(bye|goodbye|see ya|see you|later|that'?s all|that is all)\b/i,
+          replies: ['Take care! Come back anytime you have a question.', 'Bye for now — I\'ll be here if you need anything else.'] },
+        { pattern: /^\s*(hi|hello|hey|yo|good\s?(morning|afternoon|evening))\b[\s!.]*$/i,
+          replies: ['Hi! What can I help you with in OTIS?', 'Hello! Ask me anything about attendance, requests, payroll, loans, or announcements.'] },
+        { pattern: /how are you|how'?s it going/i,
+          replies: ['I\'m just a Help Centre script, not a person, but I\'m ready to help! What do you need?'] },
+    ];
+
+    // Picks deterministically off the question text itself (not random) so
+    // the same input always renders the same reply — real conversation
+    // still varies because the input varies, but a test asking the same
+    // question twice gets a stable, reproducible answer.
+    function detectSmallTalk(text) {
+        for (let i = 0; i < SMALL_TALK.length; i++) {
+            if (SMALL_TALK[i].pattern.test(text)) {
+                const replies = SMALL_TALK[i].replies;
+                const idx = text.length % replies.length;
+                return replies[idx];
+            }
+        }
+        return null;
+    }
 
     function buildResultLink(entry, extraClass) {
         const link = document.createElement('a');
@@ -2000,8 +2063,26 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
 
         chatInput.value = '';
 
+        // The previous question, if any, is still the last 'user' entry in
+        // history at this point — grabbed before pushing the new one below,
+        // for the follow-up retry further down.
+        const previousQuestion = (function () {
+            for (let i = history.length - 1; i >= 0; i--) {
+                if (history[i].role === 'user') return history[i].text;
+            }
+            return null;
+        })();
+
         history.push({ role: 'user', text: text });
         renderThread();
+
+        const smallTalk = detectSmallTalk(text);
+        if (smallTalk) {
+            history.push({ role: 'assistant', text: smallTalk, related: [] });
+            saveHistory(history);
+            renderThread();
+            return;
+        }
 
         const thinkingBubble = document.createElement('div');
         thinkingBubble.className = 'ai-helper-bubble ai-helper-bubble-assistant is-thinking';
@@ -2012,10 +2093,33 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
         const terms = tokenize(text);
 
         loadIndex().then(function (entries) {
-            const scored = entries
-                .map(function (entry) { return { entry: entry, score: scoreEntry(entry, terms, text) }; })
-                .filter(function (r) { return r.score > 0; })
-                .sort(function (a, b) { return b.score - a.score; });
+            const scoreAgainst = function (theTerms, theRawText) {
+                return entries
+                    .map(function (entry) { return { entry: entry, score: scoreEntry(entry, theTerms, theRawText) }; })
+                    .filter(function (r) { return r.score > 0; })
+                    .sort(function (a, b) { return b.score - a.score; });
+            };
+
+            let scored = scoreAgainst(terms, text);
+            let isFollowUp = false;
+
+            // Follow-up context: a short reply like "what about undertime?"
+            // or just "undertime" doesn't stand on its own — a real assistant
+            // reads it against what was just discussed, not in isolation. Only
+            // kicks in when the question alone wasn't already confident, and
+            // only combines with the PREVIOUS question (not the growing whole
+            // conversation) so one bad early message can't keep steering
+            // every answer after it.
+            if ((scored.length === 0 || scored[0].score < CONFIDENT_ANSWER_THRESHOLD)
+                && previousQuestion && terms.length <= 4) {
+                const combinedText = previousQuestion + ' ' + text;
+                const combinedScored = scoreAgainst(tokenize(combinedText), combinedText);
+                if (combinedScored.length > 0 && combinedScored[0].score >= CONFIDENT_ANSWER_THRESHOLD
+                    && (scored.length === 0 || combinedScored[0].score > scored[0].score)) {
+                    scored = combinedScored;
+                    isFollowUp = true;
+                }
+            }
 
             thinkingBubble.remove();
 
@@ -2040,7 +2144,7 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
                 const related = scored.slice(1, 4).map(function (r) { return r.entry; });
                 history.push({
                     role: 'assistant',
-                    text: best.snippet,
+                    text: (isFollowUp ? 'Following up on that — ' : '') + best.snippet,
                     tag: best.tag || (best.type === 'faq' ? 'FAQ' : ''),
                     url: best.url,
                     related: related,
