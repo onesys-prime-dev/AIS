@@ -624,6 +624,41 @@ class EmployeeController extends BaseController
      * no linked user account, position, or compensation, which silently produced
      * employees who couldn't log in, clock in, or be paid.
      */
+    /**
+     * Rebuilds the de_minimis_breakdown JSON from the export's own columns —
+     * the four allocation columns plus "Other Non-Taxable Compensation
+     * Breakdown" ("purpose: amount; purpose: amount", exportEmployees()'s
+     * $otherCompSummary). Without this, exporting an employee and re-importing
+     * that same file unmodified silently dropped the category split and every
+     * "other" line item, keeping only the flat De Minimis total. Amounts are
+     * always a bare number with no colon, so splitting each "; "-separated
+     * entry on its LAST ": " is safe even if a purpose itself contains one.
+     */
+    private function parseDeMinimisBreakdown(array $row): ?string
+    {
+        $allocations = array_filter([
+            'rice_subsidy'      => trim((string) ($row['Rice Subsidy'] ?? '')),
+            'uniform_allowance' => trim((string) ($row['Uniform/Clothing Allowance'] ?? '')),
+            'laundry_allowance' => trim((string) ($row['Laundry Allowance'] ?? '')),
+            'medical_allowance' => trim((string) ($row['Medical Allowance'] ?? '')),
+        ], static fn ($v) => $v !== '');
+
+        $other = [];
+        foreach (explode(';', (string) ($row['Other Non-Taxable Compensation Breakdown'] ?? '')) as $entry) {
+            $entry = trim($entry);
+            if ($entry === '') continue;
+            $sep = strrpos($entry, ':');
+            if ($sep === false) continue;
+            $purpose = trim(substr($entry, 0, $sep));
+            $amount  = trim(substr($entry, $sep + 1));
+            if ($purpose === '' || !is_numeric($amount)) continue;
+            $other[] = ['purpose' => $purpose, 'amount' => (float) $amount];
+        }
+
+        if (!$allocations && !$other) return null;
+        return json_encode(['allocations' => $allocations, 'other' => $other]);
+    }
+
     private function mapImportRow(array $row, string $tempPassword): array
     {
         $get = static fn (string $key) => trim((string) ($row[$key] ?? ''));
@@ -649,6 +684,7 @@ class EmployeeController extends BaseController
             'end_time'           => $get('End Time'),
             'monthly_salary'     => $get('Basic Salary'),
             'de_minimis_benefit' => $get('De Minimis Benefit'),
+            'de_minimis_breakdown' => $this->parseDeMinimisBreakdown($row),
             'allowances'         => $get('Allowances'),
             'mobile_number'      => $get('Contact No.') ?: null,
             'address'            => $get('Address') ?: null,
