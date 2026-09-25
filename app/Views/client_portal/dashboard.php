@@ -1164,6 +1164,26 @@ $currentAttendance = $currentAttendance ?? null;
         margin-top: 6px;
     }
 
+    /* .header was a plain flex row with no wrap — the title plus up to 3
+       action buttons (Announcement, Request Form, My Performance) just ran
+       off the right edge on a phone, with the last button(s) unreachable. */
+    @media (max-width: 640px){
+        .header{
+            flex-wrap: wrap;
+            row-gap: 12px;
+        }
+
+        .button-holder{
+            flex-wrap: wrap;
+            width: 100%;
+        }
+
+        .request-btn{
+            flex: 1 1 auto;
+            justify-content: center;
+        }
+    }
+
     @media (max-width: 900px){
         .dashboard-main{
             grid-template-columns:1fr;

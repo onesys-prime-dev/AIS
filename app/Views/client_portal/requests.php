@@ -805,6 +805,30 @@
 .review-action-btn.approve { background: #16a34a; }
 .review-action-btn.cancel  { background: #6b7280; }
 
+@media (max-width: 640px) {
+    /* .page-header was a plain flex row with no wrap — the title plus
+       Generate Code + the status dropdown just ran off the right edge on a
+       phone, with the dropdown unreachable past the edge. */
+    .page-header{
+        flex-wrap: wrap;
+        row-gap: 12px;
+    }
+
+    .filter-container{
+        width: 100%;
+    }
+
+    #requestsControls{
+        width: 100%;
+        flex-wrap: wrap;
+    }
+
+    .generate-code-btn,
+    .filter-dropdown{
+        flex: 1 1 auto;
+    }
+}
+
 @media (max-width: 768px) {
     .request-review-modal { max-height: calc(100vh - 1rem); }
     .request-review-modal-body { grid-template-columns: 1fr; }
