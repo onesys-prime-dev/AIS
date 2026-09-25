@@ -54,3 +54,14 @@ Thumbs.db
 
 # PHPUnit generated output (logs, coverage cache) — never source
 build/
+
+#-------------------------
+# Real payroll/timesheet data files, and accidental git-command-output
+# files from a stray shell redirect — none of these are ever read by the
+# app; they just ended up committed by hand at some point.
+#-------------------------
+*.xlsx
+*.xls
+*.zip
+et --hard*
+tatus
