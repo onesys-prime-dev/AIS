@@ -1346,7 +1346,13 @@ function selectFaceRequirement(optionBtn, value) {
 function loanRowTemplate(loan)
 {
     return `
-        <div class="grid grid-cols-[1.5fr_1.2fr_1.2fr_1.2fr_1fr_1fr_1.2fr_0.8fr_1fr] items-center border-b hover:bg-gray-50">
+        <!-- border-left/right: transparent — the header row above has a real
+             1px border on both sides (crud_table.php's "border" class), which
+             eats 2px from ITS content box that this row's box doesn't lose,
+             so each fr track came out ~1px narrower on the header than here.
+             Matching (invisible) border-width keeps both content boxes the
+             same size so the columns land exactly on top of each other. -->
+        <div class="grid items-center border-b hover:bg-gray-50" style="grid-template-columns: minmax(0,1.5fr) minmax(0,1.2fr) minmax(0,1.2fr) minmax(0,1.2fr) minmax(0,1fr) minmax(0,0.7fr) minmax(0,1.2fr) minmax(0,1.1fr) minmax(0,1fr); border-left: 1px solid transparent; border-right: 1px solid transparent;">
 
             <div class="p-4 font-medium truncate">
                 ${loan.employee_name || '—'}
@@ -1356,27 +1362,32 @@ function loanRowTemplate(loan)
                 ${loan.loan_type || '—'}
             </div>
 
-             <div class="p-4">
+             <div class="p-4 truncate">
                 ₱${Number(loan.principal_amount || 0).toLocaleString()}
             </div>
 
-            <div class="p-4">
+            <div class="p-4 truncate">
                 ₱${Number(loan.remaining_balance || 0).toLocaleString()}
             </div>
 
-            <div class="p-4">
+            <div class="p-4 truncate">
                 ₱${Number(loan.deduction_per_payroll || 0).toLocaleString()}
             </div>
 
-            <div class="p-4 text-center">
+            <div class="p-4 text-center truncate">
                 ${loan.installment_count || 0}
             </div>
 
-            <div class="p-4">
+            <div class="p-4 truncate">
                 ${loan.start_date || '—'}
             </div>
 
-            <div class="p-4">
+            <!-- overflow-hidden (not truncate — this wraps a pill, not plain
+                 text) so a long status like "active ongoing" now clips
+                 inside its fixed-width column instead of visually bleeding
+                 into the next one, now that minmax(0,fr) above stops it
+                 from widening the column to fit. -->
+            <div class="p-4 overflow-hidden">
                 <span class="
                     capitalize px-3 py-1 whitespace-nowrap rounded-full text-xs font-semibold
                     ${loan.loan_status === 'active'

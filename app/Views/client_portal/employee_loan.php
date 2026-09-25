@@ -45,14 +45,35 @@
     <?= view('components/crud_table', [
         'title' => 'Employees Loan Management',
         'tableId' => 'loanTable',
-        'grid' => 'grid-cols-[1.5fr_1.2fr_1.2fr_1.2fr_1fr_1fr_1.2fr_0.8fr_1fr]',
+        // Raw CSS value, not a Tailwind arbitrary class — this build's
+        // public/css/main.css is precompiled (no Node/npm to rebuild it
+        // here), so a grid-cols-[...] class not already in that file is a
+        // silent no-op: with no grid-template-columns at all, every cell
+        // stacks in one column instead of forming a row.
+        //
+        // Each value is minmax(0, Nfr), not a bare Nfr — a bare fr track's
+        // implicit minimum is its content's own natural width, so a longer
+        // value in one row (e.g. "active ongoing" vs "cancelled" in Status)
+        // silently widened that row's columns independently of every other
+        // row AND of this header, each one drifting out of alignment by a
+        // different amount depending on its own longest cell's content.
+        // minmax(0, Nfr) pins every track to its proportional share no
+        // matter what's inside it. Must exactly match loanRowTemplate()'s
+        // own gridTemplateColumns in employee_main.php.
+        // Installments' own DATA is a bare number ("6"), but its LABEL is
+        // the longest word in the header and can't wrap (no space to break
+        // on) — it was overlapping "Next Deduction" next to it. Traded
+        // 0.3fr from Installments (renamed "Terms", short enough to fit
+        // on one line) to Status, whose longest real value ("active
+        // ongoing"/"Cancelled") was getting clipped mid-word instead.
+        'gridStyle' => 'minmax(0,1.5fr) minmax(0,1.2fr) minmax(0,1.2fr) minmax(0,1.2fr) minmax(0,1fr) minmax(0,0.7fr) minmax(0,1.2fr) minmax(0,1.1fr) minmax(0,1fr)',
         'columns' => [
             'Employee',
             'Loan Type',
             'Original Amount',
             'Remaining Balance',
             'Deduction',
-            'Installments',
+            'Terms',
             'Next Deduction',
             'Status',
             'Action'
