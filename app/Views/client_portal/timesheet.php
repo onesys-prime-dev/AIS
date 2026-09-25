@@ -180,13 +180,19 @@
                         <col class="w-[120px]">
                         <col class="w-[100px]">
                         <col class="w-[100px]">
-                    <col class="w-[90px]">
+                        <col class="w-[90px]">
                         <col class="w-[110px]">
                         <col class="w-[90px]">
                         <col class="w-[110px]">
                         <col class="w-[100px]">
                         <col class="w-[110px]">
                         <col class="w-[100px]">
+                        <!-- Unapproved UT — this col was missing here, shifting every
+                             column from here on (Night Diff through Action) one slot
+                             out of alignment with the header/footer tables above and
+                             below, which both have the full 16. That's what showed up
+                             as the columns drifting apart while scrolling sideways. -->
+                        <col class="w-[130px]">
                         <col class="w-[110px]">
                         <col class="w-[150px]">
                         <col class="w-[130px]">
