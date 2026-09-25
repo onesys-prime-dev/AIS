@@ -112,11 +112,24 @@
              all on a phone; now it scrolls horizontally as one unit (all
              three tables move together since they're stacked in the same
              scroll container), while the body's own vertical scroll (for
-             rows) stays independent, exactly as before. -->
-        <div class="flex-1 flex flex-col overflow-x-auto" style="overflow-y:hidden;">
+             rows) stays independent, exactly as before.
+
+             This single element now handles BOTH scroll axes at once — it
+             previously only scrolled horizontally, with a separate inner div
+             (below) doing its own vertical scroll for just the rows. That
+             inner div had no overflow-x of its own set, and CSS silently
+             forces overflow-x to "auto" on any element whose overflow-y isn't
+             "visible" — so it grew a second, independent horizontal
+             scrollbar. Scrolling THAT one moved only the body, leaving the
+             header/footer behind (a real mismatch, on top of the colgroup
+             one already fixed above). The header and footer tables are
+             pinned in place with position:sticky (top/bottom) instead, which
+             tracks this container's horizontal scroll normally while staying
+             put vertically — the usual frozen-header-row technique. -->
+        <div class="flex-1 flex flex-col overflow-auto hide-scroll-bar">
 
             <!-- HEADER -->
-            <table class="min-w-[1370px] w-full text-md border-collapse table-fixed">
+            <table class="min-w-[1370px] w-full text-md border-collapse table-fixed sticky top-0 z-10">
                 <colgroup>
                     <col class="w-[120px]">
                     <col class="w-[100px]">
@@ -171,8 +184,10 @@
                 </thead>
             </table>
 
-            <!-- BODY -->
-            <div class="overflow-y-auto hide-scroll-bar flex-1">
+            <!-- BODY — no longer its own scroll container; the outer div above
+                 now does both the vertical scroll (for these rows) and the
+                 horizontal one (for all three tables together). -->
+            <div class="flex-1">
 
                 <table class="min-w-[1370px] w-full text-sm border-collapse table-fixed">
 
@@ -209,7 +224,12 @@
             </div>
 
             <!-- FOOTER -->
-            <table class="min-w-[1370px] w-full text-sm border-collapse table-fixed">
+            <!-- "bottom-0" isn't in this build's precompiled Tailwind CSS (unlike
+                 "top-0", used on the header above, which is) — no plain class
+                 for it would ever actually apply, so it's a raw inline style
+                 instead, same workaround already used for gridStyle elsewhere
+                 in this file. -->
+            <table class="min-w-[1370px] w-full text-sm border-collapse table-fixed sticky z-10" style="bottom:0;">
 
                 <colgroup>
                     <col class="w-[120px]">
