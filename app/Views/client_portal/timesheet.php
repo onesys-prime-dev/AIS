@@ -50,10 +50,19 @@
                 Review Employee Timesheets
             </button>
 
-            <button type="button" onclick="openAttendanceIssues()"
+            <button type="button" id="attendanceIssuesBtn" onclick="openAttendanceIssues()"
                 class="bg-[#FFFFFF] hover:bg-[#f3f4f6] px-3 py-3 rounded-lg shadow hover:shadow-[0_6px_12px_rgba(0,0,0,0.2)] flex items-center gap-2 transition hover:translate-y-[-2px] text-gray-700 text-sm font-medium">
-                <img src="<?= base_url('icons/alarms.png'); ?>" class="w-7 h-7" alt="Attendance Issues">
-                Attendance Issues
+                <!-- Flat black line icon, same size/style as the other buttons' icons; badge = records needing attention -->
+                <span style="position:relative;display:inline-flex;width:28px;height:28px;flex:none;">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="#000" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <rect x="4.5" y="4" width="15" height="17.5" rx="2.5"/>
+                        <path d="M9 4V3.2A1.2 1.2 0 0 1 10.2 2h3.6A1.2 1.2 0 0 1 15 3.2V4"/>
+                        <path d="M8.5 13.2l2.6 2.6 4.6-5"/>
+                    </svg>
+                    <span id="attendanceIssuesBadge" hidden
+                        style="position:absolute;top:-9px;right:-7px;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:#dc2626;color:#fff;font-size:11px;font-weight:700;line-height:18px;text-align:center;box-shadow:0 0 0 2px #fff;">0</span>
+                </span>
+                Attendance Corrections
             </button>
             <?php endif; ?>
 
@@ -343,11 +352,27 @@
     <!-- Attendance Issues Modal (client_payroll_staff / admin only) -->
     <?php if ($isPayrollAdmin): ?>
     <?php
-        $content = '<p class="text-sm text-gray-500 -mt-2 mb-3">Sessions clocked in but never closed, and records with an impossible total (negative, or over 24h). Fixing one recomputes it the same way live clock-out does.</p>'
-                 . '<div id="attendanceIssuesList" style="max-height:60vh;overflow:auto;"><p class="text-gray-400 text-sm">Loading…</p></div>';
+        $tabBtn = 'style="padding:8px 14px;border:none;border-bottom:3px solid transparent;background:none;font-size:14px;font-weight:600;color:#6b7280;cursor:pointer;"';
+        $field  = 'style="display:block;border:1px solid #d1d5db;border-radius:6px;padding:6px 8px;font-size:13px;"';
+        $content = '<p class="text-sm text-gray-500 -mt-2 mb-3">Fix a wrong time, a session that was never closed, or an impossible total. Every fix is recomputed the same way a live clock-out is, and is logged.</p>'
+                 . '<div role="tablist" style="display:flex;gap:4px;border-bottom:1px solid #e5e7eb;margin-bottom:12px;">'
+                 .   '<button type="button" role="tab" id="attTabIssues" onclick="switchAttendanceTab(\'issues\')" ' . $tabBtn . '>Needs attention <span id="attTabIssuesCount" style="margin-left:4px;background:#fee2e2;color:#b91c1c;border-radius:9px;padding:1px 7px;font-size:11px;">0</span></button>'
+                 .   '<button type="button" role="tab" id="attTabAll" onclick="switchAttendanceTab(\'all\')" ' . $tabBtn . '>All records</button>'
+                 . '</div>'
+                 . '<div id="attPanelIssues"><div id="attendanceIssuesList" style="max-height:58vh;overflow:auto;"><p class="text-gray-400 text-sm">Loading…</p></div></div>'
+                 . '<div id="attPanelAll" hidden>'
+                 .   '<div style="display:flex;gap:10px;align-items:end;flex-wrap:wrap;margin-bottom:10px;">'
+                 .     '<label style="font-size:12px;color:#555;">Employee<select id="arEmployee" style="display:block;border:1px solid #d1d5db;border-radius:6px;padding:6px 8px;font-size:13px;min-width:220px;"><option value="">Loading…</option></select></label>'
+                 .     '<label style="font-size:12px;color:#555;">From<input type="date" id="arFrom" ' . $field . '></label>'
+                 .     '<label style="font-size:12px;color:#555;">To<input type="date" id="arTo" ' . $field . '></label>'
+                 .     '<button type="button" onclick="searchAttendanceRecords(1)" style="background:#007bff;color:#fff;border:none;border-radius:6px;padding:8px 16px;font-size:13px;cursor:pointer;">Show records</button>'
+                 .   '</div>'
+                 .   '<div id="arList" style="max-height:52vh;overflow:auto;"><p class="text-gray-400 text-sm">Choose an employee and a date range.</p></div>'
+                 .   '<div id="arPager" style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px;font-size:12px;color:#666;"></div>'
+                 . '</div>';
         echo view('components/view_modal', [
             'id'       => 'attendanceIssuesModal',
-            'title'    => 'Attendance Issues',
+            'title'    => 'Attendance Corrections',
             'maxWidth' => '900px',
             'content'  => $content,
         ]);
@@ -767,17 +792,107 @@ document.getElementById('departmentFilter')?.addEventListener('change', filterAn
 
 renderTable();
 
-// ========== ATTENDANCE ISSUES (stuck/broken records finder + corrector) ==========
+// ========== ATTENDANCE CORRECTIONS (flagged finder + all-records browser + corrector) ==========
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const CSRF = () => document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 
 function toLocalInputValue(mysqlDatetime) {
-    // "2026-06-15 21:33:00" -> "2026-06-15T21:33" for a datetime-local input.
+    // "2026-06-15 21:33:42" -> "2026-06-15T21:33:42" for a datetime-local input
+    // (step="1" below keeps the seconds, so a correction doesn't silently round them off).
     if (!mysqlDatetime) return '';
-    return mysqlDatetime.replace(' ', 'T').slice(0, 16);
+    return mysqlDatetime.replace(' ', 'T').slice(0, 19);
+}
+
+const localDate = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+const attStatusLabel = s => ({
+    present: ['On time', '#166534', '#dcfce7'],
+    approved_overtime: ['Approved OT', '#1d4ed8', '#dbeafe'],
+    unapproved_overtime: ['Unapproved OT', '#b45309', '#fef3c7'],
+    approved_undertime: ['Approved UT', '#1d4ed8', '#dbeafe'],
+    unapproved_undertime: ['Unapproved UT', '#b91c1c', '#fee2e2'],
+}[s] || [String(s || '—').replace(/_/g, ' '), '#374151', '#f3f4f6']);
+
+let attendanceTab = 'issues';
+let arState = { page: 1 };
+
+function setBadge(count) {
+    const badge = document.getElementById('attendanceIssuesBadge');
+    const tabCount = document.getElementById('attTabIssuesCount');
+    if (badge) { badge.textContent = count > 99 ? '99+' : count; badge.hidden = count < 1; }
+    if (tabCount) tabCount.textContent = count;
+}
+
+// One row = one attendance record with its correction form. `kind` only changes the description line.
+function attendanceRowHtml(r, kind) {
+    const line = kind === 'stuck_open'
+        ? `Clocked in ${esc(r.time_in)} — never clocked out`
+        : kind === 'bad_hours'
+            ? `${esc(r.time_in)} → ${esc(r.time_out)} — total_hours: ${esc(r.total_hours)}`
+            : `${esc(r.time_in)} → ${r.time_out ? esc(r.time_out) : '<em>still open</em>'} · ${esc(r.total_hours ?? '—')} h · break ${esc(r.break_duration ?? 0)} h${Number(r.late_minutes) > 0 ? ' · late ' + esc(r.late_minutes) + ' min' : ''}`;
+    const [stText, stFg, stBg] = attStatusLabel(r.attendance_status);
+    const chip = kind === 'record'
+        ? `<span style="margin-left:6px;background:${stBg};color:${stFg};border-radius:9px;padding:1px 8px;font-size:11px;font-weight:600;">${esc(stText)}</span>` : '';
+    const notes = [
+        r.break_start ? `<div style="color:#b45309;">Left mid-break since ${esc(r.break_start)}. Saving closes it.</div>` : '',
+        r.last_correction ? `<div style="color:#6b7280;">Last corrected by ${esc(r.last_correction.by)} on ${esc(r.last_correction.at)}</div>` : '',
+        r.payslip_issued ? `<div style="color:#b91c1c;">A payslip already covers this day. Correcting it will NOT change the payslip already generated.</div>` : '',
+    ].join('');
+    const nameLine = kind === 'record' ? '' : `
+                        <strong>${esc(r.employee_name)}</strong>
+                        <span style="color:#888;font-size:12px;"> (${esc(r.employee_number || '')})</span>`;
+    return `
+        <div style="border:1px solid #e5e7eb;border-radius:10px;padding:12px;margin-bottom:10px;">
+            <div>${nameLine}${chip}
+                <div style="font-size:12px;color:#666;margin-top:2px;">${line}</div>
+                <div style="font-size:12px;margin-top:2px;">${notes}</div>
+            </div>
+            <form onsubmit="return submitAttendanceCorrection(event, ${Number(r.id)})" data-payslip="${r.payslip_issued ? '1' : '0'}"
+                  style="display:flex;gap:8px;align-items:end;flex-wrap:wrap;margin-top:10px;">
+                <label style="font-size:12px;color:#555;">Time In
+                    <input type="datetime-local" step="1" name="time_in" value="${esc(toLocalInputValue(r.time_in))}" required
+                        style="display:block;border:1px solid #ccc;border-radius:6px;padding:5px 8px;">
+                </label>
+                <label style="font-size:12px;color:#555;">Time Out
+                    <input type="datetime-local" step="1" name="time_out" value="${esc(toLocalInputValue(r.time_out || r.suggested_time_out))}" required
+                        style="display:block;border:1px solid #ccc;border-radius:6px;padding:5px 8px;">
+                    ${kind === 'stuck_open' && r.suggested_time_out ? '<span style="display:block;font-size:11px;color:#b45309;margin-top:2px;">Suggested: end of scheduled shift. Confirm the actual time.</span>' : ''}
+                </label>
+                <label style="font-size:12px;color:#555;">Break (hrs)
+                    <input type="number" name="break_hours" step="0.01" min="0" value="${esc(r.break_duration ?? 0)}"
+                        style="display:block;border:1px solid #ccc;border-radius:6px;padding:5px 8px;width:80px;">
+                </label>
+                <button type="submit" style="background:#007bff;color:#fff;border:none;border-radius:6px;padding:7px 14px;font-size:13px;cursor:pointer;">Save correction</button>
+                <span class="correction-status" style="font-size:12px;"></span>
+            </form>
+        </div>`;
+}
+
+async function attFetchJson(url) {
+    const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+    let data;
+    try { data = await res.json(); }
+    catch (e) { throw new Error(res.status === 403 ? 'You do not have access to this.' : 'Unexpected server response (' + res.status + ').'); }
+    if (data.error) throw new Error(data.error);
+    return data;
+}
+
+function switchAttendanceTab(tab) {
+    attendanceTab = tab;
+    const on  = 'color:#007bff;border-bottom:3px solid #007bff;';
+    const off = 'color:#6b7280;border-bottom:3px solid transparent;';
+    for (const [id, name] of [['attTabIssues', 'issues'], ['attTabAll', 'all']]) {
+        const el = document.getElementById(id);
+        el.setAttribute('aria-selected', String(tab === name));
+        el.style.cssText += tab === name ? on : off;
+    }
+    document.getElementById('attPanelIssues').hidden = tab !== 'issues';
+    document.getElementById('attPanelAll').hidden = tab !== 'all';
+    if (tab === 'all') initAttendanceBrowser();
 }
 
 async function openAttendanceIssues() {
     openModalById('attendanceIssuesModal');
+    switchAttendanceTab('issues');
     await loadAttendanceIssues();
 }
 
@@ -785,53 +900,82 @@ async function loadAttendanceIssues() {
     const list = document.getElementById('attendanceIssuesList');
     list.innerHTML = '<p class="text-gray-400 text-sm">Loading…</p>';
     try {
-        const res = await fetch('<?= site_url('client_portal/timesheet/flagged') ?>');
-        const data = await res.json();
-        if (data.error) throw new Error(data.error);
+        const data = await attFetchJson('<?= site_url('client_portal/timesheet/flagged') ?>');
+        const stuckRows = data.stuck_open || [];
+        const badRows = data.bad_hours || [];
+        setBadge(stuckRows.length + badRows.length);
 
-        const rowHtml = (r, kind) => `
-            <div style="border:1px solid #e5e7eb;border-radius:10px;padding:12px;margin-bottom:10px;">
-                <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
-                    <div>
-                        <strong>${esc(r.employee_name)}</strong>
-                        <span style="color:#888;font-size:12px;"> (${esc(r.employee_number || '')})</span>
-                        <div style="font-size:12px;color:#666;margin-top:2px;">
-                            ${kind === 'stuck_open'
-                                ? `Clocked in ${esc(r.time_in)} — never clocked out`
-                                : `${esc(r.time_in)} → ${esc(r.time_out)} — total_hours: ${esc(r.total_hours)}`}
-                        </div>
-                    </div>
-                </div>
-                <form onsubmit="return submitAttendanceCorrection(event, ${r.id})" style="display:flex;gap:8px;align-items:end;flex-wrap:wrap;margin-top:10px;">
-                    <label style="font-size:12px;color:#555;">Time In
-                        <input type="datetime-local" name="time_in" value="${esc(toLocalInputValue(r.time_in))}" required
-                            style="display:block;border:1px solid #ccc;border-radius:6px;padding:5px 8px;">
-                    </label>
-                    <label style="font-size:12px;color:#555;">Time Out
-                        <input type="datetime-local" name="time_out" value="${esc(toLocalInputValue(r.time_out))}" required
-                            style="display:block;border:1px solid #ccc;border-radius:6px;padding:5px 8px;">
-                    </label>
-                    <label style="font-size:12px;color:#555;">Break (hrs)
-                        <input type="number" name="break_hours" step="0.01" min="0" value="0"
-                            style="display:block;border:1px solid #ccc;border-radius:6px;padding:5px 8px;width:80px;">
-                    </label>
-                    <button type="submit" style="background:#007bff;color:#fff;border:none;border-radius:6px;padding:7px 14px;font-size:13px;">Save correction</button>
-                    <span class="correction-status" style="font-size:12px;"></span>
-                </form>
+        if (!stuckRows.length && !badRows.length) {
+            list.innerHTML = `<div style="text-align:center;padding:28px 8px;color:#4b5563;">
+                <div style="font-size:30px;">✅</div>
+                <p style="font-weight:600;margin-top:6px;">Nothing needs attention right now.</p>
+                <p style="font-size:13px;color:#6b7280;margin:4px 0 12px;">No unclosed sessions or impossible totals.</p>
+                <button type="button" onclick="switchAttendanceTab('all')" style="background:#007bff;color:#fff;border:none;border-radius:6px;padding:8px 16px;font-size:13px;cursor:pointer;">Browse all records</button>
             </div>`;
-
-        const stuck = (data.stuck_open || []).map(r => rowHtml(r, 'stuck_open')).join('');
-        const bad = (data.bad_hours || []).map(r => rowHtml(r, 'bad_hours')).join('');
-
-        if (!stuck && !bad) {
-            list.innerHTML = '<p class="text-gray-400 text-sm">No flagged records right now.</p>';
             return;
         }
         list.innerHTML =
-            (stuck ? '<h4 style="font-weight:600;margin:6px 0;">Never clocked out</h4>' + stuck : '') +
-            (bad   ? '<h4 style="font-weight:600;margin:6px 0;">Impossible totals</h4>' + bad   : '');
+            (stuckRows.length ? '<h4 style="font-weight:600;margin:6px 0;">Never clocked out</h4>' + stuckRows.map(r => attendanceRowHtml(r, 'stuck_open')).join('') : '') +
+            (badRows.length   ? '<h4 style="font-weight:600;margin:6px 0;">Impossible totals</h4>' + badRows.map(r => attendanceRowHtml(r, 'bad_hours')).join('') : '');
     } catch (err) {
         list.innerHTML = `<p style="color:#c0392b;font-size:13px;">${esc(err.message || 'Could not load flagged records.')}</p>`;
+    }
+}
+
+// Badge on the button: how many records need attention, without opening the modal.
+async function refreshAttendanceBadge() {
+    if (!document.getElementById('attendanceIssuesBadge')) return;
+    try {
+        const data = await attFetchJson('<?= site_url('client_portal/timesheet/flagged') ?>');
+        setBadge((data.stuck_open || []).length + (data.bad_hours || []).length);
+    } catch (e) { /* badge is a nicety; stay hidden on failure */ }
+}
+document.addEventListener('DOMContentLoaded', refreshAttendanceBadge);
+
+let attendanceEmployeesLoaded = false;
+async function initAttendanceBrowser() {
+    const fromEl = document.getElementById('arFrom'), toEl = document.getElementById('arTo');
+    if (!toEl.value) toEl.value = localDate(new Date());
+    if (!fromEl.value) { const d = new Date(); d.setDate(d.getDate() - 30); fromEl.value = localDate(d); }
+    if (attendanceEmployeesLoaded) return;
+    const sel = document.getElementById('arEmployee');
+    try {
+        const employees = await attFetchJson('<?= site_url('client_portal/timesheet/review-employees') ?>');
+        sel.innerHTML = '<option value="">Select an employee…</option>' +
+            employees.map(e => `<option value="${Number(e.id)}">${esc(e.label)} (${esc(e.employee_number || '')})</option>`).join('');
+        attendanceEmployeesLoaded = true;
+    } catch (err) {
+        sel.innerHTML = '<option value="">Could not load employees</option>';
+    }
+}
+
+async function searchAttendanceRecords(page) {
+    const list = document.getElementById('arList'), pager = document.getElementById('arPager');
+    const employeeId = document.getElementById('arEmployee').value;
+    if (!employeeId) { list.innerHTML = '<p style="color:#c0392b;font-size:13px;">Please choose an employee first.</p>'; pager.innerHTML = ''; return; }
+    arState = { page };
+    list.innerHTML = '<p class="text-gray-400 text-sm">Loading…</p>';
+    try {
+        const qs = new URLSearchParams({
+            employee_id: employeeId,
+            from: document.getElementById('arFrom').value,
+            to: document.getElementById('arTo').value,
+            page,
+        });
+        const data = await attFetchJson('<?= site_url('client_portal/timesheet/records') ?>?' + qs.toString());
+        const pages = Math.max(1, Math.ceil(data.total / data.per_page));
+        list.innerHTML = data.records.length
+            ? data.records.map(r => attendanceRowHtml(r, 'record')).join('')
+            : '<p class="text-gray-400 text-sm">No attendance records in this range.</p>';
+        const btn = (label, target, disabled) => `<button type="button" ${disabled ? 'disabled' : `onclick="searchAttendanceRecords(${target})"`}
+            style="border:1px solid #d1d5db;border-radius:6px;padding:5px 12px;background:#fff;${disabled ? 'opacity:.4;cursor:default;' : 'cursor:pointer;'}">${label}</button>`;
+        pager.innerHTML = data.total
+            ? `<span>${esc(data.employee_name)} · ${data.total} record${data.total === 1 ? '' : 's'} · page ${data.page} of ${pages}</span>
+               <span style="display:flex;gap:6px;">${btn('‹ Prev', data.page - 1, data.page <= 1)}${btn('Next ›', data.page + 1, data.page >= pages)}</span>`
+            : '';
+    } catch (err) {
+        list.innerHTML = `<p style="color:#c0392b;font-size:13px;">${esc(err.message || 'Could not load records.')}</p>`;
+        pager.innerHTML = '';
     }
 }
 
@@ -839,7 +983,12 @@ async function submitAttendanceCorrection(event, attendanceId) {
     event.preventDefault();
     const form = event.target;
     const statusEl = form.querySelector('.correction-status');
-    const toMysql = v => v ? v.replace('T', ' ') + ':00' : '';
+    if (form.dataset.payslip === '1' &&
+        !confirm('A payslip already covers this day. Correcting the attendance will NOT change that payslip.\n\nSave the correction anyway?')) {
+        return false;
+    }
+    // datetime-local gives "YYYY-MM-DDTHH:MM", or "...THH:MM:SS" when seconds are set.
+    const toMysql = v => v ? v.replace('T', ' ') + (v.length === 16 ? ':00' : '') : '';
     const payload = {
         time_in: toMysql(form.time_in.value),
         time_out: toMysql(form.time_out.value),
@@ -849,13 +998,22 @@ async function submitAttendanceCorrection(event, attendanceId) {
     try {
         const res = await fetch('<?= site_url('client_portal/timesheet/update-attendance') ?>/' + attendanceId, {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
+            headers: {
+                'Content-Type': 'application/json',
+                // Without this the CSRF filter rejects the save ("The action you requested is not allowed").
+                'X-CSRF-TOKEN': CSRF(),
+            },
             body: JSON.stringify(payload),
         });
-        const result = await res.json();
+        // A non-JSON reply (e.g. an expired session or CSRF rejection) used to surface as a cryptic parse error.
+        let result;
+        try { result = await res.json(); } catch (e) { throw new Error(res.status === 403 ? 'Session expired or request blocked. Refresh the page and try again.' : 'Unexpected server response (' + res.status + ').'); }
         if (!result.success) throw new Error(result.message || 'Correction failed.');
         statusEl.textContent = 'Saved.'; statusEl.style.color = '#16a34a';
-        setTimeout(loadAttendanceIssues, 800);
+        setTimeout(() => {
+            refreshAttendanceBadge();
+            if (attendanceTab === 'all') searchAttendanceRecords(arState.page); else loadAttendanceIssues();
+        }, 800);
     } catch (err) {
         statusEl.textContent = err.message || 'Could not save.'; statusEl.style.color = '#c0392b';
     }

@@ -178,7 +178,7 @@ class TimesheetController extends BaseController
                 ->groupStart()->where('time_out >', $newTimeIn)->orWhere('time_out', null)->groupEnd()
                 ->countAllResults();
             if ($overlap > 0) {
-                throw new \DomainException('This correction overlaps with another attendance record for this employee.');
+                throw new \DomainException('This correction overlaps with another attendance record for this employee. If that record is also never clocked out, correct the older one first.');
             }
 
             $computationService = new \App\Services\Client\AttendanceComputationService();
@@ -212,6 +212,9 @@ class TimesheetController extends BaseController
                 'scheduled_start' => $schedule['start_time'] ?? null,
                 'scheduled_end' => $schedule['end_time'] ?? null,
                 'break_duration' => $breakHours,
+                // Closing the shift also closes any break left running; the
+                // corrected break_duration above is the authoritative total.
+                'break_start' => null, 'break_start_dt' => null,
                 'total_hours' => \App\Libraries\AttendanceWindow::elapsedHours($newTimeIn, $newTimeOut, $breakHours),
                 'night_diff_hours' => $analysis['night_diff_hours'],
                 'late_minutes' => \App\Services\Client\AttendanceComputationService::lateMinutes(new \DateTime($newTimeIn), $windowStart, (int) ($schedule['tardiness_grace_minutes'] ?? 0)),
@@ -358,22 +361,151 @@ class TimesheetController extends BaseController
         $db = db_connect();
         $nameExpr = "COALESCE(NULLIF(CONCAT(e.last_name, ', ', e.first_name), ', '), CONCAT('user #', a.user_id)) AS employee_name";
 
-        $stuckOpen = $db->table('attendance a')
-            ->select("a.id, a.user_id, e.employee_number, {$nameExpr}, a.time_in", false)
+        // Same scoping as the correction itself (canReviewEmployee): a Team Head
+        // only sees, and can only fix, their own team, not every employee.
+        $teamOnly = !\App\Libraries\PortalAccess::can('attendance');
+        $teamIds  = $teamOnly ? (\App\Libraries\PortalAccess::teamUserIds() ?: [0]) : [];
+        $limit    = 200;
+
+        $stuckQuery = $db->table('attendance a')
+            ->select("a.id, a.user_id, e.employee_number, {$nameExpr}, a.time_in, a.break_duration, a.break_start, a.scheduled_start, a.scheduled_end, a.shift_date", false)
             ->join('employees e', 'e.user_id = a.user_id', 'left')
             ->where('a.time_out', null)
-            ->where('a.time_in <', date('Y-m-d H:i:s', strtotime('-16 hours')))
-            ->orderBy('a.time_in', 'ASC')
-            ->get()->getResultArray();
+            ->where('a.time_in <', date('Y-m-d H:i:s', strtotime('-16 hours')));
+        if ($teamOnly) $stuckQuery->whereIn('a.user_id', $teamIds);
+        $stuckOpen = $stuckQuery->orderBy('a.time_in', 'ASC')->limit($limit)->get()->getResultArray();
 
-        $badHours = $db->table('attendance a')
-            ->select("a.id, a.user_id, e.employee_number, {$nameExpr}, a.time_in, a.time_out, a.total_hours", false)
+        // Pre-fill Time Out with the end of the scheduled shift so the reviewer
+        // only confirms or adjusts it instead of typing it from scratch.
+        foreach ($stuckOpen as &$row) {
+            $row['suggested_time_out'] = null;
+            if (!empty($row['scheduled_start']) && !empty($row['scheduled_end'])) {
+                $date  = $row['shift_date'] ?: substr($row['time_in'], 0, 10);
+                $start = strtotime($date . ' ' . $row['scheduled_start']);
+                $end   = strtotime($date . ' ' . $row['scheduled_end']);
+                if ($end <= $start) $end += 86400;
+                if ($end > strtotime($row['time_in'])) $row['suggested_time_out'] = date('Y-m-d H:i:s', $end);
+            }
+        }
+        unset($row);
+
+        $badQuery = $db->table('attendance a')
+            ->select("a.id, a.user_id, e.employee_number, {$nameExpr}, a.time_in, a.time_out, a.total_hours, a.break_duration", false)
             ->join('employees e', 'e.user_id = a.user_id', 'left')
-            ->groupStart()->where('a.total_hours <', 0)->orWhere('a.total_hours >', 24)->groupEnd()
+            ->groupStart()->where('a.total_hours <', 0)->orWhere('a.total_hours >', 24)->groupEnd();
+        if ($teamOnly) $badQuery->whereIn('a.user_id', $teamIds);
+        $badHours = $badQuery->orderBy('a.time_in', 'DESC')->limit($limit)->get()->getResultArray();
+
+        return $this->response->setJSON([
+            'stuck_open' => $this->annotateAttendanceRows($stuckOpen),
+            'bad_hours'  => $this->annotateAttendanceRows($badHours),
+        ]);
+    }
+
+    /**
+     * Every attendance record for one employee in a date range, flagged or not,
+     * so a reviewer can correct a wrong-but-plausible time too (the flagged list
+     * only catches stuck-open and impossible-total rows). Same permission rule
+     * as the correction itself: canReviewEmployee(), so a Team Head only ever
+     * reaches their own team. Paged so a long range stays cheap.
+     */
+    public function attendanceRecords()
+    {
+        $employeeId = (int) $this->request->getGet('employee_id');
+        if (!$employeeId || !\App\Libraries\PortalAccess::canReviewEmployee($employeeId)) {
+            return $this->response->setStatusCode(403)->setJSON(['error' => 'Unauthorized']);
+        }
+
+        $employee = (new EmployeeModel())->find($employeeId);
+        if (!$employee) {
+            return $this->response->setJSON(['error' => 'Employee not found']);
+        }
+
+        $isDate = static fn ($v) => is_string($v) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $v) && strtotime($v) !== false;
+        $to   = $this->request->getGet('to');
+        $from = $this->request->getGet('from');
+        $to   = $isDate($to) ? $to : date('Y-m-d');
+        $from = $isDate($from) ? $from : date('Y-m-d', strtotime($to . ' -30 days'));
+        if ($from > $to) [$from, $to] = [$to, $from];
+        if (strtotime($to) - strtotime($from) > 366 * 86400) {
+            return $this->response->setJSON(['error' => 'Please choose a range of a year or less.']);
+        }
+
+        $perPage = 25;
+        $page    = max(1, (int) $this->request->getGet('page'));
+
+        $db = db_connect();
+        $base = static function () use ($db, $employee, $from, $to) {
+            return $db->table('attendance a')
+                ->where('a.user_id', (int) $employee['user_id'])
+                ->where('a.time_in >=', $from . ' 00:00:00')
+                ->where('a.time_in <=', $to . ' 23:59:59');
+        };
+
+        $total = $base()->countAllResults();
+        $rows  = $base()
+            ->select('a.id, a.user_id, a.time_in, a.time_out, a.total_hours, a.break_duration, a.break_start, a.late_minutes, a.attendance_status, a.scheduled_start, a.scheduled_end, a.shift_date')
             ->orderBy('a.time_in', 'DESC')
+            ->limit($perPage, ($page - 1) * $perPage)
             ->get()->getResultArray();
 
-        return $this->response->setJSON(['stuck_open' => $stuckOpen, 'bad_hours' => $badHours]);
+        return $this->response->setJSON([
+            'employee_name' => trim(($employee['last_name'] ?? '') . ', ' . ($employee['first_name'] ?? ''), ', '),
+            'from'      => $from,
+            'to'        => $to,
+            'page'      => $page,
+            'per_page'  => $perPage,
+            'total'     => $total,
+            'records'   => $this->annotateAttendanceRows($rows),
+        ]);
+    }
+
+    /**
+     * Adds what a reviewer needs to know before changing a row:
+     *  - payslip_issued: a payslip already covers that day, so editing the
+     *    attendance will NOT change what was already generated/sent;
+     *  - last_correction: who last corrected it and when (from the activity log).
+     * Both are looked up in one query each for the whole page, not per row.
+     */
+    private function annotateAttendanceRows(array $rows): array
+    {
+        if (!$rows) return $rows;
+        $db = db_connect();
+
+        $userIds = array_values(array_unique(array_map('intval', array_column($rows, 'user_id'))));
+        $slips = $db->table('employee_payslips p')
+            ->select('e.user_id, p.period_start, p.period_end')
+            ->join('employees e', 'e.id = p.employee_id')
+            ->whereIn('e.user_id', $userIds)
+            ->get()->getResultArray();
+
+        $ids = array_map('intval', array_column($rows, 'id'));
+        $logs = $db->table('activity_logs')
+            ->select('record_id, username, created_at')
+            ->where('module', 'attendance')
+            ->where('action', 'updated')
+            ->like('description', 'Attendance corrected', 'after')
+            ->whereIn('record_id', $ids)
+            ->orderBy('created_at', 'DESC')
+            ->get()->getResultArray();
+        $lastCorrection = [];
+        foreach ($logs as $log) {
+            $lastCorrection[(int) $log['record_id']] ??= ['by' => $log['username'], 'at' => $log['created_at']];
+        }
+
+        foreach ($rows as &$row) {
+            $day = $row['shift_date'] ?? null ?: substr((string) $row['time_in'], 0, 10);
+            $row['payslip_issued'] = false;
+            foreach ($slips as $slip) {
+                if ((int) $slip['user_id'] === (int) $row['user_id'] && $slip['period_start'] <= $day && $day <= $slip['period_end']) {
+                    $row['payslip_issued'] = true;
+                    break;
+                }
+            }
+            $row['last_correction'] = $lastCorrection[(int) $row['id']] ?? null;
+        }
+        unset($row);
+        return $rows;
     }
 
     public function reviewEmployees()

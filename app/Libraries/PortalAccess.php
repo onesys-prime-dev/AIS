@@ -140,6 +140,9 @@ final class PortalAccess
         // per-employee canReviewEmployee() check afterward.
         if (preg_match('~^client_portal/timesheet/update-attendance/[0-9]+$~', $path)) return 'attendance_roster';
         if ($path === 'client_portal/timesheet/flagged') return 'attendance_roster';
+        // Reads one employee's full attendance list — same per-employee check as
+        // the roster/history views (employee_id comes from the query string).
+        if ($path === 'client_portal/timesheet/records') return 'review_attendance';
         if (preg_match('~^client_portal/requests/update/[0-9]+$~', $path)) return 'review_request';
         if ($path === 'client_portal/requests/generate-code') return 'request_codes';
         if (preg_match('~^client_portal/announcements/(?:store|delete/[0-9]+|edit/[0-9]+|update/[0-9]+|attachments/delete/[0-9]+)$~', $path)) return 'announcements';
