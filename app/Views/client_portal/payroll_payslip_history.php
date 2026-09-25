@@ -238,7 +238,7 @@ $companyLogoUrl = $companyBranding && !empty($companyBranding['logo_path'])
         try {
             const res  = await fetch(SEND_PDF_URL, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '' },
                 body: JSON.stringify(data)
             });
             const json = await res.json();
@@ -261,7 +261,7 @@ $companyLogoUrl = $companyBranding && !empty($companyBranding['logo_path'])
         try {
             const res  = await fetch(SEND_PDF_URL, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '' },
                 body: JSON.stringify(_viewerData)
             });
             const json = await res.json();

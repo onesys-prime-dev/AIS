@@ -2173,13 +2173,13 @@ async function sendBulkAll() {
         try {
             // Save record
             await fetch('<?= site_url('client_portal/payroll/savePayslipRecord') ?>', {
-                method:'POST', headers:{'Content-Type':'application/json'},
+                method:'POST', headers:{'Content-Type':'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''},
                 body: JSON.stringify(payload)
             }).then(r => r.json());
 
             // Send PDF
             const resp = await fetch('<?= site_url('client_portal/payroll/sendPdf') ?>', {
-                method:'POST', headers:{'Content-Type':'application/json'},
+                method:'POST', headers:{'Content-Type':'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''},
                 body: JSON.stringify({ ...payload, send_method: 'bulk' })
             });
             const res = await resp.json();
@@ -2535,11 +2535,11 @@ async function sendSingleBulk(idx, btn) {
     btn.disabled = true; btn.textContent = '…';
     try {
         await fetch('<?= site_url('client_portal/payroll/savePayslipRecord') ?>', {
-            method:'POST', headers:{'Content-Type':'application/json'},
+            method:'POST', headers:{'Content-Type':'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''},
             body: JSON.stringify(item.payload)
         });
         const resp = await fetch('<?= site_url('client_portal/payroll/sendPdf') ?>', {
-            method:'POST', headers:{'Content-Type':'application/json'},
+            method:'POST', headers:{'Content-Type':'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''},
             body: JSON.stringify({ ...item.payload, send_method: 'bulk' })
         });
         const res = await resp.json();
@@ -4835,7 +4835,7 @@ function generateStaticPayslip() {
 
     fetch('<?= site_url('client_portal/payroll/compute') ?>?employee_id=' + employeeIdToSubmit + '&start_date=' + startDate + '&end_date=' + endDate, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '' },
         body: JSON.stringify(payload)
     }).then(response => response.ok ? response.json() : Promise.reject())
       .then(result => {
@@ -4923,7 +4923,7 @@ function generateStaticPayslip() {
         };
         fetch('<?= site_url('client_portal/payroll/savePayslipRecord') ?>', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '' },
             body: JSON.stringify(savePayload)
         }).then(r => r.json()).then(result => {
             if (result.success) window.currentPayslipId = result.payslip_id;
@@ -5032,7 +5032,7 @@ async function sendPdfToEmployee() {
     try {
         const response = await fetch('<?= site_url('client_portal/payroll/sendPdf') ?>', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '' },
             body: JSON.stringify({ ...payload, send_method: 'individual' })
         });
         const result = await response.json();
@@ -5095,7 +5095,7 @@ async function markPayrollTransactionPaid() {
     try {
         const response = await fetch('<?= site_url('client_portal/payroll/markPaid') ?>/' + txId, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '' }
         });
         const result = await response.json();
         if (!response.ok || !result.success) {

@@ -85,16 +85,16 @@ class Filters extends BaseFilters
             // list when the entry itself is this array shape — a bare 'csrf'
             // string here (as this used to be) is always kept regardless of
             // the separate $csrf property below, which the framework never
-            // reads at all. That silently broke this exemption for every
-            // request: sendPdf/compute/send's JS doesn't send a CSRF token,
-            // so every call was hitting a real (and pointless, since it can
-            // never succeed) CSRF check and failing with a 403.
+            // reads at all.
+            //
+            // compute/sendPdf/send/*/savePayslipRecord/computeYearEnd used to
+            // be exempted here because their JS sent no token at all, so the
+            // real fix was to add the token to each of those fetch calls
+            // (done — see payroll_management.php, payroll_13th_month.php,
+            // payroll_payslip_history.php) rather than leave five real,
+            // state-changing payroll endpoints permanently unprotected.
+            // presence/heartbeat is the one genuine exception left below.
             'csrf' => ['except' => [
-                'client_portal/payroll/compute',
-                'client_portal/payroll/sendPdf',
-                'client_portal/payroll/send/*',
-                'client_portal/payroll/savePayslipRecord',
-                'client_portal/payroll/computeYearEnd',
                 // navigator.sendBeacon() (presence.js's beforeunload handler,
                 // firing on every page navigation) cannot set custom headers,
                 // so its CSRF token can only travel as a URL query param the

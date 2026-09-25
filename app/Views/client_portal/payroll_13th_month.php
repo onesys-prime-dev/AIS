@@ -204,7 +204,7 @@
 
         fetch('<?= site_url('client_portal/payroll/computeYearEnd') ?>', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '' },
             body: JSON.stringify({ year })
         })
         .then(r => r.json())
