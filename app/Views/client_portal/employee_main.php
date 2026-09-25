@@ -2212,9 +2212,14 @@ document.getElementById('employeeImportInput')?.addEventListener('change', async
     try {
         const res = await fetch('<?= site_url('client_portal/employees/import') ?>', {
             method: 'POST',
+            // Without this the CSRF filter rejects the upload ("The action you requested
+            // is not allowed") — same fix as the Attendance Corrections save. Don't set
+            // Content-Type here: the browser needs to add its own multipart boundary for FormData.
+            headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '' },
             body: formData,
         });
-        const result = await res.json();
+        let result;
+        try { result = await res.json(); } catch (e) { throw new Error(res.status === 403 ? 'Session expired or request blocked. Refresh the page and try again.' : 'Unexpected server response (' + res.status + ').'); }
         if (result.success) {
             showToast(result.message || 'Employees imported successfully.', 'success');
             // Temporary passwords are generated per row and shown only here —
@@ -2234,7 +2239,7 @@ document.getElementById('employeeImportInput')?.addEventListener('change', async
             showToast('Import failed: ' + (result.message || 'Unknown error'), 'error');
         }
     } catch (err) {
-        showToast('Network error during import.', 'error');
+        showToast(err?.message || 'Network error during import.', 'error');
         console.error(err);
     }
     this.value = '';
