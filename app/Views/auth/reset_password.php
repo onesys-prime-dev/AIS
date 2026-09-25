@@ -1,17 +1,17 @@
 <?= $this->extend('layouts/auth_layout') ?>
 <?= $this->section('content') ?>
 
-<div class="relative flex min-h-screen items-center justify-center m-auto w-full px-6 py-6 bg-[#FAF9F6]">
-    <div class="flex w-full max-w-6xl rounded-2xl overflow-hidden shadow-lg">
-        <div class="w-2/3 flex items-center justify-center bg-white px-12 lg:px-24 py-8">
-            <div class="w-full max-w-md">
+<div class="auth-page relative flex min-h-screen items-center justify-center m-auto w-full px-6 py-6 bg-[#FAF9F6]">
+    <div class="auth-card flex w-full max-w-6xl rounded-2xl overflow-hidden shadow-lg">
+        <div class="auth-form-panel w-2/3 flex items-center justify-center bg-white px-12 lg:px-24 py-8">
+            <div class="auth-content w-full max-w-md">
                 <div class="mb-6">
                     <div class="flex items-center justify-center mb-5">
                         <?php if (! empty($companyLogoUrl)): ?>
-                            <img src="<?= esc($companyLogoUrl) ?>" alt="Company Logo" class="h-20 w-20" loading="eager" decoding="async">
+                            <img src="<?= esc($companyLogoUrl) ?>" alt="Company Logo" class="auth-logo h-20 w-20" loading="eager" decoding="async">
                         <?php endif; ?>
                     </div>
-                    <h1 class="text-3xl font-bold text-gray-900 mb-2">Reset your password</h1>
+                    <h1 class="auth-title text-3xl font-bold text-gray-900 mb-2">Reset your password</h1>
                     <p class="text-gray-500 text-base">
                         Choose a new password for your account. It must be at least 8 characters long.
                     </p>
@@ -42,12 +42,12 @@
                             name="password"
                             id="password"
                             placeholder="New password"
-                            class="w-full px-5 py-3 pr-12 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-600 focus:border-transparent text-gray-800 placeholder-gray-400"
+                            class="auth-input w-full px-5 py-3 pr-12 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-600 focus:border-transparent text-gray-800 placeholder-gray-400"
                             required
                             minlength="8"
                             autocomplete="new-password"
                         >
-                        <button type="button" class="toggle-password-btn absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none" data-target="password" aria-label="Show or hide password">
+                        <button type="button" class="auth-password-toggle toggle-password-btn absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none" data-target="password" aria-label="Show or hide password">
                             <svg class="eye-closed h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
@@ -66,12 +66,12 @@
                             name="password_confirm"
                             id="password_confirm"
                             placeholder="Confirm new password"
-                            class="w-full px-5 py-3 pr-12 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-600 focus:border-transparent text-gray-800 placeholder-gray-400"
+                            class="auth-input w-full px-5 py-3 pr-12 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-600 focus:border-transparent text-gray-800 placeholder-gray-400"
                             required
                             minlength="8"
                             autocomplete="new-password"
                         >
-                        <button type="button" class="toggle-password-btn absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none" data-target="password_confirm" aria-label="Show or hide password">
+                        <button type="button" class="auth-password-toggle toggle-password-btn absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none" data-target="password_confirm" aria-label="Show or hide password">
                             <svg class="eye-closed h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
@@ -86,7 +86,7 @@
 
                     <button
                         type="submit"
-                        class="w-full bg-black text-white py-3 rounded-full font-semibold text-base hover:bg-gray-900 transition duration-200 shadow-md"
+                        class="auth-submit w-full bg-black text-white py-3 rounded-full font-semibold text-base hover:bg-gray-900 transition duration-200 shadow-md"
                     >
                         Reset Password
                     </button>
@@ -101,7 +101,7 @@
                 </p>
             </div>
         </div>
-        <div class="hidden lg:block w-1/3 flex-shrink-0 bg-cover bg-center"
+        <div class="auth-visual-panel w-1/3 flex-shrink-0 bg-cover bg-center"
             style="background-image: url('<?= base_url('images/background/building.png') ?>');">
         </div>
     </div>

@@ -7,17 +7,17 @@ $verificationUrl = $verificationUrl ?? site_url('/face-verify');
 $postLoginRedirect = $postLoginRedirect ?? site_url('/client_portal/dashboard');
 ?>
 
-<div class="relative flex min-h-screen items-center justify-center m-auto w-full px-6 py-6 bg-[#FAF9F6]">
-    <div class="flex w-full max-w-6xl rounded-2xl overflow-hidden shadow-lg">
-        <div class="w-2/3 flex items-center justify-center bg-white px-12 lg:px-24 py-8">
-            <div class="w-full max-w-md">
+<div class="auth-page relative flex min-h-screen items-center justify-center m-auto w-full px-6 py-6 bg-[#FAF9F6]">
+    <div class="auth-card flex w-full max-w-6xl rounded-2xl overflow-hidden shadow-lg">
+        <div class="auth-form-panel w-2/3 flex items-center justify-center bg-white px-12 lg:px-24 py-8">
+            <div class="auth-content w-full max-w-md">
                 <div class="mb-6">
                     <div class="flex items-center justify-center mb-5">
                         <?php if (! empty($companyLogoUrl)): ?>
-                            <img src="<?= esc($companyLogoUrl) ?>" alt="Company Logo" class="h-20 w-20" loading="eager" decoding="async">
+                            <img src="<?= esc($companyLogoUrl) ?>" alt="Company Logo" class="auth-logo h-20 w-20" loading="eager" decoding="async">
                         <?php endif; ?>
                     </div>
-                    <h1 class="text-3xl font-bold text-gray-900 mb-2">Welcome Back</h1>
+                    <h1 class="auth-title text-3xl font-bold text-gray-900 mb-2">Welcome Back</h1>
                     <p class="text-gray-500 text-base">
                         Enter your email and password to access your account.
                     </p>
@@ -41,14 +41,15 @@ $postLoginRedirect = $postLoginRedirect ?? site_url('/client_portal/dashboard');
                             name="email"
                             value="<?= old('email') ?>"
                             placeholder="Email or username"
-                            class="w-full px-5 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-600 focus:border-transparent text-gray-800 placeholder-gray-400"
+                            autocomplete="username"
+                            class="auth-input w-full px-5 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-600 focus:border-transparent text-gray-800 placeholder-gray-400"
                             required
                         >
                     </div>
 
                     <div class="relative">
-                        <input type="password" id="password" name="password" placeholder="Password" class="w-full px-5 py-3 pr-12 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-600 focus:border-transparent text-gray-800 placeholder-gray-400" required>
-                        <button type="button" id="toggle-password" class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none">
+                        <input type="password" id="password" name="password" placeholder="Password" autocomplete="current-password" class="auth-input w-full px-5 py-3 pr-12 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-600 focus:border-transparent text-gray-800 placeholder-gray-400" required>
+                        <button type="button" id="toggle-password" aria-label="Show or hide password" class="auth-password-toggle absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none">
                             <svg id="eye-closed" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
@@ -61,7 +62,7 @@ $postLoginRedirect = $postLoginRedirect ?? site_url('/client_portal/dashboard');
                         </button>
                     </div>
 
-                    <div class="flex items-center justify-between text-sm">
+                    <div class="auth-options flex items-center justify-between text-sm">
                         <label class="flex items-center gap-3 text-gray-600 cursor-pointer">
                             <input
                                 type="checkbox"
@@ -79,34 +80,35 @@ $postLoginRedirect = $postLoginRedirect ?? site_url('/client_portal/dashboard');
 
                     <button
                         type="submit"
-                        class="w-full bg-black text-white py-3 rounded-full font-semibold text-base hover:bg-gray-900 transition duration-200 shadow-md"
+                        class="auth-submit w-full bg-black text-white py-3 rounded-full font-semibold text-base hover:bg-gray-900 transition duration-200 shadow-md"
                     >
                         Login
                     </button>
                 </form>
 
-                <p class="mt-6 text-center text-gray-500 text-sm">
+                <p class="auth-legal mt-6 text-center text-gray-500 text-sm">
                     By continuing, you agree to our
                     <span class="font-semibold text-gray-700">Terms</span> and
                     <span class="font-semibold text-gray-700">Privacy Policy</span>
                 </p>
 
-                <p class="mt-3 text-center text-gray-400 text-xs">
+                <p class="auth-copyright mt-3 text-center text-gray-400 text-xs">
                     Copyright © 2026 ONESYS Primesolutions Co
                 </p>
             </div>
         </div>
-        <div class="hidden lg:block w-1/3 flex-shrink-0 bg-cover bg-center"
+        <div class="auth-visual-panel w-1/3 flex-shrink-0 bg-cover bg-center"
             style="background-image: url('<?= base_url('images/background/building.png') ?>');">
         </div>
     </div>
 
     <?php if ($showFaceModal): ?>
         <link href="<?= base_url('css/face-scan.css') ?>" rel="stylesheet">
-        <div class="absolute inset-0" style="background: rgba(3, 3, 2, 0.55); backdrop-filter: blur(3px);"></div>
+        <style>body.auth-body { overflow: hidden; }</style>
+        <div class="login-face-modal-backdrop absolute inset-0" style="background: rgba(3, 3, 2, 0.55); backdrop-filter: blur(3px);"></div>
 
-        <div class="absolute inset-0 z-10 flex items-center justify-center px-4 py-10">
-            <div class="w-full bg-white shadow-xl" style="max-width: 470px; min-height: 440px; border-radius: 18px; padding: 32px 34px; display: flex; flex-direction: column;">
+        <div class="login-face-modal-shell absolute inset-0 z-10 flex items-center justify-center px-4 py-10">
+            <div class="login-face-modal-card w-full bg-white shadow-xl" style="max-width: 470px; min-height: 440px; border-radius: 18px; padding: 32px 34px; display: flex; flex-direction: column;">
                 <div class="mb-4 flex items-center justify-between" style="margin-bottom: 14px;">
                     <div class="w-5"></div>
                     <h2 class="text-xl font-bold" style="color: #962323;">Face Recognition</h2>
@@ -132,7 +134,7 @@ $postLoginRedirect = $postLoginRedirect ?? site_url('/client_portal/dashboard');
                 </div>
 
                 <div id="success-state" class="hidden" style="flex: 1; display: none; flex-direction: column;">
-                    <div class="relative mx-auto mt-4 rounded-full bg-gray-200" style="width: 164px; height: 164px; overflow: visible; margin-top: 10px;">
+                    <div class="login-face-success-portrait relative mx-auto mt-4 rounded-full bg-gray-200" style="width: 164px; height: 164px; overflow: visible; margin-top: 10px;">
                         <div class="absolute inset-0 overflow-hidden rounded-full">
                             <div class="pointer-events-none absolute inset-0 flex items-center justify-center text-gray-700">
                                 <svg viewBox="0 0 64 64" fill="none" style="width: 60px; height: 60px;">
@@ -156,7 +158,7 @@ $postLoginRedirect = $postLoginRedirect ?? site_url('/client_portal/dashboard');
                     </div>
 
                     <div class="mt-6 text-center" style="margin-top: 28px;">
-                        <h3 class="font-bold leading-tight" style="font-size: 36px; color: #962323;">Identity Verified!</h3>
+                        <h3 class="login-face-success-title font-bold leading-tight" style="font-size: 36px; color: #962323;">Identity Verified!</h3>
                         <p class="text-xs text-gray-400" style="min-height: 40px; display: flex; align-items: center; justify-content: center; padding: 0 16px; text-align: center; font-size: 13px;">Redirecting you to your dashboard...</p>
                     </div>
 

@@ -1,17 +1,17 @@
 <?= $this->extend('layouts/auth_layout') ?>
 <?= $this->section('content') ?>
 
-<div class="relative flex min-h-screen items-center justify-center m-auto w-full px-6 py-6 bg-[#FAF9F6]">
-    <div class="flex w-full max-w-6xl rounded-2xl overflow-hidden shadow-lg">
-        <div class="w-2/3 flex items-center justify-center bg-white px-12 lg:px-24 py-8">
-            <div class="w-full max-w-md">
+<div class="auth-page relative flex min-h-screen items-center justify-center m-auto w-full px-6 py-6 bg-[#FAF9F6]">
+    <div class="auth-card flex w-full max-w-6xl rounded-2xl overflow-hidden shadow-lg">
+        <div class="auth-form-panel w-2/3 flex items-center justify-center bg-white px-12 lg:px-24 py-8">
+            <div class="auth-content w-full max-w-md">
                 <div class="mb-6">
                     <div class="flex items-center justify-center mb-5">
                         <?php if (! empty($companyLogoUrl)): ?>
-                            <img src="<?= esc($companyLogoUrl) ?>" alt="Company Logo" class="h-20 w-20" loading="eager" decoding="async">
+                            <img src="<?= esc($companyLogoUrl) ?>" alt="Company Logo" class="auth-logo h-20 w-20" loading="eager" decoding="async">
                         <?php endif; ?>
                     </div>
-                    <h1 class="text-3xl font-bold text-gray-900 mb-2">Forgot your password?</h1>
+                    <h1 class="auth-title text-3xl font-bold text-gray-900 mb-2">Forgot your password?</h1>
                     <p class="text-gray-500 text-base">
                         Enter the email address linked to your account and we'll send you a link to reset your password.
                     </p>
@@ -49,7 +49,7 @@
                             id="email"
                             value="<?= old('email') ?>"
                             placeholder="Email address"
-                            class="w-full px-5 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-600 focus:border-transparent text-gray-800 placeholder-gray-400"
+                            class="auth-input w-full px-5 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-600 focus:border-transparent text-gray-800 placeholder-gray-400"
                             required
                             autocomplete="email"
                         >
@@ -57,7 +57,7 @@
 
                     <button
                         type="submit"
-                        class="w-full bg-black text-white py-3 rounded-full font-semibold text-base hover:bg-gray-900 transition duration-200 shadow-md"
+                        class="auth-submit w-full bg-black text-white py-3 rounded-full font-semibold text-base hover:bg-gray-900 transition duration-200 shadow-md"
                     >
                         Send Reset Link
                     </button>
@@ -71,18 +71,18 @@
                     </a>
                 </p>
 
-                <p class="mt-6 text-center text-gray-500 text-sm">
+                <p class="auth-legal mt-6 text-center text-gray-500 text-sm">
                     By continuing, you agree to our
                     <span class="font-semibold text-gray-700">Terms</span> and
                     <span class="font-semibold text-gray-700">Privacy Policy</span>
                 </p>
 
-                <p class="mt-3 text-center text-gray-400 text-xs">
+                <p class="auth-copyright mt-3 text-center text-gray-400 text-xs">
                     Copyright © 2026 ONESYS Primesolutions Co
                 </p>
             </div>
         </div>
-        <div class="hidden lg:block w-1/3 flex-shrink-0 bg-cover bg-center"
+        <div class="auth-visual-panel w-1/3 flex-shrink-0 bg-cover bg-center"
             style="background-image: url('<?= base_url('images/background/building.png') ?>');">
         </div>
     </div>
