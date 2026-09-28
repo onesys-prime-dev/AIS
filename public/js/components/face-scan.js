@@ -64,10 +64,23 @@ window.createFaceScan = function ({
     let state = 'idle';
     let running = false;
     let paused = false;
+    let probeInFlight = false;
 
     let passesRequired = scansRequired;
     let passesCompleted = 0;
     const touched = new Set();
+
+    // Passive liveness signal: a rolling window of recent face position/size
+    // samples from the live FaceDetector. A held-up photo or screen is
+    // essentially motionless frame to frame (only detector noise), while a
+    // real face — even one deliberately "held still" — drifts and changes
+    // scale by a small but measurable amount as someone breathes/balances.
+    // Not cryptographic-grade anti-spoofing, just enough to stop the trivial
+    // "hold up a photo, get matched on the very first frame" case.
+    let positionHistory = [];
+    const livenessWindowMs = 2500;
+    const minLivenessSamples = 4;
+    const livenessMinSpread = 0.015; // fraction of frame width/height
 
     // True once *any* path (a background probe, or the normal
     // threshold-triggered capture) has a successful result in hand for the
@@ -97,6 +110,35 @@ window.createFaceScan = function ({
         touched.clear();
         segmentEls.forEach((el) => el.classList.remove('filled'));
         settled = false;
+        positionHistory = [];
+    }
+
+    function recordMovementSample(box, vw, vh) {
+        const now = performance.now();
+        positionHistory.push({
+            x: (box.x + box.width / 2) / vw,
+            y: (box.y + box.height / 2) / vh,
+            size: box.width / vw,
+            t: now,
+        });
+        const cutoff = now - livenessWindowMs;
+        while (positionHistory.length && positionHistory[0].t < cutoff) positionHistory.shift();
+    }
+
+    function hasLivenessSignal() {
+        if (positionHistory.length < minLivenessSamples) return false;
+
+        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+        let minS = Infinity, maxS = -Infinity;
+
+        for (const p of positionHistory) {
+            if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
+            if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y;
+            if (p.size < minS) minS = p.size; if (p.size > maxS) maxS = p.size;
+        }
+
+        const spread = Math.max(maxX - minX, maxY - minY, maxS - minS);
+        return spread >= livenessMinSpread;
     }
 
     function beginCycle(opts) {
@@ -231,6 +273,8 @@ window.createFaceScan = function ({
 
             const face = faces[0];
 
+            recordMovementSample(face.boundingBox, video.videoWidth || 1, video.videoHeight || 1);
+
             if (!isCentered(face.boundingBox)) {
                 if (state !== 'positioning') { setState('positioning'); setStatus('Keep your face centered.'); }
                 return;
@@ -324,15 +368,23 @@ window.createFaceScan = function ({
     }
 
     async function runProbe() {
-        if (!running || paused || settled) return;
+        if (!running || paused || settled || probeInFlight) return;
         if (state !== 'positioning' && state !== 'scanning') return;
         if (video.readyState < 2) return;
+        // Require some observed natural movement before letting the
+        // background probe submit a frame — otherwise a photo/screen held
+        // up to the camera gets matched instantly, before the ring even
+        // starts filling. See positionHistory/hasLivenessSignal above.
+        if (!hasLivenessSignal()) return;
 
+        probeInFlight = true;
         let result;
         try {
             result = await onCapture(captureFrame());
         } catch (error) {
             return;
+        } finally {
+            probeInFlight = false;
         }
 
         if (!running || paused || settled) return;

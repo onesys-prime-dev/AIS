@@ -58,9 +58,24 @@ class TimesheetsService
             ->findAll();
     }
 
+    /**
+     * Previously grouped by the TASKS a user logged (joining through
+     * baseListByUserIdBuilder(), a tasks-table query) and summed task
+     * start/end durations as "Total Hours". That's a completely different
+     * number from hours actually worked — a day with attendance but no
+     * logged task didn't even appear, and a day with a task logged for only
+     * part of the shift showed a fraction of the real hours. Now sourced
+     * directly from attendance.total_hours (the same per-day worked-hours
+     * figure shown elsewhere, e.g. Attendance Corrections), so every past
+     * cutoff with attendance shows up, with its actual worked hours.
+     */
     public function listCutoffHistoryByUserId(int $userId): array
     {
-        $rows = $this->listByUserId($userId);
+        $rows = $this->attendanceModel
+            ->select('COALESCE(shift_date, DATE(time_in)) AS date, total_hours')
+            ->where('user_id', $userId)
+            ->findAll();
+
         $currentKey = $this->cutoffKeyByDate(date('Y-m-d'));
         $groups = [];
 
@@ -76,16 +91,13 @@ class TimesheetsService
                 $groups[$key] = [
                     'period_start' => $period['start'],
                     'period_end'   => $period['end'],
-                    'total_minutes' => 0,
+                    'total_hours'  => 0.0,
                     'entries_count' => 0,
                     'days' => [],
                 ];
             }
 
-            $groups[$key]['total_minutes'] += $this->durationMinutes(
-                (string) ($row['start_time'] ?? ''),
-                (string) ($row['end_time'] ?? '')
-            );
+            $groups[$key]['total_hours'] += (float) ($row['total_hours'] ?? 0);
             $groups[$key]['entries_count']++;
             $groups[$key]['days'][$date] = true;
         }
@@ -93,12 +105,10 @@ class TimesheetsService
         krsort($groups);
         $result = [];
         foreach ($groups as $group) {
-            $totalMinutes = (int) $group['total_minutes'];
             $result[] = [
                 'period_start'  => $group['period_start'],
                 'period_end'    => $group['period_end'],
-                'total_minutes' => $totalMinutes,
-                'total_hours'   => number_format($totalMinutes / 60, 2, '.', ''),
+                'total_hours'   => number_format($group['total_hours'], 2, '.', ''),
                 'entries_count' => (int) $group['entries_count'],
                 'days_covered'  => count($group['days']),
             ];
@@ -175,8 +185,14 @@ class TimesheetsService
             'success' => true,
             'tasks'   => $tasks,
             'window'  => [
-                'time_in'  => $attendance['time_in'],
-                'time_out' => $attendance['time_out'],
+                'time_in'     => $attendance['time_in'],
+                'time_out'    => $attendance['time_out'],
+                // Purely informational — lets the Task Log timeline mark the
+                // break period so it's obvious that stretch isn't "free" to
+                // log a task in, without changing what's actually allowed
+                // (validateTaskWindow() doesn't check this; unchanged here).
+                'break_start' => $attendance['break_start'] ?? null,
+                'break_end'   => $attendance['break_end'] ?? null,
             ],
         ];
     }

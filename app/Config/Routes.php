@@ -81,6 +81,7 @@ $routes->group('client_portal', ['filter' => 'auth'], function($routes){
     $routes->get('timesheets/daily-log'     , 'Client\TimesheetController::dailyTimeLog');
     $routes->get('timesheet/flagged'        , 'Client\TimesheetController::flaggedAttendance');
     $routes->get('timesheet/records'        , 'Client\TimesheetController::attendanceRecords');
+    $routes->get('timesheet/history-list', 'Client\TimesheetController::historyList');
     $routes->get('timesheet/history-details', 'Client\TimesheetController::historyDetails');
     $routes->get('timesheet/export-history' , 'Client\TimesheetController::exportHistory');
 

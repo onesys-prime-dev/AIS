@@ -1459,6 +1459,21 @@ class PayrollController extends BaseController
             return $this->response->setStatusCode(404)->setJSON(['error' => 'Employee not found']);
         }
 
+        return $this->buildTimesheetWorkbook($employee, (string) $startDate, (string) $endDate);
+    }
+
+    /**
+     * The actual "system timesheet" XLSX — Timesheet + Timesheet Totals +
+     * Payroll Summary sheets. Shared by this controller's own exportTimesheet()
+     * AND by TimesheetController's "Past Timesheets" / "Review Employee
+     * Timesheets" export buttons, so every export of a cutoff's timesheet in
+     * the app produces the exact same file, not three near-identical ones
+     * that can quietly drift apart.
+     */
+    public function buildTimesheetWorkbook(array $employee, string $startDate, string $endDate)
+    {
+        $employeeId = (int) $employee['id'];
+
         foreach ([$startDate, $endDate] as $date) {
             $parsed=\DateTimeImmutable::createFromFormat('!Y-m-d',(string)$date);
             if(!$parsed||$parsed->format('Y-m-d')!==$date)return $this->response->setStatusCode(400)->setJSON(['error'=>'Invalid cutoff date']);

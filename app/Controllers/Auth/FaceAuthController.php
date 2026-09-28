@@ -69,13 +69,50 @@ class FaceAuthController extends BaseController
             ]);
         }
 
-        $tempUserId = (int) session('temp_user_id');
         $authUserId = (int) auth()->id();
+
+        // Same shape as the login/password-reset throttles: cap match
+        // attempts per account and per IP so this can't be hammered to brute
+        // -force a match (repeated probes/frames against the recognition
+        // service) the way the login form itself already can't be.
+        $throttler = service('throttler');
+
+        $userKey = 'face-verify-user-' . $authUserId;
+        if (! $throttler->check($userKey, 20, 300)) { // 20 attempts per 5min per account
+            return $this->response->setStatusCode(429)->setJSON([
+                'status' => 'error',
+                'message' => 'Too many verification attempts. Please wait a few minutes and try again.',
+            ]);
+        }
+
+        $ipKey = 'face-verify-ip-' . hash('sha256', $this->request->getIPAddress());
+        if (! $throttler->check($ipKey, 40, 300)) { // 40 attempts per 5min per IP
+            return $this->response->setStatusCode(429)->setJSON([
+                'status' => 'error',
+                'message' => 'Too many verification attempts. Please wait a few minutes and try again.',
+            ]);
+        }
+
+        $tempUserId = (int) session('temp_user_id');
 
         if (! $this->isFaceRequiredFor($authUserId)) {
             return $this->response->setJSON([
                 'status' => 'success',
                 'message' => 'Face verification is not required for this account.',
+                'redirect' => site_url('/client_portal/dashboard'),
+            ]);
+        }
+
+        // Already verified by a previous request (the login page's background
+        // "already matched?" probe can have more than one check in flight at
+        // once — see face-scan.js's earlyMatchProbe). temp_user_id is cleared
+        // the moment the first one succeeds, so a still-in-flight duplicate
+        // must not treat that as an expired/hijacked session and log the user
+        // back out right after showing them a success screen.
+        if ((bool) session('face_verified')) {
+            return $this->response->setJSON([
+                'status' => 'success',
+                'message' => 'Face verification successful.',
                 'redirect' => site_url('/client_portal/dashboard'),
             ]);
         }

@@ -26,7 +26,7 @@
     <?= view('components/table', [
         'title' => 'Timesheet History',
         'tableId' => 'timesheetHistoryTable',
-        'grid' => 'grid-cols-[2fr_1.5fr_1fr]',
+        'gridStyle' => 'minmax(0,2fr) minmax(0,1.5fr) minmax(0,1fr)',
         'columns' => [
             'Date Range',
             'Total Hours',
@@ -57,7 +57,7 @@
         const dateRange = `${formatHistoryDate(item.period_start)} - ${formatHistoryDate(item.period_end)}`;
 
         return `
-            <div class="grid grid-cols-[2fr_1.5fr_1fr] items-center border-b hover:bg-gray-50 w-full">
+            <div class="grid items-center border-b hover:bg-gray-50 w-full" style="grid-template-columns: minmax(0,2fr) minmax(0,1.5fr) minmax(0,1fr);">
                 <div class="p-4">${dateRange}</div>
                 <div class="p-4">${item.total_hours ? `${Number(item.total_hours).toFixed(2)} hrs` : '---'}</div>
                 <div class="p-4">
@@ -130,21 +130,26 @@
         rows.forEach((day, i) => {
             const rowBg = i % 2 === 0 ? '' : 'bg-gray-50/60';
             const timeIn  = day.in  && day.in  !== '-' ? esc(day.in)  : '<span class="text-gray-400">—</span>';
-            const timeOut = day.out && day.out !== '-' ? esc(day.out) : '<span class="text-gray-400">—</span>';
+            const nextDay = day.out_date && day.out_date !== day.date ? ` <span class="text-[10px] font-semibold text-gray-400">${esc(fmtDate(day.out_date))}</span>` : '';
+            const timeOut = day.out && day.out !== '-' ? esc(day.out) + nextDay : '<span class="text-gray-400">—</span>';
             const clientCell = day.client ? `<span class="text-gray-700">${esc(day.client)}</span>` : '<span class="text-gray-300">—</span>';
             const taskCell   = day.task_performed ? `<span class="text-gray-700">${esc(day.task_performed)}</span>` : '<span class="text-gray-300">—</span>';
+
+            const breakDisplay = day.break_hours > 0 ? Number(day.break_hours).toFixed(2) : '<span class="text-gray-400">—</span>';
 
             rowsHtml += `
                 <tr class="border-b border-gray-100 ${rowBg}">
                     <td class="px-4 py-3 whitespace-nowrap font-medium text-gray-700">${fmtDate(day.date)}</td>
                     <td class="px-4 py-3 whitespace-nowrap text-gray-600">${timeIn}</td>
                     <td class="px-4 py-3 whitespace-nowrap text-gray-600">${timeOut}</td>
+                    <td class="px-4 py-3 text-right whitespace-nowrap text-gray-600" title="Unpaid break deducted from the day">${breakDisplay}</td>
                     <td class="px-4 py-3 text-right whitespace-nowrap">${historyCell(day.regular_hours, (day.regular_hours || 0).toFixed(2), 'reg')}</td>
                     <td class="px-4 py-3 text-right whitespace-nowrap">${historyCell(day.ot_hours, (day.ot_hours || 0).toFixed(2), 'ot')}</td>
                     <td class="px-4 py-3 text-right whitespace-nowrap" title="Worked but not approved">${historyCell(day.unapproved_ot_hours, (day.unapproved_ot_hours || 0).toFixed(2), 'unot')}</td>
                     <td class="px-4 py-3 text-right whitespace-nowrap">${historyCell(day.rdot_hours, (day.rdot_hours || 0).toFixed(2), 'rdot')}</td>
                     <td class="px-4 py-3 text-right whitespace-nowrap">${historyCell(Math.round(day.tardy_minutes || 0), Math.round(day.tardy_minutes || 0), 'tardy')}</td>
-                    <td class="px-4 py-3 text-right whitespace-nowrap">${historyCell(day.undertime_hours, (day.undertime_hours || 0).toFixed(2), 'ut')}</td>
+                    <td class="px-4 py-3 text-right whitespace-nowrap" title="Approved undertime — excused, no pay impact">${historyCell(day.undertime_hours, (day.undertime_hours || 0).toFixed(2), 'ut')}</td>
+                    <td class="px-4 py-3 text-right whitespace-nowrap" title="Time missed that wasn't approved — counted against you">${historyCell(day.unapproved_undertime_hours, (day.unapproved_undertime_hours || 0).toFixed(2), 'uut')}</td>
                     <td class="px-4 py-3 text-right whitespace-nowrap">${historyCell(day.night_diff, (day.night_diff || 0).toFixed(2), 'nd')}</td>
                     <td class="px-4 py-3 text-sm text-gray-500">${esc(day.remarks) || '<span class="text-gray-300">—</span>'}</td>
                     <td class="px-4 py-3 text-sm">${clientCell}</td>
@@ -155,22 +160,25 @@
         const t = Object.assign({
             regular_hours: 0, ot_hours: 0, rdot_hours: 0, tardy_minutes: 0,
             night_diff: 0, unapproved_ot_hours: 0, undertime_hours: 0,
+            unapproved_undertime_hours: 0,
         }, totals);
 
         container.innerHTML = `
             <div class="overflow-x-auto rounded-xl border border-gray-200">
-                <table class="min-w-[1240px] w-full text-sm border-collapse">
+                <table class="min-w-[1330px] w-full text-sm border-collapse">
                     <thead>
                         <tr class="bg-[#DCDCDC] text-[#737373] border-y border-[#C5C5C5] h-[48px]">
                             <th class="px-4 text-left font-bold">Date</th>
                             <th class="px-4 text-left font-bold">Time In</th>
                             <th class="px-4 text-left font-bold">Time Out</th>
+                            <th class="px-4 text-right font-bold">Break</th>
                             <th class="px-4 text-right font-bold">Regular Hrs</th>
                             <th class="px-4 text-right font-bold">OT Hrs</th>
                             <th class="px-4 text-right font-bold">Unapproved OT</th>
                             <th class="px-4 text-right font-bold">RDOT Hrs</th>
                             <th class="px-4 text-right font-bold">Tardy (min)</th>
                             <th class="px-4 text-right font-bold">Undertime</th>
+                            <th class="px-4 text-right font-bold">Unapproved UT</th>
                             <th class="px-4 text-right font-bold">Night Diff</th>
                             <th class="px-4 text-left font-bold">Remarks</th>
                             <th class="px-4 text-left font-bold">Client</th>
@@ -180,13 +188,14 @@
                     <tbody>${rowsHtml}</tbody>
                     <tfoot>
                         <tr class="bg-[#DCDCDC] text-[#666] border-t border-[#C5C5C5] h-[48px] font-semibold">
-                            <td colspan="3" class="px-4 text-center tracking-wide">TOTALS</td>
+                            <td colspan="4" class="px-4 text-center tracking-wide">TOTALS</td>
                             <td class="px-4 text-right">${t.regular_hours.toFixed(2)}</td>
                             <td class="px-4 text-right">${t.ot_hours.toFixed(2)}</td>
                             <td class="px-4 text-right">${t.unapproved_ot_hours.toFixed(2)}</td>
                             <td class="px-4 text-right">${t.rdot_hours.toFixed(2)}</td>
                             <td class="px-4 text-right">${Math.round(t.tardy_minutes)}</td>
                             <td class="px-4 text-right">${t.undertime_hours.toFixed(2)}</td>
+                            <td class="px-4 text-right">${t.unapproved_undertime_hours.toFixed(2)}</td>
                             <td class="px-4 text-right">${t.night_diff.toFixed(2)}</td>
                             <td colspan="3"></td>
                         </tr>
@@ -202,7 +211,7 @@
 
         const body = container.querySelector('.crud-body');
         const searchInput = container.querySelector('.crud-search');
-        const list = Array.isArray(TIMESHEET_HISTORY) ? TIMESHEET_HISTORY : [];
+        let list = Array.isArray(TIMESHEET_HISTORY) ? TIMESHEET_HISTORY : [];
 
         function renderEmptyMessage() {
             if (!body) return;
@@ -246,6 +255,29 @@
         }
 
         applySearch();
+
+        // Refresh from the server every time the modal is opened, so new
+        // cutoffs / hours show up without reloading the page.
+        async function refreshHistory() {
+            try {
+                const res = await fetch('<?= site_url('client_portal/timesheet/history-list') ?>', {
+                    headers: { 'Accept': 'application/json' },
+                    credentials: 'same-origin'
+                });
+                if (!res.ok) return;
+                const data = await res.json();
+                if (Array.isArray(data)) {
+                    list = data;
+                    applySearch();
+                }
+            } catch (e) {
+                console.error('Failed to refresh timesheet history:', e);
+            }
+        }
+
+        document.addEventListener('click', function (e) {
+            if (e.target.closest('[data-modal-open="viewTimesheetHistoryModal"]')) refreshHistory();
+        });
     })();
 </script>
 

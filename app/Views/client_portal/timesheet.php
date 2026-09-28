@@ -35,19 +35,33 @@
 
             <button type="button"
                 data-modal-open="viewTimesheetHistoryModal"
+                aria-haspopup="dialog"
+                aria-controls="viewTimesheetHistoryModal"
                 onclick="openModalById('viewTimesheetHistoryModal')"
-                class="bg-[#FFFFFF] hover:bg-[#f3f4f6] px-3 py-3 rounded-lg shadow hover:shadow-[0_6px_12px_rgba(0,0,0,0.2)] flex items-center gap-2 transition hover:translate-y-[-2px] text-gray-700 text-sm font-medium">
-                <img src="<?= base_url('icons/alarms.png'); ?>" class="w-7 h-7" alt="History">
-                Past Timesheets
+                class="timesheet-nav-btn flex items-center gap-2 text-gray-700 text-sm font-medium">
+                <span class="timesheet-nav-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M3 12a9 9 0 1 0 3-6.7"/>
+                        <path d="M3 4v5h5"/>
+                        <path d="M12 7v5l3 2"/>
+                    </svg>
+                </span>
+                <span>Past Timesheets</span>
             </button>
 
             <?php if ($isPayrollAdmin): ?>
             <button type="button"
                 data-modal-open="viewEmployeeTimesheetModal"
+                aria-haspopup="dialog"
+                aria-controls="viewEmployeeTimesheetModal"
                 onclick="openModalById('viewEmployeeTimesheetModal')"
-                class="bg-[#FFFFFF] hover:bg-[#f3f4f6] px-3 py-3 rounded-lg shadow hover:shadow-[0_6px_12px_rgba(0,0,0,0.2)] flex items-center gap-2 transition hover:translate-y-[-2px] text-gray-700 text-sm font-medium">
-                <img src="<?= base_url('icons/activity.png'); ?>" class="w-7 h-7" alt="Review Employee Timesheets">
-                Review Employee Timesheets
+                class="timesheet-nav-btn flex items-center gap-2 text-gray-700 text-sm font-medium">
+                <span class="timesheet-nav-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M3 12h3l2.2-6 4.2 13 2.5-7H21"/>
+                    </svg>
+                </span>
+                <span>Review Employee Timesheets</span>
             </button>
 
             <button type="button" id="attendanceIssuesBtn" onclick="openAttendanceIssues()"
@@ -560,6 +574,51 @@
     </div>
 
     <style>
+        .timesheet-nav-btn{
+            min-height:52px;
+            padding:8px 13px;
+            border:1px solid #e5e7eb;
+            border-radius:10px;
+            background:#fff;
+            box-shadow:0 3px 10px rgba(15,23,42,0.07);
+            color:#374151;
+            cursor:pointer;
+            white-space:nowrap;
+            transition:background-color .15s ease,border-color .15s ease,color .15s ease,box-shadow .15s ease,transform .15s ease;
+        }
+
+        .timesheet-nav-btn:hover{
+            border-color:#d1d5db;
+            background:#f9fafb;
+            color:#111827;
+            box-shadow:0 6px 16px rgba(15,23,42,0.1);
+            transform:translateY(-1px);
+        }
+
+        .timesheet-nav-btn:active{ transform:translateY(0); }
+
+        .timesheet-nav-btn:focus-visible{
+            outline:3px solid rgba(55,65,81,0.22);
+            outline-offset:2px;
+        }
+
+        .timesheet-nav-icon{
+            display:inline-flex;
+            width:34px;
+            height:34px;
+            flex:0 0 34px;
+            align-items:center;
+            justify-content:center;
+            border-radius:9px;
+            background:#f3f4f6;
+            color:#111827;
+        }
+
+        .timesheet-nav-icon svg{
+            width:21px;
+            height:21px;
+        }
+
         @media (max-width: 900px){
             #timesheetPageRoot{
                 padding-left:12px;
@@ -584,6 +643,12 @@
                 text-align:center;
             }
 
+            .timesheet-header-actions > .timesheet-nav-btn{
+                justify-content:flex-start;
+                text-align:left;
+                white-space:normal;
+            }
+
             .timesheet-filter-bar{
                 align-items:stretch;
                 padding:12px;
@@ -598,6 +663,12 @@
             .timesheet-filter-controls > select{
                 flex:1 1 0;
                 min-width:0;
+            }
+        }
+
+        @media (max-width: 600px){
+            .timesheet-header-actions > .timesheet-nav-btn{
+                grid-column:1 / -1;
             }
         }
 

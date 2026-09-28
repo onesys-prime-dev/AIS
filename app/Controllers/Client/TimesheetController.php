@@ -246,6 +246,15 @@ class TimesheetController extends BaseController
         return \App\Libraries\PayrollCutoff::forDate(date('Y-m-d', strtotime($date)));
     }
 
+    public function historyList()
+    {
+        $user = auth()->user();
+
+        return $this->response->setJSON(
+            $this->timesheetsService->listCutoffHistoryByUserId((int) $user->id)
+        );
+    }
+
     public function historyDetails()
     {
         $user = auth()->user();
@@ -272,66 +281,32 @@ class TimesheetController extends BaseController
             return redirect()->to('/login');
         }
 
-        $start = $this->request->getGet('start');
-        $end = $this->request->getGet('end');
+        $start = (string) $this->request->getGet('start');
+        $end = (string) $this->request->getGet('end');
 
-        $data = $this->timesheetsService
-            ->getDetailedTimesheet(
-                $user->id,
-                $start,
-                $end
-            );
-
-        $this->streamTimesheetCsv($data['daily'], "Timesheet_{$start}_to_{$end}.csv");
-    }
-
-    private function streamTimesheetCsv(array $rows, string $filename): void
-    {
-        header('Content-Type: text/csv');
-        header("Content-Disposition: attachment; filename=\"{$filename}\"");
-        header('Pragma: no-cache');
-        header('Expires: 0');
-
-        $output = fopen('php://output', 'w');
-
-        fputcsv($output, [
-            'Date',
-            'Time In',
-            'Time Out',
-            'Regular Hours',
-            'OT Hours',
-            'Unapproved OT Hours',
-            'RDOT Hours',
-            'Tardy Minutes',
-            'Undertime Hours',
-            'Unapproved Undertime Hours',
-            'Night Diff',
-            'Remarks',
-            'Client',
-            'Task Performed'
-        ]);
-
-        foreach ($rows as $row) {
-            fputcsv($output, [
-                $row['date'] ?? '',
-                $row['in'] ?? '',
-                $row['out'] ?? '',
-                $row['regular_hours'] ?? '',
-                $row['ot_hours'] ?? '',
-                $row['unapproved_ot_hours'] ?? '',
-                $row['rdot_hours'] ?? '',
-                $row['tardy_minutes'] ?? '',
-                $row['undertime_hours'] ?? '',
-                $row['unapproved_undertime_hours'] ?? '',
-                $row['night_diff'] ?? '',
-                $row['remarks'] ?? '',
-                $row['client'] ?? '',
-                $row['task_performed'] ?? '',
-            ]);
+        $employee = (new EmployeeModel())->where('user_id', $user->id)->first();
+        if (!$employee) {
+            return $this->response->setStatusCode(404)->setJSON(['error' => 'Employee profile not found']);
         }
 
-        fclose($output);
-        exit;
+        // Same XLSX as Payroll's "Export Timesheet" — see
+        // PayrollController::buildTimesheetWorkbook()'s docblock for why this
+        // is shared rather than a second, easily-drifting CSV builder.
+        return $this->payrollController()->buildTimesheetWorkbook($employee, $start, $end);
+    }
+
+    /**
+     * A PayrollController instance, fully initialized the same way the
+     * framework would for a routed request (request/response/logger), so its
+     * methods that touch $this->request / $this->response work correctly
+     * even though we're calling it directly instead of through its own route.
+     */
+    private function payrollController(): \App\Controllers\Client\PayrollController
+    {
+        $controller = new \App\Controllers\Client\PayrollController();
+        $controller->initController($this->request, $this->response, service('logger'));
+
+        return $controller;
     }
 
     // ================= ADMIN: REVIEW AN EMPLOYEE'S TIMESHEET =================
@@ -602,9 +577,8 @@ class TimesheetController extends BaseController
             return $this->response->setStatusCode(404)->setBody('Employee not found');
         }
 
-        $data = $this->timesheetsService->getDetailedTimesheet((int) $employee['user_id'], $start, $end);
-        $slug = preg_replace('/[^A-Za-z0-9_-]+/', '_', trim(($employee['first_name'] ?? '') . '_' . ($employee['last_name'] ?? '')));
-
-        $this->streamTimesheetCsv($data['daily'], "Timesheet_{$slug}_{$start}_to_{$end}.csv");
+        // Same XLSX as Payroll's "Export Timesheet" — see
+        // PayrollController::buildTimesheetWorkbook()'s docblock.
+        return $this->payrollController()->buildTimesheetWorkbook($employee, (string) $start, (string) $end);
     }
 }
