@@ -16,299 +16,197 @@
     $middleInitial = ! empty($identity['middle_name']) ? strtoupper(substr(trim((string) $identity['middle_name']), 0, 1)) . '.' : '';
     $avatarInitials = strtoupper(substr(trim((string) ($identity['first_name'] ?? '')), 0, 1) . substr(trim((string) ($identity['last_name'] ?? '')), 0, 1));
     if ($avatarInitials === '') { $avatarInitials = 'U'; }
+
+    $accountActive  = ($employment['status'] ?? '') === 'Active';
+    $onlineStatus   = $employment['online_status'] ?? 'Offline';
+    $presenceBadges = ['Online' => 'bg-green-200 text-green-700', 'Away' => 'bg-yellow-200 text-yellow-700', 'Offline' => 'bg-gray-200 text-gray-500'];
+    $badgeClass     = $accountActive ? ($presenceBadges[$onlineStatus] ?? $presenceBadges['Offline']) : 'bg-red-200 text-red-600';
+    $badgeText      = $accountActive ? $onlineStatus : 'Inactive';
+    $employeeId     = $employment['employee_id'] ?? '';
+    $presenceAttrs  = $accountActive ? "data-presence-badge=\"{$employeeId}\" data-current-status=\"{$onlineStatus}\"" : '';
 ?>
 
 <!-- ACCOUNT PAGE -->
 <div class="account-container">
-
-    <!-- TOP TABS -->
-    <div class="tabs">
-        <div class="tab active">Account</div>
-    </div>
-
-    <!-- GRID -->
-    <div class="account-grid scroll-bar">
-
-        <!-- PERSONAL IDENTITY (READ-ONLY MOSTLY) -->
-        <div class="card">
-            <h2>Personal Identity</h2>
-
-            <div class="about-content">
-
-                <label class="about-avatar-wrap" for="profile_photo" aria-label="Change profile photo" style="display:block;">
-                    <?php if (! empty($identity['photo_url'])): ?>
-                        <div class="about-avatar" id="aboutAvatarPreview" style="background-image:url('<?= esc((string) $identity['photo_url'], 'attr') ?>');"></div>
-                    <?php else: ?>
-                        <div class="about-avatar about-avatar-initials" id="aboutAvatarPreview"><?= esc($avatarInitials) ?></div>
-                    <?php endif; ?>
-                    <div class="about-avatar-edit-badge">&#9998;</div>
-                </label>
-
-                <div class="about-info">
-                    <div class="name"><?= esc($identity['last_name'] ?? '') ?>, <?= esc($identity['first_name'] ?? '') ?> <?= esc($identity['middle_name'] ?? '') ?></div>
-                    <div class="joined">Joined in <?= esc($joinedLabel) ?></div>
-
-                    <form id="photoUploadForm" method="post" action="<?= site_url('client_portal/profile/photo') ?>" enctype="multipart/form-data" class="photo-upload-form">
-                        <?= csrf_field() ?>
-                        <input id="profile_photo" type="file" name="profile_photo" accept=".jpg,.jpeg,.png,.webp" class="photo-input" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;">
-                        <label for="profile_photo" class="photo-link-btn" style="cursor:pointer;">Update photo</label>
-                        <span class="photo-hint">JPG, PNG or WEBP. Resized and compressed automatically.</span>
-                        <span id="photoUploadError" class="photo-upload-error hidden"></span>
-                    </form>
-                </div>
+    <aside class="profile-rail">
+        <div class="profile-rail-person">
+            <label class="about-avatar-wrap" for="profile_photo" aria-label="Change profile photo">
+                <?php if (! empty($identity['photo_url'])): ?>
+                    <div class="about-avatar" id="aboutAvatarPreview" style="background-image:url('<?= esc((string) $identity['photo_url'], 'attr') ?>');"></div>
+                <?php else: ?>
+                    <div class="about-avatar about-avatar-initials" id="aboutAvatarPreview"><?= esc($avatarInitials) ?></div>
+                <?php endif; ?>
+                <span class="about-avatar-edit-badge">&#9998;</span>
+                <span class="avatar-status-dot <?= $badgeClass ?>" <?= $presenceAttrs ?> title="<?= esc($badgeText) ?>"></span>
+            </label>
+            <div class="profile-rail-copy">
+                <strong><?= esc(trim(($identity['first_name'] ?? '') . ' ' . ($identity['last_name'] ?? ''))) ?></strong>
+                <span><?= esc($employment['position'] ?? 'Employee') ?></span>
+                <span class="profile-rail-status <?= $badgeClass ?>" <?= $presenceAttrs ?>>
+                    <span class="status-dot"></span><span data-presence-label><?= esc($badgeText) ?></span>
+                </span>
             </div>
+        </div>
 
-            <div class="info-list">
-                <form id="identityForm" method="post" action="<?= site_url('client_portal/profile/identity') ?>" class="identity-form">
+        <form id="photoUploadForm" method="post" action="<?= site_url('client_portal/profile/photo') ?>" enctype="multipart/form-data" class="photo-upload-form">
+            <?= csrf_field() ?>
+            <input id="profile_photo" type="file" name="profile_photo" accept=".jpg,.jpeg,.png,.webp" class="photo-input" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;">
+            <label for="profile_photo" class="photo-link-btn">Update photo</label>
+            <span class="photo-hint">JPG, PNG or WEBP</span>
+            <span id="photoUploadError" class="photo-upload-error hidden" aria-live="polite"></span>
+        </form>
+
+        <div class="profile-rail-meta">
+            <span>Employee ID</span>
+            <strong><?= esc($employment['employee_number'] ?? '-') ?></strong>
+            <small>Joined <?= esc($joinedLabel) ?></small>
+        </div>
+
+        <div class="settings-nav-label">Settings</div>
+        <nav class="settings-tabs" aria-label="Profile settings" role="tablist">
+            <button type="button" id="profile-tab" class="settings-tab active" data-settings-tab="profile" role="tab" aria-controls="profile-panel" aria-selected="true">Personal info</button>
+            <button type="button" id="employment-tab" class="settings-tab" data-settings-tab="employment" role="tab" aria-controls="employment-panel" aria-selected="false" tabindex="-1">Employment &amp; leave</button>
+            <button type="button" id="security-tab" class="settings-tab" data-settings-tab="security" role="tab" aria-controls="security-panel" aria-selected="false" tabindex="-1">Login &amp; security</button>
+            <button type="button" id="appearance-tab" class="settings-tab" data-settings-tab="appearance" role="tab" aria-controls="appearance-panel" aria-selected="false" tabindex="-1">Appearance</button>
+        </nav>
+    </aside>
+
+    <main class="settings-main scroll-bar">
+        <header class="settings-header">
+            <h1>Settings</h1>
+            <p>Manage your profile and account information.</p>
+        </header>
+
+        <div id="profile-panel" class="settings-panel active" data-settings-panel="profile" role="tabpanel" aria-labelledby="profile-tab">
+            <section class="settings-section">
+                <div class="section-heading"><h2>Personal information</h2><p>Your name and basic account details.</p></div>
+                <form id="identityForm" method="post" action="<?= site_url('client_portal/profile/identity') ?>" class="settings-form">
                     <?= csrf_field() ?>
-
-                    <div class="identity-grid">
-                        <div class="form-group">
-                            <label>Full Name</label>
-                            <input type="text" name="full_name" value="<?= esc($identity['last_name'] ?? '') ?>, <?= esc($identity['first_name'] ?? '') ?> <?= esc($middleInitial) ?>" maxlength="255" placeholder="Dela Cruz, Juan Miguel Santos" title="Use format: Lastname, FirstName(s) MiddleName" required>
-                        </div>
-
-                        <div class="form-group">
-                            <label>Username</label>
-                            <input type="text" name="username" value="<?= esc($identity['username'] ?? '') ?>" minlength="3" maxlength="50" pattern="[A-Za-z0-9._\-]+" required>
-                        </div>
-
-                        <div class="form-group">
-                            <label>Date of Birth</label>
-                            <input type="date" name="birthdate" value="<?= esc((string) ($identity['birthdate'] ?? '')) ?>" required>
-                        </div>
-
-                        <div class="form-group">
-                            <label>Gender</label>
-                            <input type="text" value="Male" disabled>
-                        </div>
+                    <div class="form-grid two-columns">
+                        <div class="form-group"><label>Full Name</label><input type="text" name="full_name" value="<?= esc($identity['last_name'] ?? '') ?>, <?= esc($identity['first_name'] ?? '') ?> <?= esc($middleInitial) ?>" maxlength="255" placeholder="Dela Cruz, Juan Miguel Santos" title="Use format: Lastname, FirstName(s) MiddleName" required></div>
+                        <div class="form-group"><label>Username</label><input type="text" name="username" value="<?= esc($identity['username'] ?? '') ?>" minlength="3" maxlength="50" pattern="[A-Za-z0-9._\-]+" required></div>
+                        <div class="form-group"><label>Date of Birth</label><input type="date" name="birthdate" value="<?= esc((string) ($identity['birthdate'] ?? '')) ?>" required></div>
+                        <div class="form-group"><label>Gender</label><input type="text" value="Male" disabled></div>
                     </div>
-
-                    <div class="form-actions identity-actions">
-                        <button type="submit" id="saveIdentityBtn" class="btn btn-primary hidden">Save Identity Changes</button>
-                    </div>
+                    <div class="form-actions"><span class="save-hint" aria-live="polite">Change a field to enable saving.</span><button type="submit" id="saveIdentityBtn" class="btn btn-primary" disabled>Save changes</button></div>
                 </form>
-            </div>
+            </section>
+
+            <section class="settings-section">
+                <div class="section-heading"><h2>Contact information</h2><p>Where the company can reach you.</p></div>
+                <form method="post" action="<?= site_url('client_portal/profile/contact') ?>" class="settings-form">
+                    <?= csrf_field() ?>
+                    <div class="form-grid two-columns">
+                        <div class="form-group"><label>Primary Email</label><input type="email" value="<?= esc($contact['primary_email'] ?? '') ?>" disabled></div>
+                        <div class="form-group"><label>Secondary Email</label><input type="email" name="secondary_email" value="<?= esc($contact['secondary_email'] ?? '') ?>" placeholder="name@company.com"></div>
+                        <div class="form-group"><label>Mobile Number</label><input type="text" name="mobile_number" value="<?= esc($contact['mobile_number'] ?? '') ?>" placeholder="09xx-xxx-xxxx"></div>
+                        <div class="form-group form-group-wide"><label>Address</label><textarea rows="3" name="address" placeholder="Enter current address"><?= esc($contact['address'] ?? '') ?></textarea></div>
+                    </div>
+                    <div class="form-actions"><span class="save-hint" aria-live="polite">Change a field to enable saving.</span><button type="submit" id="saveContactBtn" class="btn btn-primary" disabled>Save contact info</button></div>
+                </form>
+            </section>
+
+            <section class="settings-section">
+                <div class="section-heading"><h2>Emergency contact</h2><p>Who we should contact in an emergency.</p></div>
+                <form method="post" action="<?= site_url('client_portal/profile/emergency') ?>" class="settings-form">
+                    <?= csrf_field() ?>
+                    <div class="form-grid two-columns">
+                        <div class="form-group"><label>Contact Name</label><input type="text" name="emergency_name" value="<?= esc($emergency['emergency_name'] ?? '') ?>" placeholder="Full name"></div>
+                        <div class="form-group"><label>Relationship</label><input type="text" name="emergency_relationship" value="<?= esc($emergency['emergency_relationship'] ?? '') ?>" placeholder="Relationship"></div>
+                        <div class="form-group"><label>Primary Phone</label><input type="text" name="emergency_phone_primary" value="<?= esc($emergency['emergency_phone_primary'] ?? '') ?>" placeholder="Primary phone"></div>
+                        <div class="form-group"><label>Alternate Phone</label><input type="text" name="emergency_phone_alternate" value="<?= esc($emergency['emergency_phone_alternate'] ?? '') ?>" placeholder="Alternate phone (optional)"></div>
+                    </div>
+                    <div class="form-actions"><span class="save-hint" aria-live="polite">Change a field to enable saving.</span><button type="submit" id="saveEmergencyBtn" class="btn btn-primary" disabled>Save emergency contact</button></div>
+                </form>
+            </section>
         </div>
 
-        <!-- EMPLOYMENT DETAILS (READ-ONLY) -->
-        <div class="card">
-            <h2>Employment Details</h2>
+        <div id="employment-panel" class="settings-panel" data-settings-panel="employment" role="tabpanel" aria-labelledby="employment-tab" hidden>
+            <section class="settings-section">
+                <div class="section-heading"><h2>Employment details</h2><p>This information is managed by your company.</p></div>
+                <div class="details-list">
+                    <div class="detail-row"><span>Employee ID</span><strong><?= esc($employment['employee_number'] ?? '-') ?></strong></div>
+                    <div class="detail-row"><span>Department</span><strong><?= esc($employment['department'] ?? '-') ?></strong></div>
+                    <div class="detail-row"><span>Job Title</span><strong><?= esc($employment['position'] ?? '-') ?></strong></div>
+                    <div class="detail-row"><span>Employment Type</span><strong><?= esc($employment['employment_type'] ?? '-') ?></strong></div>
+                    <div class="detail-row"><span>Hire Date</span><strong><?= esc($hireDateLabel) ?></strong></div>
+                    <div class="detail-row detail-row-status">
+                        <span>Status</span>
+                        <strong class="status-badge-lg <?= $badgeClass ?>" <?= $presenceAttrs ?>>
+                            <span class="status-dot"></span><span data-presence-label><?= esc($badgeText) ?></span>
+                        </strong>
+                    </div>
+                    <div class="detail-row"><span>Reports To</span><strong><?= esc($employment['reports_to'] ?? '-') ?></strong></div>
+                </div>
+            </section>
 
-            <div class="info-list">
-                <div class="info-row"><span>Employee ID</span><strong><?= esc($employment['employee_number'] ?? '-') ?></strong></div>
-                <div class="info-row"><span>Department</span><strong><?= esc($employment['department'] ?? '-') ?></strong></div>
-                <div class="info-row"><span>Job Title</span><strong><?= esc($employment['position'] ?? '-') ?></strong></div>
-                <div class="info-row"><span>Employment Type</span><strong><?= esc($employment['employment_type'] ?? '-') ?></strong></div>
-                <div class="info-row"><span>Hire Date</span><strong><?= esc($hireDateLabel) ?></strong></div>
-                <div class="info-row">
-                    <span>Status</span>
-                    <?php
-                        $accountActive  = ($employment['status'] ?? '') === 'Active';
-                        $onlineStatus   = $employment['online_status'] ?? 'Offline';
-                        $presenceBadges = [
-                            'Online'  => 'bg-green-200 text-green-700',
-                            'Away'    => 'bg-yellow-200 text-yellow-700',
-                            'Offline' => 'bg-gray-200 text-gray-500',
-                        ];
-                        $badgeClass = $accountActive
-                            ? ($presenceBadges[$onlineStatus] ?? $presenceBadges['Offline'])
-                            : 'bg-red-200 text-red-600';
-                        $badgeText  = $accountActive ? $onlineStatus : 'Inactive';
-                        $employeeId = $employment['employee_id'] ?? '';
+            <?php
+                $currentYear = (int) date('Y');
+                $leaveTypes = [
+                    'vacation' => ['label' => 'Vacation Leave', 'data' => $vacationBalance ?? null, 'color' => '#7b5cff'],
+                    'sick' => ['label' => 'Sick Leave', 'data' => $sickBalance ?? null, 'color' => '#3b82f6'],
+                    'emergency' => ['label' => 'Emergency Leave', 'data' => $emergencyBalance ?? null, 'color' => '#f97316'],
+                ];
+                $hasAnyBalance = array_reduce($leaveTypes, fn($c, $t) => $c || ($t['data'] !== null), false);
+            ?>
+            <section class="settings-section">
+                <div class="section-heading"><h2>Leave balance</h2><p><?= esc((string) $currentYear) ?> entitlement overview.</p></div>
+                <?php if ($hasAnyBalance): ?>
+                    <div class="leave-list">
+                    <?php foreach ($leaveTypes as $typeInfo):
+                        $bal = $typeInfo['data']; $total = (float) ($bal['total_entitlement'] ?? 0); $used = (float) ($bal['used'] ?? 0); $left = (float) ($bal['remaining'] ?? 0); $pct = $total > 0 ? round(($left / $total) * 100) : 0;
                     ?>
-                    <strong
-                        class="<?= $badgeClass ?> px-3 py-1 rounded-full text-xs font-semibold"
-                        <?= $accountActive ? "data-presence-badge=\"{$employeeId}\" data-current-status=\"{$onlineStatus}\"" : '' ?>>
-                        <?= esc($badgeText) ?>
-                    </strong>
-                </div>
-                <div class="info-row"><span>Reports To</span><strong><?= esc($employment['reports_to'] ?? '-') ?></strong></div>
-            </div>
-        </div>
-
-        <!-- LEAVE BALANCE -->
-        <?php
-            $currentYear = (int) date('Y');
-
-            $leaveTypes = [
-                'vacation'  => ['label' => 'Vacation Leave',  'data' => $vacationBalance  ?? null, 'color' => '#8b5cf6'],
-                'sick'      => ['label' => 'Sick Leave',      'data' => $sickBalance      ?? null, 'color' => '#3b82f6'],
-                'emergency' => ['label' => 'Emergency Leave', 'data' => $emergencyBalance ?? null, 'color' => '#f97316'],
-            ];
-
-            $hasAnyBalance = array_reduce($leaveTypes, fn($c, $t) => $c || ($t['data'] !== null), false);
-        ?>
-        <div class="card">
-            <h2>Leave Balance <span style="font-size:13px;font-weight:400;color:#9ca3af;">(<?= esc((string) $currentYear) ?>)</span></h2>
-
-            <?php if ($hasAnyBalance): ?>
-                <?php foreach ($leaveTypes as $typeKey => $typeInfo):
-                    $bal   = $typeInfo['data'];
-                    $total = (float) ($bal['total_entitlement'] ?? 0);
-                    $used  = (float) ($bal['used']              ?? 0);
-                    $left  = (float) ($bal['remaining']         ?? 0);
-                    $pct   = $total > 0 ? round(($left / $total) * 100) : 0;
-                    $col   = $typeInfo['color'];
-                ?>
-                <div style="margin-bottom:18px;">
-                    <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;">
-                        <span style="font-size:13px;font-weight:600;color:#374151;"><?= esc($typeInfo['label']) ?></span>
-                        <span style="font-size:12px;color:#6b7280;"><?= $total > 0 ? esc((string) $left) . 'd / ' . esc((string) $total) . 'd' : 'Not set' ?></span>
-                    </div>
-                    <?php if ($total > 0): ?>
-                        <div style="background:#e5e7eb;border-radius:999px;height:7px;overflow:hidden;">
-                            <div style="height:100%;border-radius:999px;width:<?= esc((string) $pct) ?>%;background:<?= esc($col) ?>;transition:width 0.4s ease;"></div>
+                        <div class="leave-row">
+                            <div><strong><?= esc($typeInfo['label']) ?></strong><span><?= $total > 0 ? esc((string) $used) . ' days used' : 'No entitlement set' ?></span></div>
+                            <div class="leave-value"><?= $total > 0 ? esc((string) $left) . ' / ' . esc((string) $total) . ' days' : '-' ?></div>
+                            <div class="leave-track"><span style="width:<?= esc((string) $pct) ?>%;background:<?= esc($typeInfo['color']) ?>;"></span></div>
                         </div>
-                        <div style="font-size:11px;color:#9ca3af;margin-top:3px;"><?= esc((string) $used) ?>d used &middot; <?= esc((string) $pct) ?>% remaining</div>
-                    <?php else: ?>
-                        <div style="font-size:11px;color:#9ca3af;">No entitlement set for this year.</div>
-                    <?php endif; ?>
-                </div>
-                <?php endforeach; ?>
-            <?php else: ?>
-                <div style="color:#9ca3af;font-size:13px;margin-top:10px;">
-                    No leave balance on record for <?= esc((string) $currentYear) ?>. Balances appear here once leave entitlements are set by HR.
-                </div>
-            <?php endif; ?>
+                    <?php endforeach; ?>
+                    </div>
+                <?php else: ?>
+                    <p class="empty-note">No leave balance on record for <?= esc((string) $currentYear) ?>.</p>
+                <?php endif; ?>
+            </section>
         </div>
 
-        <!-- CONTACT INFORMATION (EDITABLE) -->
-        <div class="card">
+        <div id="security-panel" class="settings-panel" data-settings-panel="security" role="tabpanel" aria-labelledby="security-tab" hidden>
+            <section class="settings-section">
+                <div class="section-heading"><h2>Account password</h2><p>Update the password used to sign in to your account.</p></div>
+                <form method="post" action="<?= site_url('client_portal/profile/password') ?>" class="settings-form">
+                    <?= csrf_field() ?>
+                    <div class="form-grid three-columns">
+                        <div class="form-group"><label>Current Password</label><input type="password" name="current_password" placeholder="Enter current password" required></div>
+                        <div class="form-group"><label>New Password</label><input type="password" name="new_password" placeholder="Enter new password" required></div>
+                        <div class="form-group"><label>Confirm New Password</label><input type="password" name="confirm_password" placeholder="Confirm new password" required></div>
+                    </div>
+                    <div class="form-actions"><button type="submit" class="btn btn-primary">Update password</button></div>
+                </form>
+            </section>
 
-            <form method="post" action="<?= site_url('client_portal/profile/contact') ?>">
-                <?= csrf_field() ?>
-                <div class="form-group">
-                    <label>Primary Email (CI4 Shield)</label>
-                    <input type="email" value="<?= esc($contact['primary_email'] ?? '') ?>" disabled>
-                </div>
-
-                <div class="form-group">
-                    <label>Secondary Email</label>
-                    <input type="email" name="secondary_email" value="<?= esc($contact['secondary_email'] ?? '') ?>" placeholder="name@company.com">
-                </div>
-
-                <div class="form-group">
-                    <label>Mobile Number</label>
-                    <input type="text" name="mobile_number" value="<?= esc($contact['mobile_number'] ?? '') ?>" placeholder="09xx-xxx-xxxx">
-                </div>
-
-                <div class="form-group">
-                    <label>Address</label>
-                    <textarea rows="3" name="address" placeholder="Enter current address"><?= esc($contact['address'] ?? '') ?></textarea>
-                </div>
-
-                <div class="form-actions">
-                    <button type="submit" id="saveContactBtn" class="btn btn-primary hidden">Save Contact Info</button>
-                </div>
-            </form>
+            <section class="settings-section">
+                <div class="section-heading"><h2>Payslip password</h2><p>Protects the PDF attachment sent to your email. The default is Employee Number + Birthdate (YYYYMMDD).</p></div>
+                <form id="payslipPasswordForm" method="post" action="<?= site_url('client_portal/profile/payslip-password') ?>" class="settings-form">
+                    <?= csrf_field() ?>
+                    <div class="form-grid three-columns">
+                        <div class="form-group"><label>Current Payslip Password</label><input type="password" name="current_payslip_password" placeholder="Enter current payslip password" required></div>
+                        <div class="form-group"><label>New Payslip Password</label><input type="password" name="new_payslip_password" placeholder="Enter new payslip password" required></div>
+                        <div class="form-group"><label>Confirm New Payslip Password</label><input type="password" name="confirm_payslip_password" placeholder="Confirm new payslip password" required></div>
+                    </div>
+                    <div class="form-actions"><button type="button" class="btn btn-danger" onclick="document.getElementById('resetPayslipModal').style.display='flex'">Reset to default</button><button type="submit" class="btn btn-primary">Update payslip password</button></div>
+                </form>
+            </section>
         </div>
 
-        <!-- EMERGENCY CONTACT (EDITABLE) -->
-        <div class="card">
-            <h2>Emergency Contact</h2>
-
-            <form method="post" action="<?= site_url('client_portal/profile/emergency') ?>">
-                <?= csrf_field() ?>
-                <div class="form-group">
-                    <label>Contact Name</label>
-                    <input type="text" name="emergency_name" value="<?= esc($emergency['emergency_name'] ?? '') ?>" placeholder="Full name">
-                </div>
-
-                <div class="form-group">
-                    <label>Relationship</label>
-                    <input type="text" name="emergency_relationship" value="<?= esc($emergency['emergency_relationship'] ?? '') ?>" placeholder="Relationship">
-                </div>
-
-                <div class="form-group">
-                    <label>Primary Phone</label>
-                    <input type="text" name="emergency_phone_primary" value="<?= esc($emergency['emergency_phone_primary'] ?? '') ?>" placeholder="Primary phone">
-                </div>
-
-                <div class="form-group">
-                    <label>Alternate Phone</label>
-                    <input type="text" name="emergency_phone_alternate" value="<?= esc($emergency['emergency_phone_alternate'] ?? '') ?>" placeholder="Alternate phone (optional)">
-                </div>
-
-                <div class="form-actions">
-                    <button type="submit" id="saveEmergencyBtn" class="btn btn-primary hidden">Save Emergency Contact</button>
-                </div>
-            </form>
+        <div id="appearance-panel" class="settings-panel" data-settings-panel="appearance" role="tabpanel" aria-labelledby="appearance-tab" hidden>
+            <?= view('client_portal/partials/appearance_panel', [
+                'branding'      => $appearanceBranding ?? [],
+                'logoUrl'       => $appearanceLogoUrl ?? null,
+                'canManageLogo' => $canManageAppearanceLogo ?? false,
+            ]) ?>
         </div>
 
-        <!-- SECURITY (PASSWORD UPDATE ACTION) -->
-        <div class="card span-2">
-            <h2>Security</h2>
-
-            <form method="post" action="<?= site_url('client_portal/profile/password') ?>">
-                <?= csrf_field() ?>
-                <div class="security-grid">
-                    <div class="form-group">
-                        <label>Current Password</label>
-                        <input type="password" name="current_password" placeholder="Enter current password" required>
-                    </div>
-
-                    <div class="form-group">
-                        <label>New Password</label>
-                        <input type="password" name="new_password" placeholder="Enter new password" required>
-                    </div>
-
-                    <div class="form-group">
-                        <label>Confirm New Password</label>
-                        <input type="password" name="confirm_password" placeholder="Confirm new password" required>
-                    </div>
-                </div>
-
-                <div class="form-actions">
-                    <button type="submit" class="btn btn-primary">Update Password</button>
-                </div>
-            </form>
-        </div>
-
-        <!-- PAYSLIP PASSWORD -->
-        <div class="card span-2">
-            <h2>Payslip Password</h2>
-            <p class="text-muted" style="margin-bottom: 1rem; font-size: 0.875rem;">
-                This password protects the PDF attachment sent to your email.
-                If not set, the default is your <strong>Employee Number + Birthdate (YYYYMMDD)</strong>.
-            </p>
-
-            <form id="payslipPasswordForm" method="post" action="<?= site_url('client_portal/profile/payslip-password') ?>">
-                <?= csrf_field() ?>
-                <div class="security-grid">
-                    <div class="form-group">
-                        <label>Current Payslip Password</label>
-                        <input type="password" name="current_payslip_password"
-                            placeholder="Enter current payslip password" required>
-                    </div>
-                    <div class="form-group">
-                        <label>New Payslip Password</label>
-                        <input type="password" name="new_payslip_password"
-                            placeholder="Enter new payslip password" required>
-                    </div>
-                    <div class="form-group">
-                        <label>Confirm New Payslip Password</label>
-                        <input type="password" name="confirm_payslip_password"
-                            placeholder="Confirm new payslip password" required>
-                    </div>
-                </div>
-                <div class="form-actions">
-                    <button type="submit" class="btn btn-primary">Update Payslip Password</button>
-                    <button type="button" class="btn btn-danger" onclick="document.getElementById('resetPayslipModal').style.display='flex'">
-                        Reset to Default
-                    </button>
-                </div>
-
-                
-            </form>
-        </div>
-
-        <!-- SMALL AUDIT LINE -->
-        <div class="card span-2 audit-card">
-            <span>Last updated: <?= esc($auditLabel) ?> by <?= esc($audit['updated_by'] ?? 'System') ?></span>
-        </div>
-
-    </div>
+        <div class="profile-audit">Last updated <?= esc($auditLabel) ?> by <?= esc($audit['updated_by'] ?? 'System') ?></div>
+    </main>
 </div>
 
 <!-- RESET PAYSLIP PASSWORD MODAL -->
@@ -533,435 +431,261 @@
         background: #d1d5db;
     }
 
-    /* CONTAINER */
+    /* SETTINGS LAYOUT */
     .account-container{
-        font-family:Segoe UI, Arial;
-        height: 100%;
-        display: flex;
-        flex-direction: column;
-        overflow: hidden;
-        min-height: 0;
-        background-color: #e5e7eb;
-    }
-
-    /* TABS */
-    .tabs{
-        display:flex;
-        align-items:center;
-        gap:30px;
-        background:#2E2E2E;
-        color:white;
-        padding:15px 25px;
-        min-height:70px;
-        position: sticky;
-        top: 0;
-        z-index: 10;
-        flex-shrink: 0;
-    }
-
-    .tab{
-        cursor:pointer;
-        opacity:0.8;
-    }
-
-    .tab.active{
-        font-weight:600;
-        opacity:1;
-        position:relative;
-    }
-
-    .tab.active::after{
-        content:'';
-        position:absolute;
-        bottom:-24px;
-        left:0;
-        width:100%;
-        height:3px;
-        background:white;
-    }
-
-    /* GRID */
-    .account-grid{
-        flex: 1;
-        min-height: 0;
-        overflow-y: auto;
+        height:100%;
+        min-height:0;
         display:grid;
-        grid-template-columns:1fr 1fr;
-        gap:25px;
-        padding: 2rem;
+        grid-template-columns:230px minmax(0,1fr);
+        overflow:hidden;
+        color:#17223b;
+        background:#fff;
+        font-family:Segoe UI,Arial,sans-serif;
     }
-
-    /* CARD */
-    .card{
-        background:white;
-        border-radius:10px;
-        padding:25px;
-        box-shadow:0 4px 15px rgba(0,0,0,0.05);
+    .profile-rail{
+        min-width:0;
+        padding:30px 20px;
+        border-right:1px solid #e3e6eb;
+        background:#fff;
     }
-
-    .card h2{
-        font-size:20px;
-        margin-bottom:20px;
-        font-weight:500;
-    }
-
-    .span-2{
-        grid-column: span 2;
-    }
-
-    /* HEADER WITH PLUS */
-    .card-header{
-        display:flex;
-        justify-content:space-between;
-        align-items:center;
-    }
-
-    .plus{
-        font-size:20px;
-        cursor:pointer;
-    }
-
-    /* ABOUT */
-    .about-content{
-        display:flex;
-        gap:20px;
-    }
-
-    .about-avatar{
-        width:96px;
-        height:96px;
-        border-radius:50%;
-        background:#e5e7eb;
-        background-size:cover;
-        background-position:center;
-        flex-shrink:0;
-        box-shadow:0 0 0 3px #fff, 0 0 0 4px #e5e7eb, 0 4px 12px rgba(0,0,0,0.08);
-    }
-
-    .about-avatar-initials{
-        display:flex;
-        align-items:center;
-        justify-content:center;
-        font-size:28px;
-        font-weight:600;
-        color:#6b7280;
-    }
-
-    .about-avatar-wrap{
-        position:relative;
-        width:96px;
-        height:96px;
-        flex-shrink:0;
-        cursor:pointer;
-        border-radius:50%;
-        transition:opacity 0.15s ease;
-    }
-
-    .about-avatar-wrap::after{
-        content:'Change';
-        position:absolute;
-        inset:0;
-        border-radius:50%;
-        background:rgba(17,24,39,0.55);
-        color:#fff;
-        font-size:12px;
-        font-weight:600;
-        display:flex;
-        align-items:center;
-        justify-content:center;
-        opacity:0;
-        transition:opacity 0.15s ease;
-        pointer-events:none;
-    }
-
-    .about-avatar-wrap:hover::after,
-    .about-avatar-wrap:focus-visible::after{
-        opacity:1;
-    }
-
-    .about-avatar-wrap:focus-visible{
-        outline:2px solid #1f8dbd;
-        outline-offset:2px;
-    }
-
+    .profile-rail-person{ display:flex; align-items:center; gap:13px; }
+    .profile-rail-copy{ min-width:0; }
+    .profile-rail-copy strong,.profile-rail-copy > span{ display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .profile-rail-copy strong{ color:#17223b; font-size:16px; line-height:1.35; }
+    .profile-rail-copy > span:not(.profile-rail-status){ margin-top:3px; color:#5f6877; font-size:13px; line-height:1.4; }
+    .about-avatar,.about-avatar-wrap{ width:58px; height:58px; flex:0 0 58px; border-radius:50%; }
+    .about-avatar{ background:#eef0f3 center/cover no-repeat; box-shadow:0 0 0 1px #d7dbe2; }
+    .about-avatar-initials{ display:flex; align-items:center; justify-content:center; color:#536078; font-size:18px; font-weight:700; }
+    .about-avatar-wrap{ position:relative; display:block; cursor:pointer; }
     .about-avatar-edit-badge{
         position:absolute;
-        bottom:0;
-        right:0;
-        width:26px;
-        height:26px;
-        border-radius:50%;
-        background:#1f8dbd;
-        color:#fff;
+        right:-1px;
+        bottom:-1px;
         display:flex;
         align-items:center;
         justify-content:center;
-        font-size:13px;
+        width:20px;
+        height:20px;
         border:2px solid #fff;
-        pointer-events:none;
-        z-index:1;
+        border-radius:50%;
+        color:#fff;
+        background:#7b5cff;
+        font-size:9px;
     }
-
-    .photo-upload-error{
-        display:block;
-        font-size:12px;
-        color:#dc2626;
-        margin-top:4px;
-        width:100%;
+    .avatar-status-dot{
+        position:absolute;
+        left:-1px;
+        bottom:-1px;
+        width:14px;
+        height:14px;
+        border:2px solid #fff;
+        border-radius:50%;
+        background:currentColor;
     }
-
-    .photo-upload-error.hidden{
-        display:none;
-    }
-
-    .about-info{
-        flex:1;
-    }
-
-    .name{
-        font-weight:600;
-        font-size:18px;
-        line-height:1.3;
-    }
-
-    .joined{
-        font-size:12px;
-        color:#9ca3af;
-    }
-
-    .name-row{
-        display:flex;
-        justify-content:space-between;
+    span.profile-rail-status{
+        display:inline-flex;
         align-items:center;
+        gap:5px;
+        margin-top:6px;
+        padding:3px 9px;
+        border-radius:999px;
+        font-size:11px;
+        font-weight:700;
+        letter-spacing:0.02em;
+        text-transform:uppercase;
+        width:fit-content;
     }
-
-    .paypal-link{
-        margin-top:10px;
-        font-size:14px;
-        border-bottom:1px solid #ddd;
-        padding-bottom:5px;
+    .status-dot{
+        width:7px;
+        height:7px;
+        flex:0 0 7px;
+        border-radius:50%;
+        background:currentColor;
     }
-
-    .subtext{
-        font-size:12px;
-        color:#9ca3af;
-        margin-top:5px;
-    }
-
-    .photo-link{
-        display:inline-block;
-        margin-top:10px;
-        font-size:12px;
-        color:#1f8dbd;
-    }
-
-    .photo-upload-form{
-        margin-top:10px;
-        display:flex;
+    .status-badge-lg{
+        display:inline-flex;
         align-items:center;
-        gap:10px;
-        flex-wrap:wrap;
-    }
-
-    .photo-input{
-        max-width:220px;
-        font-size:12px;
-    }
-
-    .photo-link-btn{
-        border:1px solid #1f8dbd;
-        background:#fff;
-        color:#1f8dbd;
-        font-size:12px;
-        font-weight:600;
-        cursor:pointer;
+        gap:7px;
         padding:6px 14px;
         border-radius:999px;
-        transition:background 0.15s ease, color 0.15s ease;
-    }
-
-    .photo-link-btn:hover{
-        background:#1f8dbd;
-        color:#fff;
-    }
-
-    .photo-hint{
-        width:100%;
-        font-size:11px;
-        color:#9ca3af;
-    }
-
-    /* ITEMS */
-    .item{
-        display:flex;
-        justify-content:space-between;
-        align-items:flex-start;
-        padding:10px 0;
-        border-bottom:1px solid #eee;
-    }
-
-    .item:last-child{
-        border-bottom:none;
-    }
-
-    .actions{
         font-size:13px;
-        color:#1f8dbd;
-        cursor:pointer;
+        font-weight:700;
     }
+    .status-badge-lg .status-dot{ width:8px; height:8px; flex-basis:8px; }
+    .detail-row-status strong{ font-size:14px; }
+    .photo-upload-form{ margin:12px 0 18px 71px; }
+    .photo-link-btn{ color:#6650cc; font-size:13px; font-weight:600; cursor:pointer; }
+    .photo-link-btn:hover{ text-decoration:underline; }
+    .photo-hint{ display:block; margin-top:3px; color:#9aa1ad; font-size:10px; }
+    .photo-upload-error{ display:block; margin-top:4px; color:#dc2626; font-size:11px; }
+    .photo-upload-error.hidden,.hidden{ display:none; }
+    .profile-rail-meta{ margin-top:18px; padding:15px 0 0; border-top:1px solid #eceef1; }
+    .profile-rail-meta span,.profile-rail-meta strong,.profile-rail-meta small{ display:block; }
+    .profile-rail-meta span{ color:#737c8b; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; }
+    .profile-rail-meta strong{ margin-top:4px; color:#344054; font-size:14px; }
+    .profile-rail-meta small{ margin-top:5px; color:#737c8b; font-size:12px; }
 
-    /* FORM */
-    .form-group{
-        margin-bottom:15px;
-    }
-
-    .form-group label{
-        display:block;
-        font-size:13px;
-        margin-bottom:5px;
-    }
-
-    .form-group select{
-        width:100%;
-        padding:8px;
-        border-radius:6px;
-        border:1px solid #ddd;
-    }
-
-    .row{
-        display:flex;
-        justify-content:space-between;
-        align-items:center;
-    }
-
-    .info-list{
-        margin-top:15px;
+    .settings-main{ min-width:0; overflow-y:auto; padding:30px 36px 28px; }
+    .settings-header{ width:100%; }
+    .settings-header h1{ margin:0; font-size:28px; line-height:1.2; font-weight:700; }
+    .settings-header p{ margin:7px 0 0; color:#667085; font-size:14px; line-height:1.5; }
+    .settings-nav-label{ margin-top:26px; color:#737c8b; font-size:11px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; }
+    .settings-tabs{
         display:flex;
         flex-direction:column;
-        gap:10px;
-    }
-
-    .info-row{
-        display:flex;
-        justify-content:space-between;
-        gap:20px;
-        border-bottom:1px solid #f1f5f9;
-        padding-bottom:10px;
-    }
-
-    .identity-form {
-        width: 100%;
-    }
-
-    .identity-grid {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 12px;
-    }
-
-    .identity-actions {
-        margin-top: 6px;
-        min-height: 42px;
-    }
-
-    .hidden {
-        display: none;
-    }
-
-    .info-row span{
-        color:#6b7280;
-        font-size:13px;
-    }
-
-    .info-row strong{
-        font-size:14px;
-    }
-
-    .form-group input,
-    .form-group textarea,
-    .form-group select{
+        gap:4px;
         width:100%;
-        padding:8px;
+        margin-top:9px;
+    }
+    .settings-tab{
+        position:relative;
+        width:100%;
+        padding:10px 12px;
+        border:0;
         border-radius:6px;
-        border:1px solid #ddd;
-    }
-
-    .form-actions{
-        margin-top:12px;
-        display:flex;
-        justify-content:flex-end;
-    }
-
-    .btn{
-        border:none;
-        border-radius:8px;
-        padding:10px 14px;
+        color:#344054;
+        background:transparent;
+        font-size:14px;
+        font-weight:600;
+        line-height:1.4;
+        text-align:left;
+        white-space:nowrap;
         cursor:pointer;
-        font-size:13px;
     }
-
-    .btn-primary{
-        background:#2563eb;
-        color:#fff;
+    .settings-tab:hover{ background:#f5f4fa; }
+    .settings-tab.active{ color:#5d46c5; background:#f1eeff; }
+    .settings-panel{ width:100%; }
+    .settings-panel[hidden]{ display:none; }
+    .settings-section{ padding:27px 0; border-bottom:1px solid #e3e6eb; }
+    .section-heading{ margin-bottom:18px; }
+    .section-heading h2{ margin:0; color:#17223b; font-size:17px; font-weight:650; line-height:1.35; }
+    .section-heading p{ margin:5px 0 0; color:#667085; font-size:13px; line-height:1.5; }
+    .settings-form{ width:100%; }
+    .form-grid{ display:grid; gap:0 16px; }
+    .two-columns{ grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .three-columns{ grid-template-columns:repeat(3,minmax(0,1fr)); }
+    .form-group-wide{ grid-column:1 / -1; }
+    .form-group{ margin-bottom:14px; }
+    .form-group label{ display:block; margin-bottom:7px; color:#344054; font-size:13px; font-weight:600; }
+    .form-group input,.form-group textarea,.form-group select{
+        width:100%;
+        min-height:39px;
+        box-sizing:border-box;
+        padding:8px 10px;
+        border:1px solid #cfd4dc;
+        border-radius:5px;
+        color:#17223b;
+        background:#fff;
+        font:inherit;
+        font-size:14px;
+        line-height:1.4;
+        outline:none;
     }
+    .form-group textarea{ min-height:70px; resize:vertical; }
+    .form-group input:focus,.form-group textarea:focus,.form-group select:focus{ border-color:#7b5cff; box-shadow:0 0 0 2px rgba(123,92,255,.1); }
+    .form-group input:disabled{ color:#667085; background:#f5f6f7; cursor:not-allowed; }
+    .form-actions{ display:flex; align-items:center; justify-content:flex-end; gap:9px; min-height:37px; margin-top:2px; }
+    .save-hint{ margin-right:auto; color:#737c8b; font-size:12px; line-height:1.4; }
+    .btn{ min-height:38px; padding:8px 14px; border:1px solid transparent; border-radius:5px; font-size:13px; font-weight:650; cursor:pointer; }
+    .btn-primary{ color:#fff; background:#7b5cff; }
+    .btn-primary:hover:not(:disabled){ background:#6749e0; }
+    .btn-danger{ border-color:#e2e5e9; color:#b42318; background:#fff; }
+    .btn-danger:hover{ background:#fff5f4; }
+    .btn-secondary{ border-color:#d5d9df; color:#344054; background:#fff; }
+    .btn:disabled{ color:#9aa1ad; background:#e8eaed; cursor:not-allowed; }
 
-    .security-grid{
-        display:grid;
-        grid-template-columns:repeat(3, minmax(0, 1fr));
-        gap:14px;
+    .details-list{ width:100%; }
+    .detail-row{ display:grid; grid-template-columns:190px minmax(0,1fr); align-items:center; min-height:54px; border-bottom:1px solid #eceef1; }
+    .detail-row:last-child{ border-bottom:0; }
+    .detail-row span{ color:#5f6877; font-size:13px; }
+    .detail-row strong:not(.status-badge-lg){ color:#344054; font-size:14px; font-weight:600; }
+    .leave-list{ width:100%; }
+    .leave-row{ position:relative; display:grid; grid-template-columns:minmax(0,1fr) auto; gap:4px 20px; padding:13px 0 17px; border-bottom:1px solid #eceef1; }
+    .leave-row > div:first-child strong,.leave-row > div:first-child span{ display:block; }
+    .leave-row > div:first-child strong{ font-size:14px; }
+    .leave-row > div:first-child span{ margin-top:3px; color:#737c8b; font-size:12px; }
+    .leave-value{ color:#4b5563; font-size:13px; font-weight:600; }
+    .leave-track{ grid-column:1 / -1; height:4px; overflow:hidden; border-radius:99px; background:#e8eaee; }
+    .leave-track span{ display:block; height:100%; border-radius:99px; }
+    .empty-note{ color:#737c8b; font-size:14px; }
+    .profile-audit{ width:100%; padding:18px 0 0; color:#737c8b; font-size:12px; line-height:1.5; }
+
+    @media (max-width:1050px){
+        .account-container{ grid-template-columns:210px minmax(0,1fr); }
+        .profile-rail{ padding:26px 18px; }
+        .settings-main{ padding:32px 32px 28px; }
+        .three-columns{ grid-template-columns:1fr; }
     }
-
-    .audit-card{
-        font-size:13px;
-        color:#475569;
-        padding-top:14px;
-        padding-bottom:14px;
-        background:#f8fafc;
-        border:1px solid #e2e8f0;
-    }
-
-    /* LINKS */
-    .link{
-        display:block;
-        margin-top:10px;
-        font-size:13px;
-        color:#1f8dbd;
-    }
-
-    .link.danger{
-        color:#ef4444;
-    }
-
-    /* MUTED */
-    .muted{
-        font-size:12px;
-        color:#9ca3af;
-    }
-
-    @media (max-width: 1024px){
-        .account-grid{
-            grid-template-columns:1fr;
+    @media (max-width:760px){
+        .account-container{ display:block; overflow-y:auto; }
+        .profile-rail{ padding:18px 16px; border-right:0; border-bottom:1px solid #e3e6eb; }
+        .profile-rail-person{ max-width:100%; }
+        .about-avatar,.about-avatar-wrap{ width:50px; height:50px; flex-basis:50px; }
+        .photo-upload-form{ margin:8px 0 0 63px; }
+        .photo-hint,.profile-rail-meta{ display:none; }
+        .settings-nav-label{ margin-top:20px; }
+        .settings-tabs{
+            flex-direction:row;
+            gap:22px;
+            margin-top:10px;
+            border-bottom:1px solid #dfe2e7;
+            overflow-x:auto;
+            overscroll-behavior-inline:contain;
+            scrollbar-width:none;
         }
-
-        .span-2{
-            grid-column: span 1;
-        }
-
-        .security-grid{
-            grid-template-columns:1fr;
-        }
-
-        .identity-grid {
-            grid-template-columns: 1fr;
-        }
-
-        .identity-actions {
-            justify-content: flex-start;
-        }
+        .settings-tabs::-webkit-scrollbar{ display:none; }
+        .settings-tab{ width:auto; padding:0 0 10px; border-radius:0; background:transparent; }
+        .settings-tab:hover,.settings-tab.active{ background:transparent; }
+        .settings-tab.active::after{ content:''; position:absolute; right:0; bottom:-1px; left:0; height:2px; background:#7b5cff; }
+        .settings-main{ overflow:visible; padding:24px 16px 30px; }
+        .settings-header h1{ font-size:23px; }
+        .settings-panel{ max-width:none; }
+        .settings-section{ padding:22px 0; }
+        .two-columns,.three-columns{ grid-template-columns:1fr; }
+        .form-group-wide{ grid-column:auto; }
+        .form-actions{ align-items:stretch; flex-direction:column; }
+        .save-hint{ margin-right:0; }
+        .form-actions .btn{ width:100%; }
+        .detail-row{ grid-template-columns:130px minmax(0,1fr); }
     }
 </style>
 
 <script>
+    // Switch between the profile settings sections without leaving the page.
+    (function () {
+        const tabButtons = Array.from(document.querySelectorAll('[data-settings-tab]'));
+        const panels = Array.from(document.querySelectorAll('[data-settings-panel]'));
+
+        function showSettingsPanel(name) {
+            panels.forEach((panel) => {
+                const active = panel.dataset.settingsPanel === name;
+                panel.hidden = !active;
+                panel.classList.toggle('active', active);
+            });
+            tabButtons.forEach((button) => {
+                const active = button.dataset.settingsTab === name;
+                button.classList.toggle('active', active);
+                button.setAttribute('aria-selected', active ? 'true' : 'false');
+                button.tabIndex = active ? 0 : -1;
+            });
+        }
+
+        tabButtons.forEach((button) => button.addEventListener('click', () => showSettingsPanel(button.dataset.settingsTab)));
+        tabButtons.forEach((button, index) => button.addEventListener('keydown', (event) => {
+            if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+            event.preventDefault();
+            const direction = event.key === 'ArrowRight' ? 1 : -1;
+            const nextButton = tabButtons[(index + direction + tabButtons.length) % tabButtons.length];
+            nextButton.focus();
+            nextButton.click();
+        }));
+
+        const requestedTab = new URLSearchParams(window.location.search).get('tab');
+        if (requestedTab && panels.some((panel) => panel.dataset.settingsPanel === requestedTab)) {
+            showSettingsPanel(requestedTab);
+        }
+    })();
+
     // Profile photo: pick -> auto crop/resize/compress in the browser -> upload -> update in place.
     const PHOTO_MAX_BYTES = 2 * 1024 * 1024;
     const PHOTO_SOURCE_MAX_BYTES = 30 * 1024 * 1024;
@@ -1064,6 +788,7 @@
     (function () {
         const form = document.getElementById('identityForm');
         const saveBtn = document.getElementById('saveIdentityBtn');
+        const saveHint = form?.querySelector('.save-hint');
 
         if (!form || !saveBtn) return;
 
@@ -1090,7 +815,7 @@
         const fields = Array.from(form.querySelectorAll('input[name]'));
         const initialValues = new Map(fields.map((field) => [field.name, (field.value || '').trim()]));
 
-        function syncSaveVisibility() {
+        function syncSaveState() {
             const hasChanged = fields.some((field) => {
                 const initial = initialValues.get(field.name) ?? '';
                 const current = (field.value || '').trim();
@@ -1098,15 +823,16 @@
                 return current !== initial;
             });
 
-            saveBtn.classList.toggle('hidden', !hasChanged);
+            saveBtn.disabled = !hasChanged;
+            if (saveHint) saveHint.textContent = hasChanged ? 'You have unsaved changes.' : 'Change a field to enable saving.';
         }
 
         fields.forEach((field) => {
-            field.addEventListener('input', syncSaveVisibility);
-            field.addEventListener('change', syncSaveVisibility);
+            field.addEventListener('input', syncSaveState);
+            field.addEventListener('change', syncSaveState);
         });
 
-        syncSaveVisibility();
+        syncSaveState();
     })();
 
     // Change detection for Contact Form
@@ -1116,11 +842,12 @@
 
         const form = saveBtn.closest('form');
         if (!form) return;
+        const saveHint = form.querySelector('.save-hint');
 
         const fields = Array.from(form.querySelectorAll('input[name], textarea[name]'));
         const initialValues = new Map(fields.map((field) => [field.name, (field.value || '').trim()]));
 
-        function syncSaveVisibility() {
+        function syncSaveState() {
             const hasChanged = fields.some((field) => {
                 const initial = initialValues.get(field.name) ?? '';
                 const current = (field.value || '').trim();
@@ -1128,15 +855,16 @@
                 return current !== initial;
             });
 
-            saveBtn.classList.toggle('hidden', !hasChanged);
+            saveBtn.disabled = !hasChanged;
+            if (saveHint) saveHint.textContent = hasChanged ? 'You have unsaved changes.' : 'Change a field to enable saving.';
         }
 
         fields.forEach((field) => {
-            field.addEventListener('input', syncSaveVisibility);
-            field.addEventListener('change', syncSaveVisibility);
+            field.addEventListener('input', syncSaveState);
+            field.addEventListener('change', syncSaveState);
         });
 
-        syncSaveVisibility();
+        syncSaveState();
     })();
 
     // AJAX submit for the Payslip Password forms (Update + Reset), so success/failure
@@ -1202,11 +930,12 @@
 
         const form = saveBtn.closest('form');
         if (!form) return;
+        const saveHint = form.querySelector('.save-hint');
 
         const fields = Array.from(form.querySelectorAll('input[name]'));
         const initialValues = new Map(fields.map((field) => [field.name, (field.value || '').trim()]));
 
-        function syncSaveVisibility() {
+        function syncSaveState() {
             const hasChanged = fields.some((field) => {
                 const initial = initialValues.get(field.name) ?? '';
                 const current = (field.value || '').trim();
@@ -1214,15 +943,16 @@
                 return current !== initial;
             });
 
-            saveBtn.classList.toggle('hidden', !hasChanged);
+            saveBtn.disabled = !hasChanged;
+            if (saveHint) saveHint.textContent = hasChanged ? 'You have unsaved changes.' : 'Change a field to enable saving.';
         }
 
         fields.forEach((field) => {
-            field.addEventListener('input', syncSaveVisibility);
-            field.addEventListener('change', syncSaveVisibility);
+            field.addEventListener('input', syncSaveState);
+            field.addEventListener('change', syncSaveState);
         });
 
-        syncSaveVisibility();
+        syncSaveState();
     })();
 </script>
 

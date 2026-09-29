@@ -148,15 +148,26 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
                 $displayEmail = (string) ($headerIdentity['display_email'] ?? ($user->email ?? ''));
                 $avatarSource = trim((string) ($displayName !== '' ? $displayName : $displayEmail));
                 $avatarInitials = strtoupper(substr($avatarSource !== '' ? $avatarSource : 'U', 0, 2));
+
+                $headerAccountActive  = ($headerIdentity['status'] ?? '') === 'Active';
+                $headerOnlineStatus   = $headerIdentity['online_status'] ?? 'Offline';
+                $headerPresenceBadges = ['Online' => 'bg-green-200 text-green-700', 'Away' => 'bg-yellow-200 text-yellow-700', 'Offline' => 'bg-gray-200 text-gray-500'];
+                $headerBadgeClass     = $headerAccountActive ? ($headerPresenceBadges[$headerOnlineStatus] ?? $headerPresenceBadges['Offline']) : 'bg-red-200 text-red-600';
+                $headerBadgeText      = $headerAccountActive ? $headerOnlineStatus : 'Inactive';
+                $headerEmployeeId     = $headerIdentity['employee_id'] ?? '';
+                $headerPresenceAttrs  = $headerAccountActive ? "data-presence-badge=\"{$headerEmployeeId}\" data-current-status=\"{$headerOnlineStatus}\"" : '';
             ?>
             <div class="user-profile" onclick="toggleUserMenu()">
-                <?php if ($photoUrl !== ''): ?>
-                    <div class="avatar avatar-photo" style="background-image:url('<?= esc($photoUrl) ?>');" aria-label="Profile photo"></div>
-                <?php else: ?>
-                    <div class="avatar">
-                        <?= esc($avatarInitials) ?>
-                    </div>
-                <?php endif; ?>
+                <div class="header-avatar-wrap">
+                    <?php if ($photoUrl !== ''): ?>
+                        <div class="avatar avatar-photo" style="background-image:url('<?= esc($photoUrl) ?>');" aria-label="Profile photo"></div>
+                    <?php else: ?>
+                        <div class="avatar">
+                            <?= esc($avatarInitials) ?>
+                        </div>
+                    <?php endif; ?>
+                    <span class="header-avatar-status-dot <?= $headerBadgeClass ?>" <?= $headerPresenceAttrs ?> title="<?= esc($headerBadgeText) ?>"></span>
+                </div>
                 <div class="user-info">
                     <div class="user-name"><?= esc($displayName !== '' ? $displayName : 'User') ?></div>
                     <div class="user-email"><?= esc($displayEmail) ?></div>
@@ -169,9 +180,11 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
                 <div class="user-dropdown-identity">
                     <div class="user-dropdown-name"><?= esc($displayName !== '' ? $displayName : 'User') ?></div>
                     <div class="user-dropdown-email"><?= esc($displayEmail) ?></div>
+                    <span class="user-dropdown-status <?= $headerBadgeClass ?>" <?= $headerPresenceAttrs ?>>
+                        <span class="status-dot"></span><span data-presence-label><?= esc($headerBadgeText) ?></span>
+                    </span>
                 </div>
-                <a href="<?= site_url('client_portal/profile') ?>">Profile</a>
-                <a href="<?= site_url('settings/customization') ?>">Settings</a>
+                <a href="<?= site_url('client_portal/profile') ?>">Account &amp; settings</a>
                 <a href="<?= site_url('logout') ?>">Logout</a>
             </div>
         </div>
@@ -970,6 +983,45 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
         background-repeat:no-repeat;
     }
 
+    .header-avatar-wrap{
+        position:relative;
+        flex:0 0 auto;
+    }
+
+    .header-avatar-status-dot{
+        position:absolute;
+        right:0;
+        bottom:0;
+        width:14px;
+        height:14px;
+        border:2px solid #fff;
+        border-radius:50%;
+        background:currentColor;
+    }
+
+    .user-dropdown-status{
+        display:inline-flex;
+        align-items:center;
+        margin-top:6px;
+        padding:5px;
+        border-radius:999px;
+        width:fit-content;
+    }
+
+    /* The label text stays in the DOM (presence.js writes to it on live status
+       changes) but is hidden — the dropdown just shows the color dot now. */
+    .user-dropdown-status [data-presence-label]{
+        display:none;
+    }
+
+    .user-dropdown-status .status-dot{
+        width:7px;
+        height:7px;
+        flex:0 0 7px;
+        border-radius:50%;
+        background:currentColor;
+    }
+
     /* =========================================================
     USER INFO
     ========================================================= */
@@ -1006,7 +1058,8 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
         position:absolute;
 
         right:0;
-        top:55px;
+        top:100%;
+        margin-top:8px;
 
         width:200px;
 

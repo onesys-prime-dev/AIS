@@ -7,91 +7,32 @@ $companyBranding = model(\App\Models\Client\CompanyBrandingModel::class)
 $companyLogoUrl = $companyBranding && !empty($companyBranding['logo_path'])
     ? base_url($companyBranding['logo_path'])
     : '';
+
+// ── Payslip sending: shared dialogs + actions ─────────────────────────────
+// No page of its own any more. Embedded once in Payroll Output (see
+// payroll_register.php); the Payslip sub-tab's cards call the functions below
+// (View, Activity, Send Now / Resend, Schedule, Cancel, Mark as Paid, release
+// mode). Card data comes from getRegisterRows(); window.PAYSLIP_DATA (below)
+// feeds the viewer.
+$payslips    = $payslips ?? [];
+$releaseMode = ($releaseMode ?? 'manual') === 'automatic' ? 'automatic' : 'manual';
+$canRelease  = (bool) ($canRelease ?? false);
+$today       = date('Y-m-d');
+$btn = 'px-3 py-1.5 rounded-lg text-xs font-semibold transition';
 ?>
-<div class="flex flex-col h-full gap-4">
-
-    <h3 class="font-semibold text-xl mb-1">Send &amp; Edit History</h3>
-
-    <!-- Header row -->
-    <div class="grid grid-cols-[2fr_2fr_1.2fr_1.5fr_1.2fr_1.5fr]
-                bg-[#DCDCDC] text-[#737373] border border-[#9E9E9E] rounded-lg overflow-hidden text-sm font-bold">
-        <div class="p-4">Employee</div>
-        <div class="p-4">Period</div>
-        <div class="p-4 text-right">Net Pay</div>
-        <div class="p-4">Date Sent</div>
-        <div class="p-4">Sent By</div>
-        <div class="p-4 text-center">Actions</div>
+<!-- Schedule dialog -->
+<div id="relScheduleModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:9999; align-items:center; justify-content:center;">
+    <div style="background:#fff; padding:22px; width:min(420px, calc(100vw - 32px)); border-radius:14px; box-shadow:0 8px 30px rgba(0,0,0,.25);">
+        <h3 style="font-size:16px;font-weight:700;color:#111827;margin-bottom:6px;">Schedule send</h3>
+        <p id="relScheduleInfo" style="font-size:13px;color:#4b5563;margin-bottom:12px;"></p>
+        <label style="font-size:12px;font-weight:600;color:#374151;">Send on</label>
+        <input type="date" id="relScheduleDate" min="<?= $today ?>" style="width:100%;border:1px solid #d1d5db;border-radius:8px;padding:8px 10px;margin-top:4px;font-size:14px;">
+        <p id="relScheduleHint" style="font-size:12px;color:#6b7280;margin-top:6px;"></p>
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;">
+            <button type="button" onclick="closeScheduleDialog()" class="<?= $btn ?> bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300">Cancel</button>
+            <button type="button" id="relScheduleConfirm" onclick="confirmSchedule()" class="<?= $btn ?> bg-blue-600 hover:bg-blue-700 text-white">Schedule</button>
+        </div>
     </div>
-
-    <!-- Body -->
-    <div class="flex-1 min-h-0 overflow-y-auto text-gray-700 text-sm scroll-bar">
-
-        <?php if (!empty($payslips)): ?>
-            <?php foreach ($payslips as $ps): ?>
-            <div class="grid grid-cols-[2fr_2fr_1.2fr_1.5fr_1.2fr_1.5fr] items-center border-b hover:bg-gray-50 transition-colors">
-
-                <div class="p-4 font-medium truncate">
-                    <?= esc((string) ($ps['employee_name'] ?? '---')) ?>
-                </div>
-
-                <div class="p-4 whitespace-nowrap">
-                    <?= !empty($ps['period_start']) ? date('M d, Y', strtotime($ps['period_start'])) : '---' ?>
-                    &ndash;
-                    <?= !empty($ps['period_end'])   ? date('M d, Y', strtotime($ps['period_end']))   : '---' ?>
-                </div>
-
-                <div class="p-4 text-right font-semibold">
-                    ₱<?= number_format((float) ($ps['net_pay'] ?? 0), 2) ?>
-                </div>
-
-                <div class="p-4 whitespace-nowrap text-sm">
-                    <?php if (!empty($ps['sent_at'])): ?>
-                        <span class="inline-flex items-center gap-1 bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-xs font-semibold">
-                            &#10003; <?= date('M d, Y', strtotime($ps['sent_at'])) ?>
-                        </span>
-                    <?php else: ?>
-                        <span class="text-gray-400 text-xs">Not sent</span>
-                    <?php endif; ?>
-                </div>
-
-                <div class="p-4 text-sm">
-                    <?php if (!empty($ps['sent_by'])): ?>
-                        <span class="font-medium text-gray-700"><?= esc($ps['sent_by']) ?></span>
-                    <?php else: ?>
-                        <span class="text-gray-400">—</span>
-                    <?php endif; ?>
-                </div>
-
-                <div class="p-4 flex justify-center items-center gap-2 flex-wrap">
-                    <button onclick="openPayslipViewer(<?= (int)($ps['id'] ?? 0) ?>)"
-                            class="px-3 py-1.5 bg-[#7b5cff] hover:bg-[#6a4de0] text-white rounded-lg text-xs font-semibold transition">
-                        View
-                    </button>
-                    <a href="<?= site_url('client_portal/payroll/downloadPayslip/' . ($ps['id'] ?? 0)) ?>"
-                       class="px-3 py-1.5 bg-gray-600 hover:bg-gray-700 text-white rounded-lg text-xs font-semibold transition">
-                        PDF
-                    </a>
-                    <button onclick="resendPayslipEmail(<?= (int)($ps['id'] ?? 0) ?>, this)"
-                            class="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs font-semibold transition">
-                        <?= !empty($ps['sent_at']) ? 'Resend' : 'Send' ?>
-                    </button>
-                    <button onclick="openPayslipActivity(<?= (int)($ps['id'] ?? 0) ?>)"
-                            class="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 rounded-lg text-xs font-semibold transition">
-                        Activity
-                    </button>
-                </div>
-
-            </div>
-            <?php endforeach; ?>
-
-        <?php else: ?>
-            <div class="flex items-center justify-center py-16 text-gray-400 text-sm">
-                No payslips generated yet. Use <strong class="mx-1">Generate Payslip</strong> to create records.
-            </div>
-        <?php endif; ?>
-
-    </div>
-
 </div>
 
 <!-- Payslip Viewer Modal -->
@@ -102,10 +43,14 @@ $companyLogoUrl = $companyBranding && !empty($companyBranding['logo_path'])
         <div id="payslipViewerContent" style="min-height:200px;">
             <p style="text-align:center; color:#888; padding:40px 0;">Select a payslip to view.</p>
         </div>
-        <div style="text-align:center; margin-top:16px; padding-top:16px; border-top:1px solid #e5e7eb; display:flex; gap:10px; justify-content:center;">
+        <div style="text-align:center; margin-top:16px; padding-top:16px; border-top:1px solid #e5e7eb; display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
             <button id="payslipViewerSendBtn"
                 class="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg text-sm font-semibold transition"
                 onclick="sendFromViewer()">Send to Employee Email</button>
+            <a id="payslipViewerPdfLink" href="#"
+                class="bg-gray-600 hover:bg-gray-700 text-white px-6 py-3 rounded-lg text-sm font-semibold transition">PDF</a>
+            <button id="payslipViewerActivityBtn" type="button"
+                class="bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 px-6 py-3 rounded-lg text-sm font-semibold transition">Activity</button>
             <button onclick="document.getElementById('payslipViewerModal').style.display='none'"
                 class="bg-gray-500 hover:bg-gray-600 text-white px-6 py-3 rounded-lg text-sm font-semibold transition">Close</button>
         </div>
@@ -127,20 +72,18 @@ $companyLogoUrl = $companyBranding && !empty($companyBranding['logo_path'])
 <!-- Embed payslip data server-side so JS doesn't need to call getPayslipData (avoids permission issues) -->
 <script>
 (function() {
-    // This page is now embedded several levels deep (Payroll Output
-    // → History sub-tab → this partial), so move the modals to be direct
-    // children of <body> — makes them immune to any ancestor's display/overflow/
-    // stacking-context quirks instead of depending on every wrapper in between
-    // behaving perfectly.
+    // Embedded several levels deep (Payroll Output → this partial), so move the
+    // modals to be direct children of <body> — makes them immune to any
+    // ancestor's display/overflow/stacking-context quirks.
     document.addEventListener('DOMContentLoaded', function () {
-        ['payslipViewerModal', 'payslipActivityModal'].forEach(function (id) {
+        ['payslipViewerModal', 'payslipActivityModal', 'relScheduleModal'].forEach(function (id) {
             const el = document.getElementById(id);
             if (el && el.parentElement !== document.body) document.body.appendChild(el);
         });
     });
 
     // Exposed on window (not just const-scoped to this IIFE) so other scripts
-    // on the page — e.g. the Payslip tab's "Send All" in payroll_register.php —
+    // on the page — e.g. the Register's payslip views in payroll_register.php —
     // can look up a payslip's stored data without a second round-trip.
     window.PAYSLIP_DATA = {
         <?php foreach ($payslips as $ps): ?>
@@ -157,8 +100,163 @@ $companyLogoUrl = $companyBranding && !empty($companyBranding['logo_path'])
         <?php endforeach; ?>
     };
 
-    const SEND_PDF_URL = '<?= site_url('client_portal/payroll/sendPdf') ?>';
     const ACTIVITY_URL = '<?= site_url('client_portal/payroll/getPayslipActivity') ?>';
+    const REL_URL = {
+        send:     '<?= site_url('client_portal/payroll/release/send') ?>',
+        schedule: '<?= site_url('client_portal/payroll/release/schedule') ?>',
+        cancel:   '<?= site_url('client_portal/payroll/release/cancel') ?>',
+        mode:     '<?= site_url('client_portal/payroll/release/mode') ?>',
+        markPaid: '<?= site_url('client_portal/payroll/release/markPaid') ?>',
+    };
+    const REL_TODAY = '<?= $today ?>';
+    const PAYSLIP_DATA_URL = '<?= site_url('client_portal/payroll/getPayslipData') ?>';
+    window.RELEASE_MODE = '<?= $releaseMode ?>';
+    window.CAN_RELEASE  = <?= $canRelease ? 'true' : 'false' ?>;
+
+    function relToast(msg, type) { if (typeof showToast === 'function') showToast(msg, type); else alert(msg); }
+
+    // The Payslip sub-tab (payroll_register.php) provides card info and a
+    // refresh hook, so actions update the loaded cards in place instead of
+    // reloading the page (which would lose the loaded month/period).
+    function relInfo(id) { return (typeof window.getPayslipCardInfo === 'function' && window.getPayslipCardInfo(id)) || {}; }
+    function relName(id) { return relInfo(id).employee_name || ('payslip #' + id); }
+    function relRefresh() {
+        if (typeof window.onPayslipReleaseChanged === 'function') window.onPayslipReleaseChanged();
+        else location.reload();
+    }
+    function fmtLongDate(ymd) { return ymd ? new Date(ymd + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''; }
+
+    async function relPost(url, body) {
+        const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '' },
+            body: JSON.stringify(body)
+        });
+        let json = {};
+        try { json = await res.json(); } catch (e) { json = { success: false, error: 'Server error ' + res.status }; }
+        if (!res.ok && json.success === undefined) json.success = false;
+        if (!res.ok && !json.error) json.error = json.message || ('Server error ' + res.status);
+        return json;
+    }
+
+    // ── Send ──
+    async function sendOne(id, force, method) {
+        return relPost(REL_URL.send, { id, force: !!force, method: method || 'individual' });
+    }
+
+    window.releaseSendOne = async function (id, btn) {
+        const isResend = relInfo(id).send_status === 'sent';
+        if (!confirm(`${isResend ? 'Resend' : 'Send'} ${relName(id)}'s payslip to their email now?`)) return;
+        const orig = btn ? btn.textContent : '';
+        if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
+        try {
+            let json = await sendOne(id, false);
+            if (!json.success && json.needs_confirm) {
+                if (confirm(json.error + '\n\nSend the saved figures anyway?')) json = await sendOne(id, true);
+            }
+            if (json.success) relToast(json.warning || `${relName(id)}'s payslip was sent.`, json.warning ? 'warning' : 'success');
+            else relToast(json.error || 'Send failed.', 'error');
+            relRefresh();
+            return;
+        } catch (e) {
+            relToast('Network error — nothing was sent. ' + e.message, 'error');
+        }
+        if (btn) { btn.disabled = false; btn.textContent = orig; }
+    };
+
+    /** Sends several payslips one by one; onProgress(done, total) for a live counter. */
+    window.releaseSendMany = async function (ids, onProgress) {
+        if (!ids.length) { relToast('Nothing to send in this cutoff.', 'warning'); return; }
+        if (!confirm(`Send ${ids.length} payslip(s) to the employees' email now?`)) return;
+        let sent = 0, held = 0, failed = 0, firstErr = '';
+        for (let i = 0; i < ids.length; i++) {
+            if (onProgress) onProgress(i, ids.length);
+            try {
+                const json = await sendOne(ids[i], false, 'bulk');
+                if (json.success) sent++;
+                else if (json.status === 'needs_review') { held++; firstErr ||= `${relName(ids[i])}: ${json.error}`; }
+                else { failed++; firstErr ||= `${relName(ids[i])}: ${json.error}`; }
+            } catch (e) { failed++; firstErr ||= e.message; }
+        }
+        if (onProgress) onProgress(ids.length, ids.length);
+        const parts = [`${sent} sent`];
+        if (held) parts.push(`${held} held for review`);
+        if (failed) parts.push(`${failed} failed`);
+        relToast(parts.join(', ') + '.' + (firstErr ? ' First problem — ' + firstErr : ''), (held || failed) ? 'warning' : 'success');
+        relRefresh();
+    };
+
+    // ── Schedule ──
+    let _scheduleIds = [];
+    window.openScheduleDialog = function (ids) {
+        _scheduleIds = (ids || []).slice();
+        if (!_scheduleIds.length) { relToast('Nothing to schedule in this cutoff.', 'warning'); return; }
+        const first = relInfo(_scheduleIds[0]);
+        const salaryDay = first.salary_day || '';
+        const current = _scheduleIds.length === 1 ? (first.scheduled_send_date || '') : '';
+        let date = current || salaryDay || REL_TODAY;
+        if (date < REL_TODAY) date = REL_TODAY;
+        document.getElementById('relScheduleDate').value = date;
+        document.getElementById('relScheduleInfo').textContent = _scheduleIds.length === 1
+            ? `${relName(_scheduleIds[0])}'s payslip will be emailed automatically on this date.`
+            : `${_scheduleIds.length} payslips will be emailed automatically on this date.`;
+        document.getElementById('relScheduleHint').textContent = salaryDay
+            ? `Salary day for this cutoff: ${fmtLongDate(salaryDay)}${salaryDay < REL_TODAY ? ' (already passed — defaulting to today)' : ''}.`
+            : 'No salary day is set for this cutoff in Payroll Settings — pick a date.';
+        document.getElementById('relScheduleConfirm').disabled = false;
+        document.getElementById('relScheduleModal').style.display = 'flex';
+    };
+    window.closeScheduleDialog = function () { document.getElementById('relScheduleModal').style.display = 'none'; };
+    window.confirmSchedule = async function () {
+        const date = document.getElementById('relScheduleDate').value;
+        if (!date) { relToast('Pick a date.', 'warning'); return; }
+        if (date < REL_TODAY) { relToast('The send date can\'t be in the past.', 'warning'); return; }
+        const btn = document.getElementById('relScheduleConfirm');
+        btn.disabled = true;
+        try {
+            const json = await relPost(REL_URL.schedule, { ids: _scheduleIds, date });
+            if (!json.success) throw new Error(json.error || 'Could not schedule.');
+            const skipped = (json.skipped || []).length;
+            relToast(`${json.scheduled} payslip(s) scheduled for ${fmtLongDate(date)}.` + (skipped ? ` ${skipped} skipped (already sent or sending).` : ''), skipped ? 'warning' : 'success');
+            closeScheduleDialog();
+            relRefresh();
+        } catch (e) {
+            relToast(e.message, 'error');
+            btn.disabled = false;
+        }
+    };
+
+    window.releaseCancel = async function (ids) {
+        if (!ids.length || !confirm(`Cancel the scheduled send for ${ids.length === 1 ? relName(ids[0]) : ids.length + ' payslips'}? They go back to draft.`)) return;
+        const json = await relPost(REL_URL.cancel, { ids });
+        if (!json.success) { relToast(json.error || 'Could not cancel.', 'error'); return; }
+        relToast(`${json.cancelled} scheduled send(s) cancelled.`, 'success');
+        relRefresh();
+    };
+
+    // ── Mark as paid (one-way) ──
+    window.markPaid = async function (ids) {
+        if (!ids.length) { relToast('Nothing left to mark as paid in this cutoff.', 'warning'); return; }
+        if (!confirm(`Mark ${ids.length === 1 ? relName(ids[0]) + "'s payslip" : ids.length + ' payslips'} as paid? This can't be undone.`)) return;
+        const json = await relPost(REL_URL.markPaid, { ids });
+        if (!json.success) { relToast(json.error || 'Could not mark as paid.', 'error'); return; }
+        relToast(`${json.marked} payslip(s) marked as paid.`, 'success');
+        relRefresh();
+    };
+
+    // ── Release mode ──
+    window.setReleaseMode = async function (mode) {
+        if (mode === window.RELEASE_MODE) return;
+        const msg = mode === 'automatic'
+            ? 'Switch to Automatic?\n\nPayslips saved from now on will be scheduled for the salary day automatically. Payslips already saved won\'t change.'
+            : 'Switch to Manual?\n\nPayslips saved from now on will stay as drafts until someone sends or schedules them. Payslips already scheduled won\'t change.';
+        if (!confirm(msg)) return;
+        const json = await relPost(REL_URL.mode, { mode });
+        if (!json.success) { relToast(json.error || 'Could not change the release mode.', 'error'); return; }
+        window.RELEASE_MODE = mode;
+        if (typeof window.onReleaseModeChanged === 'function') window.onReleaseModeChanged(mode);
+        relToast(`Release mode set to ${mode === 'automatic' ? 'Automatic' : 'Manual'}.`, 'success');
+    };
     const companyLogoUrl = <?= json_encode($companyLogoUrl) ?>;
 
     const ACTION_ICON = { created: '&#10133;', updated: '&#9998;', deleted: '&#128465;' };
@@ -208,72 +306,55 @@ $companyLogoUrl = $companyBranding && !empty($companyBranding['logo_path'])
         }
     };
 
-    let _viewerData = null;
+    let _viewerId = null;
 
-    window.openPayslipViewer = function(id) {
-        const data = PAYSLIP_DATA[id];
+    // Fetches the payslip's CURRENT saved figures (the Payslip cards refresh in
+    // place, so the copy embedded at page load can be out of date); falls back
+    // to that embedded copy if the request fails.
+    window.openPayslipViewer = async function(id) {
         const modal   = document.getElementById('payslipViewerModal');
         const content = document.getElementById('payslipViewerContent');
-        _viewerData   = null;
+        const sendBtn = document.getElementById('payslipViewerSendBtn');
+        const pdfLink = document.getElementById('payslipViewerPdfLink');
+        const actBtn  = document.getElementById('payslipViewerActivityBtn');
+        _viewerId = null;
+        content.innerHTML = '<p style="text-align:center; color:#888; padding:40px 0;">Loading…</p>';
+        if (sendBtn) sendBtn.style.display = 'none';
+        modal.style.display = 'block';
+
+        let data = null;
+        try {
+            const res = await fetch(PAYSLIP_DATA_URL + '/' + id, { headers: { 'Accept': 'application/json' } });
+            if (res.ok) data = (await res.json()).generated_data || null;
+        } catch (e) { /* fall back below */ }
+        if (!data || !Object.keys(data).length) data = PAYSLIP_DATA[id] || null;
+
+        if (pdfLink) pdfLink.href = '<?= site_url('client_portal/payroll/downloadPayslip') ?>/' + id;
+        if (actBtn) actBtn.onclick = () => openPayslipActivity(id);
 
         if (!data) {
             content.innerHTML = '<p style="color:red;text-align:center;padding:40px;">No payslip data stored for this record.</p>';
-            modal.style.display = 'block';
             return;
         }
 
-        _viewerData = data;
+        _viewerId = id;
         content.innerHTML = renderStoredPayslip(data);
-        modal.style.display = 'block';
-    };
-
-    window.resendPayslipEmail = async function(id, btn) {
-        const data = PAYSLIP_DATA[id];
-        if (!data) { showToast('No stored payslip data for this record.', 'warning'); return; }
-        if (!confirm('Send payslip PDF to the employee\'s email?')) return;
-
-        const origText  = btn.textContent;
-        btn.disabled    = true;
-        btn.textContent = 'Sending…';
-        try {
-            const res  = await fetch(SEND_PDF_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '' },
-                body: JSON.stringify(data)
-            });
-            const json = await res.json();
-            if (!res.ok || !json.success) throw new Error(json.error || 'Send failed');
-            showToast('Payslip sent successfully to employee email.', 'success');
-            setTimeout(() => location.reload(), 1200);
-        } catch (e) {
-            showToast('Error: ' + e.message, 'error');
-            btn.disabled    = false;
-            btn.textContent = origText;
+        if (sendBtn) {
+            const status = relInfo(id).send_status || '';
+            const canSend = window.CAN_RELEASE && status !== 'sending';
+            sendBtn.style.display = canSend ? '' : 'none';
+            sendBtn.textContent = status === 'sent' ? 'Resend to Employee Email' : 'Send Now to Employee Email';
+            sendBtn.disabled = false;
         }
     };
+
+    // Kept for any older caller — sends via the release endpoint.
+    window.resendPayslipEmail = function(id, btn) { return releaseSendOne(id, btn); };
 
     window.sendFromViewer = async function() {
-        if (!_viewerData) { showToast('No payslip loaded.', 'warning'); return; }
-        if (!confirm('Send this payslip PDF to the employee\'s email?')) return;
-        const btn = document.getElementById('payslipViewerSendBtn');
-        btn.disabled    = true;
-        btn.textContent = 'Sending…';
-        try {
-            const res  = await fetch(SEND_PDF_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '' },
-                body: JSON.stringify(_viewerData)
-            });
-            const json = await res.json();
-            if (!res.ok || !json.success) throw new Error(json.error || 'Send failed');
-            showToast('Payslip sent successfully to employee email.', 'success');
-            document.getElementById('payslipViewerModal').style.display = 'none';
-            setTimeout(() => location.reload(), 1200);
-        } catch (e) {
-            showToast('Error: ' + e.message, 'error');
-            btn.disabled    = false;
-            btn.textContent = 'Send to Employee Email';
-        }
+        if (!_viewerId) { relToast('No payslip loaded.', 'warning'); return; }
+        document.getElementById('payslipViewerModal').style.display = 'none';
+        await releaseSendOne(_viewerId, null);
     };
 
     // ---- Render stored payslip from generated_data (snake_case keys) ----
@@ -357,6 +438,10 @@ $companyLogoUrl = $companyBranding && !empty($companyBranding['logo_path'])
             ['HDMF Loan',         n(d.hdmf_loan)],
             ['Salary Advance',    n(d.salary_advance)],
             ['Cal. Advance',      n(d.cal_adv)],
+            // Loans-module installments due this cutoff — already taken out of
+            // net pay when the payslip was saved; listed like the emailed PDF.
+            ...(Array.isArray(d.loan_deductions) ? d.loan_deductions : [])
+                .map(l => [esc(l.loan_type || 'Loan'), n(l.amount)]),
         ].filter(([, v]) => v > 0);
         const totalDeductions = regDeds.reduce((s, [, v]) => s + v, 0) + loans.reduce((s, [, v]) => s + v, 0);
         const maxRows  = Math.max(regDeds.length, loans.length);

@@ -47,7 +47,9 @@
 ?>
             <button type="button" data-period="monthly"
                 class="period-tab px-4 py-2 rounded-lg text-sm font-medium transition-all <?= $selPeriod === 'monthly' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700' ?>">
-                Monthly
+                Monthly<?php if ($selPeriod === 'monthly' && $h1Start && $h1End): ?>
+                    <span class="text-xs text-gray-500 ml-1">(<?= esc($h1Start) ?>–<?= esc($h1End) ?>)</span>
+                <?php endif ?>
             </button>
             <button type="button" data-period="1st_half"
                 class="period-tab px-4 py-2 rounded-lg text-sm font-medium transition-all <?= $selPeriod === '1st_half' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700' ?>">

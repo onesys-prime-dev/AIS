@@ -449,7 +449,7 @@ class TimesheetController extends BaseController
 
         $userIds = array_values(array_unique(array_map('intval', array_column($rows, 'user_id'))));
         $slips = $db->table('employee_payslips p')
-            ->select('e.user_id, p.period_start, p.period_end')
+            ->select('e.user_id, p.period_start, p.period_end, p.sent_at')
             ->join('employees e', 'e.id = p.employee_id')
             ->whereIn('e.user_id', $userIds)
             ->get()->getResultArray();
@@ -470,11 +470,18 @@ class TimesheetController extends BaseController
 
         foreach ($rows as &$row) {
             $day = $row['shift_date'] ?? null ?: substr((string) $row['time_in'], 0, 10);
+            // payslip_issued: a SENT payslip covers the day (the employee's copy
+            // won't change). payslip_unsent: only a draft/scheduled one does —
+            // it's held at send time until re-saved (see deliverPayslip()).
             $row['payslip_issued'] = false;
+            $row['payslip_unsent'] = false;
             foreach ($slips as $slip) {
                 if ((int) $slip['user_id'] === (int) $row['user_id'] && $slip['period_start'] <= $day && $day <= $slip['period_end']) {
-                    $row['payslip_issued'] = true;
-                    break;
+                    if (!empty($slip['sent_at'])) {
+                        $row['payslip_issued'] = true;
+                        break;
+                    }
+                    $row['payslip_unsent'] = true;
                 }
             }
             $row['last_correction'] = $lastCorrection[(int) $row['id']] ?? null;

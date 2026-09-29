@@ -3,7 +3,9 @@
 namespace App\Controllers\Client;
 
 use App\Controllers\BaseController;
+use App\Models\Client\CompanyBrandingModel;
 use App\Models\Client\LeaveBalanceModel;
+use App\Models\Client\UserSettingsModel;
 use App\Services\Client\AccountService;
 
 class EmployeeAccountController extends BaseController
@@ -42,6 +44,21 @@ class EmployeeAccountController extends BaseController
             $viewData['sickBalance']      = null;
             $viewData['emergencyBalance'] = null;
         }
+
+        // Appearance settings now live in the account page alongside profile
+        // and security settings, so load the same data used by the former
+        // standalone customization screen.
+        $companyId = $this->resolveActiveCompanyId();
+        $branding  = (new CompanyBrandingModel())->getOrCreateDefault($companyId);
+
+        $userSettings = (new UserSettingsModel())->getSettingsArray((int) $user->id);
+        $branding     = CompanyBrandingModel::applyUserOverrides($branding, $userSettings);
+
+        $viewData['appearanceBranding'] = $branding;
+        $viewData['appearanceLogoUrl'] = ! empty($branding['logo_path'])
+            ? base_url((string) $branding['logo_path'])
+            : null;
+        $viewData['canManageAppearanceLogo'] = \App\Libraries\PortalAccess::can('branding');
 
         return view('client_portal/employee_account', $viewData);
     }

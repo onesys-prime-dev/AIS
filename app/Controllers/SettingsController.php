@@ -23,32 +23,7 @@ class SettingsController extends BaseController
             return redirect()->to('/login');
         }
 
-        $companyId = $this->resolveActiveCompanyId();
-        $branding  = $this->getOrCreateBranding($companyId);
-
-        // Load this user's saved color preferences (may override company defaults in the view)
-        $userId       = (int) $user->id;
-        $userSettings = $this->userSettingsModel->getSettingsArray($userId);
-
-        // Merge: user prefs win over company branding for color/typography fields
-        $colorKeys = ['sidebar_color', 'header_color', 'background_color', 'sidebar_icon_mode', 'font_family', 'font_size'];
-        foreach ($colorKeys as $key) {
-            if (! empty($userSettings[$key])) {
-                $branding[$key] = $userSettings[$key];
-            }
-        }
-
-        $branding['font_family'] ??= 'default';
-        $branding['font_size']   ??= 'medium';
-
-        $data = [
-            'title'         => 'Customization',
-            'branding'      => $branding,
-            'logoUrl'       => ! empty($branding['logo_path']) ? base_url((string) $branding['logo_path']) : null,
-            'canManageLogo' => \App\Libraries\PortalAccess::can('branding'),
-        ];
-
-        return view('settings/customization', $data);
+        return redirect()->to(site_url('client_portal/profile') . '?tab=appearance');
     }
 
     public function saveCustomization()
@@ -201,23 +176,6 @@ class SettingsController extends BaseController
 
     private function getOrCreateBranding(int $companyId): array
     {
-        $branding = $this->brandingModel->where('company_id', $companyId)->first();
-
-        if ($branding) {
-            return $branding;
-        }
-
-        return [
-            'id'                 => null,
-            'company_id'         => $companyId,
-            'logo_path'          => null,
-            'logo_original_name' => null,
-            'logo_mime_type'     => null,
-            'logo_size'          => null,
-            'sidebar_color'      => '#1e1e1e',
-            'header_color'       => '#ffffff',
-            'background_color'   => '#f5f6fa',
-            'sidebar_icon_mode'  => 'auto',
-        ];
+        return $this->brandingModel->getOrCreateDefault($companyId);
     }
 }

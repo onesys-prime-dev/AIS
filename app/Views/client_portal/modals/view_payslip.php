@@ -355,8 +355,8 @@ async function loadPayslipList() {
         const payslips = await response.json();
         
         if (payslips.length === 0) {
-            select.innerHTML = '<option value="">No payslips found</option>';
-            document.getElementById('payslipPreview').innerHTML = '<div style="text-align:center;padding:40px;">No payslips available</div>';
+            select.innerHTML = '<option value="">No released payslips yet</option>';
+            document.getElementById('payslipPreview').innerHTML = '<div style="text-align:center;padding:40px;color:#6b7280;">No released payslips yet. Your payslip appears here (and in your email) once payroll sends it.</div>';
             return;
         }
         

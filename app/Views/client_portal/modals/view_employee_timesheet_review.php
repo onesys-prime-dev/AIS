@@ -111,6 +111,15 @@
     const placeholder   = document.getElementById('etrPlaceholder');
     const tableWrap      = document.getElementById('etrTableWrap');
 
+    // Delegated on the stable wrapper (not the rows themselves, which get
+    // torn down and rebuilt on every renderTable() call) so this needs
+    // binding only once instead of re-attaching per row.
+    tableWrap.addEventListener('click', (event) => {
+        const row = event.target.closest('tr[data-task-row-id]');
+        if (!row) return;
+        toggleReviewTaskRow(row.dataset.taskRowId);
+    });
+
     let employeesLoaded = false;
     let employeeList    = [];
 
@@ -152,6 +161,38 @@
         const d = new Date(dateStr);
         if (Number.isNaN(d.getTime())) return dateStr;
         return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+    }
+
+    function fmtTaskTime(timeStr) {
+        const d = new Date(`2000-01-01T${String(timeStr).length === 5 ? timeStr + ':00' : timeStr}`);
+        return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    }
+
+    // Spans crossing midnight (end <= start) are treated as running into the
+    // next day, same convention as the Timesheet page's own task-duration math.
+    function taskDurationLabel(startStr, endStr) {
+        const start = new Date(`2000-01-01T${String(startStr).length === 5 ? startStr + ':00' : startStr}`);
+        let end = new Date(`2000-01-01T${String(endStr).length === 5 ? endStr + ':00' : endStr}`);
+        if (end <= start) end = new Date(end.getTime() + 86400000);
+        const totalMin = Math.round((end - start) / 60000);
+        const h = Math.floor(totalMin / 60);
+        const m = totalMin % 60;
+        if (h && m) return `${h}h ${m}m`;
+        if (h) return `${h}h`;
+        return `${m}m`;
+    }
+
+    // Named distinctly from the main Timesheet page's own toggleTaskRow() —
+    // both scripts run in the same global scope (this modal is inlined
+    // directly into timesheet.php), and that one takes a raw attendance_id
+    // rather than a full element id, so a shared name would silently clobber
+    // whichever definition loads second.
+    function toggleReviewTaskRow(rowId) {
+        const row = document.getElementById(rowId);
+        if (!row) return;
+        row.classList.toggle('hidden');
+        const chevron = document.getElementById(rowId + '-chevron');
+        if (chevron) chevron.style.transform = row.classList.contains('hidden') ? '' : 'rotate(180deg)';
     }
 
     function badge(value, formatted, type) {
@@ -396,15 +437,48 @@
             const breakDisplay = day.break_hours > 0 ? Number(day.break_hours).toFixed(2) : '<span class="text-gray-400">—</span>';
             const remarksTitle = escapeHtml(day.remarks || '');
             const clientTitle  = escapeHtml(day.client || '');
-            const taskTitle    = escapeHtml(day.task_performed || '');
             const clientCell = day.client ? `<span class="text-gray-700">${escapeHtml(day.client)}</span>` : '<span class="text-gray-300">—</span>';
             const dayTasks = day.tasks || [];
+            const taskTooltip = dayTasks.length
+                ? dayTasks.map(t => `${fmtTaskTime(t.start_time)}–${fmtTaskTime(t.end_time)} (${taskDurationLabel(t.start_time, t.end_time)}): ${t.task_performed}${t.client ? ' (' + t.client + ')' : ''}`).join('\n')
+                : (day.task_performed || '');
+            const taskTotalMs = dayTasks.reduce((sum, t) => {
+                const start = new Date(`2000-01-01T${String(t.start_time).length === 5 ? t.start_time + ':00' : t.start_time}`);
+                let end = new Date(`2000-01-01T${String(t.end_time).length === 5 ? t.end_time + ':00' : t.end_time}`);
+                if (end <= start) end = new Date(end.getTime() + 86400000);
+                return sum + (end - start);
+            }, 0);
+            const taskTotalLabel = (() => {
+                const totalMin = Math.round(taskTotalMs / 60000);
+                const h = Math.floor(totalMin / 60);
+                const m = totalMin % 60;
+                if (h && m) return `${h}h ${m}m`;
+                if (h) return `${h}h`;
+                return `${m}m`;
+            })();
+            const rowId = `task-expand-review-${i}`;
             const taskCell = dayTasks.length
-                ? `<span class="text-gray-700">${escapeHtml(dayTasks[0].task_performed)}</span>${dayTasks.length > 1 ? `<span class="ml-1 text-[10px] font-semibold text-slate-500">+${dayTasks.length - 1}</span>` : ''}`
+                ? (dayTasks.length > 1
+                    ? `<div class="flex items-center gap-2 min-w-0">
+                           <span class="text-gray-700 truncate" style="max-width:150px;" title="${escapeHtml(dayTasks[0].task_performed)}">${escapeHtml(dayTasks[0].task_performed)}</span>
+                           <span class="flex-shrink-0 inline-flex items-center gap-1 bg-purple-50 text-purple-700 px-2 py-0.5 rounded-full text-[11px] font-semibold" title="Click this row to show all ${dayTasks.length} tasks">
+                                    ${dayTasks.length} tasks · ${taskTotalLabel}
+                                    <svg id="${rowId}-chevron" class="transition-transform" style="width:10px;height:10px;" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                                </span>
+                       </div>`
+                    : `<span class="text-gray-700 truncate inline-block align-middle" style="max-width:150px;" title="${escapeHtml(dayTasks[0].task_performed)}">${escapeHtml(dayTasks[0].task_performed)}</span> <span class="text-gray-400 text-xs">· ${taskTotalLabel}</span>`)
                 : (day.task_performed ? `<span class="text-gray-700">${escapeHtml(day.task_performed)}</span>` : '<span class="text-gray-300">—</span>');
+            const taskBreakdownRows = dayTasks.length > 1 ? dayTasks.map(t => `
+                    <tr class="border-t border-gray-100">
+                        <td class="py-1.5 pr-3 whitespace-nowrap text-gray-600">${fmtTaskTime(t.start_time)} – ${fmtTaskTime(t.end_time)}</td>
+                        <td class="py-1.5 pr-3 whitespace-nowrap text-purple-600 font-semibold">${taskDurationLabel(t.start_time, t.end_time)}</td>
+                        <td class="py-1.5 pr-3 whitespace-nowrap text-gray-600">${t.client ? escapeHtml(t.client) : '<span class="text-gray-300">—</span>'}</td>
+                        <td class="py-1.5 text-gray-700">${escapeHtml(t.task_performed)}</td>
+                    </tr>`).join('') : '';
 
+            const reviewRowClickAttr = dayTasks.length > 1 ? ` data-task-row-id="${rowId}" style="cursor:pointer;"` : '';
             rowsHtml += `
-                <tr class="${border} ${rowBg}">
+                <tr class="${border} ${rowBg}"${reviewRowClickAttr}>
                     <td class="px-4 py-3 whitespace-nowrap font-medium text-gray-700">${dateCell}</td>
                     <td class="px-4 py-3 whitespace-nowrap text-gray-600">${timeIn}</td>
                     <td class="px-4 py-3 whitespace-nowrap text-gray-600">${timeOut}</td>
@@ -419,8 +493,26 @@
                     <td class="px-4 py-3 text-right whitespace-nowrap">${badge(day.night_diff, (day.night_diff || 0).toFixed(2), 'nd')}</td>
                     <td class="px-4 py-3 text-sm text-gray-500 max-w-[180px] truncate" title="${remarksTitle}">${escapeHtml(day.remarks) || '<span class="text-gray-300">—</span>'}</td>
                     <td class="px-4 py-3 text-sm max-w-[120px] truncate" title="${clientTitle}">${clientCell}</td>
-                    <td class="px-4 py-3 text-sm max-w-[180px] truncate" title="${taskTitle}">${taskCell}</td>
-                </tr>`;
+                    <td class="px-4 py-3 text-sm" title="${escapeHtml(taskTooltip)}">${taskCell}</td>
+                </tr>
+                ${dayTasks.length > 1 ? `
+                <tr id="${rowId}" class="hidden bg-purple-50/20 ${border}">
+                    <td colspan="15" class="px-4 py-2.5">
+                        <div class="bg-white border border-purple-100 rounded-lg px-3 py-2" style="margin-left:40px;">
+                            <table class="w-full text-xs">
+                                <thead>
+                                    <tr>
+                                        <th class="text-left font-semibold text-gray-400 py-1 pr-3">Time</th>
+                                        <th class="text-left font-semibold text-gray-400 py-1 pr-3">Duration</th>
+                                        <th class="text-left font-semibold text-gray-400 py-1 pr-3">Client</th>
+                                        <th class="text-left font-semibold text-gray-400 py-1">Task</th>
+                                    </tr>
+                                </thead>
+                                <tbody>${taskBreakdownRows}</tbody>
+                            </table>
+                        </div>
+                    </td>
+                </tr>` : ''}`;
         });
 
         const t = Object.assign({

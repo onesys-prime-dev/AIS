@@ -126,7 +126,9 @@ final class PortalAccess
         if (preg_match('~^client_portal/payroll/(?:getmypayslips)$~', $path)) return 'self';
         if ($path === 'client_portal/performance/my-summary') return 'self';
         if (preg_match('~^client_portal/payroll/(?:downloadpayslip|getpayslipdata)/[0-9]+$~', $path)) return 'self';
-        if (preg_match('~^client_portal/payroll/(?:markstatus|markpaid/[0-9]+|send(?:/.*)?|sendpdf|sendstatic)$~', $path)) return 'release';
+        // Sending, scheduling, release mode and marking paid are 'release'
+        // actions; saving a payslip draft is ordinary 'payroll' work below.
+        if (preg_match('~^client_portal/payroll/(?:markstatus|markpaid/[0-9]+|send(?:/.*)?|sendpdf|sendstatic|release/(?:send|schedule|cancel|mode|markpaid))$~', $path)) return 'release';
         if (preg_match('~^client_portal/payroll(?:/|$)~', $path)) return 'payroll';
         if (preg_match('~^client_portal/timesheet/employee(?:/|$)~', $path)) return 'review_attendance';
         // Correcting a clocked time is a review/oversight action, not

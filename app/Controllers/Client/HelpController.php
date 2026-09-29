@@ -79,7 +79,7 @@ class HelpController extends BaseController
             ],
             [
                 'question' => 'How do I view my payslip?',
-                'answer' => 'Go to the Timesheet page and click "View Payslip." Pick the pay period from the dropdown to view, print, or download it.',
+                'answer' => 'Go to the Timesheet page and click "View Payslip." Pick the pay period from the dropdown to view, print, or download it. A payslip shows up there (and in your email) once payroll sends it — usually on the salary day.',
             ],
             [
                 'question' => 'What is the payslip password, and is it the same as my login password?',

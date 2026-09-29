@@ -272,9 +272,12 @@ final class TimesheetImportService
                 $seen[$key]=$signature;
                 if($status==='ready')$intervals[$uid][]=[$timeIn,$timeOut];
                 if($status==='ready'){
-                    $payslip=$this->db->table('employee_payslips')->where('employee_id',$eid)->where('period_start <=',$shift)->where('period_end >=',$shift)->countAllResults();
+                    // Only a SENT payslip locks the period. An unsent (draft/scheduled)
+                    // one is held at send time once attendance changes, until it's
+                    // re-saved — see PayrollController::deliverPayslip().
+                    $payslip=$this->db->table('employee_payslips')->where('employee_id',$eid)->where('period_start <=',$shift)->where('period_end >=',$shift)->where('sent_at IS NOT NULL',null,false)->countAllResults();
                     $paid=$this->db->table('payroll')->where('employee_id',$eid)->where('month_year',substr($shift,0,7))->where('status','Paid')->countAllResults();
-                    if($payslip||$paid)throw new DomainException('This period has a saved payslip or paid payroll. Resolve it through the payroll review process first.');
+                    if($payslip||$paid)throw new DomainException('This period has a sent payslip or paid payroll. Resolve it through the payroll review process first.');
                     $taskText=trim((string)($data['task_performed']??''));
                     $records[]=['row'=>$number,'attendance'=>$record,'task'=>$taskText!==''?['task_performed'=>$taskText,'client'=>trim((string)($data['client']??''))]:null];
                 }

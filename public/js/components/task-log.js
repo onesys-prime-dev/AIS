@@ -376,10 +376,15 @@ function renderTaskListUI() {
     }
     emptyMsg.classList.add('hidden');
 
-    list.innerHTML = taskLogTasks.map(t => `
+    list.innerHTML = taskLogTasks.map(t => {
+        const start = timeOnlyDate(t.start_time);
+        let end = timeOnlyDate(t.end_time);
+        if (end <= start) end = new Date(end.getTime() + 86400000);
+        const duration = fmtDurationMs(end - start);
+        return `
         <div class="flex items-center gap-2 bg-gray-50 border border-gray-100 rounded-lg px-3 py-2" style="margin-bottom:6px;">
             <div class="flex-1 min-w-0">
-                <div class="text-xs font-semibold text-gray-600">${fmtTime(t.start_time)} – ${fmtTime(t.end_time)}${t.client ? ' · ' + escapeHtml(t.client) : ''}</div>
+                <div class="text-xs font-semibold text-gray-600">${fmtTime(t.start_time)} – ${fmtTime(t.end_time)} · <span class="text-purple-600">${duration}</span>${t.client ? ' · ' + escapeHtml(t.client) : ''}</div>
                 <div class="text-sm text-gray-700 truncate">${escapeHtml(t.task_performed)}</div>
             </div>
             <button type="button" onclick="startEditTask(${t.id})" class="text-gray-400 hover:text-purple-600 transition p-1" title="Edit">
@@ -388,7 +393,8 @@ function renderTaskListUI() {
             <button type="button" onclick="deleteTaskEntry(${t.id})" class="text-gray-400 hover:text-red-600 transition p-1" title="Delete">
                 <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6h14z"/></svg>
             </button>
-        </div>`).join('');
+        </div>`;
+    }).join('');
 }
 
 // Finds the first gap (>= 15 min) between the window start and the next
@@ -439,15 +445,18 @@ function computeCurrentDurationMs() {
     return end - start;
 }
 
+function fmtDurationMs(ms) {
+    const totalMin = Math.round(ms / 60000);
+    const h = Math.floor(totalMin / 60);
+    const m = totalMin % 60;
+    return (h ? h + 'h ' : '') + (m || !h ? m + 'm' : '');
+}
+
 function updateDurationLabel() {
     const label = document.getElementById('tl_duration_label');
     if (!label) return;
     const ms = computeCurrentDurationMs();
-    if (ms === null) { label.textContent = ''; return; }
-    const totalMin = Math.round(ms / 60000);
-    const h = Math.floor(totalMin / 60);
-    const m = totalMin % 60;
-    label.textContent = 'Duration: ' + (h ? h + 'h ' : '') + (m || !h ? m + 'm' : '');
+    label.textContent = ms === null ? '' : 'Duration: ' + fmtDurationMs(ms);
 }
 
 // Quick-pick chip handler — applies a fixed span starting from whatever's in

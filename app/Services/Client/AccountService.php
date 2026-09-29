@@ -477,9 +477,12 @@ class AccountService
 
         if (! $user) {
             return [
-                'photo_url'    => null,
-                'display_name' => 'User',
+                'photo_url'     => null,
+                'display_name'  => 'User',
                 'display_email' => '',
+                'employee_id'   => null,
+                'status'        => 'Inactive',
+                'online_status' => 'Offline',
             ];
         }
 
@@ -497,6 +500,9 @@ class AccountService
             'photo_url'     => $photoUrl,
             'display_name'  => (string) (($credentials['username'] ?? '') !== '' ? $credentials['username'] : 'User'),
             'display_email' => (string) ($credentials['email'] ?? ''),
+            'employee_id'   => ! empty($employee['id']) ? (int) $employee['id'] : null,
+            'status'        => ! empty($credentials['is_active']) ? 'Active' : 'Inactive',
+            'online_status' => (string) ($credentials['online_status'] ?? 'Offline'),
         ];
     }
 

@@ -122,7 +122,16 @@ const Presence = (() => {
                 const classes = BADGE_CLASSES[newStatus] || BADGE_CLASSES['Offline'];
                 classes.split(' ').forEach(c => badge.classList.add(c));
 
-                badge.textContent = newStatus;
+                // Badges with a status dot keep their own label element so
+                // the dot markup isn't wiped out by a plain textContent write.
+                const label = badge.querySelector('[data-presence-label]');
+                if (label) {
+                    label.textContent = newStatus;
+                } else {
+                    badge.textContent = newStatus;
+                }
+
+                if (badge.hasAttribute('title')) badge.setAttribute('title', newStatus);
             });
 
         } catch (e) {
