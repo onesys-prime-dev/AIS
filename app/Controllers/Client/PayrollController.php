@@ -1675,21 +1675,61 @@ class PayrollController extends BaseController
         $book=new \PhpOffice\PhpSpreadsheet\Spreadsheet();
         try {
             $sheet=$book->getActiveSheet()->setTitle('Timesheet');
-            $headers=['employee_number','date','time_in','time_out','break_duration','Regular Hours','OT Hours','Unapproved OT Hours','RDOT Hours','Tardy Minutes','Undertime Hours','Night Diff','Remarks','Client','Task Performed'];
+            // Client and Task Performed are intentionally left off this sheet —
+            // they now live in the "Task Log" sheet below, one row per task
+            // instead of a single "; "-joined summary column.
+            $headers=['employee_number','date','time_in','time_out','break_duration','Regular Hours','OT Hours','Unapproved OT Hours','RDOT Hours','Tardy Minutes','Undertime Hours','Night Diff','Remarks','Edited'];
             $sheet->fromArray($headers,null,'A1');
-            $ids=array_column($detailed['daily'],'attendance_id');$breaks=[];
+            $ids=array_values(array_filter(array_column($detailed['daily'],'attendance_id')));$breaks=[];
             if($ids)foreach((new AttendanceModel())->select('id,break_duration')->whereIn('id',$ids)->findAll() as $row)$breaks[$row['id']]=(float)$row['break_duration'];
+
+            // Attendance rows a staff member has manually corrected (vs. the
+            // normal clock-in/clock-out/break flow) — TimesheetController::
+            // updateAttendance() logs these as action=updated, module=attendance,
+            // description="Attendance corrected by {username}" (not the unused
+            // ActivityLogger::attendanceManualEdit() wrapper), so match on that.
+            $editedIds=[];
+            if($ids)foreach((new \App\Models\ActivityLogModel())
+                ->select('record_id')
+                ->where('module','attendance')
+                ->where('action','updated')
+                ->like('description','Attendance corrected by ')
+                ->whereIn('record_id',$ids)
+                ->findAll() as $log)$editedIds[(int)$log['record_id']]=true;
+
+            $redFill=[
+                'fillType'=>\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
+                'startColor'=>['rgb'=>'FFC7CE'],
+            ];
+            $greenFill=[
+                'fillType'=>\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
+                'startColor'=>['rgb'=>'C6EFCE'],
+            ];
+            $editedFill=[
+                'fillType'=>\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
+                'startColor'=>['rgb'=>'FFD966'],
+            ];
+
             $line=2;
             foreach($detailed['daily'] as $row){
                 $cells=[$employee['employee_number'],$row['date'],$row['time_in_datetime']??'',$row['time_out_datetime']??'',$breaks[$row['attendance_id']]??0];
-                foreach(['regular_hours','ot_hours','unapproved_ot_hours','rdot_hours','tardy_minutes','undertime_hours','night_diff','remarks','client','task_performed'] as $key)$cells[]=$row[$key]??'';
+                foreach(['regular_hours','ot_hours','unapproved_ot_hours','rdot_hours','tardy_minutes','undertime_hours','night_diff','remarks'] as $key)$cells[]=$row[$key]??'';
+                $wasEdited=!empty($row['attendance_id'])&&isset($editedIds[(int)$row['attendance_id']]);
+                $cells[]=$wasEdited?'Yes':'';
                 foreach($cells as $index=>$value){
                     $type=is_int($value)||is_float($value)?\PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_NUMERIC:\PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING;
                     $sheet->setCellValueExplicit([$index+1,$line],$value,$type);
                 }
+                // Whole row: red if late, green if on time. The Edited cell
+                // (column N) gets its own orange fill on top so both signals
+                // stay visible — a row can't show two different fills at once,
+                // but a single cell within it can differ from the rest.
+                $isLate=(float)($row['tardy_minutes']??0)>0;
+                $sheet->getStyle('A'.$line.':N'.$line)->applyFromArray(['fill'=>$isLate?$redFill:$greenFill]);
+                if($wasEdited)$sheet->getStyle('N'.$line)->applyFromArray(['fill'=>$editedFill]);
                 $line++;
             }
-            $sheet->freezePane('A2');$sheet->setAutoFilter('A1:O'.max(1,$line-1));
+            $sheet->freezePane('A2');$sheet->setAutoFilter('A1:N'.max(1,$line-1));
 
             // One row per logged task (not just the "; "-joined summary above)
             // so the exported file carries the same per-task time/duration/client

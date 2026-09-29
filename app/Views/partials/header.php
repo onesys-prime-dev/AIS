@@ -180,9 +180,6 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
                 <div class="user-dropdown-identity">
                     <div class="user-dropdown-name"><?= esc($displayName !== '' ? $displayName : 'User') ?></div>
                     <div class="user-dropdown-email"><?= esc($displayEmail) ?></div>
-                    <span class="user-dropdown-status <?= $headerBadgeClass ?>" <?= $headerPresenceAttrs ?>>
-                        <span class="status-dot"></span><span data-presence-label><?= esc($headerBadgeText) ?></span>
-                    </span>
                 </div>
                 <a href="<?= site_url('client_portal/profile') ?>">Account &amp; settings</a>
                 <a href="<?= site_url('logout') ?>">Logout</a>
@@ -995,29 +992,6 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
         width:14px;
         height:14px;
         border:2px solid #fff;
-        border-radius:50%;
-        background:currentColor;
-    }
-
-    .user-dropdown-status{
-        display:inline-flex;
-        align-items:center;
-        margin-top:6px;
-        padding:5px;
-        border-radius:999px;
-        width:fit-content;
-    }
-
-    /* The label text stays in the DOM (presence.js writes to it on live status
-       changes) but is hidden — the dropdown just shows the color dot now. */
-    .user-dropdown-status [data-presence-label]{
-        display:none;
-    }
-
-    .user-dropdown-status .status-dot{
-        width:7px;
-        height:7px;
-        flex:0 0 7px;
         border-radius:50%;
         background:currentColor;
     }

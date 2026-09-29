@@ -281,8 +281,14 @@
     /* The payslip table itself is generated JS-side (renderPayslipHtml) as a
        fixed, print-style document — it's allowed to be wider than the
        preview pane on very narrow screens and scroll horizontally there,
-       rather than squeezing financial figures into unreadable columns. */
-    .payslip-preview table {
+       rather than squeezing financial figures into unreadable columns.
+       Scoped to the top-level tables only (direct children of the injected
+       wrapper div) — renderPayslipHtml() nests small 2-column label/value
+       tables several levels deep for layout, and a plain descendant
+       selector here was forcing every one of those onto the same 480px
+       min-width as the outer document, blowing them far wider than their
+       containing cell and squeezing/overlapping the label columns. */
+    .payslip-preview > div > table {
         width: 100%;
         min-width: 480px;
         border-collapse: collapse;
@@ -344,6 +350,21 @@
 <script>
 let currentPayslipId = null;
 let currentDownloadUrl = null;
+let payslipRateSettings = null;
+
+// The OT-hours breakdown below needs the same rate constants Generate
+// Payslip uses (night diff / OT multipliers) — fetched once and cached,
+// same endpoint payroll_management.php uses for window._payrollSettings.
+async function ensurePayslipRateSettings() {
+    if (payslipRateSettings) return payslipRateSettings;
+    try {
+        const res = await fetch('<?= site_url('client_portal/payroll/getSettings') ?>');
+        payslipRateSettings = res.ok ? await res.json() : {};
+    } catch (e) {
+        payslipRateSettings = {};
+    }
+    return payslipRateSettings;
+}
 
 async function loadPayslipList() {
     const select = document.getElementById('payslipPeriodSelect');
@@ -399,6 +420,7 @@ async function loadPayslipPreview(payslipId) {
         document.getElementById('paymentDate').innerText = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
         
         // Render HTML preview
+        await ensurePayslipRateSettings();
         const html = renderPayslipHtml(data.generated_data);
         previewDiv.innerHTML = html;
     } catch (err) {
@@ -407,6 +429,11 @@ async function loadPayslipPreview(payslipId) {
     }
 }
 
+// Mirrors payroll_management.php's generatePayslipHTML(d) — same column
+// layout, headers, and OT/deduction breakdown — but reads the snake_case
+// field names actually stored in employee_payslips.generated_data (the
+// Generate Payslip page's own save payload uses these same keys) instead of
+// that page's camelCase live-form variable names.
 function renderPayslipHtml(d) {
     function n(v)   { return parseFloat(v || 0); }
     function fmt(v) { return n(v).toFixed(2); }
@@ -418,185 +445,154 @@ function renderPayslipHtml(d) {
     function fmtDate(s) {
         if (!s) return '';
         const dt = new Date(s + 'T00:00:00');
-        return dt.toLocaleDateString('en-US', {month: 'short', day: '2-digit', year: 'numeric'});
+        return dt.toLocaleDateString('en-GB', {day: '2-digit', month: 'short', year: 'numeric'});
     }
 
-    const grossPay = n(d.net_basic_pay) + n(d.reg_ot) + n(d.sat_ot) + n(d.sun_ot) + n(d.hol_ot)
-                   + n(d.other_earnings_taxable) + n(d.additional_de_minimis_tax) + n(d.de_minimis);
-    const govDed   = n(d.sss_ee) + n(d.phic_ee) + n(d.hdmf_ee) + n(d.withholding_tax);
-    const loanDed =
-        n(d.sss_loan) +
-        n(d.calamity_loan) +
-        n(d.hdmf_loan) +
-        n(d.hdmf_mpl_loan) +
-        n(d.hdmf_calamity_loan) +
-        n(d.salary_loan) +
-        n(d.salary_advance || d.sal_adv) +
-        n(d.cash_advance) +
-        n(d.emergency_advance || d.emergency_loan);
-    const totalDed = govDed + loanDed;
+    const bp = 'border:1px solid #000;padding:4px 6px;';
+    const s      = payslipRateSettings || {};
+    const hr     = n(d.rate_per_hour);
+    const ndR    = parseFloat(s.night_diff_rate) || 0.10;
+    const regOtR = parseFloat(s.ot_regular_rate) || 1.25;
+    const restR  = parseFloat(s.ot_rest_rate)    || 1.69;
+    const holOtR = parseFloat(s.ot_holiday_rate) || 2.60;
+
+    /* All 12 OT rows — always shown, zero values display as '-' — same set
+       generatePayslipHTML() uses. */
+    const otDefs = [
+        { label: 'Reg. OT &le;10 hrs',     raw: n(d.reg_ot),        rate: hr * regOtR },
+        { label: 'Reg. OT &gt;10 hrs',     raw: n(d.reg_ot_gt10),   rate: hr * regOtR },
+        { label: 'Reg. Night Premium',      raw: n(d.reg_ot_night),  rate: hr * ndR    },
+        { label: 'Sat/Rest OT &le;10 hrs',  raw: n(d.sat_ot),        rate: hr * restR  },
+        { label: 'Sat/Rest OT &gt;10 hrs',  raw: n(d.sat_ot_gt10),   rate: hr * restR  },
+        { label: 'Sat/Rest Night Prem',     raw: n(d.sat_night_prem),rate: hr * ndR    },
+        { label: 'Sun/Spl OT &le;10 hrs',   raw: n(d.sun_ot),        rate: hr * restR  },
+        { label: 'Sun/Spl OT &gt;10 hrs',   raw: n(d.sun_ot_gt10),   rate: hr * restR  },
+        { label: 'Sun/Spl Night Prem',      raw: n(d.sun_night_prem),rate: hr * ndR    },
+        { label: 'Hol. Pay &le;8 hrs',     raw: n(d.hol_ot),        rate: hr * ((parseFloat(s.reg_holiday_rate) || 2.00) - 1.0) },
+        { label: 'Hol. OT &gt;8 hrs',      raw: n(d.hol_ot_gt10),   rate: hr * holOtR },
+        { label: 'Hol. Night Premium',      raw: n(d.hol_night_prem),rate: hr * ndR    },
+    ];
+    const otRowsHtml = otDefs.map(r => {
+        const hrs = r.rate > 0 && r.raw > 0 ? Math.round(r.raw / r.rate) : 0;
+        return `<tr><td style="${bp}">${r.label}</td><td style="${bp}text-align:center;">${hrs > 0 ? hrs : '-'}</td><td style="${bp}text-align:right;">${r.raw > 0 ? r.raw.toFixed(2) : '-'}</td></tr>`;
+    }).join('');
+
+    const rowspan  = 19;
+    const nightHrs = hr > 0 && n(d.night_diff_pay) > 0 ? Math.round(n(d.night_diff_pay) / (hr * ndR)) : 0;
+    const absDays  = hr > 0 && n(d.absent_amt)    > 0 ? Math.round(n(d.absent_amt)    / (hr * 8))   : 0;
+    const utHrs    = hr > 0 && n(d.undertime_amt) > 0 ? Math.round(n(d.undertime_amt) / hr)          : 0;
+
+    const taxCell = n(d.other_earnings_taxable) !== 0
+        ? `<strong>Salary adjustment:</strong><br>${fmt(d.other_earnings_taxable)}`
+        : '&mdash;';
+    const ntParts = [];
+    const salNonTaxAdj = n(d.sal_non_tax_adj);
+    const deMinBase = n(d.de_minimis) - salNonTaxAdj;
+    if (deMinBase > 0) ntParts.push(`<strong>De Minimis Benefit</strong> &nbsp; ${deMinBase.toFixed(2)}`);
+    if (salNonTaxAdj > 0) ntParts.push(`<strong>Salary Adjustment (Non-Taxable)</strong> &nbsp; ${salNonTaxAdj.toFixed(2)}`);
+    if (n(d.vl_cash_conversion) > 0) ntParts.push(`<strong>VL Cash Conversion</strong> &nbsp; ${fmt(d.vl_cash_conversion)}`);
+    const nonTaxCell = ntParts.length > 0 ? ntParts.join('<br>') : '&mdash;';
+
+    const grossPay = n(d.gross_pay) || (n(d.net_basic_pay) + otDefs.reduce((sum, r) => sum + r.raw, 0)
+        + n(d.other_earnings_taxable) + n(d.de_minimis));
+
+    const _wthRaw = n(d.withholding_tax);
+    const regDeds = [
+        ['SSS',             n(d.sss_ee)],
+        ['PhilHealth',      n(d.phic_ee)],
+        ['HDMF / Pag-IBIG', n(d.hdmf_ee)],
+        ['Withholding Tax', Math.max(0, _wthRaw)],
+        ...(_wthRaw < 0 ? [['Tax Refund (Credit)', Math.abs(_wthRaw)]] : []),
+    ];
+    const loans = [
+        ['SSS Salary Loan', n(d.sss_loan)],
+        ['SSS Calamity Loan', n(d.calamity_loan)],
+        ['HDMF Loan',       n(d.hdmf_loan)],
+        ['HDMF Multi-Purpose Loan', n(d.hdmf_mpl_loan)],
+        ['HDMF Calamity Loan', n(d.hdmf_calamity_loan)],
+        ['Salary Advance',  n(d.salary_advance || d.sal_adv)],
+        ['Cash Advance',    n(d.cash_advance)],
+        ['Emergency Advance', n(d.emergency_advance || d.emergency_loan)],
+        ['Cal. Advance',    n(d.cal_adv)],
+    ].filter(([, v]) => v > 0);
+    const totalDeductions = regDeds.reduce((sum, [, v]) => sum + v, 0) + loans.reduce((sum, [, v]) => sum + v, 0);
+
+    const maxRows = Math.max(regDeds.length, loans.length);
+    let dedLoanRows = '';
+    for (let i = 0; i < maxRows; i++) {
+        const l = regDeds[i];
+        const r = loans[i];
+        dedLoanRows += `<tr>
+            ${l ? `<td style="${bp}">${l[0]}</td><td style="${bp}text-align:right;">${l[1].toFixed(2)}</td>` : `<td colspan="2" style="${bp}"></td>`}
+            ${r ? `<td style="${bp}">${r[0]}</td><td style="${bp}text-align:right;">${r[1].toFixed(2)}</td>` : `<td colspan="2" style="${bp}"></td>`}
+        </tr>`;
+    }
 
     return `
-    <div style="font-family:Arial,sans-serif;background:#fff;border:1px solid #000;padding:20px;box-sizing:border-box;">
+    <div style="font-family:Arial,sans-serif;background:#fff;border:1px solid #000;padding:20px;width:100%;box-sizing:border-box;font-size:12px;">
         <h2 style="text-align:center;margin:5px 0 10px;">PAY SLIP</h2>
-        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <table style="width:100%;border-collapse:collapse;font-size:12px;">
             <tr>
-                <td style="border:1px solid #000;padding:5px;"><strong>Employee:</strong></td>
-                <td style="border:1px solid #000;padding:5px;">${esc(d.employee_name)}</td>
-                <td style="border:1px solid #000;padding:5px;"></td>
-                <td style="border:1px solid #000;padding:5px;"><strong>Payroll period:</strong></td>
-                <td style="border:1px solid #000;padding:5px;" colspan="2">${fmtDate(d.period_start)} &ndash; ${fmtDate(d.period_end)}</td>
+                <td style="${bp}"><strong>Employee:</strong></td>
+                <td style="${bp}">${esc(d.employee_name)}</td>
+                <td style="${bp}"></td>
+                <td style="${bp}"><strong>Payroll period:</strong></td>
+                <td style="${bp}" colspan="2">${fmtDate(d.period_start)} &ndash; ${fmtDate(d.period_end)}</td>
             </tr>
-            <tr>
-                <td style="border:1px solid #000;padding:5px;"><strong>Position:</strong></td>
-                <td colspan="5" style="border:1px solid #000;padding:5px;">${esc(d.position)}</td>
-            </tr>
+            <tr><td style="${bp}"><strong>Position:</strong></td><td colspan="5" style="${bp}">${esc(d.position)}</td></tr>
         </table>
-        <table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:10px;">
+        <table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:8px;">
             <colgroup>
-                <col style="width:58%">
+                <col style="width:36%">
+                <col style="width:9%">
+                <col style="width:13%">
                 <col style="width:21%">
                 <col style="width:21%">
             </colgroup>
             <tr>
-                <th style="border:1px solid #000;padding:5px;background:#eee;text-align:center;">REGULAR EARNINGS</th>
-                <th style="border:1px solid #000;padding:5px;background:#eee;text-align:center;">TAXABLE OTHER EARNINGS</th>
-                <th style="border:1px solid #000;padding:5px;background:#eee;text-align:center;">NON-TAXABLE OTHER EARNINGS</th>
+                <th colspan="3" style="${bp}background:#eee;text-align:center;">REGULAR EARNINGS</th>
+                <th style="${bp}background:#eee;text-align:center;">TAXABLE OTHER EARNINGS</th>
+                <th style="${bp}background:#eee;text-align:center;">NON-TAXABLE OTHER EARNINGS</th>
             </tr>
             <tr>
-                <td style="border:1px solid #000;padding:5px;vertical-align:top;">
-                    <table style="width:100%;font-size:12px;border-collapse:collapse;">
-                        <tr><td style="border:none;padding:2px 4px;">Basic pay:</td>                   <td style="border:none;padding:2px 4px;text-align:right;">${fmt(d.basic_pay)}</td></tr>
-                        <tr><td style="border:none;padding:2px 4px;">Rate per hour:</td>               <td style="border:none;padding:2px 4px;text-align:right;">${fmt(d.rate_per_hour)}</td></tr>
-                        <tr><td style="border:none;padding:2px 4px;">No. of hours worked:</td>         <td style="border:none;padding:2px 4px;text-align:right;">${fmt(d.hours_worked)}</td></tr>
-                        <tr><td style="border:none;padding:2px 4px;">Night premium:</td>               <td style="border:none;padding:2px 4px;text-align:right;">${fmt(d.night_diff_pay)}</td></tr>
-                        <tr><td style="border:none;padding:2px 4px;">Less: Absences</td>               <td style="border:none;padding:2px 4px;text-align:right;">${fmt(d.absent_amt)}</td></tr>
-                        <tr><td style="border:none;padding:2px 4px;">Late/Undertime</td>               <td style="border:none;padding:2px 4px;text-align:right;">${fmt(d.undertime_amt)}</td></tr>
-                        <tr><td style="border:none;padding:2px 4px;"><strong>Net basic pay</strong></td><td style="border:none;padding:2px 4px;text-align:right;"><strong>${fmt(d.net_basic_pay)}</strong></td></tr>
-                        <tr><td style="border:none;padding:2px 4px;">Reg. OT</td>                      <td style="border:none;padding:2px 4px;text-align:right;">${fmt(d.reg_ot)}</td></tr>
-                        <tr><td style="border:none;padding:2px 4px;">Sat OT</td>                       <td style="border:none;padding:2px 4px;text-align:right;">${fmt(d.sat_ot)}</td></tr>
-                        <tr><td style="border:none;padding:2px 4px;">Sun OT</td>                       <td style="border:none;padding:2px 4px;text-align:right;">${fmt(d.sun_ot)}</td></tr>
-                        <tr><td style="border:none;padding:2px 4px;">Holiday Pay</td>                  <td style="border:none;padding:2px 4px;text-align:right;">${fmt(d.hol_ot)}</td></tr>
-                    </table>
-                </td>
-                <td style="border:1px solid #000;padding:5px;vertical-align:top;">
-                    <table style="width:100%;font-size:12px;border-collapse:collapse;">
-                        <tr><td style="border:none;padding:2px 4px;">Salary adjustment:</td><td style="border:none;padding:2px 4px;text-align:right;">${fmt(d.other_earnings_taxable)}</td></tr>
-                        ${n(d.additional_de_minimis_tax) > 0 ? `<tr><td style="border:none;padding:2px 4px;">De Minimis (Taxable Excess):</td><td style="border:none;padding:2px 4px;text-align:right;">${fmt(d.additional_de_minimis_tax)}</td></tr>` : ''}
-                    </table>
-                </td>
-                <td style="border:1px solid #000;padding:5px;vertical-align:top;">
-                    <table style="width:100%;font-size:12px;border-collapse:collapse;">
-                        <tr><td style="border:none;padding:2px 4px;">De Minimis Benefit:</td><td style="border:none;padding:2px 4px;text-align:right;">${fmt(d.de_minimis)}</td></tr>
-                    </table>
-                </td>
+                <th style="${bp}background:#f5f5f5;text-align:left;">Description</th>
+                <th style="${bp}background:#f5f5f5;text-align:center;">Days / Hours</th>
+                <th style="${bp}background:#f5f5f5;text-align:right;">Amount</th>
+                <th style="${bp}background:#f5f5f5;"></th>
+                <th style="${bp}background:#f5f5f5;"></th>
             </tr>
             <tr>
-                <td colspan="2" style="border:1px solid #000;padding:5px;text-align:right;"><strong>GROSS PAY</strong></td>
-                <td style="border:1px solid #000;padding:5px;text-align:right;"><strong>${grossPay.toFixed(2)}</strong></td>
+                <td style="${bp}">Basic pay:</td>
+                <td style="${bp}text-align:center;"></td>
+                <td style="${bp}text-align:right;">${fmt(d.basic_pay)}</td>
+                <td rowspan="${rowspan}" style="${bp}vertical-align:top;padding:6px;">${taxCell}</td>
+                <td rowspan="${rowspan}" style="${bp}vertical-align:top;padding:6px;">${nonTaxCell}</td>
+            </tr>
+            <tr><td style="${bp}">Rate per hour</td><td style="${bp}text-align:center;">${fmt(d.rate_per_hour)}</td><td style="${bp}"></td></tr>
+            <tr><td style="${bp}">No. of hours worked:</td><td style="${bp}text-align:center;">${Math.round(n(d.hours_worked))}</td><td style="${bp}"></td></tr>
+            <tr><td style="${bp}">Night premium</td><td style="${bp}text-align:center;">${nightHrs > 0 ? nightHrs : '-'}</td><td style="${bp}text-align:right;">${n(d.night_diff_pay) > 0 ? fmt(d.night_diff_pay) : '-'}</td></tr>
+            <tr><td style="${bp}">Less: Absences</td><td style="${bp}text-align:center;">${absDays > 0 ? absDays : '-'}</td><td style="${bp}text-align:right;">${n(d.absent_amt) > 0 ? fmt(d.absent_amt) : '-'}</td></tr>
+            <tr><td style="${bp}">&nbsp;&nbsp;Late / Undertime</td><td style="${bp}text-align:center;">${utHrs > 0 ? utHrs : '-'}</td><td style="${bp}text-align:right;">${n(d.undertime_amt) > 0 ? fmt(d.undertime_amt) : '-'}</td></tr>
+            <tr><td style="${bp}"><strong>Net basic pay</strong></td><td style="${bp}"></td><td style="${bp}text-align:right;"><strong>${fmt(d.net_basic_pay)}</strong></td></tr>
+            ${otRowsHtml}
+        </table>
+        <table style="width:100%;border-collapse:collapse;font-size:12px;">
+            <tr>
+                <td colspan="3" style="${bp}text-align:right;"><strong>GROSS PAY</strong></td>
+                <td style="${bp}text-align:right;"><strong>${grossPay.toFixed(2)}</strong></td>
             </tr>
         </table>
-        <table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:10px;">
-            <tr>
-                <th style="border:1px solid #000;padding:5px;background:#eee;text-align:center;">REGULAR DEDUCTIONS</th>
-                <th style="border:1px solid #000;padding:5px;background:#eee;text-align:center;">LOANS/ADVANCES</th>
-            </tr>
-            <tr>
-                <td style="border:1px solid #000;padding:5px;vertical-align:top;">
-                    <table style="width:100%;font-size:12px;border-collapse:collapse;">
-                        <tr><td style="border:none;padding:2px 4px;">SSS</td>             <td style="border:none;padding:2px 4px;text-align:right;">${fmt(d.sss_ee)}</td></tr>
-                        <tr><td style="border:none;padding:2px 4px;">PhilHealth</td>      <td style="border:none;padding:2px 4px;text-align:right;">${fmt(d.phic_ee)}</td></tr>
-                        <tr><td style="border:none;padding:2px 4px;">Pag-IBIG</td>        <td style="border:none;padding:2px 4px;text-align:right;">${fmt(d.hdmf_ee)}</td></tr>
-                        <tr><td style="border:none;padding:2px 4px;">Withholding tax</td> <td style="border:none;padding:2px 4px;text-align:right;">${fmt(d.withholding_tax)}</td></tr>
-                    </table>
-                </td>
-                <td style="border:1px solid #000;padding:5px;vertical-align:top;">
-                    <table style="width:100%;font-size:12px;border-collapse:collapse;">
-                        ${n(d.sss_loan) > 0 ? `
-                        <tr>
-                            <td style="border:none;padding:2px 4px;">SSS Loan</td>
-                            <td style="border:none;padding:2px 4px;text-align:right;">
-                                ${fmt(d.sss_loan)}
-                            </td>
-                        </tr>` : ''}
-
-                        ${n(d.calamity_loan) > 0 ? `
-                        <tr>
-                            <td style="border:none;padding:2px 4px;">Calamity Loan</td>
-                            <td style="border:none;padding:2px 4px;text-align:right;">
-                                ${fmt(d.calamity_loan)}
-                            </td>
-                        </tr>` : ''}
-
-                        ${n(d.hdmf_loan) > 0 ? `
-                        <tr>
-                            <td style="border:none;padding:2px 4px;">HDMF Loan</td>
-                            <td style="border:none;padding:2px 4px;text-align:right;">
-                                ${fmt(d.hdmf_loan)}
-                            </td>
-                        </tr>` : ''}
-
-                        ${n(d.hdmf_mpl_loan) > 0 ? `
-                        <tr>
-                            <td style="border:none;padding:2px 4px;">HDMF Multi-Purpose Loan</td>
-                            <td style="border:none;padding:2px 4px;text-align:right;">
-                                ${fmt(d.hdmf_mpl_loan)}
-                            </td>
-                        </tr>` : ''}
-
-                        ${n(d.hdmf_calamity_loan) > 0 ? `
-                        <tr>
-                            <td style="border:none;padding:2px 4px;">HDMF Calamity Loan</td>
-                            <td style="border:none;padding:2px 4px;text-align:right;">
-                                ${fmt(d.hdmf_calamity_loan)}
-                            </td>
-                        </tr>` : ''}
-
-                        ${n(d.salary_loan) > 0 ? `
-                        <tr>
-                            <td style="border:none;padding:2px 4px;">Salary Loan</td>
-                            <td style="border:none;padding:2px 4px;text-align:right;">
-                                ${fmt(d.salary_loan)}
-                            </td>
-                        </tr>` : ''}
-
-                        ${n(d.salary_advance || d.sal_adv) > 0 ? `
-                        <tr>
-                            <td style="border:none;padding:2px 4px;">Salary Advance</td>
-                            <td style="border:none;padding:2px 4px;text-align:right;">
-                                ${fmt(d.salary_advance || d.sal_adv)}
-                            </td>
-                        </tr>` : ''}
-
-                        ${n(d.cash_advance) > 0 ? `
-                        <tr>
-                            <td style="border:none;padding:2px 4px;">Cash Advance</td>
-                            <td style="border:none;padding:2px 4px;text-align:right;">
-                                ${fmt(d.cash_advance)}
-                            </td>
-                        </tr>` : ''}
-
-                        ${n(d.emergency_advance || d.emergency_loan) > 0 ? `
-                        <tr>
-                            <td style="border:none;padding:2px 4px;">Emergency Advance</td>
-                            <td style="border:none;padding:2px 4px;text-align:right;">
-                                ${fmt(d.emergency_advance || d.emergency_loan)}
-                            </td>
-                        </tr>` : ''}
-                    </table>
-                </td>
-            </tr>
-            <tr>
-                <td colspan="2" style="border:1px solid #000;padding:5px;text-align:right;"><strong>TOTAL DEDUCTIONS</strong></td>
-                <td style="border:1px solid #000;padding:5px;text-align:right;"><strong>${totalDed.toFixed(2)}</strong></td>
-            </tr>
+        <table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:8px;">
+            <tr><th colspan="2" style="${bp}background:#eee;text-align:center;">REGULAR DEDUCTIONS</th><th colspan="2" style="${bp}background:#eee;text-align:center;">LOANS / ADVANCES</th></tr>
+            ${dedLoanRows}
+            <tr><td colspan="2" style="${bp}"></td><td colspan="2" style="${bp}text-align:right;"><strong>TOTAL DEDUCTIONS &nbsp; ${totalDeductions.toFixed(2)}</strong></td></tr>
         </table>
-        <table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:10px;">
+        <table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:8px;">
             <tr>
-                <td style="border:1px solid #000;padding:5px;">Employee signature:</td>
-                <td style="border:1px solid #000;padding:5px;height:40px;"></td>
-                <td style="border:1px solid #000;padding:5px;text-align:right;"><strong>NET PAY:</strong></td>
-                <td style="border:1px solid #000;padding:5px;text-align:right;background:#f8d7da;"><strong>${fmt(d.net_pay)}</strong></td>
+                <td style="${bp}">Employee signature:</td>
+                <td style="${bp}height:35px;"></td>
+                <td style="${bp}text-align:right;"><strong>NET PAY:</strong></td>
+                <td style="${bp}text-align:right;background:#f8d7da;"><strong>${fmt(d.net_pay)}</strong></td>
             </tr>
         </table>
     </div>`;
