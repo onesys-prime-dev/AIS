@@ -38,9 +38,29 @@ final class PortalAccessFilter implements FilterInterface
 
     private function denied(RequestInterface $request): ResponseInterface
     {
+        $message  = 'You do not have permission to access this resource.';
         $response = service('response')->setStatusCode(403)->noCache();
         if ($request->isAJAX() || str_contains(strtolower($request->getHeaderLine('Accept')), 'json') || strtolower($request->getMethod()) !== 'get') {
-            return $response->setJSON(['success'=>false, 'error'=>'You do not have permission to access this resource.']);
+            // 'message' as well as 'error': most pages toast data.message.
+            return $response->setJSON(['success'=>false, 'error'=>$message, 'message'=>$message]);
+        }
+
+        // A normal page visit (browser navigation): send the person back to
+        // where they were, or their dashboard, with a toast — instead of
+        // dropping them on a dead-end page. Never redirect to the denied
+        // page itself, and keep the plain page for anything that isn't a
+        // real navigation (e.g. a script fetching HTML).
+        if (str_contains(strtolower($request->getHeaderLine('Accept')), 'text/html')) {
+            $current = trim($request->getUri()->getRoutePath(), '/');
+            $target  = site_url('client_portal/dashboard');
+            $referer = $request->getHeaderLine('Referer');
+            if ($referer !== '' && parse_url($referer, PHP_URL_HOST) === $request->getUri()->getHost()) {
+                $refPath = trim((string) parse_url($referer, PHP_URL_PATH), '/');
+                if ($refPath !== '' && !str_ends_with($refPath, $current)) $target = $referer;
+            }
+            if (!str_ends_with(trim((string) parse_url($target, PHP_URL_PATH), '/'), $current)) {
+                return redirect()->to($target)->with('error', "You don't have access to that page.");
+            }
         }
         return $response->setBody(view('errors/permission_denied'));
     }

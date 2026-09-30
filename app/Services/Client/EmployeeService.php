@@ -54,7 +54,7 @@ class EmployeeService
 
         $dept = \Config\Database::connect()->table('departments')->where('id', $departmentId)->where('deleted_at', null)->get()->getRowArray();
         if (! $dept) {
-            throw new \Exception('Selected department was not found.');
+            throw new \App\Exceptions\ValidationException('Selected department was not found.');
         }
 
         return ['department_id' => $departmentId, 'department' => $dept['name']];
@@ -85,21 +85,21 @@ class EmployeeService
 
             // Validate email and password are provided and not empty
             if (empty($email)) {
-                throw new \Exception('Email is required and cannot be empty.');
+                throw new \App\Exceptions\ValidationException('Email is required and cannot be empty.');
             }
 
             if (empty($password)) {
-                throw new \Exception('Password is required and cannot be empty.');
+                throw new \App\Exceptions\ValidationException('Password is required and cannot be empty.');
             }
 
             // Validate email format
             if (! filter_var($email, FILTER_VALIDATE_EMAIL)) {
-                throw new \Exception('Please provide a valid email address.');
+                throw new \App\Exceptions\ValidationException('Please provide a valid email address.');
             }
 
             // Check minimum password length
             if (strlen($password) < 8) {
-                throw new \Exception('Password must be at least 8 characters long.');
+                throw new \App\Exceptions\ValidationException('Password must be at least 8 characters long.');
             }
 
             $startTime = trim((string) ($data['start_time'] ?? ''));
@@ -115,15 +115,15 @@ class EmployeeService
             $otGraceMinutes = $this->parseGraceMinutes($data['ot_grace_minutes'] ?? null);
 
             if ($startTime === '' || $endTime === '') {
-                throw new \Exception('Start time and end time are required.');
+                throw new \App\Exceptions\ValidationException('Start time and end time are required.');
             }
 
             if ($startTime === $endTime) {
-                throw new \Exception('Start and end time must differ. An earlier end time means the following day.');
+                throw new \App\Exceptions\ValidationException('Start and end time must differ. An earlier end time means the following day.');
             }
 
             if ($workingDays === []) {
-                throw new \Exception('Please select at least one working day.');
+                throw new \App\Exceptions\ValidationException('Please select at least one working day.');
             }
 
             $existingUser = $this->userModel
@@ -131,7 +131,7 @@ class EmployeeService
                 ->first();
 
             if ($existingUser) {
-                throw new \Exception('This email is already registered. Please use a different email.');
+                throw new \App\Exceptions\ValidationException('This email is already registered. Please use a different email.');
             }
 
             // Use Shield's provider flow to guarantee proper email identity creation.

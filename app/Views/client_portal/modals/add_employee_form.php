@@ -193,7 +193,8 @@
 <form id="employeeForm"
     action="<?= site_url('client_portal/employees/create') ?>"
     method="post"
-    class="flex flex-col h-full">
+    class="flex flex-col h-full"
+    novalidate>
 
     <?= csrf_field() ?>
 
@@ -1131,16 +1132,45 @@ document.getElementById('employeeForm').addEventListener('submit', function(e) {
     const firstName = document.querySelector('input[name="first_name"]').value.trim();
     const lastName = document.querySelector('input[name="last_name"]').value.trim();
 
-    if (!firstName || !lastName) { e.preventDefault(); showToast('First and Last Name are required.', 'warning'); return; }
-    if (!email) { e.preventDefault(); showToast('Email is required.', 'warning'); return; }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { e.preventDefault(); showToast('Please enter a valid email address.', 'warning'); return; }
-    if (!password) { e.preventDefault(); showToast('Password is required.', 'warning'); return; }
-    if (password.length < 8) { e.preventDefault(); showToast('Password must be at least 8 characters.', 'warning'); return; }
-    if (!document.querySelectorAll('input[name="working_days[]"]:checked').length) { e.preventDefault(); showToast('Please select at least one working day.', 'warning'); return; }
+    // The form is multi-step and has novalidate: the browser's own popup can't
+    // point at a field on a hidden step (it silently blocks the submit), so
+    // every problem is shown as a toast and the form jumps to the step that
+    // holds the field.
+    const fail = (selector, message) => {
+        e.preventDefault();
+        const field = document.querySelector(selector);
+        const stepEl = field ? field.closest('.form-step') : null;
+        if (stepEl && typeof nextStep === 'function') {
+            nextStep(parseInt(stepEl.id.replace('step', ''), 10));
+        }
+        if (field && typeof field.focus === 'function') field.focus();
+        showToast(message, 'warning');
+    };
+
+    if (!firstName) return fail('input[name="first_name"]', 'First Name is required.');
+    if (!lastName) return fail('input[name="last_name"]', 'Last Name is required.');
+    if (!email) return fail('input[name="email"]', 'Email is required.');
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return fail('input[name="email"]', 'Please enter a valid email address.');
+    if (!password) return fail('input[name="password"]', 'Password is required.');
+    if (password.length < 8) return fail('input[name="password"]', 'Password must be at least 8 characters.');
+    if (!document.querySelectorAll('input[name="working_days[]"]:checked').length) return fail('input[name="working_days[]"]', 'Please select at least one working day.');
 
     const s = document.querySelector('input[name="start_time"]').value;
     const en = document.querySelector('input[name="end_time"]').value;
-    if (s && en && s === en) { e.preventDefault(); showToast('Start and end must differ. An earlier end means the following day.', 'warning'); return; }
+    if (s && en && s === en) return fail('input[name="start_time"]', 'Start and end must differ. An earlier end means the following day.');
+
+    // Anything else the browser would have rejected (numbers below their
+    // minimum, etc.), reported the same way.
+    const invalid = this.querySelector(':invalid');
+    if (invalid) {
+        e.preventDefault();
+        const label = invalid.closest('div')?.querySelector('label')?.textContent.trim();
+        const stepEl = invalid.closest('.form-step');
+        if (stepEl && typeof nextStep === 'function') nextStep(parseInt(stepEl.id.replace('step', ''), 10));
+        if (typeof invalid.focus === 'function') invalid.focus();
+        showToast((label ? label + ': ' : '') + (invalid.validationMessage || 'Please check this field.'), 'warning');
+        return;
+    }
 
     // De Minimis: allocated sub-benefits cannot exceed the total amount given
     const deMinimisTotal = parseFloat(document.getElementById('de_minimis_total')?.value) || 0;
