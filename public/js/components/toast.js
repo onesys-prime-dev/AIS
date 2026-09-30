@@ -66,6 +66,22 @@
         el.addEventListener('click', () => { clearTimeout(timer); dismiss(); });
     };
 
+    // Landing here after a denied page/action (see PortalAccessFilter): show
+    // the toast, then drop the flag from the address bar so a refresh or a
+    // copied link doesn't repeat it.
+    (function showAccessDenied() {
+        let url;
+        try { url = new URL(window.location.href); } catch (e) { return; }
+        const flag = url.searchParams.get('access_denied');
+        if (!flag) return;
+        url.searchParams.delete('access_denied');
+        try { window.history.replaceState(null, '', url.pathname + url.search + url.hash); } catch (e) {}
+        const text = flag === 'action' ? "You don't have permission to do that." : "You don't have access to that page.";
+        const show = () => window.showToast(text, 'error');
+        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', show);
+        else show();
+    })();
+
     // Any background request refused with 403 + a JSON message (the portal's
     // "no permission" reply) gets a toast, even where the page's own code
     // ignores failed responses. The response itself is passed through

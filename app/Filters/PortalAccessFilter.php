@@ -40,17 +40,22 @@ final class PortalAccessFilter implements FilterInterface
     {
         $message  = 'You do not have permission to access this resource.';
         $response = service('response')->setStatusCode(403)->noCache();
-        if ($request->isAJAX() || str_contains(strtolower($request->getHeaderLine('Accept')), 'json') || strtolower($request->getMethod()) !== 'get') {
-            // 'message' as well as 'error': most pages toast data.message.
+        $accept = strtolower($request->getHeaderLine('Accept'));
+        $isGet  = strtolower($request->getMethod()) === 'get';
+        // A real browser navigation (link, typed URL, or a plain <form> post —
+        // not a fetch/XHR call, which never asks for text/html first).
+        $isNavigation = !$request->isAJAX() && !str_contains($accept, 'json') && str_contains($accept, 'text/html');
+
+        if (!$isNavigation) {
+            // Background call: 'message' as well as 'error', since most pages
+            // toast data.message (and toast.js toasts any 403 JSON itself).
             return $response->setJSON(['success'=>false, 'error'=>$message, 'message'=>$message]);
         }
 
-        // A normal page visit (browser navigation): send the person back to
-        // where they were, or their dashboard, with a toast — instead of
-        // dropping them on a dead-end page. Never redirect to the denied
-        // page itself, and keep the plain page for anything that isn't a
-        // real navigation (e.g. a script fetching HTML).
-        if (str_contains(strtolower($request->getHeaderLine('Accept')), 'text/html')) {
+        // Browser navigation: send the person back to where they were, or
+        // their dashboard, with a toast — instead of dropping them on a
+        // dead-end page or raw JSON. Never redirect to the denied page itself.
+        if ($isNavigation) {
             $current = trim($request->getUri()->getRoutePath(), '/');
             $target  = site_url('client_portal/dashboard');
             $referer = $request->getHeaderLine('Referer');
@@ -59,7 +64,15 @@ final class PortalAccessFilter implements FilterInterface
                 if ($refPath !== '' && !str_ends_with($refPath, $current)) $target = $referer;
             }
             if (!str_ends_with(trim((string) parse_url($target, PHP_URL_PATH), '/'), $current)) {
-                return redirect()->to($target)->with('error', "You don't have access to that page.");
+                // The toast is triggered by a URL flag that toast.js shows and strips,
+                // not by session flash data: flash is dropped if any other request
+                // (a background poll) touches the session before the page loads.
+                $flag   = $isGet ? 'page' : 'action';
+                $target = preg_replace('/([?&])access_denied=[^&#]*&?/', '$1', $target);
+                $target = rtrim($target, '?&');
+                $hash   = '';
+                if (str_contains($target, '#')) [$target, $hash] = explode('#', $target, 2) + [1 => ''];
+                return redirect()->to($target . (str_contains($target, '?') ? '&' : '?') . 'access_denied=' . $flag . ($hash !== '' ? '#' . $hash : ''));
             }
         }
         return $response->setBody(view('errors/permission_denied'));
