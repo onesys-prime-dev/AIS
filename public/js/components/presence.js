@@ -125,7 +125,9 @@ const Presence = (() => {
                 // Badges with a status dot keep their own label element so
                 // the dot markup isn't wiped out by a plain textContent write.
                 const label = badge.querySelector('[data-presence-label]');
-                if (label) {
+                if (badge.hasAttribute('data-presence-dot')) {
+                    // Pure color dot: never write text into it.
+                } else if (label) {
                     label.textContent = newStatus;
                 } else {
                     badge.textContent = newStatus;

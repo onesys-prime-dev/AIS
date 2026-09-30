@@ -166,7 +166,7 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
                             <?= esc($avatarInitials) ?>
                         </div>
                     <?php endif; ?>
-                    <span class="header-avatar-status-dot <?= $headerBadgeClass ?>" <?= $headerPresenceAttrs ?> title="<?= esc($headerBadgeText) ?>"></span>
+                    <span class="header-avatar-status-dot" data-status="<?= $headerAccountActive ? esc($headerOnlineStatus) : 'Inactive' ?>" data-presence-dot <?= $headerPresenceAttrs ?> title="<?= esc($headerBadgeText) ?>"></span>
                 </div>
                 <div class="user-info">
                     <div class="user-name"><?= esc($displayName !== '' ? $displayName : 'User') ?></div>
@@ -985,16 +985,28 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
         flex:0 0 auto;
     }
 
+    /* Self-contained: color comes from data-status, not Tailwind classes,
+       and text is never written into the dot (font-size:0 + overflow hidden). */
     .header-avatar-status-dot{
         position:absolute;
         right:0;
         bottom:0;
         width:14px;
         height:14px;
+        box-sizing:border-box;
         border:2px solid #fff;
         border-radius:50%;
-        background:currentColor;
+        background:#9ca3af !important;
+        font-size:0;
+        line-height:0;
+        color:transparent;
+        overflow:hidden;
     }
+    .header-avatar-status-dot[data-current-status="Online"],
+    .header-avatar-status-dot[data-status="Online"]:not([data-current-status]){ background:#22c55e !important; }
+    .header-avatar-status-dot[data-current-status="Away"],
+    .header-avatar-status-dot[data-status="Away"]:not([data-current-status]){ background:#eab308 !important; }
+    .header-avatar-status-dot[data-status="Inactive"]{ background:#ef4444 !important; }
 
     /* =========================================================
     USER INFO
