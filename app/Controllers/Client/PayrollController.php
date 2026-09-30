@@ -2166,6 +2166,12 @@ class PayrollController extends BaseController
             return ['success' => false, 'error' => 'This payslip was just updated by someone else. Refresh and try again.', 'http' => 409];
         }
 
+        // Re-read now that the row is ours: a Save that landed between the
+        // checks above and the claim must not leave us emailing stale figures.
+        // (Saves are blocked from here on - see savePayslipRecord().)
+        $row  = $payslipModel->find($payslipId) ?: $row;
+        $data = json_decode((string) ($row['generated_data'] ?? ''), true) ?: $data;
+
         $employeeId      = (int) $row['employee_id'];
         $payslipRecordId = (int) $payslipId;
         $data['period_start'] = $row['period_start'];
@@ -2184,8 +2190,7 @@ class PayrollController extends BaseController
             $dompdf->setPaper('A4', 'portrait');
             $dompdf->render();
 
-            $password = $this->resolvePayslipPassword($employee);
-            $dompdf->getCanvas()->get_cpdf()->setEncryption($password, 'owner-password', ['print']);
+            $this->encryptPayslipPdf($dompdf, $employee);
             $pdfOutput = $dompdf->output();
 
             $permanentDir = WRITEPATH . 'uploads/payslips/permanent/';
@@ -2211,7 +2216,7 @@ class PayrollController extends BaseController
             $email->setTo($emailAddress);
             $email->setSubject("Your Payslip for {$data['period_start']} to {$data['period_end']}");
             $email->setMessage("
-                Dear {$empName},<br><br>
+                Dear " . esc((string) $empName) . ",<br><br>
                 Please find your payslip attached as a PDF. The file is password-protected.<br><br>
                 <strong>PDF Password:</strong> Your payslip password as set in your account profile.
                 If you have not changed it, the default is your Employee Number followed by your Birthdate (YYYYMMDD).<br><br>
@@ -2572,11 +2577,22 @@ class PayrollController extends BaseController
                 ->where('period_end',   $periodEnd)
                 ->first();
 
-            if ($existing && ($existing['send_status'] ?? '') === \App\Models\Client\EmployeePayslipModel::STATUS_SENDING) {
-                return $this->response->setStatusCode(409)->setJSON([
-                    'success' => false,
-                    'error'   => 'This payslip is being sent right now. Wait a moment, then save again.',
-                ]);
+            $db = \Config\Database::connect();
+            $db->transBegin();
+            if ($existing) {
+                // Lock the row for this save: a send claims it with a single
+                // UPDATE, which waits on this lock, so a send can't start
+                // between the "is it sending?" check and the write below.
+                $locked = $db->query('SELECT send_status FROM employee_payslips WHERE id = ? FOR UPDATE', [$existing['id']])->getRowArray();
+                if (($locked['send_status'] ?? '') === \App\Models\Client\EmployeePayslipModel::STATUS_SENDING) {
+                    $db->transRollback();
+                    return $this->response->setStatusCode(409)->setJSON([
+                        'success' => false,
+                        'error'   => 'This payslip is being sent right now. Wait a moment, then save again.',
+                    ]);
+                }
+                // Release state must come from the locked, current row.
+                $existing = $payslipModel->find($existing['id']) ?: $existing;
             }
 
             $fields = [
@@ -2609,29 +2625,14 @@ class PayrollController extends BaseController
             if (!$recordId) {
                 throw new \App\Exceptions\ValidationException('Failed to resolve payslip record after save.');
             }
-
-            // --- Step 2: Generate PDF and update file_path (best-effort, non-fatal) ---
-            try {
-                ini_set('memory_limit', '1G');
-                $html = $this->buildPayslipHtmlForPdf($data, $employee);
-                $options = new Options();
-                $options->set('defaultFont', 'Courier');
-                $dompdf = new Dompdf($options);
-                $dompdf->loadHtml($html);
-                $dompdf->setPaper('A4', 'portrait');
-                $dompdf->render();
-                $pdfOutput = $dompdf->output();
-
-                $permanentDir = WRITEPATH . 'uploads/payslips/permanent/';
-                if (!is_dir($permanentDir)) mkdir($permanentDir, 0777, true);
-                $filename      = "payslip_{$employee['employee_number']}_{$periodStart}.pdf";
-                $permanentPath = $permanentDir . $filename;
-                file_put_contents($permanentPath, $pdfOutput);
-
-                $payslipModel->update($recordId, ['file_path' => $permanentPath]);
-            } catch (\Throwable $pdfErr) {
-                log_message('error', 'savePayslipRecord PDF generation failed: ' . $pdfErr->getMessage());
+            if (!$db->transCommit()) {
+                throw new \RuntimeException('Payslip could not be saved. Please try again.');
             }
+
+            // No PDF is written here on purpose: deliverPayslip() builds the
+            // encrypted PDF at send time and downloadPayslip() regenerates from
+            // the saved figures. A file written on save was unencrypted and
+            // overwrote the copy the employee had already been emailed.
 
             $empName = $data['employee_name'] ?? trim(($employee['first_name'] ?? '') . ' ' . ($employee['last_name'] ?? ''));
             service('activityLogger')->payslipGenerated(
@@ -2656,6 +2657,7 @@ class PayrollController extends BaseController
                 'message'             => $release['message'],
             ]);
         } catch (\Exception $e) {
+            if (isset($db) && $db->transDepth > 0) $db->transRollback();
             return $this->jsonError($e, 'Unable to save payslip record.');
         }
     }
@@ -2988,6 +2990,23 @@ class PayrollController extends BaseController
             return $this->response->setStatusCode(403)->setBody('This payslip has not been released yet.');
         }
 
+        // A sent payslip that was re-saved afterwards (needs_resend) no longer
+        // matches what the employee was emailed. Until it's resent, the
+        // employee gets the copy they actually received. Only used when that
+        // file exists and is password-protected (older saves wrote unencrypted
+        // drafts there); staff always get the current saved figures.
+        if ($isOwner && !$isAdmin && !empty($payslip['sent_at']) && !empty($payslip['needs_resend'])) {
+            $storedPath = (string) ($payslip['file_path'] ?? '');
+            $storedPdf  = ($storedPath !== '' && is_file($storedPath)) ? (string) file_get_contents($storedPath) : '';
+            if ($storedPdf !== '' && str_contains($storedPdf, '/Encrypt')) {
+                $disposition = $this->request->getGet('mode') === 'inline' ? 'inline' : 'attachment';
+                return $this->response
+                    ->setHeader('Content-Type', 'application/pdf')
+                    ->setHeader('Content-Disposition', $disposition . '; filename="payslip_' . ($payslip['period_start'] ?? 'unknown') . '.pdf"')
+                    ->setBody($storedPdf);
+            }
+        }
+
         // Regenerate the PDF on-the-fly so it always reflects the current layout + logo.
         $data = json_decode((string)($payslip['generated_data'] ?? ''), true) ?? [];
         if (empty($data)) {
@@ -3010,8 +3029,7 @@ class PayrollController extends BaseController
         $dompdf->setPaper('A4', 'portrait');
         $dompdf->render();
 
-        $password = $this->resolvePayslipPassword($employee);
-        $dompdf->getCanvas()->get_cpdf()->setEncryption($password, 'owner-password', ['print']);
+        $this->encryptPayslipPdf($dompdf, $employee);
         $pdfOutput = $dompdf->output();
 
         $filename = 'payslip_' . ($payslip['period_start'] ?? 'unknown') . '.pdf';
@@ -3518,6 +3536,16 @@ class PayrollController extends BaseController
             ->get()
             ->getRowArray();
         return $row['secret'] ?? null;
+    }
+
+    /**
+     * Password-protects a rendered payslip PDF: the employee's payslip password
+     * opens it; the owner password is random per file (nobody needs it) so the
+     * print-only restriction can't be lifted with a well-known constant.
+     */
+    private function encryptPayslipPdf(Dompdf $dompdf, array $employee): void
+    {
+        $dompdf->getCanvas()->get_cpdf()->setEncryption($this->resolvePayslipPassword($employee), bin2hex(random_bytes(16)), ['print']);
     }
 
     private function resolvePayslipPassword(array $employee): string

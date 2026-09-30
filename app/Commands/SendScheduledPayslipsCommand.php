@@ -39,17 +39,36 @@ final class SendScheduledPayslipsCommand extends BaseCommand
 
         CLI::write('Scheduled payslip send — ' . date('Y-m-d H:i:s') . ($dryRun ? ' (dry run)' : ''));
 
-        // Stuck sends (process died mid-send) → Failed, so they're retried.
+        // Stuck sends (process died mid-send). The email may already have gone
+        // out before the crash, so never auto-retry: an unsent payslip goes to
+        // Needs Review for staff to confirm, and an already-sent one (a resend)
+        // goes back to Sent so it can be resent again.
         if (!$dryRun) {
-            $stuck = $db->table('employee_payslips')
+            $cutoff   = date('Y-m-d H:i:s', strtotime('-30 minutes'));
+            $released = 0;
+
+            $db->table('employee_payslips')
                 ->where('send_status', EmployeePayslipModel::STATUS_SENDING)
-                ->where('last_attempt_at <', date('Y-m-d H:i:s', strtotime('-30 minutes')))
+                ->where('sent_at', null)
+                ->where('last_attempt_at <', $cutoff)
                 ->update([
-                    'send_status'     => EmployeePayslipModel::STATUS_FAILED,
-                    'last_send_error' => 'Interrupted while sending (server stopped?) — will retry.',
+                    'send_status'     => EmployeePayslipModel::STATUS_NEEDS_REVIEW,
+                    'review_reason'   => 'Interrupted while sending (server stopped?). It may already have been emailed - check before sending again.',
+                    'last_send_error' => null,
                 ]);
-            $released = $db->affectedRows();
-            if ($stuck && $released > 0) {
+            $released += $db->affectedRows();
+
+            $db->table('employee_payslips')
+                ->where('send_status', EmployeePayslipModel::STATUS_SENDING)
+                ->where('sent_at IS NOT NULL', null, false)
+                ->where('last_attempt_at <', $cutoff)
+                ->update([
+                    'send_status'     => EmployeePayslipModel::STATUS_SENT,
+                    'last_send_error' => 'Resend interrupted (server stopped?) - it may or may not have been emailed. Resend if needed.',
+                ]);
+            $released += $db->affectedRows();
+
+            if ($released > 0) {
                 CLI::write("Released {$released} payslip(s) stuck in 'sending'.", 'yellow');
             }
         }
