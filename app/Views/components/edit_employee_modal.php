@@ -22,6 +22,16 @@
     width: 100%;
     max-width: 600px;
 
+    /* Same fix as edit_loan_modal.php's identical rule (both define this
+       class independently and render on the same page, Employee Management):
+       the form inside can run longer than the viewport, and without a height
+       cap the box just grows past the screen with no way to scroll to its
+       own Save button at the bottom — zooming out was the only way to reach
+       it. The ✕ close button (position:absolute) stays pinned at the corner
+       since it isn't affected by the box's own scroll. */
+    max-height: 90vh;
+    overflow-y: auto;
+
     border-radius: 18px;
 
     padding: 24px;
