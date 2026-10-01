@@ -210,7 +210,12 @@ class PayrollController extends BaseController
                 p.phone,
                 p.dst,
                 p.currency,
-                MAX(ps.sent_at)                     AS payslip_sent_at
+                MAX(ps.sent_at)                     AS payslip_sent_at,
+                MAX(ps.id)                          AS payslip_id,
+                MAX(ps.send_status)                 AS payslip_status,
+                MAX(ps.scheduled_send_date)         AS payslip_scheduled_date,
+                MAX(ps.needs_resend)                AS payslip_needs_resend,
+                MAX(ps.paid_at)                     AS payslip_paid_at
             FROM employees e
             INNER JOIN users u ON u.id = e.user_id AND u.active = 1
             LEFT JOIN employee_accounts ea  ON ea.employee_id = e.id
@@ -312,6 +317,8 @@ class PayrollController extends BaseController
                               ->where('period_type', $periodType)
                               ->first();
 
+            $oldStatus = $existing['status'] ?? null;
+
             if ($existing) {
                 $model->update($existing['id'], ['status' => $status]);
                 $id = $existing['id'];
@@ -325,6 +332,24 @@ class PayrollController extends BaseController
                     'dst'         => 0,
                 ]);
                 $id = $model->getInsertID();
+            }
+
+            // Audit trail: who flipped this, and from what. Best-effort — a
+            // logging hiccup must not undo or fail the status change itself.
+            if ($oldStatus !== $status) {
+                try {
+                    $emp     = (new \App\Models\Client\EmployeeModel())->find($employeeId);
+                    $empName = trim(($emp['first_name'] ?? '') . ' ' . ($emp['last_name'] ?? '')) ?: ('Employee #' . $employeeId);
+                    service('activityLogger')->log(
+                        'updated', 'payroll',
+                        "Payroll status for {$empName} ({$monthYear}, {$periodType}) set to {$status}",
+                        (int) $id,
+                        ['status' => $oldStatus],
+                        ['status' => $status]
+                    );
+                } catch (\Throwable $logErr) {
+                    log_message('error', 'markPayrollStatus audit log failed: ' . $logErr->getMessage());
+                }
             }
 
             return $this->response->setJSON(['success' => true, 'id' => $id, 'status' => $status]);
