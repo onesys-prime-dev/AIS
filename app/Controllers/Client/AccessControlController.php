@@ -282,7 +282,20 @@ class AccessControlController extends BaseController
             return $this->response->setJSON(['success' => false, 'message' => 'A department with that name already exists.']);
         }
 
+        // Employees and department-targeted announcements keep a copy of the
+        // department NAME as text (matched by name for announcements), so the
+        // rename has to reach them too or they stop matching the department.
+        // All-or-nothing so a half-renamed state can't be left behind.
+        $db->transBegin();
         $db->table('departments')->where('id', $id)->update(['name' => $name, 'updated_at' => date('Y-m-d H:i:s')]);
+        $db->table('employee_positions')->where('department_id', $id)->update(['department' => $name]);
+        $db->table('announcements')->where('department', $dept['name'])->update(['department' => $name]);
+        if (! $db->transStatus()) {
+            $db->transRollback();
+            return $this->response->setJSON(['success' => false, 'message' => 'Could not rename the department. Please try again.']);
+        }
+        $db->transCommit();
+
         service('activityLogger')->log('updated', 'departments', "Department renamed", $id, ['name' => $dept['name']], ['name' => $name]);
 
         return $this->response->setJSON(['success' => true, 'message' => 'Department renamed.']);
