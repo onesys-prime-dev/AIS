@@ -768,7 +768,7 @@ function htmlEsc(val)
                     ${(() => {
                         const isActive = p.status == 1;
                         if (!isActive) {
-                            return '<span class="bg-red-200 text-red-600 px-3 py-1 rounded-full text-xs font-semibold">Inactive</span>';
+                            return '<span class="bg-red-200 text-red-600 px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap">Inactive</span>';
                         }
                         const presence = p.online_status ?? 'Offline';
                         const badgeColors = {
@@ -777,7 +777,7 @@ function htmlEsc(val)
                             Offline: 'bg-gray-200 text-gray-500',
                         };
                         const color = badgeColors[presence] ?? badgeColors['Offline'];
-                        return `<span class="${color} px-3 py-1 rounded-full text-xs font-semibold"
+                        return `<span class="${color} px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap"
                                     data-presence-badge="${p.id}"
                                     data-current-status="${presence}">${presence}</span>`;
                     })()}

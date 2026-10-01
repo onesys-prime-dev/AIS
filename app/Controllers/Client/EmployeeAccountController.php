@@ -236,7 +236,7 @@ class EmployeeAccountController extends BaseController
         ];
 
         if (! $this->validateData($this->request->getPost(), $rules)) {
-            return redirect()->back()->withInput()->with('error', implode(' ', $this->validator->getErrors()));
+            return $this->respond(false, implode(' ', $this->validator->getErrors()));
         }
 
         $result = $this->accountService->updatePassword(
@@ -246,10 +246,10 @@ class EmployeeAccountController extends BaseController
         );
 
         if (! $result['ok']) {
-            return redirect()->back()->with('error', $result['message']);
+            return $this->respond(false, $result['message']);
         }
 
-        return redirect()->back()->with('success', 'Password updated successfully.');
+        return $this->respond(true, 'Password updated successfully.');
     }
 
     public function updatePayslipPassword()
@@ -396,10 +396,10 @@ class EmployeeAccountController extends BaseController
     }
 
     /**
-     * Send a success/error confirmation for a payslip-password action.
-     * AJAX requests (used by the payslip password forms) get an explicit
-     * JSON payload so the UI can show a toast immediately instead of relying
-     * on a full-page reload picking up flash data. Non-AJAX submissions
+     * Send a success/error confirmation for a password/payslip-password action.
+     * AJAX requests (used by the account forms) get an explicit JSON payload
+     * so the UI can show a toast immediately instead of relying on a
+     * full-page reload picking up flash data. Non-AJAX submissions
      * (e.g. JS disabled) fall back to the usual redirect + flash message.
      */
     private function respond(bool $ok, string $message)

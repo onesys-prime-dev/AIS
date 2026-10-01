@@ -172,7 +172,7 @@
         <div id="security-panel" class="settings-panel" data-settings-panel="security" role="tabpanel" aria-labelledby="security-tab" hidden>
             <section class="settings-section">
                 <div class="section-heading"><h2>Account password</h2><p>Update the password used to sign in to your account.</p></div>
-                <form method="post" action="<?= site_url('client_portal/profile/password') ?>" class="settings-form">
+                <form id="passwordForm" method="post" action="<?= site_url('client_portal/profile/password') ?>" class="settings-form">
                     <?= csrf_field() ?>
                     <div class="form-grid three-columns">
                         <div class="form-group"><label>Current Password</label><input type="password" name="current_password" placeholder="Enter current password" required></div>
@@ -872,8 +872,9 @@
         syncSaveState();
     })();
 
-    // AJAX submit for the Payslip Password forms (Update + Reset), so success/failure
-    // is confirmed via a toast immediately instead of depending on a full page reload.
+    // AJAX submit for the Account/Payslip Password forms (Update + Reset), so success/failure
+    // is confirmed via a toast immediately instead of depending on a full page reload
+    // (a plain reload can lose the flash message to a background presence/notifications poll).
     (function () {
         function bindAjaxForm(form, onSuccess) {
             if (!form) return;
@@ -921,6 +922,7 @@
             });
         }
 
+        bindAjaxForm(document.getElementById('passwordForm'));
         bindAjaxForm(document.getElementById('payslipPasswordForm'));
         bindAjaxForm(document.getElementById('resetPayslipForm'), function () {
             const modal = document.getElementById('resetPayslipModal');

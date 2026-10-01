@@ -198,15 +198,20 @@ class AccountService
     public function updatePassword(int $userId, string $currentPassword, string $newPassword): array
     {
         // Password changes are handled and audited by Shield — no activity log needed here.
-        $user = $this->findCompanyUser($userId);
+        $user = $this->userModel->find($userId);
 
         if (! $user) {
             return ['ok' => false, 'message' => 'User account not found.'];
         }
 
-        $passwordHash = (string) ($user->password_hash ?? '');
+        // Shield stores the password hash in auth_identities.secret2, not on the users table.
+        $identity = db_connect()->table('auth_identities')
+            ->where('user_id', $userId)
+            ->where('type', 'email_password')
+            ->get()
+            ->getRowArray();
 
-        if ($passwordHash === '' || ! password_verify($currentPassword, $passwordHash)) {
+        if (! $identity || ! password_verify($currentPassword, (string) $identity['secret2'])) {
             return ['ok' => false, 'message' => 'Current password is incorrect.'];
         }
 
