@@ -169,8 +169,29 @@ class SettingsController extends BaseController
             && ! str_contains($redirectTo, "\r")
             && ! str_contains($redirectTo, "\n");
 
+        // $redirectTo comes from the browser's own window.location.pathname,
+        // which (without URL rewriting, e.g. this app's default XAMPP setup)
+        // already includes the base folder and index.php — the same thing
+        // RedirectResponse::to() would prepend via site_url() for any string
+        // not already starting with "http". Passing it to ->to() as-is used
+        // to double that prefix (…/AIS/public/AIS/public/index.php/…), which
+        // the router then couldn't match at all, 404ing the save. Building an
+        // absolute URL ourselves (scheme+host, unprefixed) makes ->to() use
+        // it as given instead of running it through site_url() again.
+        $target = $isSafeLocalRedirect
+            ? $this->request->getUri()->getScheme() . '://' . $this->request->getUri()->getAuthority() . $redirectTo
+            : site_url('settings/customization');
+
+        // Flagged on the URL (read and stripped by toast.js), not left to
+        // session flashdata alone: flashdata survives exactly one further
+        // request, and this save already involves its own redirect hop, so
+        // anything else touching the session first (a notification poll, a
+        // presence heartbeat) racing that one request could silently use up
+        // the flash before this page ever reads it.
+        $target .= (str_contains($target, '?') ? '&' : '?') . 'saved=1';
+
         return redirect()
-            ->to($isSafeLocalRedirect ? $redirectTo : site_url('settings/customization'))
+            ->to($target)
             ->with('success', 'Customization updated successfully.');
     }
 

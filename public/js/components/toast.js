@@ -66,18 +66,38 @@
         el.addEventListener('click', () => { clearTimeout(timer); dismiss(); });
     };
 
-    // Landing here after a denied page/action (see PortalAccessFilter): show
-    // the toast, then drop the flag from the address bar so a refresh or a
-    // copied link doesn't repeat it.
-    (function showAccessDenied() {
+    // Landing here with a recognized flag on the URL (see PortalAccessFilter
+    // and SettingsController::saveCustomization): show the matching toast,
+    // then drop the flag from the address bar so a refresh or a copied link
+    // doesn't repeat it. Used instead of relying on session flashdata alone
+    // for anything whose redirect already involves an extra hop — flashdata
+    // survives exactly one further request, and something else touching the
+    // session first (a notification poll, a presence heartbeat) racing that
+    // one request could use it up before the page ever reads it.
+    (function showFlagToast() {
         let url;
         try { url = new URL(window.location.href); } catch (e) { return; }
-        const flag = url.searchParams.get('access_denied');
-        if (!flag) return;
-        url.searchParams.delete('access_denied');
+
+        const flags = [
+            ['access_denied', (v) => v === 'action' ? "You don't have permission to do that." : "You don't have access to that page.", 'error'],
+            ['saved', () => 'Customization updated successfully.', 'success'],
+            // Arbitrary server-chosen text (RequestController's backWithError/
+            // backWithSuccess) rather than one fixed message per flag.
+            ['toast_error', (v) => v, 'error'],
+            ['toast_success', (v) => v, 'success'],
+        ];
+
+        let toShow = null;
+        flags.forEach(([param, toText, type]) => {
+            const value = url.searchParams.get(param);
+            if (value === null) return;
+            url.searchParams.delete(param);
+            toShow = toShow || { text: toText(value), type };
+        });
+        if (!toShow) return;
+
         try { window.history.replaceState(null, '', url.pathname + url.search + url.hash); } catch (e) {}
-        const text = flag === 'action' ? "You don't have permission to do that." : "You don't have access to that page.";
-        const show = () => window.showToast(text, 'error');
+        const show = () => window.showToast(toShow.text, toShow.type);
         if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', show);
         else show();
     })();
