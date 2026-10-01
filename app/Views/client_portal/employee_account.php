@@ -37,7 +37,7 @@
                     <div class="about-avatar about-avatar-initials" id="aboutAvatarPreview"><?= esc($avatarInitials) ?></div>
                 <?php endif; ?>
                 <span class="about-avatar-edit-badge">&#9998;</span>
-                <span class="avatar-status-dot <?= $badgeClass ?>" <?= $presenceAttrs ?> title="<?= esc($badgeText) ?>"></span>
+                <span class="avatar-status-dot <?= $badgeClass ?>" data-presence-dot <?= $presenceAttrs ?> title="<?= esc($badgeText) ?>"></span>
             </label>
             <div class="profile-rail-copy">
                 <strong><?= esc(trim(($identity['first_name'] ?? '') . ' ' . ($identity['last_name'] ?? ''))) ?></strong>
@@ -478,9 +478,14 @@
         bottom:-1px;
         width:14px;
         height:14px;
+        
         border:2px solid #fff;
         border-radius:50%;
         background:currentColor;
+        /* Pure color dot: the presence poller must never show text in it. */
+        font-size:0;
+        line-height:0;
+        overflow:hidden;
     }
     span.profile-rail-status{
         display:inline-flex;
