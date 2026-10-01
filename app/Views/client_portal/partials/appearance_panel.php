@@ -1574,6 +1574,12 @@ function applyColors() {
     document.documentElement.style.setProperty('--header-text', getContrastColor(headerColor));
     document.documentElement.style.setProperty('--header-divider', getHeaderDividerColor(headerColor));
     document.documentElement.style.setProperty('--sidebar-text', getContrastColor(sidebarColor));
+    // Same contrast logic as header/sidebar, for page text that has no color
+    // of its own (BL-041: a dark page background left those headings/labels
+    // in their original dark color, unreadable against the new background).
+    const contentTextLive = getContrastColor(bgColor);
+    document.documentElement.style.setProperty('--content-text', contentTextLive);
+    document.documentElement.style.setProperty('--content-text-muted', contentTextLive === '#000000' ? '#6b7280' : '#cbd5e1');
 
     // ICONS
     document.documentElement.style.setProperty('--sidebar-icon-filter', getSidebarIconFilter(sidebarIconMode, sidebarColor));

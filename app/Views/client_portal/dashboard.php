@@ -47,6 +47,10 @@ $currentAttendance = $currentAttendance ?? null;
         font-size:clamp(20px, 2.5vw, 28px);
         font-weight:700;
         margin:0;
+        /* BL-041: sits directly on the page background, so it needs to follow
+           the Customization background color like the header/sidebar text
+           already do — a dark background otherwise left this unreadable. */
+        color: var(--content-text, #1f2937);
     }
 
     /* BUTTON */

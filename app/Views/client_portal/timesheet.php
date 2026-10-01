@@ -22,8 +22,8 @@
     <!-- Page Header (unchanged) -->
     <div class="flex justify-between items-center my-4 flex-wrap gap-3">
         <div class="p-1">
-            <h1 class="text-3xl font-bold text-gray-800 mb-1">Timesheets</h1>
-            <p class="text-gray-500 text-sm">Manage timesheets here.</p>
+            <h1 class="text-3xl font-bold mb-1" style="color:var(--content-text,#1f2937);">Timesheets</h1>
+            <p class="text-sm" style="color:var(--content-text-muted,#6b7280);">Manage timesheets here.</p>
         </div>
         <div class="timesheet-header-actions flex items-center gap-4 flex-wrap">
             <button type="button"
