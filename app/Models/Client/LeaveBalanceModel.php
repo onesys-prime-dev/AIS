@@ -71,16 +71,62 @@ class LeaveBalanceModel extends Model
             return $row;
         }
 
+        // A new year starts from the entitlement this employee already had
+        // (what Employee Management set), not the system default, so the
+        // configured Vacation/Sick/Emergency values don't silently reset each
+        // January. Nothing prior on file → the default, as before.
+        $prior       = $this->latestPriorBalance($employeeId, $leaveType, $year);
+        $entitlement = $prior ? (float) $prior['total_entitlement'] : self::DEFAULT_ENTITLEMENT;
+
         $this->insert([
             'employee_id'       => $employeeId,
             'leave_type'        => $leaveType,
             'year'              => $year,
-            'total_entitlement' => self::DEFAULT_ENTITLEMENT,
+            'total_entitlement' => $entitlement,
             'used'              => 0.00,
-            'remaining'         => self::DEFAULT_ENTITLEMENT,
+            'remaining'         => $entitlement,
         ]);
 
         return $this->getBalance($employeeId, $leaveType, $year);
+    }
+
+    /** The employee's most recent balance row from an earlier year, if any. */
+    private function latestPriorBalance(int $employeeId, string $leaveType, int $year): ?array
+    {
+        return $this->where('employee_id', $employeeId)
+                    ->where('leave_type', $leaveType)
+                    ->where('year <', $year)
+                    ->orderBy('year', 'DESC')
+                    ->first();
+    }
+
+    /**
+     * For read-only display: the stored row for the year, or — when the year
+     * has no row yet — what it will start with (last year's entitlement, fully
+     * unused). Never writes; null when the employee has no history at all.
+     */
+    public function getBalanceOrCarry(int $employeeId, string $leaveType = 'leave', ?int $year = null): ?array
+    {
+        $year ??= (int) date('Y');
+
+        $row = $this->getBalance($employeeId, $leaveType, $year);
+        if ($row !== null) {
+            return $row;
+        }
+
+        $prior = $this->latestPriorBalance($employeeId, $leaveType, $year);
+        if ($prior === null) {
+            return null;
+        }
+
+        return [
+            'employee_id'       => $employeeId,
+            'leave_type'        => $leaveType,
+            'year'              => $year,
+            'total_entitlement' => (float) $prior['total_entitlement'],
+            'used'              => 0.00,
+            'remaining'         => (float) $prior['total_entitlement'],
+        ];
     }
 
     /**
@@ -178,7 +224,7 @@ class LeaveBalanceModel extends Model
     public function getTypeEntitlement(int $employeeId, string $leaveType, ?int $year = null): float
     {
         $year ??= (int) date('Y');
-        $row = $this->getBalance($employeeId, $leaveType, $year);
+        $row = $this->getBalanceOrCarry($employeeId, $leaveType, $year);
         return $row ? (float) $row['total_entitlement'] : 0.0;
     }
 
@@ -380,7 +426,10 @@ class LeaveBalanceModel extends Model
         foreach ($this->splitDurationByYear($startDate, $endDate, $duration) as $year => $days) {
             if ($days <= 0) continue;
 
-            $row       = $this->getBalance($employeeId, $leaveType, $year);
+            // Same starting point deductAcrossYears() will use for a year with no
+            // row yet (last year's entitlement, else the default), so the check
+            // and the deduction can't disagree.
+            $row       = $this->getBalanceOrCarry($employeeId, $leaveType, $year);
             $remaining = $row !== null ? (float) $row['remaining'] : (float) self::DEFAULT_ENTITLEMENT;
 
             if ($remaining < $days) {

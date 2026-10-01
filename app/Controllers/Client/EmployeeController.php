@@ -258,9 +258,9 @@ class EmployeeController extends BaseController
         foreach ($employees as &$employee) {
             $eid = (int) $employee['id'];
 
-            $vacRow  = $leaveBalanceModel->getBalance($eid, 'vacation',  $currentYear);
-            $sickRow = $leaveBalanceModel->getBalance($eid, 'sick',      $currentYear);
-            $emeRow  = $leaveBalanceModel->getBalance($eid, 'emergency', $currentYear);
+            $vacRow  = $leaveBalanceModel->getBalanceOrCarry($eid, 'vacation',  $currentYear);
+            $sickRow = $leaveBalanceModel->getBalanceOrCarry($eid, 'sick',      $currentYear);
+            $emeRow  = $leaveBalanceModel->getBalanceOrCarry($eid, 'emergency', $currentYear);
 
             $employee['vacation_leave']  = $vacRow  ? (float) $vacRow['total_entitlement']  : 0.0;
             $employee['sick_leave']      = $sickRow ? (float) $sickRow['total_entitlement'] : 0.0;
