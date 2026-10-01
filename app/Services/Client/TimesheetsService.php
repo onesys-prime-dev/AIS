@@ -38,11 +38,29 @@ class TimesheetsService
 
     public function listDailyTimeLogByUserId(int $userId): array
     {
-        return $this->attendanceModel
-            ->select('id, user_id, time_in, break_start, break_end, break_duration, time_out, total_hours')
+        $rows = $this->attendanceModel
+            ->select('id, user_id, time_in, break_start, break_end, break_duration, break_log, time_out, total_hours')
             ->where('user_id', $userId)
             ->orderBy('time_in', 'DESC')
             ->findAll();
+
+        // break_start/break_end double as a live "currently on break?" flag:
+        // endBreak() (AttendanceSessionService) clears break_start back to
+        // null the moment a break ends, while break_end keeps that break's
+        // end time — so once a break is over, break_start always reads blank
+        // here even though one was taken (BL-042). The actual start/end pair
+        // for each break is in break_log; backfill break_start for display
+        // from there whenever the live flag is empty but a break happened.
+        foreach ($rows as &$row) {
+            if (!empty($row['break_start'])) continue; // currently on break — already correct as-is
+            $log = json_decode((string) ($row['break_log'] ?? '[]'), true);
+            if (is_array($log) && $log !== []) {
+                $row['break_start'] = end($log)['start'] ?? null;
+            }
+        }
+        unset($row);
+
+        return $rows;
     }
 
     public function listCurrentCutoffByUserId(int $userId): array
