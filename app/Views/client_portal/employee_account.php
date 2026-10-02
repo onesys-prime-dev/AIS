@@ -30,7 +30,7 @@
 <div class="account-container">
     <aside class="profile-rail">
         <div class="profile-rail-person">
-            <label class="about-avatar-wrap" for="profile_photo" aria-label="Change profile photo">
+            <label class="about-avatar-wrap" for="profile_photo" aria-label="Change profile photo" title="Click or drag a photo here to change it">
                 <?php if (! empty($identity['photo_url'])): ?>
                     <div class="about-avatar" id="aboutAvatarPreview" style="background-image:url('<?= esc((string) $identity['photo_url'], 'attr') ?>');"></div>
                 <?php else: ?>
@@ -38,6 +38,7 @@
                 <?php endif; ?>
                 <span class="about-avatar-edit-badge">&#9998;</span>
                 <span class="avatar-status-dot <?= $badgeClass ?>" data-presence-dot <?= $presenceAttrs ?> title="<?= esc($badgeText) ?>"></span>
+                <span class="about-avatar-upload-overlay" id="avatarUploadOverlay" aria-hidden="true"><span class="avatar-spinner"></span></span>
             </label>
             <div class="profile-rail-copy">
                 <strong><?= esc(trim(($identity['first_name'] ?? '') . ' ' . ($identity['last_name'] ?? ''))) ?></strong>
@@ -51,10 +52,42 @@
         <form id="photoUploadForm" method="post" action="<?= site_url('client_portal/profile/photo') ?>" enctype="multipart/form-data" class="photo-upload-form">
             <?= csrf_field() ?>
             <input id="profile_photo" type="file" name="profile_photo" accept=".jpg,.jpeg,.png,.webp" class="photo-input" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;">
-            <label for="profile_photo" class="photo-link-btn">Update photo</label>
-            <span class="photo-hint">JPG, PNG or WEBP</span>
-            <span id="photoUploadError" class="photo-upload-error hidden" aria-live="polite"></span>
+            <span class="photo-hint">JPG, PNG or WEBP, up to 30MB</span>
+            <span class="photo-status-row">
+                <span id="photoUploadError" class="photo-upload-error hidden" aria-live="polite"></span>
+                <button type="button" id="photoRetryBtn" class="photo-retry-btn hidden">Try again</button>
+            </span>
         </form>
+
+        <!-- Photo editor: zoom + reposition before uploading. Self-contained,
+             inline-styled markup — deliberately not sharing classes with any
+             other modal on this page, so nothing else can affect whether it shows. -->
+        <div id="peOverlay" style="display:none; position:fixed; inset:0; background:rgba(15,23,42,.5); z-index:10000; align-items:center; justify-content:center;">
+            <div style="background:#fff; width:min(360px, calc(100vw - 32px)); border-radius:14px; box-shadow:0 20px 60px rgba(0,0,0,.3); padding:20px;">
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
+                    <h3 style="margin:0; font-size:16px; font-weight:700; color:#17223b;">Edit photo</h3>
+                    <button type="button" id="peCloseBtn" style="background:none; border:none; font-size:22px; line-height:1; color:#6b7280; cursor:pointer; padding:0;">&times;</button>
+                </div>
+
+                <div style="display:flex; justify-content:center; background:#f3f4f6; border-radius:10px; padding:16px;">
+                    <canvas id="peCanvas" width="280" height="280" style="max-width:100%; cursor:grab; touch-action:none;"></canvas>
+                </div>
+
+                <div style="margin-top:14px;">
+                    <label style="display:block; font-size:12px; font-weight:600; color:#374151; margin-bottom:6px;">Zoom</label>
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <input type="range" id="peZoom" min="1" max="3" step="0.01" value="1" style="flex:1;">
+                        <span id="peZoomValue" style="font-size:12px; color:#6b7280; min-width:34px; text-align:right;">1.0x</span>
+                    </div>
+                    <p style="margin:8px 0 0; color:#9aa1ad; font-size:11px;">Drag the photo to reposition it.</p>
+                </div>
+
+                <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:18px;">
+                    <button type="button" id="peCancelBtn" class="btn btn-secondary">Cancel</button>
+                    <button type="button" id="peSaveBtn" class="btn btn-primary">Save photo</button>
+                </div>
+            </div>
+        </div>
 
         <div class="profile-rail-meta">
             <span>Employee ID</span>
@@ -518,12 +551,27 @@
     }
     .status-badge-lg .status-dot{ width:8px; height:8px; flex-basis:8px; }
     .detail-row-status strong{ font-size:14px; }
-    .photo-upload-form{ margin:12px 0 18px 71px; }
-    .photo-link-btn{ color:#6650cc; font-size:13px; font-weight:600; cursor:pointer; }
-    .photo-link-btn:hover{ text-decoration:underline; }
-    .photo-hint{ display:block; margin-top:3px; color:#9aa1ad; font-size:10px; }
+    .photo-upload-form{ margin:14px 0 18px; }
+    .photo-hint{ display:block; color:#9aa1ad; font-size:10px; }
+    .photo-status-row{ display:flex; align-items:baseline; gap:6px; flex-wrap:wrap; }
     .photo-upload-error{ display:block; margin-top:4px; color:#dc2626; font-size:11px; }
     .photo-upload-error.hidden,.hidden{ display:none; }
+    .photo-retry-btn{ display:inline-block; margin-top:4px; color:#6650cc; font-size:11px; font-weight:600; background:none; border:none; padding:0; cursor:pointer; text-decoration:underline; }
+
+    .about-avatar-upload-overlay{
+        position:absolute; inset:0; border-radius:50%;
+        display:flex; align-items:center; justify-content:center;
+        background:rgba(23,34,59,.5); opacity:0; pointer-events:none;
+        transition:opacity .15s ease;
+    }
+    .about-avatar-wrap.is-uploading .about-avatar-upload-overlay{ opacity:1; }
+    .avatar-spinner{
+        width:20px; height:20px; border-radius:50%;
+        border:2px solid rgba(255,255,255,.35); border-top-color:#fff;
+        animation:avatar-spin .7s linear infinite;
+    }
+    @keyframes avatar-spin{ to{ transform:rotate(360deg); } }
+    .about-avatar-wrap.is-dragover .about-avatar{ box-shadow:0 0 0 3px #7b5cff; }
     .profile-rail-meta{ margin-top:18px; padding:15px 0 0; border-top:1px solid #eceef1; }
     .profile-rail-meta span,.profile-rail-meta strong,.profile-rail-meta small{ display:block; }
     .profile-rail-meta span{ color:#737c8b; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; }
@@ -722,72 +770,242 @@
         });
     }
 
-    // Center-crop to a square, then lower JPEG quality until it fits the size limit.
-    async function makeAvatarBlob(img) {
-        const side = Math.min(img.naturalWidth, img.naturalHeight);
-        const sx = (img.naturalWidth - side) / 2;
-        const sy = (img.naturalHeight - side) / 2;
-        const canvas = document.createElement('canvas');
-        canvas.width = PHOTO_OUTPUT_SIZE;
-        canvas.height = PHOTO_OUTPUT_SIZE;
-        const ctx = canvas.getContext('2d');
-        ctx.fillStyle = '#fff';
-        ctx.fillRect(0, 0, PHOTO_OUTPUT_SIZE, PHOTO_OUTPUT_SIZE);
-        ctx.drawImage(img, sx, sy, side, side, 0, 0, PHOTO_OUTPUT_SIZE, PHOTO_OUTPUT_SIZE);
-
-        for (const quality of [0.9, 0.8, 0.7, 0.55, 0.4, 0.3]) {
-            const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality));
-            if (!blob) throw new Error('Your browser could not process this image.');
-            if (blob.size <= PHOTO_MAX_BYTES) return blob;
+    try {
+        const avatarWrap = document.querySelector('.about-avatar-wrap');
+        const avatarInput = document.getElementById('profile_photo');
+        const retryBtn = document.getElementById('photoRetryBtn');
+        const peOverlay = document.getElementById('peOverlay');
+        const peCanvas = document.getElementById('peCanvas');
+        const peZoom = document.getElementById('peZoom');
+        const peZoomValue = document.getElementById('peZoomValue');
+        const peSaveBtn = document.getElementById('peSaveBtn');
+        const peCancelBtn = document.getElementById('peCancelBtn');
+        const peCloseBtn = document.getElementById('peCloseBtn');
+        const missing = Object.entries({ avatarWrap, avatarInput, retryBtn, peOverlay, peCanvas, peZoom, peZoomValue, peSaveBtn, peCancelBtn, peCloseBtn })
+            .filter(([, el]) => !el).map(([name]) => name);
+        if (missing.length) {
+            console.error('[photo-editor] missing element(s), aborting setup:', missing);
+            throw new Error('Photo editor could not start (missing: ' + missing.join(', ') + ').');
         }
-        throw new Error('Image is still too large after compression. Try a smaller photo.');
-    }
 
-    document.getElementById('profile_photo').addEventListener('change', async function (e) {
-        const input = e.target;
-        const file = input.files && input.files[0];
-        if (!file) return;
+        const EDITOR_CANVAS_SIZE = 280;
+        const peCtx = peCanvas.getContext('2d');
 
-        try {
+        function setAvatarUploading(isUploading) {
+            avatarWrap.classList.toggle('is-uploading', isUploading);
+        }
+
+        // ── Editor state: the loaded image plus how it's currently framed
+        // (zoom level + drag offset) inside the circular preview. ──
+        let editorImg = null;
+        let editorScale = 1;
+        let editorOffsetX = 0;
+        let editorOffsetY = 0;
+
+        function drawEditorCanvas() {
+            peCtx.clearRect(0, 0, EDITOR_CANVAS_SIZE, EDITOR_CANVAS_SIZE);
+            peCtx.save();
+            peCtx.beginPath();
+            peCtx.arc(EDITOR_CANVAS_SIZE / 2, EDITOR_CANVAS_SIZE / 2, EDITOR_CANVAS_SIZE / 2, 0, Math.PI * 2);
+            peCtx.clip();
+            const baseScale = EDITOR_CANVAS_SIZE / Math.min(editorImg.naturalWidth, editorImg.naturalHeight);
+            const scale = baseScale * editorScale;
+            const w = editorImg.naturalWidth * scale;
+            const h = editorImg.naturalHeight * scale;
+            const x = (EDITOR_CANVAS_SIZE - w) / 2 + editorOffsetX;
+            const y = (EDITOR_CANVAS_SIZE - h) / 2 + editorOffsetY;
+            peCtx.drawImage(editorImg, x, y, w, h);
+            peCtx.restore();
+        }
+
+        function openPhotoEditor(img) {
+            editorImg = img;
+            drawEditorCanvas();
+            peOverlay.style.display = 'flex';
+        }
+
+        function closePhotoEditor() {
+            peOverlay.style.display = 'none';
+            avatarInput.value = '';
+        }
+
+        let dragStart = null;
+        peCanvas.addEventListener('pointerdown', function (e) {
+            dragStart = { x: e.clientX, y: e.clientY, offX: editorOffsetX, offY: editorOffsetY };
+            peCanvas.setPointerCapture(e.pointerId);
+        });
+        peCanvas.addEventListener('pointermove', function (e) {
+            if (!dragStart) return;
+            editorOffsetX = dragStart.offX + (e.clientX - dragStart.x);
+            editorOffsetY = dragStart.offY + (e.clientY - dragStart.y);
+            drawEditorCanvas();
+        });
+        ['pointerup', 'pointercancel'].forEach((evt) => peCanvas.addEventListener(evt, function () { dragStart = null; }));
+
+        peZoom.addEventListener('input', function () {
+            editorScale = parseFloat(peZoom.value);
+            peZoomValue.textContent = editorScale.toFixed(1) + 'x';
+            drawEditorCanvas();
+        });
+
+        peCancelBtn.addEventListener('click', closePhotoEditor);
+        peCloseBtn.addEventListener('click', closePhotoEditor);
+        peOverlay.addEventListener('click', function (e) {
+            if (e.target === peOverlay) closePhotoEditor();
+        });
+
+        // Renders the current zoom/pan onto a full-resolution canvas, then
+        // compresses it the same way the old auto-crop path did.
+        function exportEditedBlob() {
+            return new Promise((resolve, reject) => {
+                const canvas = document.createElement('canvas');
+                canvas.width = PHOTO_OUTPUT_SIZE;
+                canvas.height = PHOTO_OUTPUT_SIZE;
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(0, 0, PHOTO_OUTPUT_SIZE, PHOTO_OUTPUT_SIZE);
+                const ratio = PHOTO_OUTPUT_SIZE / EDITOR_CANVAS_SIZE;
+                const baseScale = EDITOR_CANVAS_SIZE / Math.min(editorImg.naturalWidth, editorImg.naturalHeight);
+                const scale = baseScale * editorScale * ratio;
+                const w = editorImg.naturalWidth * scale;
+                const h = editorImg.naturalHeight * scale;
+                const x = (PHOTO_OUTPUT_SIZE - w) / 2 + editorOffsetX * ratio;
+                const y = (PHOTO_OUTPUT_SIZE - h) / 2 + editorOffsetY * ratio;
+                ctx.drawImage(editorImg, x, y, w, h);
+
+                (async () => {
+                    for (const quality of [0.9, 0.8, 0.7, 0.55, 0.4, 0.3]) {
+                        const blob = await new Promise((r) => canvas.toBlob(r, 'image/jpeg', quality));
+                        if (!blob) return reject(new Error('Your browser could not process this image.'));
+                        if (blob.size <= PHOTO_MAX_BYTES) return resolve(blob);
+                    }
+                    reject(new Error('Image is still too large after compression. Try a smaller photo.'));
+                })();
+            });
+        }
+
+        async function uploadAvatarBlob(blob) {
+            const preview = document.getElementById('aboutAvatarPreview');
+            const prevBackground = preview ? preview.style.backgroundImage : '';
+            const hadInitials = preview ? preview.classList.contains('about-avatar-initials') : false;
+            const prevText = preview ? preview.textContent : '';
+
+            try {
+                setAvatarUploading(true);
+
+                // Optimistic preview — show the new photo right away instead of
+                // leaving the avatar looking stalled for the whole upload.
+                if (preview) {
+                    preview.style.backgroundImage = "url('" + URL.createObjectURL(blob) + "')";
+                    preview.textContent = '';
+                    preview.classList.remove('about-avatar-initials');
+                }
+
+                photoStatus('Uploading ' + formatBytes(blob.size) + '…');
+                const form = document.getElementById('photoUploadForm');
+                const fd = new FormData(form);
+                fd.set('profile_photo', blob, 'profile.jpg');
+
+                const res = await fetch(form.action, {
+                    method: 'POST',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                    body: fd,
+                });
+                let data;
+                try { data = await res.json(); } catch (_) { throw new Error('Upload failed (server error ' + res.status + '). Please try again.'); }
+                if (!data.success) throw new Error(data.message || 'Upload failed.');
+
+                photoStatus('Profile photo updated.', 'success');
+                setTimeout(() => window.location.reload(), 900);
+            } catch (err) {
+                console.error('[photo-editor] upload failed:', err);
+                // Roll back the optimistic preview — the upload didn't actually happen.
+                if (preview) {
+                    preview.style.backgroundImage = prevBackground;
+                    preview.textContent = hadInitials ? prevText : '';
+                    preview.classList.toggle('about-avatar-initials', hadInitials);
+                }
+                photoStatus(err.message || 'Something went wrong uploading the photo.', 'error');
+                retryBtn.classList.remove('hidden');
+            } finally {
+                setAvatarUploading(false);
+                avatarInput.value = '';
+            }
+        }
+
+        peSaveBtn.addEventListener('click', async function () {
+            const btn = this;
+            btn.disabled = true;
+            btn.textContent = 'Saving…';
+            try {
+                const blob = await exportEditedBlob();
+                peOverlay.style.display = 'none';
+                await uploadAvatarBlob(blob);
+            } catch (err) {
+                console.error('[photo-editor] save failed:', err);
+                photoStatus(err.message || 'Something went wrong uploading the photo.', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Save photo';
+            }
+        });
+
+        async function handlePhotoFile(file) {
+            if (!file) return;
+            retryBtn.classList.add('hidden');
+
             if (!/^image\//.test(file.type) && !/\.(jpe?g|png|webp)$/i.test(file.name)) {
-                throw new Error('Only JPG, PNG, or WEBP files are allowed.');
+                photoStatus('Only JPG, PNG, or WEBP files are allowed.', 'error');
+                avatarInput.value = '';
+                return;
             }
             if (file.size > PHOTO_SOURCE_MAX_BYTES) {
-                throw new Error('Image is too large (30MB max).');
+                photoStatus('Image is too large (30MB max).', 'error');
+                avatarInput.value = '';
+                return;
             }
 
-            photoStatus('Optimizing photo (' + formatBytes(file.size) + ')…');
-            const img = await loadImageFile(file);
-            const blob = await makeAvatarBlob(img);
-
-            photoStatus('Uploading ' + formatBytes(blob.size) + ' (compressed from ' + formatBytes(file.size) + ')…');
-            const form = document.getElementById('photoUploadForm');
-            const fd = new FormData(form);
-            fd.set('profile_photo', blob, 'profile.jpg');
-
-            const res = await fetch(form.action, {
-                method: 'POST',
-                headers: { 'X-Requested-With': 'XMLHttpRequest' },
-                body: fd,
-            });
-            let data;
-            try { data = await res.json(); } catch (_) { throw new Error('Upload failed (server error ' + res.status + '). Please try again.'); }
-            if (!data.success) throw new Error(data.message || 'Upload failed.');
-
-            const preview = document.getElementById('aboutAvatarPreview');
-            if (preview) {
-                preview.style.backgroundImage = "url('" + URL.createObjectURL(blob) + "')";
-                preview.textContent = '';
-                preview.classList.remove('about-avatar-initials');
+            try {
+                photoStatus('');
+                editorScale = 1;
+                editorOffsetX = 0;
+                editorOffsetY = 0;
+                peZoom.value = 1;
+                peZoomValue.textContent = '1.0x';
+                const img = await loadImageFile(file);
+                openPhotoEditor(img);
+            } catch (err) {
+                console.error('[photo-editor] could not open picked file:', err);
+                photoStatus(err.message || 'Something went wrong opening the photo.', 'error');
             }
-            photoStatus('Profile photo updated.', 'success');
-            setTimeout(() => window.location.reload(), 900);
-        } catch (err) {
-            photoStatus(err.message || 'Something went wrong uploading the photo.', 'error');
-        } finally {
-            input.value = '';
         }
-    });
+
+        avatarInput.addEventListener('change', function (e) {
+            handlePhotoFile(e.target.files && e.target.files[0]);
+        });
+
+        retryBtn.addEventListener('click', function () {
+            if (editorImg) openPhotoEditor(editorImg);
+        });
+
+        ['dragover', 'dragenter'].forEach((evt) => avatarWrap.addEventListener(evt, function (e) {
+            e.preventDefault();
+            avatarWrap.classList.add('is-dragover');
+        }));
+        ['dragleave', 'drop'].forEach((evt) => avatarWrap.addEventListener(evt, function (e) {
+            e.preventDefault();
+            avatarWrap.classList.remove('is-dragover');
+        }));
+        avatarWrap.addEventListener('drop', function (e) {
+            const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+            if (file) handlePhotoFile(file);
+        });
+
+        console.log('[photo-editor] ready');
+    } catch (err) {
+        console.error('[photo-editor] setup failed:', err);
+        photoStatus('Photo editor failed to load. Please reload the page.', 'error');
+    }
 
     // Change detection for Identity Form
     (function () {

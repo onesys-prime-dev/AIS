@@ -14,6 +14,9 @@
         .reg-mode-switch{ background:#e5e5e5; width:460px; max-width:100%; border-radius:20px; padding:3px; display:flex; margin-bottom:20px; }
         .reg-subtab{ flex:1; border:none; padding:6px; border-radius:20px; font-size:12px; cursor:pointer; background:transparent; font-weight:500; color:#374151; white-space:nowrap; }
         .reg-subtab-active{ background:#fff; box-shadow:0 1px 3px rgba(0,0,0,0.1); color:#111827; }
+
+        .reg-action-btn{ display:inline-flex; align-items:center; gap:7px; }
+        .reg-action-btn svg{ width:16px; height:16px; flex:none; }
     </style>
     <script>
         function switchRegView(view, btn) {
@@ -47,7 +50,7 @@
                 Load
             </button>
 
-            <button onclick="exportRegisterCsv()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition">
+            <button onclick="exportRegisterCsv()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 px-4 py-2 rounded-lg text-sm font-semibold transition">
                 Export CSV
             </button>
         </div>
@@ -126,11 +129,23 @@
                     </div>
                 </div>
                 <?php if ($regCanRelease): ?>
-                    <button type="button" id="regSendAllBtn" onclick="regSendAll()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition">&#9993; Send All</button>
-                    <button type="button" onclick="regScheduleAll()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition">&#128197; Schedule All…</button>
-                    <button type="button" onclick="regMarkAllPaid()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 px-4 py-2 rounded-lg text-sm font-semibold transition">Mark All Paid</button>
+                    <button type="button" id="regSendAllBtn" onclick="regSendAll()" class="reg-action-btn bg-[#7b5cff] hover:bg-[#6a4de0] text-white px-4 py-2 rounded-lg text-sm font-semibold transition shadow">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4 20-7Z"/></svg>
+                        Send All
+                    </button>
+                    <button type="button" onclick="regScheduleAll()" class="reg-action-btn bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 px-4 py-2 rounded-lg text-sm font-semibold transition">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16" rx="2.2"/><path d="M3 9.5h18"/><path d="M8 2.5v4"/><path d="M16 2.5v4"/></svg>
+                        Schedule All…
+                    </button>
+                    <button type="button" onclick="regMarkAllPaid()" class="reg-action-btn bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 px-4 py-2 rounded-lg text-sm font-semibold transition">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12.5 10.8 15 16 9.5"/></svg>
+                        Mark All Paid
+                    </button>
                 <?php endif; ?>
-                <button type="button" onclick="exportRegisterCsv()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition">&#8681; Export CSV</button>
+                <button type="button" onclick="exportRegisterCsv()" class="reg-action-btn bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 px-4 py-2 rounded-lg text-sm font-semibold transition">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M4 19.5h16"/></svg>
+                    Export CSV
+                </button>
             </div>
         </div>
         <?php if (!$regCanRelease): ?>
@@ -946,20 +961,23 @@ tr.raw-row-dirty td:first-child { border-left: 3px solid #f59e0b; }
 
     function payslipButtonsHtml(r) {
         const b = 'px-3 py-1.5 rounded-lg text-xs font-semibold transition';
+        const secondary = `${b} bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300`;
+        const primary = `${b} bg-[#7b5cff] hover:bg-[#6a4de0] text-white`;
         const id = Number(r.payslip_id);
-        let html = `<button onclick="openPayslipViewer(${id})" class="${b} bg-[#7b5cff] hover:bg-[#6a4de0] text-white">View</button>`;
+        let html = `<button onclick="openPayslipViewer(${id})" class="${secondary}">View</button>`;
         if (!window.CAN_RELEASE) return html;
         if (SENDABLE.includes(r.send_status)) {
-            html += `<button onclick="releaseSendOne(${id}, this)" class="${b} bg-green-600 hover:bg-green-700 text-white">${r.send_status === 'failed' ? 'Retry' : 'Send Now'}</button>`;
-            html += `<button onclick="openScheduleDialog([${id}])" class="${b} bg-blue-600 hover:bg-blue-700 text-white">${r.scheduled_send_date ? 'Reschedule' : 'Schedule'}</button>`;
-            if (r.scheduled_send_date) html += `<button onclick="releaseCancel([${id}])" class="${b} bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300">Cancel</button>`;
+            html += `<button onclick="releaseSendOne(${id}, this)" class="${primary}">${r.send_status === 'failed' ? 'Retry' : 'Send Now'}</button>`;
+            html += `<button onclick="openScheduleDialog([${id}])" class="${secondary}">${r.scheduled_send_date ? 'Reschedule' : 'Schedule'}</button>`;
+            if (r.scheduled_send_date) html += `<button onclick="releaseCancel([${id}])" class="${secondary}">Cancel</button>`;
         } else if (r.send_status === 'sent') {
-            // Amber = "resend needed" (inline colour: bg-amber-* isn't in the precompiled CSS).
+            // "Resend needed" still gets its own amber emphasis — it's the one case
+            // where the secondary-looking action is actually the one that needs attention.
             html += r.needs_resend
                 ? `<button onclick="releaseSendOne(${id}, this)" class="${b} text-white" style="background:#d97706;">Resend</button>`
-                : `<button onclick="releaseSendOne(${id}, this)" class="${b} bg-green-600 hover:bg-green-700 text-white">Resend</button>`;
+                : `<button onclick="releaseSendOne(${id}, this)" class="${secondary}">Resend</button>`;
         }
-        if (!r.is_paid) html += `<button onclick="markPaid([${id}])" class="${b} bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300">Paid</button>`;
+        if (!r.is_paid) html += `<button onclick="markPaid([${id}])" class="${secondary}">Paid</button>`;
         return html;
     }
 

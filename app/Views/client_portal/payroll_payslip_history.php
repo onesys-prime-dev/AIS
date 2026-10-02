@@ -35,6 +35,18 @@ $btn = 'px-3 py-1.5 rounded-lg text-xs font-semibold transition';
     </div>
 </div>
 
+<!-- Confirm dialog — replaces window.confirm() for Send/Resend prompts -->
+<div id="relConfirmModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:9999; align-items:center; justify-content:center;">
+    <div style="background:#fff; padding:22px; width:min(420px, calc(100vw - 32px)); border-radius:14px; box-shadow:0 8px 30px rgba(0,0,0,.25);">
+        <h3 id="relConfirmTitle" style="font-size:16px;font-weight:700;color:#111827;margin-bottom:6px;">Confirm</h3>
+        <p id="relConfirmMessage" style="font-size:13px;color:#4b5563;line-height:1.5;"></p>
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;">
+            <button type="button" id="relConfirmCancel" class="<?= $btn ?> bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300">Cancel</button>
+            <button type="button" id="relConfirmOk" class="<?= $btn ?> bg-[#7b5cff] hover:bg-[#6a4de0] text-white">Send</button>
+        </div>
+    </div>
+</div>
+
 <!-- Payslip Viewer Modal -->
 <div id="payslipViewerModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:9999; overflow:auto;">
     <div style="background:#fff; margin:2% auto; padding:24px; max-width:860px; border-radius:16px; box-shadow:0 8px 40px rgba(0,0,0,.35); position:relative; max-height:90vh; overflow-y:auto;">
@@ -76,7 +88,7 @@ $btn = 'px-3 py-1.5 rounded-lg text-xs font-semibold transition';
     // modals to be direct children of <body> — makes them immune to any
     // ancestor's display/overflow/stacking-context quirks.
     document.addEventListener('DOMContentLoaded', function () {
-        ['payslipViewerModal', 'payslipActivityModal', 'relScheduleModal'].forEach(function (id) {
+        ['payslipViewerModal', 'payslipActivityModal', 'relScheduleModal', 'relConfirmModal'].forEach(function (id) {
             const el = document.getElementById(id);
             if (el && el.parentElement !== document.body) document.body.appendChild(el);
         });
@@ -139,6 +151,31 @@ $btn = 'px-3 py-1.5 rounded-lg text-xs font-semibold transition';
         return json;
     }
 
+    // ── Confirm dialog (replaces window.confirm) ──
+    // Returns a Promise<boolean> instead of blocking the thread like confirm()
+    // did, so callers just add `await` in front of the old confirm(...) call.
+    function relConfirm(message, okLabel) {
+        return new Promise(function (resolve) {
+            const modal = document.getElementById('relConfirmModal');
+            document.getElementById('relConfirmMessage').textContent = message;
+            document.getElementById('relConfirmOk').textContent = okLabel || 'Send';
+            modal.style.display = 'flex';
+
+            function settle(result) {
+                modal.style.display = 'none';
+                okBtn.removeEventListener('click', onOk);
+                cancelBtn.removeEventListener('click', onCancel);
+                resolve(result);
+            }
+            const okBtn = document.getElementById('relConfirmOk');
+            const cancelBtn = document.getElementById('relConfirmCancel');
+            function onOk() { settle(true); }
+            function onCancel() { settle(false); }
+            okBtn.addEventListener('click', onOk);
+            cancelBtn.addEventListener('click', onCancel);
+        });
+    }
+
     // ── Send ──
     async function sendOne(id, force, method) {
         return relPost(REL_URL.send, { id, force: !!force, method: method || 'individual' });
@@ -146,13 +183,14 @@ $btn = 'px-3 py-1.5 rounded-lg text-xs font-semibold transition';
 
     window.releaseSendOne = async function (id, btn) {
         const isResend = relInfo(id).send_status === 'sent';
-        if (!confirm(`${isResend ? 'Resend' : 'Send'} ${relName(id)}'s payslip to their email now?`)) return;
+        const okLabel = isResend ? 'Resend' : 'Send';
+        if (!(await relConfirm(`${okLabel} ${relName(id)}'s payslip to their email now?`, okLabel))) return;
         const orig = btn ? btn.textContent : '';
         if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
         try {
             let json = await sendOne(id, false);
             if (!json.success && json.needs_confirm) {
-                if (confirm(json.error + '\n\nSend the saved figures anyway?')) json = await sendOne(id, true);
+                if (await relConfirm(json.error + ' Send the saved figures anyway?', 'Send anyway')) json = await sendOne(id, true);
             }
             if (json.success) relToast(json.warning || `${relName(id)}'s payslip was sent.`, json.warning ? 'warning' : 'success');
             else relToast(json.error || 'Send failed.', 'error');
@@ -167,7 +205,7 @@ $btn = 'px-3 py-1.5 rounded-lg text-xs font-semibold transition';
     /** Sends several payslips one by one; onProgress(done, total) for a live counter. */
     window.releaseSendMany = async function (ids, onProgress) {
         if (!ids.length) { relToast('Nothing to send in this cutoff.', 'warning'); return; }
-        if (!confirm(`Send ${ids.length} payslip(s) to the employees' email now?`)) return;
+        if (!(await relConfirm(`Send ${ids.length} payslip(s) to the employees' email now?`, 'Send'))) return;
         let sent = 0, held = 0, failed = 0, firstErr = '';
         for (let i = 0; i < ids.length; i++) {
             if (onProgress) onProgress(i, ids.length);

@@ -19,8 +19,8 @@ krsort($periodOptions);
 
     <div class="bg-green-50 border border-green-200 rounded-2xl p-4 flex items-center justify-between flex-wrap gap-3">
         <div class="flex items-center gap-3">
-            <div class="w-10 h-10 shrink-0 rounded-full bg-green-600 text-white flex items-center justify-center text-lg">
-                &#127974;
+            <div class="w-10 h-10 shrink-0 rounded-full bg-green-600 text-white flex items-center justify-center">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10 12 4l9 6"/><path d="M4 10h16v2H4z"/><path d="M5 12v7"/><path d="M9 12v7"/><path d="M15 12v7"/><path d="M19 12v7"/><path d="M3 21h18"/></svg>
             </div>
             <div>
                 <div class="font-semibold text-gray-800">Bank Disbursement File</div>
@@ -38,8 +38,9 @@ krsort($periodOptions);
                 <?php endforeach; ?>
             </select>
             <button id="bfExportBtn" onclick="exportBankFile()" disabled
-                class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-semibold transition whitespace-nowrap">
-                &#8681; Export Bank File
+                class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-semibold transition whitespace-nowrap inline-flex items-center gap-1.5">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M4 19.5h16"/></svg>
+                Export Bank File
             </button>
         </div>
     </div>

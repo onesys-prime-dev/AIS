@@ -33,7 +33,10 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
         <!-- BELL -->
         <div class="header-notif-wrapper">
             <button class="header-notif-btn" onclick="toggleNotif()">
-                <img src="<?=base_url('icons/notifications-bell.png')?>">
+                <svg class="header-notif-bell-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/>
+                    <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+                </svg>
                 <?php
                     $unreadNotifCount = 0;
                     foreach ($notifications ?? [] as $n) {
@@ -552,11 +555,14 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
         color: var(--header-text);
     }
 
-    .header-notif-btn img{
+    .header-notif-bell-icon{
+        width: 1.6em;
+        height: 1.6em;
+        color: var(--header-text);
         transition: transform 0.2s ease;
     }
 
-    .header-notif-btn img:hover{
+    .header-notif-btn:hover .header-notif-bell-icon{
         transform: scale(1.08);
     }
 
