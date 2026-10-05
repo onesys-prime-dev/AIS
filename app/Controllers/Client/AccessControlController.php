@@ -146,6 +146,9 @@ class AccessControlController extends BaseController
             $departmentTeamHeads[(int) $row['department_id']][] = (int) $row['team_head_user_id'];
         }
 
+        $networkSettingsModel = new \App\Models\Client\PayrollSettingsModel();
+        $exemptIds = json_decode((string) ($networkSettingsModel->getSetting('attendance_network_exempt_ids') ?? ''), true);
+
         return [
             'accounts'            => $accounts,
             'roleOptions'         => $roleOptions,
@@ -154,6 +157,14 @@ class AccessControlController extends BaseController
             'departmentTeamHeads' => $departmentTeamHeads,
             'permissions'         => self::getRolePermissions(),
             'permissionLabels'    => self::permissionLabels(),
+            'attendanceDetectedIp'       => service('request')->getIPAddress(),
+            // A forwarding header with no trusted proxy configured means the
+            // detected address is the proxy's, not the visitor's — every
+            // employee would look like the same IP, so the check is meaningless.
+            'attendanceProxyWarning'     => (service('request')->hasHeader('X-Forwarded-For') || service('request')->hasHeader('CF-Connecting-IP'))
+                                            && empty(config('App')->proxyIPs),
+            'attendanceAllowedIps'       => (string) ($networkSettingsModel->getSetting('attendance_allowed_ips') ?? ''),
+            'attendanceNetworkExemptIds' => is_array($exemptIds) ? array_map('intval', $exemptIds) : [],
         ];
     }
 
@@ -452,5 +463,38 @@ class AccessControlController extends BaseController
         );
 
         return $this->response->setJSON(['success' => true, 'message' => 'Permissions updated.']);
+    }
+
+    /**
+     * Onsite clock-ins are restricted to this IP/CIDR allowlist (see
+     * AttendanceSessionService::enforceOnsiteNetwork()); WFH days bypass it
+     * entirely, and accounts in the exempt list bypass it on any day. An
+     * empty allowlist enforces nothing (fail-open) — turning this on is
+     * opt-in so a misconfiguration can't lock out every onsite employee.
+     */
+    public function updateAttendanceNetworkSettings()
+    {
+        if ($denied = $this->guardManager()) return $denied;
+
+        $ranges = \App\Libraries\IpAllowlist::parse((string) $this->request->getPost('allowed_ips'));
+        foreach ($ranges as $range) {
+            if (! \App\Libraries\IpAllowlist::isValid($range)) {
+                return $this->response->setJSON(['success' => false, 'message' => "'{$range}' isn't a valid IP address or CIDR range."]);
+            }
+        }
+
+        $exemptIds = array_values(array_unique(array_map('intval', (array) $this->request->getPost('exempt_user_ids'))));
+
+        $model = new \App\Models\Client\PayrollSettingsModel();
+        $model->setSetting('attendance_allowed_ips', implode("\n", $ranges));
+        $model->setSetting('attendance_network_exempt_ids', json_encode($exemptIds));
+
+        service('activityLogger')->log(
+            'updated', 'attendance_network_settings',
+            'Attendance network restriction settings updated',
+            null, null, ['allowed_ips' => $ranges, 'exempt_user_ids' => $exemptIds]
+        );
+
+        return $this->response->setJSON(['success' => true, 'message' => 'Attendance network settings saved.']);
     }
 }

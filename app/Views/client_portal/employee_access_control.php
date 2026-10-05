@@ -11,6 +11,7 @@
         <button type="button" class="ac-subtab" data-ac-tab="accounts">Accounts</button>
         <button type="button" class="ac-subtab" data-ac-tab="departments">Departments</button>
         <button type="button" class="ac-subtab" data-ac-tab="permissions">Role Permissions</button>
+        <button type="button" class="ac-subtab" data-ac-tab="network">Attendance Network</button>
     </div>
 
     <div class="flex-1 min-h-0 overflow-y-auto rounded-2xl border border-gray-200 shadow-sm" data-ac-panel="accounts">
@@ -45,5 +46,58 @@
         <p class="text-sm text-gray-500 mt-1">What each role can access across the portal. Super Admin isn't listed — it always has full access and can't be limited here.</p>
         <div class="flex gap-2 mt-3" id="rolePermissionTabs"></div>
         <div id="rolePermissionBody" class="mt-3 mb-4 rounded-2xl border border-gray-200 shadow-sm p-4"></div>
+    </div>
+
+    <!-- ATTENDANCE NETWORK RESTRICTION -->
+    <div class="flex-1 min-h-0 overflow-y-auto" id="attendanceNetworkSection" data-ac-panel="network" style="display:none;">
+        <div class="mb-3">
+            <h3 class="text-lg font-semibold text-gray-800">Attendance Network Restriction</h3>
+            <p class="text-sm text-gray-500 mt-1">
+                Require clock-ins and break starts on Onsite days to come from the office network (clocking out and ending a break are always allowed, so no shift gets stranded). WFH days always bypass this, and anyone on the exempt list below bypasses it on any day. Leave the list empty to not enforce anything.
+            </p>
+        </div>
+
+        <div class="mb-4" style="display:grid; grid-template-columns:repeat(auto-fit,minmax(340px,1fr)); gap:16px; align-items:start;">
+
+            <div class="bg-indigo-50 rounded-3xl p-6">
+                <div class="flex items-center justify-between mb-2">
+                    <label class="block text-sm font-semibold text-gray-700">Allowed office IP(s) / CIDR range(s)</label>
+                    <span id="attendanceEnforcementBadge" class="text-xs font-bold px-2 py-1 rounded-full"></span>
+                </div>
+
+                <div class="flex items-center justify-between gap-2 bg-white border border-indigo-200 rounded-xl px-3 py-2 mb-2 text-xs text-gray-600">
+                    <span>Your connection right now: <strong id="attendanceDetectedIp" class="font-mono text-gray-800"></strong></span>
+                    <button type="button" id="attendanceAddDetectedBtn" class="font-semibold px-2 py-1 rounded-md" style="background:#f1eeff;color:#6650cc;">Add this</button>
+                </div>
+
+                <div id="attendanceIpChips" class="flex flex-wrap gap-2 bg-white border border-gray-300 rounded-xl p-2 min-h-[46px]">
+                    <input type="text" id="attendanceIpInput" placeholder="Type an IP or CIDR range, then press Enter"
+                        class="flex-1 min-w-[180px] border-none outline-none text-sm px-1 py-1">
+                </div>
+                <p id="attendanceIpError" class="text-xs text-red-500 mt-1 hidden"></p>
+                <p class="text-xs text-gray-400 mt-1">IPv4 or IPv6, e.g. 203.0.113.4, 203.0.113.0/24 or 2001:db8::/32. Add every address your office uses (all internet lines, and the IPv6 address if it has one). Press Enter, comma, or paste a list.</p>
+            </div>
+
+            <div class="bg-indigo-50 rounded-3xl p-6">
+                <div class="flex items-center justify-between mb-2">
+                    <label class="block text-sm font-semibold text-gray-700">Exempt accounts</label>
+                    <span id="attendanceExemptCount" class="text-xs text-gray-500 font-semibold"></span>
+                </div>
+                <p class="text-xs text-gray-500 mb-2">Always allowed to clock in, on any network, any day.</p>
+
+                <input type="text" id="attendanceExemptSearch" placeholder="Search accounts…"
+                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm mb-2 bg-white">
+                <div id="attendanceExemptAccountsList" class="bg-white rounded-xl border border-gray-200 p-2 space-y-1" style="max-height:320px; overflow-y:auto;"></div>
+            </div>
+
+        </div>
+
+        <div class="flex items-center gap-3 mb-4">
+            <button type="button" id="saveAttendanceNetworkBtn" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white transition" style="background:#A891FC;">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+                Save
+            </button>
+            <span id="attendanceNetworkStatus" class="text-xs text-gray-400"></span>
+        </div>
     </div>
 </div>

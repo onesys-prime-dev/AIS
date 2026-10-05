@@ -51,6 +51,7 @@ $routes->group('client_portal', ['filter' => 'auth'], function($routes){
     $routes->post('access-control/departments/rename'         , 'Client\AccessControlController::renameDepartment');
     $routes->post('access-control/departments/deactivate'     , 'Client\AccessControlController::deactivateDepartment');
     $routes->post('access-control/departments/team-heads'     , 'Client\AccessControlController::updateDepartmentTeamHeads');
+    $routes->post('access-control/attendance-network'         , 'Client\AccessControlController::updateAttendanceNetworkSettings');
 
     // -- Loans --
     // Note: no standalone 'loans' index route — the Loans tab is rendered

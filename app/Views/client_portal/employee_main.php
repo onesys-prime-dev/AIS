@@ -175,6 +175,10 @@ const ACCESS_CONTROL_DEPARTMENT_TEAM_HEADS = <?= json_encode($accessControlDepar
 const ACCESS_CONTROL_PERMISSIONS = <?= json_encode($accessControlPermissions ?? []) ?>;
 const ACCESS_CONTROL_PERMISSION_LABELS = <?= json_encode($accessControlPermissionLabels ?? []) ?>;
 const ACCESS_CONTROL_ACTOR_IS_SUPERADMIN = <?= json_encode((bool) ($accessControlActorIsSuperadmin ?? false)) ?>;
+const ACCESS_CONTROL_ATTENDANCE_ALLOWED_IPS = <?= json_encode($accessControlAttendanceAllowedIps ?? '') ?>;
+const ACCESS_CONTROL_ATTENDANCE_DETECTED_IP = <?= json_encode($accessControlAttendanceDetectedIp ?? '') ?>;
+const ACCESS_CONTROL_ATTENDANCE_PROXY_WARNING = <?= json_encode((bool) ($accessControlAttendanceProxyWarning ?? false)) ?>;
+const ACCESS_CONTROL_ATTENDANCE_NETWORK_EXEMPT_IDS = <?= json_encode($accessControlAttendanceNetworkExemptIds ?? []) ?>;
 const CSRF_HASH = "<?= csrf_hash() ?>";
 
 function acEscapeHtml(s) {
@@ -650,6 +654,7 @@ let acTeamHeadAccounts = ACCESS_CONTROL_TEAM_HEAD_ACCOUNTS.slice();
         accounts: document.querySelector('[data-ac-panel="accounts"]'),
         departments: document.getElementById('departmentsSection'),
         permissions: document.getElementById('rolePermissionsSection'),
+        network: document.getElementById('attendanceNetworkSection'),
     };
     const buttons = Array.from(tabsWrap.querySelectorAll('[data-ac-tab]'));
 
@@ -684,6 +689,204 @@ let acTeamHeadAccounts = ACCESS_CONTROL_TEAM_HEAD_ACCOUNTS.slice();
 
     const firstEligible = buttons.find(function (btn) { return isEligible(btn.dataset.acTab); });
     activate(firstEligible ? firstEligible.dataset.acTab : 'accounts');
+})();
+
+// ================= ATTENDANCE NETWORK RESTRICTION =================
+(function () {
+    const chipsWrap = document.getElementById('attendanceIpChips');
+    const ipInput = document.getElementById('attendanceIpInput');
+    const ipError = document.getElementById('attendanceIpError');
+    const exemptList = document.getElementById('attendanceExemptAccountsList');
+    const exemptSearch = document.getElementById('attendanceExemptSearch');
+    const exemptCount = document.getElementById('attendanceExemptCount');
+    const saveBtn = document.getElementById('saveAttendanceNetworkBtn');
+    const statusEl = document.getElementById('attendanceNetworkStatus');
+    if (!chipsWrap || !ipInput || !exemptList || !saveBtn) return;
+
+    // Quick client-side shape check for IPv4 / IPv6, optionally with a /prefix.
+    // The server does the authoritative validation (IpAllowlist::isValid) on save.
+    const IPV4_PATTERN = /^(\d{1,3}\.){3}\d{1,3}(\/\d{1,2})?$/;
+    const IPV6_PATTERN = /^[0-9a-fA-F:.]+(\/\d{1,3})?$/; // '.' allows ::ffff:1.2.3.4
+    const IP_PATTERN = { test: (v) => v.includes(':') ? IPV6_PATTERN.test(v) && (v.match(/:/g) || []).length >= 2 : IPV4_PATTERN.test(v) };
+    const octetsValid = (ip) => ip.includes(':') ? true : ip.split('/')[0].split('.').every(n => Number(n) <= 255);
+
+    let ranges = IPAllowlist_parse(ACCESS_CONTROL_ATTENDANCE_ALLOWED_IPS);
+
+    function IPAllowlist_parse(raw) {
+        return (raw || '').split(/[,\r\n]+/).map(s => s.trim()).filter(Boolean);
+    }
+
+    function showIpError(message) {
+        ipError.textContent = message;
+        ipError.classList.toggle('hidden', !message);
+    }
+
+    // An empty list means nothing is enforced (fail-open by design) — make
+    // that state obvious instead of looking like a working-but-silent setup.
+    function updateEnforcementBadge() {
+        const badge = document.getElementById('attendanceEnforcementBadge');
+        if (!badge) return;
+        const on = ranges.length > 0;
+        badge.textContent = on ? `Enforcement ON · ${ranges.length} address${ranges.length === 1 ? '' : 'es'}` : 'Enforcement OFF · list is empty';
+        badge.style.background = on ? '#dcfce7' : '#fee2e2';
+        badge.style.color = on ? '#166534' : '#991b1b';
+    }
+
+    function renderChips() {
+        updateEnforcementBadge();
+        chipsWrap.querySelectorAll('.attendance-ip-chip').forEach(el => el.remove());
+        ranges.forEach((range, i) => {
+            const chip = document.createElement('span');
+            chip.className = 'attendance-ip-chip inline-flex items-center gap-1 bg-indigo-100 text-indigo-700 text-xs font-semibold px-2 py-1 rounded-full';
+            chip.innerHTML = `${htmlEsc(range)} <button type="button" aria-label="Remove" class="text-indigo-400 hover:text-indigo-700" style="line-height:1;">&times;</button>`;
+            chip.querySelector('button').addEventListener('click', () => { ranges.splice(i, 1); renderChips(); });
+            chipsWrap.insertBefore(chip, ipInput);
+        });
+    }
+
+    function addRange(raw) {
+        const value = raw.trim();
+        if (!value) return true;
+        if (!IP_PATTERN.test(value) || !octetsValid(value)) {
+            showIpError(`"${value}" isn't a valid IP or CIDR range (e.g. 203.0.113.4 or 203.0.113.0/24).`);
+            return false;
+        }
+        if (!ranges.includes(value)) ranges.push(value);
+        showIpError('');
+        return true;
+    }
+
+    // Returns true if everything typed was accepted. Invalid entries stay in
+    // the box (with the error shown) instead of being wiped and silently lost.
+    function addFromInput() {
+        const rejected = IPAllowlist_parse(ipInput.value).filter(v => !addRange(v));
+        renderChips();
+        ipInput.value = rejected.join(', ');
+        return rejected.length === 0;
+    }
+
+    ipInput.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ',') {
+            e.preventDefault();
+            addFromInput();
+        } else if (e.key === 'Backspace' && !ipInput.value && ranges.length) {
+            ranges.pop();
+            renderChips();
+        }
+    });
+    ipInput.addEventListener('blur', addFromInput);
+    chipsWrap.addEventListener('click', () => ipInput.focus());
+
+    // Shows the address the server sees for THIS admin, with a one-click add —
+    // the reliable way to enter the office address (open this tab from a
+    // computer on the office network).
+    const detectedEl = document.getElementById('attendanceDetectedIp');
+    const addDetectedBtn = document.getElementById('attendanceAddDetectedBtn');
+    const detectedIp = ACCESS_CONTROL_ATTENDANCE_DETECTED_IP || '';
+    const isLoopback = detectedIp === '' || detectedIp === '::1' || detectedIp.startsWith('127.');
+    if (detectedEl) {
+        detectedEl.textContent = detectedIp || 'unknown';
+        if (isLoopback) {
+            const note = document.createElement('div');
+            note.className = 'text-xs text-amber-600 mt-1';
+            note.textContent = 'This is the server\'s own computer (localhost), not the office network. Open this page from an office computer using the server\'s network address or the live site URL, then it will show the real address.';
+            detectedEl.closest('div').parentElement.insertBefore(note, detectedEl.closest('div').nextSibling);
+        }
+    }
+    if (ACCESS_CONTROL_ATTENDANCE_PROXY_WARNING && detectedEl) {
+        const warn = document.createElement('div');
+        warn.className = 'text-xs text-red-600 font-semibold mt-1';
+        warn.textContent = 'Warning: this request came through a proxy/CDN that the server isn\'t configured to trust, so the address above is the proxy\'s, not the visitor\'s. The network check won\'t work correctly until proxyIPs is set in app/Config/App.php.';
+        detectedEl.closest('div').parentElement.insertBefore(warn, detectedEl.closest('div').nextSibling);
+    }
+    if (addDetectedBtn) {
+        if (isLoopback) {
+            addDetectedBtn.disabled = true;
+            addDetectedBtn.style.opacity = '.4';
+            addDetectedBtn.style.cursor = 'not-allowed';
+        }
+        addDetectedBtn.addEventListener('click', function () {
+            if (!isLoopback && addRange(detectedIp)) renderChips();
+        });
+    }
+
+    renderChips();
+
+    // Exempt accounts — searchable checklist with a live selected count.
+    const exemptIds = new Set(ACCESS_CONTROL_ATTENDANCE_NETWORK_EXEMPT_IDS);
+
+    function updateExemptCount() {
+        exemptCount.textContent = exemptIds.size ? `${exemptIds.size} selected` : '';
+    }
+
+    function renderExemptList(filter) {
+        const q = (filter || '').trim().toLowerCase();
+        const accounts = ACCESS_CONTROL_ACCOUNTS.filter(acc =>
+            !q || acc.name.toLowerCase().includes(q) || (acc.email || '').toLowerCase().includes(q)
+        );
+
+        exemptList.innerHTML = accounts.map(acc => {
+            const checked = exemptIds.has(acc.user_id) ? 'checked' : '';
+            return `
+                <label class="flex items-center gap-2 text-sm px-2 py-1.5 rounded-lg hover:bg-gray-50 cursor-pointer">
+                    <input type="checkbox" class="attendance-exempt-checkbox" value="${acc.user_id}" ${checked}>
+                    <span class="font-medium text-gray-700">${htmlEsc(acc.name)}</span>
+                    <span class="text-gray-400 truncate">${htmlEsc(acc.email || '')}</span>
+                </label>
+            `;
+        }).join('') || `<p class="text-sm text-gray-400 px-2 py-1.5">${q ? 'No matching accounts.' : 'No accounts found.'}</p>`;
+
+        exemptList.querySelectorAll('.attendance-exempt-checkbox').forEach(cb => {
+            cb.addEventListener('change', function () {
+                // Numeric: the Set is seeded with integer user ids, so a string
+                // here would never match (or remove) an existing exemption.
+                const id = Number(this.value);
+                if (this.checked) exemptIds.add(id); else exemptIds.delete(id);
+                updateExemptCount();
+            });
+        });
+    }
+
+    renderExemptList('');
+    updateExemptCount();
+    if (exemptSearch) exemptSearch.addEventListener('input', () => renderExemptList(exemptSearch.value));
+
+    saveBtn.addEventListener('click', function () {
+        // Don't save past an invalid entry the admin is still looking at.
+        if (!addFromInput()) return;
+
+        if (ranges.length === 0 && !confirm('The allowed list is empty, so clock-ins will NOT be restricted to the office network. Save anyway?')) return;
+
+        const fd = new FormData();
+        fd.set('allowed_ips', ranges.join('\n'));
+        Array.from(exemptIds).forEach(id => fd.append('exempt_user_ids[]', id));
+
+        saveBtn.disabled = true;
+        const originalHtml = saveBtn.innerHTML;
+        saveBtn.innerHTML = 'Saving…';
+        if (statusEl) statusEl.textContent = '';
+
+        fetch('<?= site_url('client_portal/access-control/attendance-network') ?>', {
+            method: 'POST',
+            headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': CSRF_HASH },
+            body: fd,
+        })
+            .then(res => res.json())
+            .then(data => {
+                if (window.showToast) window.showToast(data.message || (data.success ? 'Saved.' : 'Something went wrong.'), data.success ? 'success' : 'error');
+                if (data.success && statusEl) {
+                    statusEl.textContent = 'Saved just now.';
+                    setTimeout(() => { statusEl.textContent = ''; }, 4000);
+                }
+            })
+            .catch(() => {
+                if (window.showToast) window.showToast('Network error. Please try again.', 'error');
+            })
+            .finally(() => {
+                saveBtn.disabled = false;
+                saveBtn.innerHTML = originalHtml;
+            });
+    });
 })();
 
 const CURRENT_USER_ID = <?= (int) ($currentUserId ?? 0) ?>;
@@ -816,6 +1019,7 @@ function htmlEsc(val)
 
                         data-working_day_type="${htmlEsc(p.working_day_type)}"
                         data-working_days='${htmlEsc(p.working_days || "[]")}'
+                        data-wfh_days='${htmlEsc(p.wfh_days || "[]")}'
                         data-start_time="${htmlEsc(p.start_time)}"
                         data-end_time="${htmlEsc(p.end_time)}"
                         data-break_schedule='${htmlEsc(p.break_schedule || "[]")}'
@@ -864,6 +1068,7 @@ function htmlEsc(val)
         if (!employee) return;
  
         let workingDays = [];
+        let wfhDays = [];
  
         let deMinimisBreakdown = {
             allocations: {},
@@ -876,6 +1081,10 @@ function htmlEsc(val)
  
         try {
             workingDays = JSON.parse(employee.working_days || '[]');
+        } catch (e) {}
+
+        try {
+            wfhDays = JSON.parse(employee.wfh_days || '[]');
         } catch (e) {}
  
         const allocations = deMinimisBreakdown.allocations || {};
@@ -1028,14 +1237,18 @@ function htmlEsc(val)
                             <div class="flex gap-2 flex-wrap">
                                 ${['mon','tue','wed','thu','fri','sat','sun'].map(day => {
                                     const active = workingDays.includes(day);
- 
+                                    const isWfh = active && wfhDays.includes(day);
+
                                     return `
-                                        <div class="w-10 h-10 rounded-full flex items-center justify-center text-xs font-semibold
-                                            ${active
-                                                ? 'bg-[#A891FC] text-white'
-                                                : 'bg-gray-100 text-gray-400'}">
- 
-                                            ${day.charAt(0).toUpperCase() + day.slice(1)}
+                                        <div class="flex flex-col items-center gap-1">
+                                            <div class="w-10 h-10 rounded-full flex items-center justify-center text-xs font-semibold
+                                                ${active
+                                                    ? 'bg-[#A891FC] text-white'
+                                                    : 'bg-gray-100 text-gray-400'}">
+
+                                                ${day.charAt(0).toUpperCase() + day.slice(1)}
+                                            </div>
+                                            ${isWfh ? '<span class="text-[9px] font-semibold text-[#6650cc]">WFH</span>' : ''}
                                         </div>
                                     `;
                                 }).join('')}
@@ -1883,6 +2096,25 @@ window.addEventListener('click', function(e)
                 }
             });
         } catch(e) {}
+
+        // Rebuild the Work Location list for whichever days are now checked,
+        // then mark the previously-saved WFH days within it.
+        if (typeof renderEditWfhList === 'function') {
+            renderEditWfhList();
+            try {
+                const wfhDays = JSON.parse(button.dataset.wfh_days || '[]');
+                document.querySelectorAll('#edit_wfh_list .edit-wfh-checkbox').forEach(cb => {
+                    const isWfh = wfhDays.includes(cb.value);
+                    cb.checked = isWfh;
+                    const sw = cb.closest('.edit-wfh-switch');
+                    if (sw) {
+                        sw.classList.toggle('is-wfh', isWfh);
+                        const lbl = sw.querySelector('.edit-wfh-switch-label');
+                        if (lbl) lbl.textContent = isWfh ? 'WFH' : 'Onsite';
+                    }
+                });
+            } catch(e) {}
+        }
 
         // Guard self-deactivate note
         const selfGuard = document.getElementById('selfDeactivateGuardNote');

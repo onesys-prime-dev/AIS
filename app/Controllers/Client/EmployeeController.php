@@ -141,6 +141,7 @@ class EmployeeController extends BaseController
             MAX(employee_positions.employment_type) as employment_type,
             MAX(employee_positions.working_day_type) as working_day_type,
             MAX(employee_positions.working_days) as working_days,
+            MAX(employee_positions.wfh_days) as wfh_days,
             MAX(employee_positions.start_time) as start_time,
             MAX(employee_positions.end_time) as end_time,
             MAX(employee_positions.break_schedule) as break_schedule,
@@ -335,6 +336,10 @@ class EmployeeController extends BaseController
         $accessControlPermissions = [];
         $accessControlPermissionLabels = [];
         $accessControlActorIsSuperadmin = false;
+        $accessControlAttendanceAllowedIps = '';
+        $accessControlAttendanceDetectedIp = '';
+        $accessControlAttendanceProxyWarning = false;
+        $accessControlAttendanceNetworkExemptIds = [];
         if (\App\Libraries\PortalAccess::canManageAccessControl()) {
             $accessControlData = \App\Controllers\Client\AccessControlController::getAccountsData();
             $accessControlAccounts = $accessControlData['accounts'];
@@ -345,6 +350,10 @@ class EmployeeController extends BaseController
             $accessControlPermissions = $accessControlData['permissions'];
             $accessControlPermissionLabels = $accessControlData['permissionLabels'];
             $accessControlActorIsSuperadmin = auth()->user()->inGroup('superadmin');
+            $accessControlAttendanceAllowedIps = $accessControlData['attendanceAllowedIps'];
+            $accessControlAttendanceDetectedIp = $accessControlData['attendanceDetectedIp'];
+            $accessControlAttendanceProxyWarning = (bool) $accessControlData['attendanceProxyWarning'];
+            $accessControlAttendanceNetworkExemptIds = $accessControlData['attendanceNetworkExemptIds'];
         }
 
         if (!\App\Libraries\PortalAccess::can('loans')) {
@@ -364,6 +373,10 @@ class EmployeeController extends BaseController
                 'accessControlPermissions' => $accessControlPermissions,
                 'accessControlPermissionLabels' => $accessControlPermissionLabels,
                 'accessControlActorIsSuperadmin' => $accessControlActorIsSuperadmin,
+                'accessControlAttendanceAllowedIps' => $accessControlAttendanceAllowedIps,
+                'accessControlAttendanceDetectedIp' => $accessControlAttendanceDetectedIp,
+                'accessControlAttendanceProxyWarning' => $accessControlAttendanceProxyWarning,
+                'accessControlAttendanceNetworkExemptIds' => $accessControlAttendanceNetworkExemptIds,
             ]);
         }
         $loanModel = new LoanModel();
@@ -495,6 +508,10 @@ class EmployeeController extends BaseController
         $data['accessControlPermissions'] = $accessControlPermissions;
         $data['accessControlPermissionLabels'] = $accessControlPermissionLabels;
         $data['accessControlActorIsSuperadmin'] = $accessControlActorIsSuperadmin;
+        $data['accessControlAttendanceAllowedIps'] = $accessControlAttendanceAllowedIps;
+        $data['accessControlAttendanceDetectedIp'] = $accessControlAttendanceDetectedIp;
+        $data['accessControlAttendanceProxyWarning'] = $accessControlAttendanceProxyWarning;
+        $data['accessControlAttendanceNetworkExemptIds'] = $accessControlAttendanceNetworkExemptIds;
 
         /*
         |--------------------------------------------------------------------------
@@ -579,7 +596,7 @@ class EmployeeController extends BaseController
                 MAX(employees.gender) as gender, MAX(employees.civil_status) as civil_status,
                 MAX(employee_positions.department) as department, MAX(employee_positions.department_id) as department_id, MAX(employee_positions.position) as position,
                 MAX(employee_positions.employment_type) as employment_type, MAX(employee_positions.working_day_type) as working_day_type,
-                MAX(employee_positions.working_days) as working_days, MAX(employee_positions.start_time) as start_time, MAX(employee_positions.end_time) as end_time,
+                MAX(employee_positions.working_days) as working_days, MAX(employee_positions.wfh_days) as wfh_days, MAX(employee_positions.start_time) as start_time, MAX(employee_positions.end_time) as end_time,
                 MAX(employee_positions.monthly_salary) as monthly_salary, MAX(employee_positions.de_minimis_benefit) as de_minimis_benefit, MAX(employee_positions.de_minimis_breakdown) as de_minimis_breakdown, MAX(employee_positions.allowances) as allowances,
                 MAX(employee_positions.additional_de_minimis_benefit) as additional_de_minimis_benefit, MAX(employee_positions.additional_de_minimis_breakdown) as additional_de_minimis_breakdown,
                 MAX(employee_government_ids.sss) as sss, MAX(employee_government_ids.tin) as tin,
