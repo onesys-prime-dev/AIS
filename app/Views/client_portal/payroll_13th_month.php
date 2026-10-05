@@ -263,7 +263,7 @@
                     ${Number(r.taxable_amount) > 0 ? '₱' + money(r.taxable_amount) : '—'}
                 </div>
                 <div class="p-4 flex justify-center">
-                    <button onclick="applyToPayroll('13th',${r.employee_id},${JSON.stringify(htmlEsc(r.employee_name))},${year13},${r.thirteenth_month_amount},false)"
+                    <button onclick="applyToPayroll('13th',${r.employee_id},${JSON.stringify(htmlEsc(r.employee_name)).replace(/"/g,'&quot;')},${year13},${r.thirteenth_month_amount},false)"
                             class="bg-[#7b5cff] hover:bg-[#6a4de0] text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition whitespace-nowrap">
                         Apply
                     </button>
@@ -309,7 +309,7 @@
                 : (isNeg ? `−₱${money(Math.abs(adj))} (refund)` : '₱0.00 (balanced)');
 
             const actionBtn = adj !== 0
-                ? `<button onclick="applyToPayroll('annualization',${r.employee_id},${JSON.stringify(htmlEsc(r.employee_name))},${yearAnn},${Math.abs(adj)},${isNeg})"
+                ? `<button onclick="applyToPayroll('annualization',${r.employee_id},${JSON.stringify(htmlEsc(r.employee_name)).replace(/"/g,'&quot;')},${yearAnn},${Math.abs(adj)},${isNeg})"
                            class="${isNeg ? 'bg-green-600 hover:bg-green-700' : 'bg-red-500 hover:bg-red-600'} text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition whitespace-nowrap">
                        Apply
                    </button>`
@@ -394,6 +394,15 @@
 
     // ── Apply to Payroll ──────────────────────────────────────────────
     window.applyToPayroll = async function (type, empId, empName, year, amount, isRefund) {
+        const amountLabel = '₱' + money(Math.abs(amount));
+        const what = type === '13th'
+            ? `${amountLabel} 13th month pay`
+            : (isRefund ? `a ${amountLabel} year-end tax refund` : `${amountLabel} in additional withholding`);
+        const confirmed = typeof window.relConfirm === 'function'
+            ? await window.relConfirm(`Apply ${what} for ${empName} (${year}) to the Generate Payslip form? This pre-fills fields there and can be undone from the banner that appears.`, 'Apply')
+            : confirm(`Apply ${what} for ${empName} (${year}) to the Generate Payslip form?`);
+        if (!confirmed) return;
+
         if (typeof window.activatePayrollTab === 'function') {
             window.activatePayrollTab('generate-payslip');
         }

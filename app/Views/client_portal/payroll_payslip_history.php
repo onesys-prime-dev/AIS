@@ -175,6 +175,11 @@ $btn = 'px-3 py-1.5 rounded-lg text-xs font-semibold transition';
             cancelBtn.addEventListener('click', onCancel);
         });
     }
+    // Exposed globally: #relConfirmModal lives in the DOM regardless of which
+    // Payroll tab is active (all tab panels render at once, just hidden), so
+    // other panels on this page — e.g. the 13th Month & Annualization Apply
+    // confirmation — can reuse this same styled modal instead of a native confirm().
+    window.relConfirm = relConfirm;
 
     // ── Send ──
     async function sendOne(id, force, method) {

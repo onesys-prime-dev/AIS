@@ -4101,6 +4101,9 @@ class PayrollController extends BaseController
                     'total_net_basic'        => 0,  // net_basic_pay (includes night diff, for tax)
                     'total_overtime'         => 0,
                     'total_other_taxable'    => 0,
+                    'total_sss'              => 0,
+                    'total_phic'             => 0,
+                    'total_hdmf'             => 0,
                     'total_wtax'             => 0,
                     'periods_count'          => 0,
                 ];
@@ -4122,6 +4125,9 @@ class PayrollController extends BaseController
             $byEmployee[$empId]['total_net_basic']         += $netBasic;
             $byEmployee[$empId]['total_overtime']       += (float)($gd['overtime_pay']            ?? 0);
             $byEmployee[$empId]['total_other_taxable']  += (float)($gd['other_earnings_taxable']  ?? 0);
+            $byEmployee[$empId]['total_sss']            += (float)($gd['sss_ee']                  ?? 0);
+            $byEmployee[$empId]['total_phic']           += (float)($gd['phic_ee']                 ?? 0);
+            $byEmployee[$empId]['total_hdmf']            += (float)($gd['hdmf_ee']                ?? 0);
             $byEmployee[$empId]['total_wtax']           += (float)($gd['withholding_tax']         ?? 0);
             $byEmployee[$empId]['periods_count']++;
         }
@@ -4151,10 +4157,18 @@ class PayrollController extends BaseController
             $taxable13th    = round(max(0, $thirteenth - $exemptLimit), 2);
 
             // ── Annualization ─────────────────────────────────────────────────
-            // Taxable compensation = net_basic (includes ND) + OT + other taxable
-            $totalTaxable  = $agg['total_net_basic']
+            // Taxable compensation = net_basic (includes ND) + OT + other taxable,
+            // less SSS/PHIC/HDMF — the per-period withholding tax (total_wtax,
+            // see updateWithholdingTax() in payroll_management.php) is computed
+            // on gross minus those contributions, so the annual figure has to
+            // net them out too or this double-counts them and overstates both
+            // annual_taxable_income and the resulting year_end_adjustment.
+            $totalTaxable  = max(0, $agg['total_net_basic']
                            + $agg['total_overtime']
-                           + $agg['total_other_taxable'];
+                           + $agg['total_other_taxable']
+                           - $agg['total_sss']
+                           - $agg['total_phic']
+                           - $agg['total_hdmf']);
             $annualTaxable = round($totalTaxable + $taxable13th, 2);
             $annualTaxDue  = $service->calculateAnnualWithholdingTax($annualTaxable);
             $totalWtax     = round($agg['total_wtax'], 2);

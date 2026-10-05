@@ -847,8 +847,11 @@ $_defaultYearMonth = $_current['salary_month'];
          display:none;align-items:center;gap:12px;">
         <span style="font-size:16px;">&#8594;</span>
         <span id="yearEndBannerMsg"></span>
+        <button onclick="window.undoYearEndApply && window.undoYearEndApply()"
+                style="margin-left:auto;background:none;border:1px solid #93c5fd;border-radius:6px;
+                       padding:3px 10px;font-size:12px;font-weight:600;cursor:pointer;color:#1e40af;">Undo</button>
         <button onclick="document.getElementById('yearEndPrefillBanner').style.display='none'"
-                style="margin-left:auto;background:none;border:none;font-size:18px;
+                style="background:none;border:none;font-size:18px;
                        cursor:pointer;color:#60a5fa;line-height:1;">&times;</button>
     </div>
 
@@ -5392,8 +5395,37 @@ document.addEventListener('DOMContentLoaded', function() {
 // Called by payroll_13th_month.php when the user clicks "Apply to Payroll".
 // type: '13th' | 'annualization'
 // payload: { empId, empName, year, amount, isRefund (annualization only) }
+let yearEndUndoSnapshot = null;
+
+window.undoYearEndApply = function () {
+    if (yearEndUndoSnapshot) {
+        Object.entries(yearEndUndoSnapshot).forEach(([id, value]) => {
+            const el = document.getElementById(id);
+            if (el) el.value = value;
+        });
+        yearEndUndoSnapshot = null;
+        if (typeof syncToRegister === 'function') syncToRegister();
+    }
+    const banner = document.getElementById('yearEndPrefillBanner');
+    if (banner) banner.style.display = 'none';
+    if (window.showToast) window.showToast('Year-end pre-fill undone.', 'success');
+};
+
 window.applyYearEndToPayroll = async function (type, payload) {
     const { empId, empName, year, amount } = payload;
+
+    // Snapshot exactly the fields this call is going to touch BEFORE anything
+    // below changes the form (including fillEmployeeData), so Undo restores
+    // the real original values — including the additive Salary Adjustment
+    // field, which can't be reverse-derived once another amount is added to it.
+    const touchedIds = type === '13th'
+        ? ['yearEndGifts', 'deMinYearEnd', 'salaryAdjustment']
+        : (payload.isRefund ? ['salNonTaxAdj'] : ['advSalary']);
+    yearEndUndoSnapshot = {};
+    touchedIds.forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) yearEndUndoSnapshot[id] = el.value;
+    });
 
     // 1. Switch inner raw-sheet sub-tab to Raw
     document.querySelectorAll('.sub-tab').forEach(b => b.classList.remove('active'));
