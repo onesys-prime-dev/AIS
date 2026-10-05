@@ -31,6 +31,7 @@
        scroll into view normally. */
     max-height: 90vh;
     overflow-y: auto;
+    scrollbar-gutter: stable;
 
     border-radius: 18px;
 
