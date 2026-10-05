@@ -235,40 +235,52 @@ let acTeamHeadAccounts = ACCESS_CONTROL_TEAM_HEAD_ACCOUNTS.slice();
         return a.slice().sort().join(',') === b.slice().sort().join(',');
     }
 
-    // "What this role can access" line, from the live Role Permissions matrix.
-    function accessLine(role) {
-        if (role === 'superadmin') return 'Access: everything';
+    function initials(name) {
+        const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+        return ((parts[0] || '?').charAt(0) + (parts.length > 1 ? parts[parts.length - 1].charAt(0) : '')).toUpperCase();
+    }
+
+    function personCell(acc) {
+        return '<div class="acr-person"><span class="acr-avatar" aria-hidden="true">' + acEscapeHtml(initials(acc.name)) + '</span><span class="acr-person-name">' + acEscapeHtml(acc.name) + '</span></div>';
+    }
+
+    const WARN_ICON = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none;margin-top:1px;" aria-hidden="true"><path d="M12 3 5 6v5c0 4.6 3 8.3 7 10 4-1.7 7-5.4 7-10V6l-7-3Z"/><path d="M12 9v4"/><path d="M12 16.5v.01"/></svg>';
+
+    // "What this role can access" as small chips, from the live Role Permissions matrix.
+    function accessChips(role) {
+        if (role === 'superadmin') return '<div class="acr-chips"><span class="acr-chip">Everything</span></div>';
         const perms = ACCESS_CONTROL_PERMISSIONS[role] || {};
         const labels = Object.keys(perms).filter(function (k) { return perms[k]; })
             .map(function (k) { return ACCESS_CONTROL_PERMISSION_LABELS[k] || k; });
-        if (!labels.length) return 'Access: no extra permissions';
-        const shown = labels.slice(0, 3).join(', ');
-        return 'Access: ' + shown + (labels.length > 3 ? ' +' + (labels.length - 3) + ' more' : '');
+        if (!labels.length) return '<div class="acr-chips"><span class="acr-chip acr-chip-muted">No extra permissions</span></div>';
+        const chips = labels.slice(0, 3).map(function (l) { return '<span class="acr-chip">' + acEscapeHtml(l) + '</span>'; }).join('');
+        const more = labels.length > 3 ? '<span class="acr-chip acr-chip-muted">+' + (labels.length - 3) + ' more</span>' : '';
+        return '<div class="acr-chips">' + chips + more + '</div>';
     }
 
     // ---- table ----
     function renderTable() {
         body.innerHTML = accounts.map(function (acc) {
             if (acc.user_id === ACCESS_CONTROL_CURRENT_USER_ID) {
-                return '<tr>' +
-                    '<td class="px-4 py-3">' + acEscapeHtml(acc.name) + '</td>' +
-                    '<td class="px-4 py-3">' + acEscapeHtml(acc.email || '—') + '</td>' +
+                return '<tr class="acr-row">' +
+                    '<td class="px-4 py-3">' + personCell(acc) + '</td>' +
+                    '<td class="px-4 py-3 acr-email">' + acEscapeHtml(acc.email || '—') + '</td>' +
                     '<td class="px-4 py-3 text-gray-400 italic">' + roleBadges(acc.roles) + ' (you)</td>' +
                     '</tr>';
             }
 
             const isSuperadminLocked = acc.roles.indexOf('superadmin') !== -1 && !ACCESS_CONTROL_ACTOR_IS_SUPERADMIN;
             if (isSuperadminLocked) {
-                return '<tr>' +
-                    '<td class="px-4 py-3">' + acEscapeHtml(acc.name) + '</td>' +
-                    '<td class="px-4 py-3">' + acEscapeHtml(acc.email || '—') + '</td>' +
+                return '<tr class="acr-row">' +
+                    '<td class="px-4 py-3">' + personCell(acc) + '</td>' +
+                    '<td class="px-4 py-3 acr-email">' + acEscapeHtml(acc.email || '—') + '</td>' +
                     '<td class="px-4 py-3">' + roleBadges(acc.roles) + '<div class="text-xs text-gray-400 italic mt-1">Only Super Admin can change a Super Admin account.</div></td>' +
                     '</tr>';
             }
 
-            return '<tr>' +
-                '<td class="px-4 py-3" style="vertical-align:middle;">' + acEscapeHtml(acc.name) + '</td>' +
-                '<td class="px-4 py-3" style="vertical-align:middle;">' + acEscapeHtml(acc.email || '—') + '</td>' +
+            return '<tr class="acr-row">' +
+                '<td class="px-4 py-3" style="vertical-align:middle;">' + personCell(acc) + '</td>' +
+                '<td class="px-4 py-3 acr-email" style="vertical-align:middle;">' + acEscapeHtml(acc.email || '—') + '</td>' +
                 '<td class="px-4 py-3" style="vertical-align:middle;">' +
                     '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">' +
                         '<div>' + roleBadges(acc.roles) + '</div>' +
@@ -295,6 +307,7 @@ let acTeamHeadAccounts = ACCESS_CONTROL_TEAM_HEAD_ACCOUNTS.slice();
 
     const cardsEl = document.getElementById('acrCards');
     const subtitleEl = document.getElementById('acrSubtitle');
+    const avatarEl = document.getElementById('acrAvatar');
     const warnEl = document.getElementById('acrWarn');
     const noteEl = document.getElementById('acrNote');
     const saveBtn = document.getElementById('acrSave');
@@ -324,16 +337,20 @@ let acTeamHeadAccounts = ACCESS_CONTROL_TEAM_HEAD_ACCOUNTS.slice();
                 '<div class="acr-card-top"><span class="acr-icon">' + (ROLE_ICONS[key] || ROLE_ICONS.employee) + '</span><span class="acr-check">' + CHECK_ICON + '</span></div>' +
                 '<div class="acr-title">' + acEscapeHtml(roleOptions[key] || key) + (isCurrent ? '<span class="acr-current">Current</span>' : '') + '</div>' +
                 '<div class="acr-desc">' + acEscapeHtml(roleDescriptions[key] || '') + '</div>' +
-                '<div class="acr-access">' + acEscapeHtml(accessLine(key)) + '</div>' +
+                '<div class="acr-access"><span class="acr-access-label">Access</span>' + accessChips(key) + '</div>' +
             '</button>';
         }).join('');
+    }
+
+    function setWarn(text) {
+        warnEl.innerHTML = WARN_ICON + '<span>' + acEscapeHtml(text) + '</span>';
     }
 
     function renderFooter() {
         const changed = !sameRoles(selection, editing.roles);
         if (confirming) {
-            warnEl.style.display = 'block';
-            warnEl.textContent = 'You are about to give ' + editing.name + ' Admin and/or Super Admin access. They will be able to manage accounts, payroll and settings. Continue?';
+            warnEl.style.display = 'flex';
+            setWarn('You are about to give ' + editing.name + ' Admin and/or Super Admin access. They will be able to manage accounts, payroll and settings. Continue?');
             noteEl.textContent = '';
             cancelBtn.style.display = 'none';
             backBtn.style.display = '';
@@ -341,9 +358,9 @@ let acTeamHeadAccounts = ACCESS_CONTROL_TEAM_HEAD_ACCOUNTS.slice();
             saveBtn.disabled = false;
             return;
         }
-        warnEl.style.display = grantsAdmin() ? 'block' : 'none';
-        if (grantsAdmin()) warnEl.textContent = 'This gives Admin and/or Super Admin access — you will be asked to confirm before it is saved.';
-        noteEl.textContent = changed ? 'You have unsaved changes.' : 'No changes yet.';
+        warnEl.style.display = grantsAdmin() ? 'flex' : 'none';
+        if (grantsAdmin()) setWarn('This gives Admin and/or Super Admin access — you will be asked to confirm before it is saved.');
+        noteEl.innerHTML = (changed ? '<span class="acr-dirty"></span>' : '') + selection.length + ' role' + (selection.length === 1 ? '' : 's') + ' selected' + (changed ? ' · unsaved changes' : '');
         cancelBtn.style.display = '';
         backBtn.style.display = 'none';
         saveBtn.textContent = 'Save changes';
@@ -360,6 +377,7 @@ let acTeamHeadAccounts = ACCESS_CONTROL_TEAM_HEAD_ACCOUNTS.slice();
         selection = acc.roles.slice();
         confirming = false;
         subtitleEl.textContent = acc.name + (acc.email ? ' · ' + acc.email : '');
+        if (avatarEl) avatarEl.textContent = initials(acc.name);
         refresh();
         modal.classList.add('is-open');
         modal.setAttribute('aria-hidden', 'false');

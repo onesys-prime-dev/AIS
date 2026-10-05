@@ -115,7 +115,8 @@
     animation:acrPop .2s ease; font-family:Segoe UI,Arial,sans-serif;
 }
 @keyframes acrPop{ from{ opacity:0; transform:scale(.95); } to{ opacity:1; transform:scale(1); } }
-.acr-header{ display:flex; align-items:flex-start; justify-content:space-between; gap:12px; padding:16px 20px; border-bottom:1px solid #e5e7eb; }
+.acr-header{ display:flex; align-items:center; justify-content:space-between; gap:12px; padding:16px 20px; border-bottom:1px solid #e5e7eb; }
+.acr-header-main{ display:flex; align-items:center; gap:12px; min-width:0; }
 .acr-header h3{ margin:0; font-size:17px; font-weight:700; color:#17223b; }
 .acr-header p{ margin:3px 0 0; font-size:12px; color:#667085; }
 .acr-close{ background:none; border:none; font-size:18px; line-height:1; color:#6b7280; cursor:pointer; padding:2px 4px; }
@@ -127,7 +128,7 @@
     padding:14px; border:1.5px solid #e5e7eb; border-radius:12px; background:#fff;
     cursor:pointer; transition:border-color .15s ease, background .15s ease, box-shadow .15s ease;
 }
-.acr-card:hover{ border-color:#9ca3af; }
+.acr-card:hover{ border-color:#9ca3af; box-shadow:0 4px 12px rgba(15,23,42,.07); transform:translateY(-1px); }
 .acr-card:focus-visible{ outline:3px solid rgba(30,30,30,.28); outline-offset:2px; }
 .acr-card.is-selected{ border-color:var(--acr-accent); background:#f3f4f6; box-shadow:0 0 0 1px var(--acr-accent) inset; }
 .acr-card-top{ display:flex; align-items:center; justify-content:space-between; }
@@ -139,11 +140,17 @@
 .acr-card.is-selected .acr-check{ display:inline-flex; }
 .acr-title{ font-size:14px; font-weight:700; color:#17223b; display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
 .acr-current{ font-size:9px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:#374151; background:#e5e7eb; border-radius:999px; padding:2px 7px; }
-.acr-desc{ font-size:12px; color:#667085; line-height:1.45; }
-.acr-access{ font-size:11px; color:#737c8b; line-height:1.4; border-top:1px dashed #e5e7eb; padding-top:7px; margin-top:auto; }
-.acr-warn{ margin-top:14px; padding:10px 12px; border-radius:10px; background:#fffbeb; border:1px solid #fde68a; color:#92400e; font-size:12px; line-height:1.5; }
+.acr-desc{ font-size:12px; color:#667085; line-height:1.45; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; min-height:35px; }
+.acr-access{ border-top:1px dashed #e5e7eb; padding-top:9px; margin-top:auto; }
+.acr-access-label{ display:block; font-size:9px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:#9aa1ad; margin-bottom:5px; }
+.acr-chips{ display:flex; flex-wrap:wrap; gap:4px; }
+.acr-chip{ font-size:10.5px; font-weight:600; color:#4b5563; background:#f3f4f6; border-radius:999px; padding:2px 8px; }
+.acr-card.is-selected .acr-chip{ background:#e5e7eb; color:#1f2937; }
+.acr-chip-muted{ background:transparent; color:#9aa1ad; font-weight:500; padding-left:0; }
+.acr-warn{ display:flex; align-items:flex-start; gap:8px; margin-top:14px; padding:10px 12px; border-radius:10px; background:#fffbeb; border:1px solid #fde68a; color:#92400e; font-size:12px; line-height:1.5; }
 .acr-footer{ display:flex; align-items:center; justify-content:flex-end; gap:8px; padding:14px 20px; border-top:1px solid #e5e7eb; }
-.acr-footer .acr-note{ margin-right:auto; font-size:12px; color:#737c8b; }
+.acr-footer .acr-note{ margin-right:auto; font-size:12px; color:#737c8b; display:flex; align-items:center; gap:7px; }
+.acr-note .acr-dirty{ width:7px; height:7px; border-radius:50%; background:#f59e0b; display:inline-block; }
 .acr-btn{ border:none; border-radius:8px; padding:8px 16px; font-size:13px; font-weight:600; cursor:pointer; transition:background .15s ease, transform .15s ease; }
 .acr-cancel{ background:#e5e7eb; color:#374151; }
 .acr-cancel:hover{ background:#d1d5db; }
@@ -152,14 +159,24 @@
 .acr-save:disabled{ background:#e5e7eb; color:#9ca3af; cursor:not-allowed; }
 .acr-edit-btn{ border:1px solid #d1d5db; color:#344054; background:#fff; border-radius:8px; padding:5px 12px; font-size:12px; font-weight:600; cursor:pointer; transition:background .15s ease; }
 .acr-edit-btn:hover{ background:#f3f4f6; }
+.acr-avatar{ display:inline-flex; align-items:center; justify-content:center; flex:none; width:32px; height:32px; border-radius:50%; background:var(--sidebar-bg, #1e1e1e); color:var(--sidebar-text, #fff); font-size:11px; font-weight:700; letter-spacing:.02em; }
+.acr-avatar-lg{ width:40px; height:40px; font-size:13px; }
+.acr-person{ display:flex; align-items:center; gap:10px; }
+.acr-person-name{ font-weight:600; color:#17223b; }
+.acr-email{ color:#667085; }
+tr.acr-row{ transition:background .12s ease; }
+tr.acr-row:hover{ background:#fafafa; }
 </style>
 
 <div id="acRoleModal" class="acr-overlay" aria-hidden="true">
     <div class="acr-box" role="dialog" aria-modal="true" aria-labelledby="acrTitle">
         <div class="acr-header">
-            <div>
-                <h3 id="acrTitle">Edit access</h3>
-                <p id="acrSubtitle"></p>
+            <div class="acr-header-main">
+                <span id="acrAvatar" class="acr-avatar acr-avatar-lg" aria-hidden="true"></span>
+                <div>
+                    <h3 id="acrTitle">Edit access</h3>
+                    <p id="acrSubtitle"></p>
+                </div>
             </div>
             <button type="button" id="acrClose" class="acr-close" aria-label="Close">&#10005;</button>
         </div>
