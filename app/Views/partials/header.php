@@ -1977,6 +1977,7 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
         "Why can't I see my payslip?",
         'How do I edit an announcement?',
         'What can Payroll Staff do?',
+        'How do I update my profile photo?',
     ];
 
     function loadHistory() {

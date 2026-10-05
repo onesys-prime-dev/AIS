@@ -13,7 +13,7 @@
         <li>Attendance: time in/out, breaks, daily time log, attendance history</li>
         <li>Overtime, undertime, and leave requests with approval codes</li>
         <li>Employee records, with CSV import/export for payroll staff</li>
-        <li>Payroll: register, cutoffs, 13th-month pay, payslips, audit log</li>
+        <li>Payroll: register, cutoffs, 13th-month pay and year-end annualization (with a confirm-and-undo flow when applying amounts to a payslip), payslips, audit log</li>
         <li>Loans: application, approval, and repayment tracking</li>
         <li>Announcements with attachments, targeted audiences, and edit/delete</li>
         <li>Notifications bell with read/unread tracking</li>
@@ -21,6 +21,7 @@
         <li>Face recognition login (optional, set up from Settings)</li>
         <li>Password-protected payslips, separate from your login password</li>
         <li>Personal theme/branding customization</li>
+        <li>Profile photo editor — zoom and reposition before saving, drag-and-drop supported</li>
     </ul>
 
     <h3>Not Part of the System</h3>

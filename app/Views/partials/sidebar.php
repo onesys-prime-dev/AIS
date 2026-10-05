@@ -8,10 +8,10 @@
         </button>
 
         <!-- LOGO -->
-        <div class="logo-box">
+        <a href="<?= site_url('client_portal/dashboard') ?>" class="logo-box" aria-label="Go to dashboard">
             <?php $logoUrl = $activeCompanyBranding['logo_url'] ?? null; ?>
             <div class="logo<?= !empty($logoUrl) ? ' has-image' : '' ?>"<?= !empty($logoUrl) ? ' style="background-image:url(\'' . esc((string) $logoUrl, 'attr') . '\');"' : '' ?>></div>
-        </div>
+        </a>
 
         <!-- MAIN MENU -->
         <nav class="menu">
