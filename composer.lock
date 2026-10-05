@@ -5752,11 +5752,7 @@
                 "utf8"
             ],
             "support": {
-<<<<<<< HEAD
-                "source": "https://github.com/symfony/string/tree/v7.4.19"
-=======
                 "source": "https://github.com/symfony/string/tree/v7.4.15"
->>>>>>> myBranch
             },
             "funding": [
                 {
