@@ -14,17 +14,51 @@
         <button type="button" class="ac-subtab" data-ac-tab="network">Attendance Network</button>
     </div>
 
-    <div class="flex-1 min-h-0 overflow-y-auto rounded-2xl border border-gray-200 shadow-sm" data-ac-panel="accounts">
-        <table class="w-full text-sm">
-            <thead class="bg-gray-50 sticky top-0">
-                <tr>
-                    <th class="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500">Name</th>
-                    <th class="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500">Email</th>
-                    <th class="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500">Role(s)</th>
-                </tr>
-            </thead>
-            <tbody id="accessControlBody" class="divide-y divide-gray-100"></tbody>
-        </table>
+    <div class="flex-1 min-h-0 overflow-y-auto" data-ac-panel="accounts">
+        <!-- LIST VIEW -->
+        <div id="acListView" class="rounded-2xl border border-gray-200 shadow-sm">
+            <table class="w-full text-sm">
+                <thead class="bg-gray-50 sticky top-0">
+                    <tr>
+                        <th class="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500">Name</th>
+                        <th class="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500">Email</th>
+                        <th class="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500">Role(s)</th>
+                    </tr>
+                </thead>
+                <tbody id="accessControlBody" class="divide-y divide-gray-100"></tbody>
+            </table>
+        </div>
+
+        <!-- EDIT VIEW: replaces the list while one account is being edited
+             (layout follows the reference: label on the left, role cards on the
+             right, access summary below, Update / Cancel at the bottom) -->
+        <div id="acEditView" style="display:none;">
+            <div class="acp-card">
+                <div class="acp-head">
+                    <button type="button" id="acpBack" class="acp-back">&#8249; Back to accounts</button>
+                    <h3>Edit user role and access level</h3>
+                    <p id="acpSubtitle"></p>
+                </div>
+
+                <div class="acp-row">
+                    <div class="acp-label">Define user role<small>Pick one or more. Employee can't be combined with a staff role.</small></div>
+                    <div id="acpCards" class="acp-cards" role="group" aria-label="Roles"></div>
+                </div>
+
+                <div id="acpWarn" class="acp-warn" style="display:none;"></div>
+
+                <div class="acp-row">
+                    <div class="acp-label">Allow access to<small>What the selected roles give this account. Change what a role can do in the Role Permissions tab.</small></div>
+                    <div id="acpAccess" class="acp-access"></div>
+                </div>
+
+                <div class="acp-footer">
+                    <span id="acpNote" class="acp-note"></span>
+                    <button type="button" id="acpUpdate" class="acp-btn acp-update" disabled>Update</button>
+                    <button type="button" id="acpCancel" class="acp-btn acp-cancel">Cancel</button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- DEPARTMENTS -->
@@ -102,77 +136,66 @@
     </div>
 </div>
 
-<!-- EDIT ACCESS MODAL (role cards). Self-contained CSS in the house modal style
-     (light backdrop, no blur, 14px radius, flat gray Cancel, violet Save) so it
-     doesn't depend on Tailwind classes the precompiled build may lack. -->
+<!-- EDIT PANEL styling (role cards + access summary), used by #acEditView above.
+     Self-contained so it doesn't depend on Tailwind classes the precompiled build may lack. -->
 <style>
-.acr-overlay{ position:fixed; inset:0; z-index:99999; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.45); }
-.acr-overlay.is-open{ display:flex; }
-.acr-box{
-    display:flex; flex-direction:column;
-    width:min(760px, calc(100vw - 32px)); max-height:90vh;
-    background:#fff; border-radius:14px; box-shadow:0 25px 50px rgba(0,0,0,.25);
-    animation:acrPop .2s ease; font-family:Segoe UI,Arial,sans-serif;
-}
-@keyframes acrPop{ from{ opacity:0; transform:scale(.95); } to{ opacity:1; transform:scale(1); } }
-.acr-header{ display:flex; align-items:flex-start; justify-content:space-between; gap:12px; padding:16px 20px; border-bottom:1px solid #e5e7eb; }
-.acr-header h3{ margin:0; font-size:17px; font-weight:700; color:#17223b; }
-.acr-header p{ margin:3px 0 0; font-size:12px; color:#667085; }
-.acr-close{ background:none; border:none; font-size:18px; line-height:1; color:#6b7280; cursor:pointer; padding:2px 4px; }
-.acr-body{ padding:16px 20px; overflow-y:auto; min-height:0; }
-.acr-help{ margin:0 0 14px; font-size:12px; color:#667085; line-height:1.5; }
-.acr-grid{ display:grid; grid-template-columns:repeat(auto-fit, minmax(190px, 1fr)); gap:12px; }
-.acr-card{
-    position:relative; display:flex; flex-direction:column; gap:8px; text-align:left;
-    padding:14px; border:1.5px solid #e5e7eb; border-radius:12px; background:#fff;
-    cursor:pointer; transition:border-color .15s ease, background .15s ease, box-shadow .15s ease;
-}
-.acr-card:hover{ border-color:#A891FC; }
-.acr-card:focus-visible{ outline:3px solid rgba(168,145,252,.45); outline-offset:2px; }
-.acr-card.is-selected{ border-color:#A891FC; background:#f1eeff; box-shadow:0 0 0 1px #A891FC inset; }
-.acr-card-top{ display:flex; align-items:center; justify-content:space-between; }
-.acr-icon{ display:inline-flex; align-items:center; justify-content:center; width:36px; height:36px; border-radius:10px; background:#f3f4f6; color:#374151; transition:background .15s ease, color .15s ease; }
-.acr-icon svg{ width:19px; height:19px; }
-.acr-card.is-selected .acr-icon{ background:#A891FC; color:#fff; }
-.acr-check{ display:none; width:20px; height:20px; border-radius:50%; background:#A891FC; color:#fff; align-items:center; justify-content:center; }
-.acr-check svg{ width:12px; height:12px; }
-.acr-card.is-selected .acr-check{ display:inline-flex; }
-.acr-title{ font-size:14px; font-weight:700; color:#17223b; display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
-.acr-current{ font-size:9px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:#6650cc; background:#e6e0ff; border-radius:999px; padding:2px 7px; }
-.acr-desc{ font-size:12px; color:#667085; line-height:1.45; }
-.acr-access{ font-size:11px; color:#737c8b; line-height:1.4; border-top:1px dashed #e5e7eb; padding-top:7px; margin-top:auto; }
-.acr-warn{ margin-top:14px; padding:10px 12px; border-radius:10px; background:#fffbeb; border:1px solid #fde68a; color:#92400e; font-size:12px; line-height:1.5; }
-.acr-footer{ display:flex; align-items:center; justify-content:flex-end; gap:8px; padding:14px 20px; border-top:1px solid #e5e7eb; }
-.acr-footer .acr-note{ margin-right:auto; font-size:12px; color:#737c8b; }
-.acr-btn{ border:none; border-radius:8px; padding:8px 16px; font-size:13px; font-weight:600; cursor:pointer; transition:background .15s ease, transform .15s ease; }
-.acr-cancel{ background:#e5e7eb; color:#374151; }
-.acr-cancel:hover{ background:#d1d5db; }
-.acr-save{ background:#8b5cf6; color:#fff; }
-.acr-save:hover:not(:disabled){ background:#7c3aed; transform:translateY(-2px); }
-.acr-save:disabled{ background:#d8ccfb; cursor:not-allowed; }
 .acr-edit-btn{ border:1px solid #cbbdfb; color:#6650cc; background:#fff; border-radius:8px; padding:5px 12px; font-size:12px; font-weight:600; cursor:pointer; transition:background .15s ease; }
 .acr-edit-btn:hover{ background:#f1eeff; }
-</style>
 
-<div id="acRoleModal" class="acr-overlay" aria-hidden="true">
-    <div class="acr-box" role="dialog" aria-modal="true" aria-labelledby="acrTitle">
-        <div class="acr-header">
-            <div>
-                <h3 id="acrTitle">Edit access</h3>
-                <p id="acrSubtitle"></p>
-            </div>
-            <button type="button" id="acrClose" class="acr-close" aria-label="Close">&#10005;</button>
-        </div>
-        <div class="acr-body">
-            <p class="acr-help">Choose one or more roles for this account. Employee can't be combined with a staff role — picking one clears the other.</p>
-            <div id="acrCards" class="acr-grid" role="group" aria-label="Roles"></div>
-            <div id="acrWarn" class="acr-warn" style="display:none;"></div>
-        </div>
-        <div class="acr-footer">
-            <span id="acrNote" class="acr-note"></span>
-            <button type="button" id="acrCancel" class="acr-btn acr-cancel">Cancel</button>
-            <button type="button" id="acrBack" class="acr-btn acr-cancel" style="display:none;">Back</button>
-            <button type="button" id="acrSave" class="acr-btn acr-save" disabled>Save changes</button>
-        </div>
-    </div>
-</div>
+.acp-card{ background:#fff; border:1px solid #e5e7eb; border-radius:14px; box-shadow:0 1px 3px rgba(0,0,0,.06); max-width:980px; margin:0 auto 16px; font-family:Segoe UI,Arial,sans-serif; }
+.acp-head{ position:relative; padding:18px 24px; border-bottom:1px solid #e5e7eb; text-align:center; }
+.acp-head h3{ margin:0; font-size:18px; font-weight:600; color:#17223b; }
+.acp-head p{ margin:4px 0 0; font-size:12px; color:#667085; }
+.acp-back{ position:absolute; left:20px; top:18px; background:none; border:none; color:#6650cc; font-size:13px; font-weight:600; cursor:pointer; padding:0; }
+.acp-back:hover{ text-decoration:underline; }
+
+.acp-row{ display:grid; grid-template-columns:200px 1fr; gap:24px; padding:22px 24px; border-bottom:1px solid #eceef1; align-items:start; }
+.acp-label{ font-size:14px; font-weight:600; color:#344054; }
+.acp-label small{ display:block; margin-top:6px; font-size:11px; font-weight:400; color:#737c8b; line-height:1.5; }
+
+.acp-cards{ display:grid; grid-template-columns:repeat(auto-fill, minmax(168px, 1fr)); gap:12px; }
+.acp-role{
+    position:relative; display:flex; flex-direction:column; gap:8px; text-align:left;
+    padding:14px; border:1.5px solid #e5e7eb; border-radius:12px; background:#fff; cursor:pointer;
+    transition:border-color .15s ease, background .15s ease, box-shadow .15s ease;
+}
+.acp-role:hover{ border-color:#A891FC; }
+.acp-role:focus-visible{ outline:3px solid rgba(168,145,252,.45); outline-offset:2px; }
+.acp-role.is-selected{ border-color:#A891FC; background:#f1eeff; box-shadow:0 0 0 1px #A891FC inset; }
+.acp-role-top{ display:flex; align-items:center; justify-content:space-between; }
+.acp-icon{ display:inline-flex; align-items:center; justify-content:center; width:36px; height:36px; border-radius:10px; background:#f3f4f6; color:#374151; transition:background .15s ease, color .15s ease; }
+.acp-icon svg{ width:19px; height:19px; }
+.acp-role.is-selected .acp-icon{ background:#A891FC; color:#fff; }
+.acp-check{ display:none; width:20px; height:20px; border-radius:50%; background:#A891FC; color:#fff; align-items:center; justify-content:center; }
+.acp-check svg{ width:12px; height:12px; }
+.acp-role.is-selected .acp-check{ display:inline-flex; }
+.acp-title{ font-size:14px; font-weight:700; color:#17223b; display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+.acp-current{ font-size:9px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:#6650cc; background:#e6e0ff; border-radius:999px; padding:2px 7px; }
+.acp-desc{ font-size:12px; color:#667085; line-height:1.45; }
+
+.acp-warn{ margin:0 24px; padding:10px 12px; border-radius:10px; background:#fffbeb; border:1px solid #fde68a; color:#92400e; font-size:12px; line-height:1.5; }
+
+.acp-access{ border:1px solid #e5e7eb; border-radius:12px; overflow:hidden; background:#fafafa; }
+.acp-access-head, .acp-mod{ display:grid; grid-template-columns:1fr 1.4fr; gap:12px; align-items:center; padding:10px 16px; }
+.acp-access-head{ background:#f3f4f6; font-size:11px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:#737c8b; }
+.acp-mod{ border-top:1px solid #eceef1; font-size:13px; color:#344054; background:#fff; }
+.acp-mod .acp-status{ display:inline-flex; align-items:center; gap:8px; font-size:12px; color:#737c8b; }
+.acp-dot{ width:10px; height:10px; border-radius:50%; border:2px solid #d1d5db; background:#fff; flex:none; }
+.acp-mod.is-on .acp-dot{ border-color:#A891FC; background:#A891FC; }
+.acp-mod.is-on .acp-status{ color:#4b3fa8; font-weight:600; }
+.acp-via{ font-weight:400; color:#737c8b; }
+
+.acp-footer{ display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:12px; padding:20px 24px; }
+.acp-note{ width:100%; text-align:center; font-size:12px; color:#737c8b; margin-bottom:2px; }
+.acp-btn{ border:none; border-radius:8px; padding:9px 22px; font-size:13px; font-weight:600; cursor:pointer; transition:background .15s ease, transform .15s ease; }
+.acp-update{ background:#8b5cf6; color:#fff; }
+.acp-update:hover:not(:disabled){ background:#7c3aed; transform:translateY(-2px); }
+.acp-update:disabled{ background:#d8ccfb; cursor:not-allowed; }
+.acp-cancel{ background:#e5e7eb; color:#374151; }
+.acp-cancel:hover{ background:#d1d5db; }
+
+@media (max-width:760px){
+    .acp-row{ grid-template-columns:1fr; gap:12px; }
+    .acp-back{ position:static; display:block; margin-bottom:8px; text-align:left; }
+}
+</style>

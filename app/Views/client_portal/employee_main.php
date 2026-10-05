@@ -193,11 +193,12 @@ function acEscapeHtml(s) {
 // in the Departments section's Team Head list — no page refresh needed.
 let acTeamHeadAccounts = ACCESS_CONTROL_TEAM_HEAD_ACCOUNTS.slice();
 
-// ================= ACCOUNTS (multi-role, role cards) =================
-// Roles are picked in an "Edit access" modal of role cards (icon, description,
-// what the role can access) instead of tiny inline pills. Rules and the save
-// request are unchanged: same exclusivity (Employee vs staff roles), same
-// locked rows, and the POST still sends only user_id + roles[].
+// ================= ACCOUNTS (multi-role, edit panel) =================
+// Clicking "Edit access" swaps the accounts list for a full edit panel: role
+// cards on the right of a "Define user role" label, a live "Allow access to"
+// summary below, and Update / Cancel at the bottom. Rules and the save request
+// are unchanged: same exclusivity (Employee vs staff roles), same locked rows,
+// and the POST still sends only user_id + roles[].
 (function () {
     const body = document.getElementById('accessControlBody');
     if (!body) return; // panel not rendered (PortalAccess::canManageAccessControl() was false)
@@ -235,18 +236,7 @@ let acTeamHeadAccounts = ACCESS_CONTROL_TEAM_HEAD_ACCOUNTS.slice();
         return a.slice().sort().join(',') === b.slice().sort().join(',');
     }
 
-    // "What this role can access" line, from the live Role Permissions matrix.
-    function accessLine(role) {
-        if (role === 'superadmin') return 'Access: everything';
-        const perms = ACCESS_CONTROL_PERMISSIONS[role] || {};
-        const labels = Object.keys(perms).filter(function (k) { return perms[k]; })
-            .map(function (k) { return ACCESS_CONTROL_PERMISSION_LABELS[k] || k; });
-        if (!labels.length) return 'Access: no extra permissions';
-        const shown = labels.slice(0, 3).join(', ');
-        return 'Access: ' + shown + (labels.length > 3 ? ' +' + (labels.length - 3) + ' more' : '');
-    }
-
-    // ---- table ----
+    // ---- list view ----
     function renderTable() {
         body.innerHTML = accounts.map(function (acc) {
             if (acc.user_id === ACCESS_CONTROL_CURRENT_USER_ID) {
@@ -284,27 +274,28 @@ let acTeamHeadAccounts = ACCESS_CONTROL_TEAM_HEAD_ACCOUNTS.slice();
         const btn = e.target.closest('[data-edit-user]');
         if (!btn) return;
         const acc = accounts.find(function (a) { return String(a.user_id) === btn.dataset.editUser; });
-        if (acc) openModal(acc);
+        if (acc) openPanel(acc);
     });
 
-    // ---- modal ----
-    const modal = document.getElementById('acRoleModal');
-    if (!modal) return;
-    // Direct child of <body> so no ancestor's overflow/stacking context can clip or cover it.
-    if (modal.parentElement !== document.body) document.body.appendChild(modal);
+    // ---- edit panel ----
+    const listView = document.getElementById('acListView');
+    const editView = document.getElementById('acEditView');
+    if (!listView || !editView) return;
 
-    const cardsEl = document.getElementById('acrCards');
-    const subtitleEl = document.getElementById('acrSubtitle');
-    const warnEl = document.getElementById('acrWarn');
-    const noteEl = document.getElementById('acrNote');
-    const saveBtn = document.getElementById('acrSave');
-    const cancelBtn = document.getElementById('acrCancel');
-    const backBtn = document.getElementById('acrBack');
-    const closeBtn = document.getElementById('acrClose');
+    const cardsEl = document.getElementById('acpCards');
+    const accessEl = document.getElementById('acpAccess');
+    const subtitleEl = document.getElementById('acpSubtitle');
+    const warnEl = document.getElementById('acpWarn');
+    const noteEl = document.getElementById('acpNote');
+    const updateBtn = document.getElementById('acpUpdate');
+    const cancelBtn = document.getElementById('acpCancel');
+    const backBtn = document.getElementById('acpBack');
 
     let editing = null;       // the account being edited
-    let selection = [];       // role keys currently chosen in the modal
+    let selection = [];       // role keys currently chosen
     let confirming = false;   // second step before granting Admin / Super Admin
+
+    function isOpen() { return editView.style.display !== 'none'; }
 
     function grantsAdmin() {
         return selection.indexOf('admin') !== -1 || selection.indexOf('superadmin') !== -1;
@@ -316,17 +307,41 @@ let acTeamHeadAccounts = ACCESS_CONTROL_TEAM_HEAD_ACCOUNTS.slice();
         });
     }
 
+    // Permissions a single role grants, from the live Role Permissions matrix.
+    function rolePermissionKeys(role) {
+        const perms = ACCESS_CONTROL_PERMISSIONS[role] || {};
+        return Object.keys(perms).filter(function (k) { return perms[k]; });
+    }
+
     function renderCards() {
         cardsEl.innerHTML = selectableRoles().map(function (key) {
             const selected = selection.indexOf(key) !== -1;
             const isCurrent = editing.roles.indexOf(key) !== -1;
-            return '<button type="button" class="acr-card' + (selected ? ' is-selected' : '') + '" role="checkbox" aria-checked="' + (selected ? 'true' : 'false') + '" data-role="' + acEscapeHtml(key) + '">' +
-                '<div class="acr-card-top"><span class="acr-icon">' + (ROLE_ICONS[key] || ROLE_ICONS.employee) + '</span><span class="acr-check">' + CHECK_ICON + '</span></div>' +
-                '<div class="acr-title">' + acEscapeHtml(roleOptions[key] || key) + (isCurrent ? '<span class="acr-current">Current</span>' : '') + '</div>' +
-                '<div class="acr-desc">' + acEscapeHtml(roleDescriptions[key] || '') + '</div>' +
-                '<div class="acr-access">' + acEscapeHtml(accessLine(key)) + '</div>' +
+            return '<button type="button" class="acp-role' + (selected ? ' is-selected' : '') + '" role="checkbox" aria-checked="' + (selected ? 'true' : 'false') + '" data-role="' + acEscapeHtml(key) + '">' +
+                '<div class="acp-role-top"><span class="acp-icon">' + (ROLE_ICONS[key] || ROLE_ICONS.employee) + '</span><span class="acp-check">' + CHECK_ICON + '</span></div>' +
+                '<div class="acp-title">' + acEscapeHtml(roleOptions[key] || key) + (isCurrent ? '<span class="acp-current">Current</span>' : '') + '</div>' +
+                '<div class="acp-desc">' + acEscapeHtml(roleDescriptions[key] || '') + '</div>' +
             '</button>';
         }).join('');
+    }
+
+    // "Allow access to": one row per module, showing whether the CURRENT
+    // selection grants it and via which role. Read-only — what each role can
+    // do is still edited in the Role Permissions tab.
+    function renderAccess() {
+        const modules = Object.keys(ACCESS_CONTROL_PERMISSION_LABELS);
+        const rows = modules.map(function (key) {
+            const via = selection.filter(function (role) {
+                return role === 'superadmin' || rolePermissionKeys(role).indexOf(key) !== -1;
+            });
+            const on = via.length > 0;
+            const viaNames = via.map(function (r) { return roleOptions[r] || r; }).join(', ');
+            return '<div class="acp-mod' + (on ? ' is-on' : '') + '">' +
+                '<span>' + acEscapeHtml(ACCESS_CONTROL_PERMISSION_LABELS[key]) + '</span>' +
+                '<span class="acp-status"><span class="acp-dot"></span>' + (on ? 'Allowed <span class="acp-via">via ' + acEscapeHtml(viaNames) + '</span>' : 'No access') + '</span>' +
+            '</div>';
+        }).join('');
+        accessEl.innerHTML = '<div class="acp-access-head"><span>Module</span><span>Access</span></div>' + rows;
     }
 
     function renderFooter() {
@@ -335,47 +350,48 @@ let acTeamHeadAccounts = ACCESS_CONTROL_TEAM_HEAD_ACCOUNTS.slice();
             warnEl.style.display = 'block';
             warnEl.textContent = 'You are about to give ' + editing.name + ' Admin and/or Super Admin access. They will be able to manage accounts, payroll and settings. Continue?';
             noteEl.textContent = '';
-            cancelBtn.style.display = 'none';
-            backBtn.style.display = '';
-            saveBtn.textContent = 'Yes, grant access';
-            saveBtn.disabled = false;
+            cancelBtn.textContent = 'Back';
+            updateBtn.textContent = 'Yes, grant access';
+            updateBtn.disabled = false;
             return;
         }
         warnEl.style.display = grantsAdmin() ? 'block' : 'none';
         if (grantsAdmin()) warnEl.textContent = 'This gives Admin and/or Super Admin access — you will be asked to confirm before it is saved.';
         noteEl.textContent = changed ? 'You have unsaved changes.' : 'No changes yet.';
-        cancelBtn.style.display = '';
-        backBtn.style.display = 'none';
-        saveBtn.textContent = 'Save changes';
-        saveBtn.disabled = !changed;
+        cancelBtn.textContent = 'Cancel';
+        updateBtn.textContent = 'Update';
+        updateBtn.disabled = !changed;
     }
 
     function refresh() {
         renderCards();
+        renderAccess();
         renderFooter();
     }
 
-    function openModal(acc) {
+    function openPanel(acc) {
         editing = acc;
         selection = acc.roles.slice();
         confirming = false;
         subtitleEl.textContent = acc.name + (acc.email ? ' · ' + acc.email : '');
         refresh();
-        modal.classList.add('is-open');
-        modal.setAttribute('aria-hidden', 'false');
-        const first = cardsEl.querySelector('.acr-card');
+        listView.style.display = 'none';
+        editView.style.display = 'block';
+        const scroller = editView.closest('[data-ac-panel]');
+        if (scroller) scroller.scrollTop = 0;
+        const first = cardsEl.querySelector('.acp-role');
         if (first) first.focus();
     }
 
-    function closeModal() {
-        modal.classList.remove('is-open');
-        modal.setAttribute('aria-hidden', 'true');
+    function closePanel() {
+        editView.style.display = 'none';
+        listView.style.display = '';
         editing = null;
         confirming = false;
     }
 
     cardsEl.addEventListener('click', function (e) {
-        const card = e.target.closest('.acr-card');
+        const card = e.target.closest('.acp-role');
         if (!card || !editing) return;
         const role = card.dataset.role;
         const nowSelected = selection.indexOf(role) === -1;
@@ -388,20 +404,21 @@ let acTeamHeadAccounts = ACCESS_CONTROL_TEAM_HEAD_ACCOUNTS.slice();
         }
         confirming = false;
         refresh();
-        const again = cardsEl.querySelector('.acr-card[data-role="' + role + '"]');
+        const again = cardsEl.querySelector('.acp-role[data-role="' + role + '"]');
         if (again) again.focus();
     });
 
-    closeBtn.addEventListener('click', closeModal);
-    cancelBtn.addEventListener('click', closeModal);
-    modal.addEventListener('click', function (e) { if (e.target === modal) closeModal(); });
-    document.addEventListener('keydown', function (e) {
-        if (e.key === 'Escape' && modal.classList.contains('is-open')) closeModal();
+    backBtn.addEventListener('click', closePanel);
+    cancelBtn.addEventListener('click', function () {
+        if (confirming) { confirming = false; renderFooter(); return; }
+        closePanel();
     });
-    backBtn.addEventListener('click', function () { confirming = false; renderFooter(); });
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && isOpen()) closePanel();
+    });
 
-    saveBtn.addEventListener('click', function () {
-        if (!editing || saveBtn.disabled) return;
+    updateBtn.addEventListener('click', function () {
+        if (!editing || updateBtn.disabled) return;
 
         if (grantsAdmin() && !confirming) {
             confirming = true;
@@ -412,8 +429,8 @@ let acTeamHeadAccounts = ACCESS_CONTROL_TEAM_HEAD_ACCOUNTS.slice();
         const acc = editing;
         const checked = selection.slice();
 
-        saveBtn.disabled = true;
-        saveBtn.textContent = 'Saving…';
+        updateBtn.disabled = true;
+        updateBtn.textContent = 'Saving…';
 
         const params = new URLSearchParams({ user_id: acc.user_id });
         checked.forEach(function (r) { params.append('roles[]', r); });
@@ -440,7 +457,7 @@ let acTeamHeadAccounts = ACCESS_CONTROL_TEAM_HEAD_ACCOUNTS.slice();
                     }
                     acc.roles = checked;
                     renderTable();
-                    closeModal();
+                    closePanel();
                 } else {
                     confirming = false;
                     renderFooter();
