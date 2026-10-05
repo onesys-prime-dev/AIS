@@ -98,8 +98,10 @@ class AccessControlController extends BaseController
         }, $rows);
 
         $roleOptions = [];
+        $roleDescriptions = [];
         foreach (self::ASSIGNABLE_ROLES as $role) {
             $roleOptions[$role] = $groupLabels[$role]['title'] ?? ucfirst($role);
+            $roleDescriptions[$role] = $groupLabels[$role]['description'] ?? '';
         }
 
         // Departments (active only, for the picker) — id/name plus how many
@@ -152,6 +154,7 @@ class AccessControlController extends BaseController
         return [
             'accounts'            => $accounts,
             'roleOptions'         => $roleOptions,
+            'roleDescriptions'    => $roleDescriptions,
             'departments'         => $departments,
             'teamHeadAccounts'    => array_map(fn ($a) => ['user_id' => $a['user_id'], 'name' => $a['name']], $teamHeadAccounts),
             'departmentTeamHeads' => $departmentTeamHeads,

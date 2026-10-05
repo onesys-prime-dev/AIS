@@ -101,3 +101,78 @@
         </div>
     </div>
 </div>
+
+<!-- EDIT ACCESS MODAL (role cards). Self-contained CSS in the house modal style
+     (light backdrop, no blur, 14px radius, flat gray Cancel, violet Save) so it
+     doesn't depend on Tailwind classes the precompiled build may lack. -->
+<style>
+.acr-overlay{ position:fixed; inset:0; z-index:99999; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.45); }
+.acr-overlay.is-open{ display:flex; }
+.acr-box{
+    display:flex; flex-direction:column;
+    width:min(760px, calc(100vw - 32px)); max-height:90vh;
+    background:#fff; border-radius:14px; box-shadow:0 25px 50px rgba(0,0,0,.25);
+    animation:acrPop .2s ease; font-family:Segoe UI,Arial,sans-serif;
+}
+@keyframes acrPop{ from{ opacity:0; transform:scale(.95); } to{ opacity:1; transform:scale(1); } }
+.acr-header{ display:flex; align-items:flex-start; justify-content:space-between; gap:12px; padding:16px 20px; border-bottom:1px solid #e5e7eb; }
+.acr-header h3{ margin:0; font-size:17px; font-weight:700; color:#17223b; }
+.acr-header p{ margin:3px 0 0; font-size:12px; color:#667085; }
+.acr-close{ background:none; border:none; font-size:18px; line-height:1; color:#6b7280; cursor:pointer; padding:2px 4px; }
+.acr-body{ padding:16px 20px; overflow-y:auto; min-height:0; }
+.acr-help{ margin:0 0 14px; font-size:12px; color:#667085; line-height:1.5; }
+.acr-grid{ display:grid; grid-template-columns:repeat(auto-fit, minmax(190px, 1fr)); gap:12px; }
+.acr-card{
+    position:relative; display:flex; flex-direction:column; gap:8px; text-align:left;
+    padding:14px; border:1.5px solid #e5e7eb; border-radius:12px; background:#fff;
+    cursor:pointer; transition:border-color .15s ease, background .15s ease, box-shadow .15s ease;
+}
+.acr-card:hover{ border-color:#A891FC; }
+.acr-card:focus-visible{ outline:3px solid rgba(168,145,252,.45); outline-offset:2px; }
+.acr-card.is-selected{ border-color:#A891FC; background:#f1eeff; box-shadow:0 0 0 1px #A891FC inset; }
+.acr-card-top{ display:flex; align-items:center; justify-content:space-between; }
+.acr-icon{ display:inline-flex; align-items:center; justify-content:center; width:36px; height:36px; border-radius:10px; background:#f3f4f6; color:#374151; transition:background .15s ease, color .15s ease; }
+.acr-icon svg{ width:19px; height:19px; }
+.acr-card.is-selected .acr-icon{ background:#A891FC; color:#fff; }
+.acr-check{ display:none; width:20px; height:20px; border-radius:50%; background:#A891FC; color:#fff; align-items:center; justify-content:center; }
+.acr-check svg{ width:12px; height:12px; }
+.acr-card.is-selected .acr-check{ display:inline-flex; }
+.acr-title{ font-size:14px; font-weight:700; color:#17223b; display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+.acr-current{ font-size:9px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:#6650cc; background:#e6e0ff; border-radius:999px; padding:2px 7px; }
+.acr-desc{ font-size:12px; color:#667085; line-height:1.45; }
+.acr-access{ font-size:11px; color:#737c8b; line-height:1.4; border-top:1px dashed #e5e7eb; padding-top:7px; margin-top:auto; }
+.acr-warn{ margin-top:14px; padding:10px 12px; border-radius:10px; background:#fffbeb; border:1px solid #fde68a; color:#92400e; font-size:12px; line-height:1.5; }
+.acr-footer{ display:flex; align-items:center; justify-content:flex-end; gap:8px; padding:14px 20px; border-top:1px solid #e5e7eb; }
+.acr-footer .acr-note{ margin-right:auto; font-size:12px; color:#737c8b; }
+.acr-btn{ border:none; border-radius:8px; padding:8px 16px; font-size:13px; font-weight:600; cursor:pointer; transition:background .15s ease, transform .15s ease; }
+.acr-cancel{ background:#e5e7eb; color:#374151; }
+.acr-cancel:hover{ background:#d1d5db; }
+.acr-save{ background:#8b5cf6; color:#fff; }
+.acr-save:hover:not(:disabled){ background:#7c3aed; transform:translateY(-2px); }
+.acr-save:disabled{ background:#d8ccfb; cursor:not-allowed; }
+.acr-edit-btn{ border:1px solid #cbbdfb; color:#6650cc; background:#fff; border-radius:8px; padding:5px 12px; font-size:12px; font-weight:600; cursor:pointer; transition:background .15s ease; }
+.acr-edit-btn:hover{ background:#f1eeff; }
+</style>
+
+<div id="acRoleModal" class="acr-overlay" aria-hidden="true">
+    <div class="acr-box" role="dialog" aria-modal="true" aria-labelledby="acrTitle">
+        <div class="acr-header">
+            <div>
+                <h3 id="acrTitle">Edit access</h3>
+                <p id="acrSubtitle"></p>
+            </div>
+            <button type="button" id="acrClose" class="acr-close" aria-label="Close">&#10005;</button>
+        </div>
+        <div class="acr-body">
+            <p class="acr-help">Choose one or more roles for this account. Employee can't be combined with a staff role — picking one clears the other.</p>
+            <div id="acrCards" class="acr-grid" role="group" aria-label="Roles"></div>
+            <div id="acrWarn" class="acr-warn" style="display:none;"></div>
+        </div>
+        <div class="acr-footer">
+            <span id="acrNote" class="acr-note"></span>
+            <button type="button" id="acrCancel" class="acr-btn acr-cancel">Cancel</button>
+            <button type="button" id="acrBack" class="acr-btn acr-cancel" style="display:none;">Back</button>
+            <button type="button" id="acrSave" class="acr-btn acr-save" disabled>Save changes</button>
+        </div>
+    </div>
+</div>

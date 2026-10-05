@@ -168,6 +168,7 @@ const LOANS = <?= json_encode($loans ?? []) ?>;
 const FACE_RECOGNITION_EMPLOYEES = <?= json_encode($faceRecognitionEmployees ?? []) ?>;
 const ACCESS_CONTROL_ACCOUNTS = <?= json_encode($accessControlAccounts ?? []) ?>;
 const ACCESS_CONTROL_ROLE_OPTIONS = <?= json_encode($accessControlRoleOptions ?? []) ?>;
+const ACCESS_CONTROL_ROLE_DESCRIPTIONS = <?= json_encode($accessControlRoleDescriptions ?? []) ?>;
 const ACCESS_CONTROL_CURRENT_USER_ID = <?= json_encode((int) $currentUserId) ?>;
 const ACCESS_CONTROL_DEPARTMENTS = <?= json_encode($accessControlDepartments ?? []) ?>;
 const ACCESS_CONTROL_TEAM_HEAD_ACCOUNTS = <?= json_encode($accessControlTeamHeadAccounts ?? []) ?>;
@@ -192,157 +193,264 @@ function acEscapeHtml(s) {
 // in the Departments section's Team Head list — no page refresh needed.
 let acTeamHeadAccounts = ACCESS_CONTROL_TEAM_HEAD_ACCOUNTS.slice();
 
-// ================= ACCOUNTS (multi-role) =================
+// ================= ACCOUNTS (multi-role, role cards) =================
+// Roles are picked in an "Edit access" modal of role cards (icon, description,
+// what the role can access) instead of tiny inline pills. Rules and the save
+// request are unchanged: same exclusivity (Employee vs staff roles), same
+// locked rows, and the POST still sends only user_id + roles[].
 (function () {
     const body = document.getElementById('accessControlBody');
     if (!body) return; // panel not rendered (PortalAccess::canManageAccessControl() was false)
 
     const accounts = ACCESS_CONTROL_ACCOUNTS;
     const roleOptions = ACCESS_CONTROL_ROLE_OPTIONS;
+    const roleDescriptions = ACCESS_CONTROL_ROLE_DESCRIPTIONS;
 
     if (!accounts.length) {
         body.innerHTML = '<tr><td colspan="3" class="px-4 py-6 text-center text-gray-400">No accounts found.</td></tr>';
         return;
     }
 
+    const svg = function (inner) {
+        return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + inner + '</svg>';
+    };
+    const ROLE_ICONS = {
+        employee: svg('<circle cx="12" cy="8" r="3.6"/><path d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6"/>'),
+        client_payroll_staff: svg('<rect x="3" y="6" width="18" height="12" rx="2.2"/><circle cx="12" cy="12" r="2.6"/>'),
+        hr_admin: svg('<circle cx="9" cy="8.5" r="3"/><path d="M3.5 19c0-3 2.4-5 5.5-5s5.5 2 5.5 5"/><circle cx="17" cy="9.5" r="2.4"/><path d="M16.5 14.2c2.6.2 4.5 1.9 4.5 4.3"/>'),
+        team_head: svg('<path d="M5 21V4"/><path d="M5 4h11l-2 4 2 4H5"/>'),
+        admin: svg('<path d="M12 3 5 6v5c0 4.6 3 8.3 7 10 4-1.7 7-5.4 7-10V6l-7-3Z"/>'),
+        superadmin: svg('<path d="M13 2 4 14h7l-1 8 9-12h-7l1-8Z"/>'),
+    };
+    const CHECK_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>';
+
     function roleBadges(roles) {
         if (!roles.length) return '<span class="text-xs text-red-500">No role assigned</span>';
         return roles.map(function (r) {
-            return '<span class="inline-flex items-center rounded-full bg-gray-100 text-gray-700 px-2 py-1 text-xs font-medium mr-2 mb-1">' + acEscapeHtml(roleOptions[r] || r) + '</span>';
+            return '<span class="inline-flex items-center rounded-full px-2 py-1 text-xs font-medium mr-2 mb-1" style="background:#f1eeff;color:#6650cc;">' + acEscapeHtml(roleOptions[r] || r) + '</span>';
         }).join('');
-    }
-
-    function setPillSelected(pill, selected) {
-        pill.dataset.selected = selected ? '1' : '0';
-        pill.style.background = selected ? '#A891FC' : '#f3f4f6';
-        pill.style.color = selected ? '#fff' : '#374151';
-    }
-
-    function currentSelection(container) {
-        return Array.from(container.querySelectorAll('.ac-role-pill[data-selected="1"]')).map(function (p) { return p.dataset.role; });
     }
 
     function sameRoles(a, b) {
-        const sa = a.slice().sort().join(',');
-        const sb = b.slice().sort().join(',');
-        return sa === sb;
+        return a.slice().sort().join(',') === b.slice().sort().join(',');
     }
 
-    // Roles are always shown as clickable pills — no separate "Edit" step to
-    // find first. Save only appears once the selection actually differs from
-    // what's saved, same as the original single-role dropdown used to work.
-    body.innerHTML = accounts.map(function (acc) {
-        if (acc.user_id === ACCESS_CONTROL_CURRENT_USER_ID) {
-            return '<tr>' +
-                '<td class="px-4 py-3">' + acEscapeHtml(acc.name) + '</td>' +
-                '<td class="px-4 py-3">' + acEscapeHtml(acc.email || '—') + '</td>' +
-                '<td class="px-4 py-3 text-gray-400 italic">' + roleBadges(acc.roles) + ' (you)</td>' +
-                '</tr>';
-        }
+    // "What this role can access" line, from the live Role Permissions matrix.
+    function accessLine(role) {
+        if (role === 'superadmin') return 'Access: everything';
+        const perms = ACCESS_CONTROL_PERMISSIONS[role] || {};
+        const labels = Object.keys(perms).filter(function (k) { return perms[k]; })
+            .map(function (k) { return ACCESS_CONTROL_PERMISSION_LABELS[k] || k; });
+        if (!labels.length) return 'Access: no extra permissions';
+        const shown = labels.slice(0, 3).join(', ');
+        return 'Access: ' + shown + (labels.length > 3 ? ' +' + (labels.length - 3) + ' more' : '');
+    }
 
-        const isSuperadminLocked = acc.roles.indexOf('superadmin') !== -1 && !ACCESS_CONTROL_ACTOR_IS_SUPERADMIN;
-        if (isSuperadminLocked) {
-            return '<tr>' +
-                '<td class="px-4 py-3">' + acEscapeHtml(acc.name) + '</td>' +
-                '<td class="px-4 py-3">' + acEscapeHtml(acc.email || '—') + '</td>' +
-                '<td class="px-4 py-3">' + roleBadges(acc.roles) + '<div class="text-xs text-gray-400 italic mt-1">Only Super Admin can change a Super Admin account.</div></td>' +
-                '</tr>';
-        }
-
-        const selectable = Object.keys(roleOptions).filter(function (key) {
-            return key !== 'superadmin' || ACCESS_CONTROL_ACTOR_IS_SUPERADMIN;
-        });
-        const pills = selectable.map(function (key) {
-            const selected = acc.roles.indexOf(key) !== -1;
-            return '<button type="button" class="ac-role-pill px-3 py-1 rounded-full text-xs font-medium" data-role="' + acEscapeHtml(key) + '" data-selected="' + (selected ? '1' : '0') + '" style="background:' + (selected ? '#A891FC' : '#f3f4f6') + ';color:' + (selected ? '#fff' : '#374151') + ';">' + acEscapeHtml(roleOptions[key]) + '</button>';
-        }).join('');
-
-        return '<tr data-user-id="' + acc.user_id + '">' +
-            '<td class="px-4 py-3" style="vertical-align:top;">' + acEscapeHtml(acc.name) + '</td>' +
-            '<td class="px-4 py-3" style="vertical-align:top;">' + acEscapeHtml(acc.email || '—') + '</td>' +
-            '<td class="px-4 py-3" style="vertical-align:top;">' +
-                '<div class="flex flex-wrap gap-2 ac-role-checklist">' + pills + '</div>' +
-                '<button type="button" class="ac-save-btn mt-2 px-3 py-1 rounded-lg text-xs font-semibold text-white" style="display:none;background:#A891FC;" onmouseover="this.style.background=\'#9678f5\'" onmouseout="this.style.background=\'#A891FC\'">Save</button>' +
-            '</td>' +
-            '</tr>';
-    }).join('');
-
-    body.querySelectorAll('tr[data-user-id]').forEach(function (row) {
-        const userId = row.dataset.userId;
-        const acc = accounts.find(function (a) { return String(a.user_id) === String(userId); });
-        if (!acc) return;
-
-        const checklist = row.querySelector('.ac-role-checklist');
-        const saveBtn = row.querySelector('.ac-save-btn');
-        if (!checklist || !saveBtn) return;
-        const pills = Array.from(checklist.querySelectorAll('.ac-role-pill'));
-
-        function refreshSaveVisibility() {
-            saveBtn.style.display = sameRoles(currentSelection(checklist), acc.roles) ? 'none' : 'inline-block';
-        }
-
-        pills.forEach(function (pill) {
-            pill.addEventListener('click', function () {
-                const nowSelected = pill.dataset.selected !== '1';
-                if (pill.dataset.role === 'employee' && nowSelected) {
-                    pills.forEach(function (p) { setPillSelected(p, p === pill); });
-                } else {
-                    setPillSelected(pill, nowSelected);
-                    if (nowSelected) {
-                        const employeePill = pills.find(function (p) { return p.dataset.role === 'employee'; });
-                        if (employeePill) setPillSelected(employeePill, false);
-                    }
-                }
-                refreshSaveVisibility();
-            });
-        });
-
-        saveBtn.addEventListener('click', function () {
-            const checked = currentSelection(checklist);
-
-            if ((checked.indexOf('admin') !== -1 || checked.indexOf('superadmin') !== -1) &&
-                !confirm('Save this role change? The account will have Admin and/or Super Admin access.')) {
-                return;
+    // ---- table ----
+    function renderTable() {
+        body.innerHTML = accounts.map(function (acc) {
+            if (acc.user_id === ACCESS_CONTROL_CURRENT_USER_ID) {
+                return '<tr>' +
+                    '<td class="px-4 py-3">' + acEscapeHtml(acc.name) + '</td>' +
+                    '<td class="px-4 py-3">' + acEscapeHtml(acc.email || '—') + '</td>' +
+                    '<td class="px-4 py-3 text-gray-400 italic">' + roleBadges(acc.roles) + ' (you)</td>' +
+                    '</tr>';
             }
 
-            saveBtn.disabled = true;
-            saveBtn.textContent = 'Saving…';
+            const isSuperadminLocked = acc.roles.indexOf('superadmin') !== -1 && !ACCESS_CONTROL_ACTOR_IS_SUPERADMIN;
+            if (isSuperadminLocked) {
+                return '<tr>' +
+                    '<td class="px-4 py-3">' + acEscapeHtml(acc.name) + '</td>' +
+                    '<td class="px-4 py-3">' + acEscapeHtml(acc.email || '—') + '</td>' +
+                    '<td class="px-4 py-3">' + roleBadges(acc.roles) + '<div class="text-xs text-gray-400 italic mt-1">Only Super Admin can change a Super Admin account.</div></td>' +
+                    '</tr>';
+            }
 
-            const params = new URLSearchParams({ user_id: userId });
-            checked.forEach(function (r) { params.append('roles[]', r); });
+            return '<tr>' +
+                '<td class="px-4 py-3" style="vertical-align:middle;">' + acEscapeHtml(acc.name) + '</td>' +
+                '<td class="px-4 py-3" style="vertical-align:middle;">' + acEscapeHtml(acc.email || '—') + '</td>' +
+                '<td class="px-4 py-3" style="vertical-align:middle;">' +
+                    '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">' +
+                        '<div>' + roleBadges(acc.roles) + '</div>' +
+                        '<button type="button" class="acr-edit-btn" data-edit-user="' + acc.user_id + '">Edit access</button>' +
+                    '</div>' +
+                '</td>' +
+                '</tr>';
+        }).join('');
+    }
 
-            fetch('<?= site_url('client_portal/access-control/update-roles') ?>', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'X-CSRF-TOKEN': CSRF_HASH,
-                },
-                body: params,
-            })
-                .then(function (res) { return res.json(); })
-                .then(function (data) {
-                    if (window.showToast) window.showToast(data.message || (data.success ? 'Roles updated.' : 'Something went wrong.'), data.success ? 'success' : 'error');
-                    if (data.success) {
-                        const wasTeamHead = acc.roles.indexOf('team_head') !== -1;
-                        const isTeamHead = checked.indexOf('team_head') !== -1;
-                        if (isTeamHead && !wasTeamHead) {
-                            acTeamHeadAccounts.push({ user_id: acc.user_id, name: acc.name });
-                        } else if (!isTeamHead && wasTeamHead) {
-                            acTeamHeadAccounts = acTeamHeadAccounts.filter(function (t) { return t.user_id !== acc.user_id; });
-                        }
-                        acc.roles = checked;
-                        saveBtn.style.display = 'none';
-                    }
-                })
-                .catch(function () {
-                    if (window.showToast) window.showToast('Something went wrong.', 'error');
-                })
-                .finally(function () {
-                    saveBtn.disabled = false;
-                    saveBtn.textContent = 'Save';
-                });
+    renderTable();
+    body.addEventListener('click', function (e) {
+        const btn = e.target.closest('[data-edit-user]');
+        if (!btn) return;
+        const acc = accounts.find(function (a) { return String(a.user_id) === btn.dataset.editUser; });
+        if (acc) openModal(acc);
+    });
+
+    // ---- modal ----
+    const modal = document.getElementById('acRoleModal');
+    if (!modal) return;
+    // Direct child of <body> so no ancestor's overflow/stacking context can clip or cover it.
+    if (modal.parentElement !== document.body) document.body.appendChild(modal);
+
+    const cardsEl = document.getElementById('acrCards');
+    const subtitleEl = document.getElementById('acrSubtitle');
+    const warnEl = document.getElementById('acrWarn');
+    const noteEl = document.getElementById('acrNote');
+    const saveBtn = document.getElementById('acrSave');
+    const cancelBtn = document.getElementById('acrCancel');
+    const backBtn = document.getElementById('acrBack');
+    const closeBtn = document.getElementById('acrClose');
+
+    let editing = null;       // the account being edited
+    let selection = [];       // role keys currently chosen in the modal
+    let confirming = false;   // second step before granting Admin / Super Admin
+
+    function grantsAdmin() {
+        return selection.indexOf('admin') !== -1 || selection.indexOf('superadmin') !== -1;
+    }
+
+    function selectableRoles() {
+        return Object.keys(roleOptions).filter(function (key) {
+            return key !== 'superadmin' || ACCESS_CONTROL_ACTOR_IS_SUPERADMIN;
         });
+    }
+
+    function renderCards() {
+        cardsEl.innerHTML = selectableRoles().map(function (key) {
+            const selected = selection.indexOf(key) !== -1;
+            const isCurrent = editing.roles.indexOf(key) !== -1;
+            return '<button type="button" class="acr-card' + (selected ? ' is-selected' : '') + '" role="checkbox" aria-checked="' + (selected ? 'true' : 'false') + '" data-role="' + acEscapeHtml(key) + '">' +
+                '<div class="acr-card-top"><span class="acr-icon">' + (ROLE_ICONS[key] || ROLE_ICONS.employee) + '</span><span class="acr-check">' + CHECK_ICON + '</span></div>' +
+                '<div class="acr-title">' + acEscapeHtml(roleOptions[key] || key) + (isCurrent ? '<span class="acr-current">Current</span>' : '') + '</div>' +
+                '<div class="acr-desc">' + acEscapeHtml(roleDescriptions[key] || '') + '</div>' +
+                '<div class="acr-access">' + acEscapeHtml(accessLine(key)) + '</div>' +
+            '</button>';
+        }).join('');
+    }
+
+    function renderFooter() {
+        const changed = !sameRoles(selection, editing.roles);
+        if (confirming) {
+            warnEl.style.display = 'block';
+            warnEl.textContent = 'You are about to give ' + editing.name + ' Admin and/or Super Admin access. They will be able to manage accounts, payroll and settings. Continue?';
+            noteEl.textContent = '';
+            cancelBtn.style.display = 'none';
+            backBtn.style.display = '';
+            saveBtn.textContent = 'Yes, grant access';
+            saveBtn.disabled = false;
+            return;
+        }
+        warnEl.style.display = grantsAdmin() ? 'block' : 'none';
+        if (grantsAdmin()) warnEl.textContent = 'This gives Admin and/or Super Admin access — you will be asked to confirm before it is saved.';
+        noteEl.textContent = changed ? 'You have unsaved changes.' : 'No changes yet.';
+        cancelBtn.style.display = '';
+        backBtn.style.display = 'none';
+        saveBtn.textContent = 'Save changes';
+        saveBtn.disabled = !changed;
+    }
+
+    function refresh() {
+        renderCards();
+        renderFooter();
+    }
+
+    function openModal(acc) {
+        editing = acc;
+        selection = acc.roles.slice();
+        confirming = false;
+        subtitleEl.textContent = acc.name + (acc.email ? ' · ' + acc.email : '');
+        refresh();
+        modal.classList.add('is-open');
+        modal.setAttribute('aria-hidden', 'false');
+        const first = cardsEl.querySelector('.acr-card');
+        if (first) first.focus();
+    }
+
+    function closeModal() {
+        modal.classList.remove('is-open');
+        modal.setAttribute('aria-hidden', 'true');
+        editing = null;
+        confirming = false;
+    }
+
+    cardsEl.addEventListener('click', function (e) {
+        const card = e.target.closest('.acr-card');
+        if (!card || !editing) return;
+        const role = card.dataset.role;
+        const nowSelected = selection.indexOf(role) === -1;
+        if (role === 'employee' && nowSelected) {
+            selection = ['employee'];
+        } else if (nowSelected) {
+            selection = selection.filter(function (r) { return r !== 'employee'; }).concat(role);
+        } else {
+            selection = selection.filter(function (r) { return r !== role; });
+        }
+        confirming = false;
+        refresh();
+        const again = cardsEl.querySelector('.acr-card[data-role="' + role + '"]');
+        if (again) again.focus();
+    });
+
+    closeBtn.addEventListener('click', closeModal);
+    cancelBtn.addEventListener('click', closeModal);
+    modal.addEventListener('click', function (e) { if (e.target === modal) closeModal(); });
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && modal.classList.contains('is-open')) closeModal();
+    });
+    backBtn.addEventListener('click', function () { confirming = false; renderFooter(); });
+
+    saveBtn.addEventListener('click', function () {
+        if (!editing || saveBtn.disabled) return;
+
+        if (grantsAdmin() && !confirming) {
+            confirming = true;
+            renderFooter();
+            return;
+        }
+
+        const acc = editing;
+        const checked = selection.slice();
+
+        saveBtn.disabled = true;
+        saveBtn.textContent = 'Saving…';
+
+        const params = new URLSearchParams({ user_id: acc.user_id });
+        checked.forEach(function (r) { params.append('roles[]', r); });
+
+        fetch('<?= site_url('client_portal/access-control/update-roles') ?>', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-TOKEN': CSRF_HASH,
+            },
+            body: params,
+        })
+            .then(function (res) { return res.json(); })
+            .then(function (data) {
+                if (window.showToast) window.showToast(data.message || (data.success ? 'Roles updated.' : 'Something went wrong.'), data.success ? 'success' : 'error');
+                if (data.success) {
+                    const wasTeamHead = acc.roles.indexOf('team_head') !== -1;
+                    const isTeamHead = checked.indexOf('team_head') !== -1;
+                    if (isTeamHead && !wasTeamHead) {
+                        acTeamHeadAccounts.push({ user_id: acc.user_id, name: acc.name });
+                    } else if (!isTeamHead && wasTeamHead) {
+                        acTeamHeadAccounts = acTeamHeadAccounts.filter(function (t) { return t.user_id !== acc.user_id; });
+                    }
+                    acc.roles = checked;
+                    renderTable();
+                    closeModal();
+                } else {
+                    confirming = false;
+                    renderFooter();
+                }
+            })
+            .catch(function () {
+                if (window.showToast) window.showToast('Something went wrong.', 'error');
+                confirming = false;
+                renderFooter();
+            });
     });
 })();
 

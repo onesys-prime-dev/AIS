@@ -330,6 +330,7 @@ class EmployeeController extends BaseController
 
         $accessControlAccounts = [];
         $accessControlRoleOptions = [];
+        $accessControlRoleDescriptions = [];
         $accessControlDepartments = [];
         $accessControlTeamHeadAccounts = [];
         $accessControlDepartmentTeamHeads = [];
@@ -344,6 +345,7 @@ class EmployeeController extends BaseController
             $accessControlData = \App\Controllers\Client\AccessControlController::getAccountsData();
             $accessControlAccounts = $accessControlData['accounts'];
             $accessControlRoleOptions = $accessControlData['roleOptions'];
+            $accessControlRoleDescriptions = $accessControlData['roleDescriptions'];
             $accessControlDepartments = $accessControlData['departments'];
             $accessControlTeamHeadAccounts = $accessControlData['teamHeadAccounts'];
             $accessControlDepartmentTeamHeads = $accessControlData['departmentTeamHeads'];
@@ -367,6 +369,7 @@ class EmployeeController extends BaseController
                 'faceRecognitionEmployees' => $faceRecognitionEmployees,
                 'accessControlAccounts' => $accessControlAccounts,
                 'accessControlRoleOptions' => $accessControlRoleOptions,
+                'accessControlRoleDescriptions' => $accessControlRoleDescriptions,
                 'accessControlDepartments' => $accessControlDepartments,
                 'accessControlTeamHeadAccounts' => $accessControlTeamHeadAccounts,
                 'accessControlDepartmentTeamHeads' => $accessControlDepartmentTeamHeads,
@@ -502,6 +505,7 @@ class EmployeeController extends BaseController
         $data['faceRecognitionEmployees'] = $faceRecognitionEmployees;
         $data['accessControlAccounts'] = $accessControlAccounts;
         $data['accessControlRoleOptions'] = $accessControlRoleOptions;
+        $data['accessControlRoleDescriptions'] = $accessControlRoleDescriptions;
         $data['accessControlDepartments'] = $accessControlDepartments;
         $data['accessControlTeamHeadAccounts'] = $accessControlTeamHeadAccounts;
         $data['accessControlDepartmentTeamHeads'] = $accessControlDepartmentTeamHeads;
