@@ -153,7 +153,7 @@ $routes->group('client_portal', ['namespace' => 'App\Controllers\Client', 'filte
     $routes->get ('payroll/employee_details/(:num)', 'PayrollController::getEmployeeDetails/$1');
     $routes->post('payroll/create'                 , 'PayrollController::createPayroll');
     $routes->post('payroll/update/(:num)'          , 'PayrollController::updatePayroll/$1');
-    $routes->get ('payroll/delete/(:num)'          , 'PayrollController::deletePayroll/$1');
+    $routes->post('payroll/delete/(:num)'          , 'PayrollController::deletePayroll/$1');
     $routes->get ('payroll/get/(:num)'             , 'PayrollController::getPayroll/$1');
     $routes->post('payroll/markStatus'             , 'PayrollController::markPayrollStatus');
     $routes->post('payroll/markPaid/(:num)'        , 'PayrollController::markTransactionPaid/$1');
@@ -248,7 +248,7 @@ $routes->group('client_portal', ['namespace' => 'App\Controllers\Client', 'filte
     $routes->get ('payroll/employee_details/(:num)', 'PayrollController::getEmployeeDetails/$1');
     $routes->post('payroll/create'                 , 'PayrollController::createPayroll');
     $routes->post('payroll/update/(:num)'          , 'PayrollController::updatePayroll/$1');
-    $routes->get ('payroll/delete/(:num)'          , 'PayrollController::deletePayroll/$1');
+    $routes->post('payroll/delete/(:num)'          , 'PayrollController::deletePayroll/$1');
     $routes->get ('payroll/get/(:num)'             , 'PayrollController::getPayroll/$1');
     $routes->get ('payroll/generate/(:num)'        , 'PayrollController::generatePayslip/$1');
 

@@ -1106,7 +1106,7 @@ function htmlEsc(val)
                 <div class="bg-[#A891FC] rounded-t-xl px-8 py-6 flex items-center gap-6 -mx-6 mb-6 shrink-0">
                     <div class="w-20 h-20 rounded-full bg-white/30 flex items-center justify-center shrink-0 overflow-hidden border-4 border-white/50">
                         ${employee.photo_path
-                            ? `<img src="${employee.photo_path}" alt="${employee.first_name} ${employee.last_name}" class="w-full h-full object-cover">`
+                            ? `<img src="${htmlEsc(employee.photo_path)}" alt="${htmlEsc(employee.first_name)} ${htmlEsc(employee.last_name)}" class="w-full h-full object-cover">`
                             : `<svg class="w-12 h-12 text-white" fill="currentColor" viewBox="0 0 24 24">
                                     <path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/>
                                 </svg>`
@@ -1115,11 +1115,11 @@ function htmlEsc(val)
  
                     <div>
                         <h1 class="text-2xl font-bold text-white">
-                            ${employee.first_name} ${employee.last_name}
+                            ${htmlEsc(employee.first_name)} ${htmlEsc(employee.last_name)}
                         </h1>
  
                         <p class="text-white/80 italic text-sm mt-0.5">
-                            ${employee.position ?? 'No Position Set'}
+                            ${htmlEsc(employee.position ?? 'No Position Set')}
                         </p>
  
                         <span class="inline-block mt-2 px-3 py-0.5 rounded-full text-xs font-semibold
@@ -1137,7 +1137,7 @@ function htmlEsc(val)
                         </p>
  
                         <p class="text-white font-bold text-lg">
-                            ${employee.employee_number}
+                            ${htmlEsc(employee.employee_number)}
                         </p>
                     </div>
                 </div>
@@ -1148,22 +1148,22 @@ function htmlEsc(val)
                     <div class="flex divide-x divide-gray-200 mb-6">
                         <div class="flex-1 pr-6">
                             <p class="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-2">Department</p>
-                            <p class="text-sm text-gray-700">${employee.department ?? '—'}</p>
+                            <p class="text-sm text-gray-700">${htmlEsc(employee.department ?? '—')}</p>
                         </div>
  
                         <div class="flex-1 px-6">
                             <p class="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-2">Email</p>
-                            <p class="text-sm text-gray-700">${employee.email ?? '—'}</p>
+                            <p class="text-sm text-gray-700">${htmlEsc(employee.email ?? '—')}</p>
                         </div>
  
                         <div class="flex-1 px-6">
                             <p class="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-2">Birthdate</p>
-                            <p class="text-sm text-gray-700">${employee.birthdate ?? '—'}</p>
+                            <p class="text-sm text-gray-700">${htmlEsc(employee.birthdate ?? '—')}</p>
                         </div>
  
                         <div class="flex-1 pl-6">
                             <p class="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-2">Contact No.</p>
-                            <p class="text-sm text-gray-700">${employee.mobile_number ?? '—'}</p>
+                            <p class="text-sm text-gray-700">${htmlEsc(employee.mobile_number ?? '—')}</p>
                         </div>
                     </div>
  
@@ -1323,7 +1323,7 @@ function htmlEsc(val)
                                             .map(item => `
                                                 <div class="flex items-center justify-between bg-white rounded-xl px-4 py-2.5">
                                                     <span class="text-sm text-gray-700">
-                                                        ${item.purpose || 'Unnamed Benefit'}
+                                                        ${htmlEsc(item.purpose || 'Unnamed Benefit')}
                                                     </span>
                                                     <span class="text-sm font-semibold text-gray-800">
                                                         ₱${Number(item.amount || 0).toLocaleString()}
@@ -1390,7 +1390,7 @@ function htmlEsc(val)
         return `
             <div>
                 <p class="text-xs text-gray-400 mb-0.5">${label}</p>
-                <p class="text-sm font-medium text-gray-800">${value || '—'}</p>
+                <p class="text-sm font-medium text-gray-800">${htmlEsc(value || '—')}</p>
             </div>
         `;
     }

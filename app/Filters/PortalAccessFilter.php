@@ -22,6 +22,13 @@ final class PortalAccessFilter implements FilterInterface
         }
         // Authentication still runs for every protected request, including unknown routes.
         if (!$user) return redirect()->to(site_url('login'));
+        // The login form already blocks inactive accounts, but a session or
+        // remember-me cookie created before deactivation would otherwise keep
+        // working until it expires — same `active` flag loginAction() checks.
+        if (! (bool) $user->active) {
+            auth()->logout();
+            return redirect()->to(site_url('login'))->with('error', 'Your account has been deactivated.');
+        }
         $allowed = match ($required) {
             'self' => true,
             'edit_employee' => PortalAccess::canEditEmployee((int) basename($path)),

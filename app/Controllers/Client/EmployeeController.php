@@ -1023,17 +1023,17 @@ class EmployeeController extends BaseController
 
             fputcsv($output, [
                 $employee['employee_number'],
-                $employee['first_name'],
-                $employee['middle_name'],
-                $employee['last_name'],
+                self::csvText($employee['first_name']),
+                self::csvText($employee['middle_name']),
+                self::csvText($employee['last_name']),
                 $employee['gender'],
                 $employee['civil_status'],
                 $employee['birthdate'],
                 $employee['email'],
                 $employee['mobile_number'],
-                $employee['address'],
-                $employee['department'],
-                $employee['position'],
+                self::csvText($employee['address']),
+                self::csvText($employee['department']),
+                self::csvText($employee['position']),
                 $employee['employment_type'],
                 $employee['working_day_type'],
                 implode(', ', $workingDays),
@@ -1043,8 +1043,8 @@ class EmployeeController extends BaseController
                 $employee['tin'],
                 $employee['pagibig'],
                 $employee['philhealth'],
-                $employee['bank'],
-                $employee['bank_address'],
+                self::csvText($employee['bank']),
+                self::csvText($employee['bank_address']),
                 $employee['account_number'],
                 $employee['swift_code'],
                 $employee['monthly_salary'] ?? '',
@@ -1054,7 +1054,7 @@ class EmployeeController extends BaseController
                 $allocations['laundry_allowance'] ?? '',
                 $allocations['medical_allowance'] ?? '',
                 $otherCompTotal,
-                $otherCompSummary,
+                self::csvText($otherCompSummary),
                 $employee['allowances'] ?? '',
                 $leaveBalanceModel->getTypeEntitlement((int) $employee['id'], 'vacation',  $currentYear),
                 $leaveBalanceModel->getTypeEntitlement((int) $employee['id'], 'sick',      $currentYear),
@@ -1066,5 +1066,20 @@ class EmployeeController extends BaseController
         fclose($output);
 
         exit;
+    }
+
+    /**
+     * Free-text export cells (names, address, department, position, bank) that
+     * start with = + - @ would run as a formula when the CSV is opened in
+     * Excel; a leading apostrophe makes them plain text. Deliberately NOT used
+     * for phone/account/number columns — a real mobile like "+639…" starts
+     * with "+" and must export unchanged.
+     */
+    private static function csvText($value)
+    {
+        if (is_string($value) && $value !== '' && preg_match('/^[=+\-@\t\r]/', $value)) {
+            return "'" . $value;
+        }
+        return $value;
     }
 }
