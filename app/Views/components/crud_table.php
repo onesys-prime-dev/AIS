@@ -38,6 +38,9 @@
                 <img src="<?= base_url('icons/filter.png') ?>" class="w-4 h-4">
             </button>
 
+            <?php // Optional extra toolbar controls (raw HTML from the caller, e.g. an Add button). ?>
+            <?= $actionsHtml ?? '' ?>
+
         </div>
     </div>
 
@@ -164,6 +167,16 @@
 </div>
 
 <style>
+    /* Row action button (view / edit / manage): same look as the Access Control action buttons. */
+    .crud-icon-btn {
+        display: inline-flex; align-items: center; justify-content: center;
+        width: 34px; height: 34px; border-radius: 9px;
+        border: 1px solid #e5e7eb; background: #fff; color: #4b5563;
+        cursor: pointer; transition: background .15s ease, color .15s ease, border-color .15s ease;
+    }
+    .crud-icon-btn:hover { background: #f3f4f6; color: #111827; border-color: #d1d5db; }
+    .crud-icon-btn svg { width: 17px; height: 17px; }
+
     .crud-table-scroll {
         overflow-x: auto;
         overscroll-behavior-x: contain;

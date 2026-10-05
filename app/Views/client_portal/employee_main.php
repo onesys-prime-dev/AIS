@@ -193,6 +193,19 @@ function acEscapeHtml(s) {
 // in the Departments section's Team Head list — no page refresh needed.
 let acTeamHeadAccounts = ACCESS_CONTROL_TEAM_HEAD_ACCOUNTS.slice();
 
+// Line icons used only inside Access Control (same stroke style as the role-card icons).
+const AC_ICONS = (function () {
+    const s = function (inner) {
+        return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + inner + '</svg>';
+    };
+    return {
+        key: s('<circle cx="8" cy="15" r="4"/><path d="m11 12 8.5-8.5"/><path d="m16.5 6.5 2.5 2.5"/>'),
+        manage: s('<path d="M4 7h9"/><path d="M17 7h3"/><circle cx="15" cy="7" r="2"/><path d="M4 17h3"/><path d="M11 17h9"/><circle cx="9" cy="17" r="2"/>'),
+        building: s('<path d="M4 21V5a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v16"/><path d="M14 10h5a1 1 0 0 1 1 1v10"/><path d="M3 21h18"/><path d="M8 8h2M8 12h2M8 16h2"/>'),
+        trash: s('<path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="m6 7 1 13h10l1-13"/><path d="M10 11v6M14 11v6"/>'),
+    };
+})();
+
 // ================= ACCOUNTS (multi-role, role cards) =================
 // Roles are picked in an "Edit access" modal of role cards (icon, description,
 // what the role can access) instead of tiny inline pills. Rules and the save
@@ -252,7 +265,6 @@ let acTeamHeadAccounts = ACCESS_CONTROL_TEAM_HEAD_ACCOUNTS.slice();
 
     // ---- table: the shared component (search, Filters, sort, grid look) used by Employee Management ----
     const ROW_GRID = 'minmax(0,1.5fr) minmax(0,1.6fr) minmax(0,2.2fr) minmax(0,0.7fr)';
-    const EDIT_ICON_URL = '<?= base_url('icons/edit.png') ?>';
 
     function rowTemplate(acc) {
         const isSelf = acc.user_id === ACCESS_CONTROL_CURRENT_USER_ID;
@@ -267,7 +279,7 @@ let acTeamHeadAccounts = ACCESS_CONTROL_TEAM_HEAD_ACCOUNTS.slice();
 
         const action = (isSelf || isSuperadminLocked)
             ? '<span class="text-gray-300">—</span>'
-            : '<img src="' + EDIT_ICON_URL + '" alt="Edit access" title="Edit access" role="button" tabindex="0" class="cursor-pointer w-7 h-7 hover:scale-110 transition" data-edit-user="' + acc.user_id + '">';
+            : '<button type="button" class="ac-icon-btn" title="Edit access" aria-label="Edit access" data-edit-user="' + acc.user_id + '">' + AC_ICONS.key + '</button>';
 
         // Same row markup/classes as employeeRowTemplate() / loanRowTemplate().
         return '<div class="grid items-center border-b hover:bg-gray-50" style="grid-template-columns:' + ROW_GRID + ';border-left:1px solid transparent;border-right:1px solid transparent;">' +
@@ -498,13 +510,18 @@ let acTeamHeadAccounts = ACCESS_CONTROL_TEAM_HEAD_ACCOUNTS.slice();
 })();
 
 // ================= DEPARTMENTS =================
+// A table (the shared component Employee Management uses) plus a "Manage department" modal.
+// Endpoints, payloads and the Team Head sync with Accounts are unchanged from the old card list.
 (function () {
-    const container = document.getElementById('departmentsList');
-    if (!container) return;
+    const tableCard = document.querySelector('[data-crud-table="departmentsTable"]');
+    if (!tableCard) return;
 
     // Local, mutable copy so add/rename/deactivate can update the UI without a full reload.
     let departments = ACCESS_CONTROL_DEPARTMENTS.slice();
     const deptTeamHeads = Object.assign({}, ACCESS_CONTROL_DEPARTMENT_TEAM_HEADS);
+
+    // Must match the 'gridStyle' passed to the crud_table in employee_access_control.php.
+    const ROW_GRID = 'minmax(0,2fr) minmax(0,0.9fr) minmax(0,2.4fr) minmax(0,0.7fr)';
 
     function post(url, params) {
         return fetch(url, {
@@ -518,171 +535,320 @@ let acTeamHeadAccounts = ACCESS_CONTROL_TEAM_HEAD_ACCOUNTS.slice();
         }).then(function (res) { return res.json(); });
     }
 
-    function render() {
-        if (!departments.length) {
-            container.innerHTML = '<p class="text-sm text-gray-400 text-center py-6">No departments yet — add one above.</p>';
-            return;
-        }
-
-        function teamHeadSummary(d) {
-            const assigned = deptTeamHeads[d.id] || [];
-            if (!assigned.length) return '<span style="color:#f87171;">No Team Head assigned</span>';
-            const names = assigned.map(function (uid) {
-                const th = acTeamHeadAccounts.find(function (t) { return t.user_id === uid; });
-                return th ? acEscapeHtml(th.name) : null;
-            }).filter(Boolean);
-            return 'Team Head: ' + names.join(', ');
-        }
-
-        // Each department is a compact one-line summary by default — the full
-        // rename / Team Head / deactivate controls only appear once you click
-        // Manage, so having several departments on screen doesn't mean several
-        // full edit forms all open at once.
-        container.innerHTML = departments.map(function (d) {
-            return '<div class="rounded-2xl border border-gray-200 p-4" data-department-id="' + d.id + '">' +
-                '<div class="flex items-center justify-between flex-wrap gap-2">' +
-                    '<div>' +
-                        '<span class="font-medium text-gray-800 dept-name-display">' + acEscapeHtml(d.name) + '</span> ' +
-                        '<button type="button" class="dept-toggle-employees-btn text-xs underline" style="color:#9ca3af;">' + d.employee_count + ' employee' + (d.employee_count === 1 ? '' : 's') + '</button>' +
-                        '<div class="text-xs text-gray-400 mt-0.5 dept-team-head-summary">' + teamHeadSummary(d) + '</div>' +
-                    '</div>' +
-                    '<button type="button" class="dept-manage-btn text-xs font-semibold" style="color:#9678f5;">Manage</button>' +
-                '</div>' +
-                '<div class="dept-employees-list text-xs text-gray-500 mt-2" style="display:none;">' +
-                    (d.employees.length ? d.employees.map(function (e) { return acEscapeHtml(e.name); }).join(', ') : 'No employees in this department yet.') +
-                '</div>' +
-                '<div class="dept-manage-panel mt-3 pt-3 border-t border-gray-100" style="display:none;"></div>' +
-                '</div>';
-        }).join('');
-
-        function renderManagePanel(d) {
-            const assigned = deptTeamHeads[d.id] || [];
-            const teamHeadChecks = acTeamHeadAccounts.length
-                ? acTeamHeadAccounts.map(function (th) {
-                    const checked = assigned.indexOf(th.user_id) !== -1 ? ' checked' : '';
-                    return '<label class="flex items-center gap-2 text-sm py-1">' +
-                        '<input type="checkbox" class="dth-box" value="' + th.user_id + '"' + checked + '>' +
-                        acEscapeHtml(th.name) +
-                        '</label>';
-                }).join('')
-                : '<p class="text-xs text-gray-400 col-span-2">No accounts hold the Team Head role yet.</p>';
-
-            return '<div class="flex items-center gap-2 mb-3">' +
-                    '<input type="text" class="dept-name-input border border-gray-300 rounded-lg px-2 py-1 text-sm" value="' + acEscapeHtml(d.name) + '" style="width:200px;">' +
-                    '<button type="button" class="dept-rename-btn text-xs font-semibold" style="color:#9678f5;">Save name</button>' +
-                    '<button type="button" class="dept-deactivate-btn text-xs ml-auto" style="color:#9ca3af;" onmouseover="this.style.color=\'#dc2626\'" onmouseout="this.style.color=\'#9ca3af\'">Deactivate department</button>' +
-                '</div>' +
-                '<div class="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-1">Team Head(s)</div>' +
-                '<div class="grid grid-cols-2 gap-1">' + teamHeadChecks + '</div>' +
-                '<div class="flex justify-end mt-2">' +
-                    '<button type="button" class="dth-save-btn px-3 py-1 rounded-lg text-xs font-semibold text-white" style="background:#A891FC;" onmouseover="this.style.background=\'#9678f5\'" onmouseout="this.style.background=\'#A891FC\'">Save Team Heads</button>' +
-                '</div>';
-        }
-
-        container.querySelectorAll('[data-department-id]').forEach(function (card) {
-            const id = card.dataset.departmentId;
-
-            card.querySelector('.dept-toggle-employees-btn').addEventListener('click', function () {
-                const list = card.querySelector('.dept-employees-list');
-                list.style.display = list.style.display === 'none' ? 'block' : 'none';
-            });
-
-            const panel = card.querySelector('.dept-manage-panel');
-            const manageBtn = card.querySelector('.dept-manage-btn');
-            manageBtn.addEventListener('click', function () {
-                const dep = departments.find(function (d) { return String(d.id) === String(id); });
-                const opening = panel.style.display === 'none';
-                panel.style.display = opening ? 'block' : 'none';
-                manageBtn.textContent = opening ? 'Close' : 'Manage';
-                if (opening) {
-                    panel.innerHTML = renderManagePanel(dep);
-                    wireManagePanel(card, panel, id);
-                }
-            });
-        });
-
-        function wireManagePanel(card, panel, id) {
-            panel.querySelector('.dept-rename-btn').addEventListener('click', function () {
-                const btn = this;
-                const newName = panel.querySelector('.dept-name-input').value.trim();
-                if (!newName) return;
-                btn.disabled = true;
-                post('<?= site_url('client_portal/access-control/departments/rename') ?>', new URLSearchParams({ id: id, name: newName }))
-                    .then(function (data) {
-                        if (window.showToast) window.showToast(data.message || (data.success ? 'Renamed.' : 'Something went wrong.'), data.success ? 'success' : 'error');
-                        if (data.success) {
-                            const dep = departments.find(function (d) { return String(d.id) === String(id); });
-                            if (dep) dep.name = newName;
-                            card.querySelector('.dept-name-display').textContent = newName;
-                        }
-                    })
-                    .catch(function () { if (window.showToast) window.showToast('Something went wrong.', 'error'); })
-                    .finally(function () { btn.disabled = false; });
-            });
-
-            panel.querySelector('.dept-deactivate-btn').addEventListener('click', function () {
-                const dep = departments.find(function (d) { return String(d.id) === String(id); });
-                if (!confirm('Deactivate "' + (dep ? dep.name : 'this department') + '"? Its Team Head assignments will be cleared. Employees already in it keep their record but the department will no longer be selectable.')) return;
-                post('<?= site_url('client_portal/access-control/departments/deactivate') ?>', new URLSearchParams({ id: id }))
-                    .then(function (data) {
-                        if (window.showToast) window.showToast(data.message || (data.success ? 'Deactivated.' : 'Something went wrong.'), data.success ? 'success' : 'error');
-                        if (data.success) {
-                            departments = departments.filter(function (d) { return String(d.id) !== String(id); });
-                            delete deptTeamHeads[id];
-                            render();
-                        }
-                    })
-                    .catch(function () { if (window.showToast) window.showToast('Something went wrong.', 'error'); });
-            });
-
-            panel.querySelector('.dth-save-btn').addEventListener('click', function () {
-                const btn = this;
-                const checked = Array.from(panel.querySelectorAll('.dth-box:checked')).map(function (cb) { return cb.value; });
-                btn.disabled = true;
-                btn.textContent = 'Saving…';
-
-                const params = new URLSearchParams({ department_id: id });
-                checked.forEach(function (uid) { params.append('team_head_user_ids[]', uid); });
-
-                post('<?= site_url('client_portal/access-control/departments/team-heads') ?>', params)
-                    .then(function (data) {
-                        if (window.showToast) window.showToast(data.message || (data.success ? 'Saved.' : 'Something went wrong.'), data.success ? 'success' : 'error');
-                        if (data.success) {
-                            deptTeamHeads[id] = checked.map(Number);
-                            card.querySelector('.dept-team-head-summary').innerHTML = teamHeadSummary({ id: id });
-                        }
-                    })
-                    .catch(function () { if (window.showToast) window.showToast('Something went wrong.', 'error'); })
-                    .finally(function () { btn.disabled = false; btn.textContent = 'Save Team Heads'; });
-            });
-        }
+    function toast(message, ok) {
+        if (window.showToast) window.showToast(message, ok ? 'success' : 'error');
     }
 
-    render();
+    function initials(name) {
+        const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+        return ((parts[0] || '?').charAt(0) + (parts.length > 1 ? parts[parts.length - 1].charAt(0) : '')).toUpperCase();
+    }
 
+    function findDepartment(id) {
+        return departments.find(function (d) { return String(d.id) === String(id); });
+    }
+
+    // Names of the Team Heads assigned to a department (only accounts that still hold the role).
+    function teamHeadNames(d) {
+        return (deptTeamHeads[d.id] || []).map(function (uid) {
+            const th = acTeamHeadAccounts.find(function (t) { return t.user_id === uid; });
+            return th ? th.name : null;
+        }).filter(Boolean);
+    }
+
+    // ---- table ----
+    function rowTemplate(d) {
+        const names = teamHeadNames(d);
+        const heads = names.length
+            ? names.map(function (n) {
+                return '<span class="inline-block px-3 py-1 mr-2 mb-1 rounded-full text-xs font-semibold bg-gray-200 text-gray-700">' + acEscapeHtml(n) + '</span>';
+            }).join('')
+            : '<span class="text-xs text-red-500">No Team Head assigned</span>';
+        const count = Number(d.employee_count) || 0;
+
+        return '<div class="grid items-center border-b hover:bg-gray-50" style="grid-template-columns:' + ROW_GRID + ';border-left:1px solid transparent;border-right:1px solid transparent;">' +
+            '<div class="p-4 flex items-center gap-3">' +
+                '<div class="w-10 h-10 bg-gray-300 rounded-full flex items-center justify-center text-gray-700 shrink-0 ac-ico">' + AC_ICONS.building + '</div>' +
+                '<span class="font-medium truncate">' + acEscapeHtml(d.name) + '</span>' +
+            '</div>' +
+            '<div class="p-4">' + count + ' employee' + (count === 1 ? '' : 's') + '</div>' +
+            '<div class="p-4">' + heads + '</div>' +
+            '<div class="p-4 flex justify-center">' +
+                '<button type="button" class="ac-icon-btn" data-manage-dept="' + acEscapeHtml(d.id) + '" title="Manage department" aria-label="Manage department">' + AC_ICONS.manage + '</button>' +
+            '</div>' +
+        '</div>';
+    }
+
+    createCrudTable({
+        tableId: 'departmentsTable',
+        data: function () { return departments; },   // live: add / deactivate replace the array
+        renderRow: rowTemplate,
+        filters: function (ctx) {
+            const item = (ctx && ctx.item) || {};
+            const query = (ctx && ctx.query) || '';
+            const values = (ctx && ctx.values) || {};
+            const names = teamHeadNames(item);
+            const matchesSearch = !query || (String(item.name || '') + ' ' + names.join(' ')).toLowerCase().includes(query);
+            const matchesHead = values.team_head === 'assigned' ? names.length > 0
+                : values.team_head === 'unassigned' ? names.length === 0
+                : true;
+            return matchesSearch && matchesHead;
+        },
+        sort: function (ctx) {
+            let left, right;
+            if (ctx.sortBy === 'employees') {
+                left = Number(ctx.a.employee_count) || 0;
+                right = Number(ctx.b.employee_count) || 0;
+            } else {
+                left = String(ctx.a.name || '').toLowerCase();
+                right = String(ctx.b.name || '').toLowerCase();
+            }
+            if (left < right) return ctx.sortOrder === 'asc' ? -1 : 1;
+            if (left > right) return ctx.sortOrder === 'asc' ? 1 : -1;
+            return 0;
+        },
+    });
+
+    // The component has no refresh call; a search "input" event makes it re-run its own filter/sort/render.
+    function refreshTable() {
+        const search = tableCard.querySelector('.crud-search');
+        if (search) search.dispatchEvent(new Event('input'));
+    }
+
+    // Team Head accounts can change in the Accounts tab; re-read them whenever this tab is shown.
+    document.addEventListener('ac:tab', function (e) {
+        if (e.detail === 'departments') refreshTable();
+    });
+
+    // ---- modals (moved to <body> so no ancestor's overflow can clip them) ----
+    const manageModal = document.getElementById('acDeptModal');
+    const addModal = document.getElementById('acDeptAddModal');
+    if (!manageModal || !addModal) return;
+    [manageModal, addModal].forEach(function (m) { if (m.parentElement !== document.body) document.body.appendChild(m); });
+
+    function openOverlay(m) { m.classList.add('is-open'); m.setAttribute('aria-hidden', 'false'); }
+    function closeOverlay(m) { m.classList.remove('is-open'); m.setAttribute('aria-hidden', 'true'); }
+
+    // ---- add department ----
     const addBtn = document.getElementById('addDepartmentBtn');
-    const nameInput = document.getElementById('newDepartmentName');
-    if (addBtn && nameInput) {
+    const addInput = document.getElementById('newDepartmentName');
+    const addSubmit = document.getElementById('adAddSubmit');
+
+    function closeAdd() { closeOverlay(addModal); }
+
+    function submitAdd() {
+        const name = addInput.value.trim();
+        if (!name || addSubmit.disabled) return;
+        addSubmit.disabled = true;
+        post('<?= site_url('client_portal/access-control/departments/create') ?>', new URLSearchParams({ name: name }))
+            .then(function (data) {
+                toast(data.message || (data.success ? 'Added.' : 'Something went wrong.'), data.success);
+                if (data.success) {
+                    departments.push({ id: data.id, name: name, employee_count: 0, employees: [] });
+                    addInput.value = '';
+                    closeAdd();
+                    refreshTable();
+                }
+            })
+            .catch(function () { toast('Something went wrong.', false); })
+            .finally(function () { addSubmit.disabled = false; });
+    }
+
+    if (addBtn) {
         addBtn.addEventListener('click', function () {
-            const name = nameInput.value.trim();
-            if (!name) return;
-            addBtn.disabled = true;
-            post('<?= site_url('client_portal/access-control/departments/create') ?>', new URLSearchParams({ name: name }))
-                .then(function (data) {
-                    if (window.showToast) window.showToast(data.message || (data.success ? 'Added.' : 'Something went wrong.'), data.success ? 'success' : 'error');
-                    if (data.success) {
-                        departments.push({ id: data.id, name: name, employee_count: 0, employees: [] });
-                        nameInput.value = '';
-                        render();
-                    }
-                })
-                .catch(function () { if (window.showToast) window.showToast('Something went wrong.', 'error'); })
-                .finally(function () { addBtn.disabled = false; });
+            addInput.value = '';
+            openOverlay(addModal);
+            addInput.focus();
         });
     }
+    document.getElementById('adAddClose').addEventListener('click', closeAdd);
+    document.getElementById('adAddCancel').addEventListener('click', closeAdd);
+    addSubmit.addEventListener('click', submitAdd);
+    addInput.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); submitAdd(); } });
+    addModal.addEventListener('click', function (e) { if (e.target === addModal) closeAdd(); });
+
+    // ---- manage department ----
+    const subtitleEl = document.getElementById('adSubtitle');
+    const nameInput = document.getElementById('adName');
+    const renameBtn = document.getElementById('adRename');
+    const headsEl = document.getElementById('adTeamHeads');
+    const employeesEl = document.getElementById('adEmployees');
+    const dangerEl = document.getElementById('adDanger');
+    const noteEl = document.getElementById('adNote');
+    const saveBtn = document.getElementById('adSave');
+
+    let current = null;        // the department being managed
+    let savedHeads = [];       // checked Team Head ids as last saved (strings), to detect changes
+    let confirmingDelete = false;
+
+    function checkedHeads() {
+        return Array.from(headsEl.querySelectorAll('.dth-box:checked')).map(function (cb) { return cb.value; });
+    }
+
+    function renderHeads() {
+        const assigned = (deptTeamHeads[current.id] || []).map(String);
+        headsEl.innerHTML = acTeamHeadAccounts.length
+            ? acTeamHeadAccounts.map(function (th) {
+                const checked = assigned.indexOf(String(th.user_id)) !== -1 ? ' checked' : '';
+                return '<label class="ac-pick">' +
+                    '<span class="acr-avatar">' + acEscapeHtml(initials(th.name)) + '</span>' +
+                    '<span class="ac-pick-name">' + acEscapeHtml(th.name) + '</span>' +
+                    '<input type="checkbox" class="dth-box" value="' + th.user_id + '"' + checked + '>' +
+                '</label>';
+            }).join('')
+            : '<p class="text-xs text-gray-400">No accounts hold the Team Head role yet.</p>';
+        savedHeads = checkedHeads();
+    }
+
+    function renderEmployees() {
+        const list = current.employees || [];
+        employeesEl.innerHTML = list.length
+            ? list.map(function (e) { return '<span class="acr-chip">' + acEscapeHtml(e.name) + '</span>'; }).join('')
+            : '<span class="text-xs text-gray-400">No employees in this department yet.</span>';
+    }
+
+    function renderDanger() {
+        if (confirmingDelete) {
+            dangerEl.innerHTML = '<div class="acr-warn" style="margin-top:0;">' + WARN +
+                '<span>Deactivate "' + acEscapeHtml(current.name) + '"? Its Team Head assignments will be cleared. Employees already in it keep their record but the department will no longer be selectable.</span></div>' +
+                '<div class="ac-danger-actions">' +
+                    '<button type="button" id="adDeactivateYes" class="acr-btn ac-btn-danger">Yes, deactivate</button>' +
+                    '<button type="button" id="adDeactivateNo" class="acr-btn acr-cancel">Keep it</button>' +
+                '</div>';
+            document.getElementById('adDeactivateYes').addEventListener('click', deactivate);
+            document.getElementById('adDeactivateNo').addEventListener('click', function () { confirmingDelete = false; renderDanger(); });
+        } else {
+            dangerEl.innerHTML = '<button type="button" id="adDeactivate" class="ac-link-danger">' + AC_ICONS.trash + 'Deactivate department</button>';
+            document.getElementById('adDeactivate').addEventListener('click', function () { confirmingDelete = true; renderDanger(); });
+        }
+    }
+
+    const WARN = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none;margin-top:1px;" aria-hidden="true"><path d="M12 3 5 6v5c0 4.6 3 8.3 7 10 4-1.7 7-5.4 7-10V6l-7-3Z"/><path d="M12 9v4"/><path d="M12 16.5v.01"/></svg>';
+
+    function updateFooter() {
+        const changed = checkedHeads().slice().sort().join(',') !== savedHeads.slice().sort().join(',');
+        noteEl.innerHTML = changed ? '<span class="acr-dirty"></span>Team Head changes not saved yet' : '';
+        saveBtn.disabled = !changed;
+    }
+
+    function syncHeader() {
+        const count = Number(current.employee_count) || 0;
+        subtitleEl.textContent = current.name + ' · ' + count + ' employee' + (count === 1 ? '' : 's');
+    }
+
+    function openManage(dep) {
+        current = dep;
+        confirmingDelete = false;
+        syncHeader();
+        nameInput.value = dep.name;
+        renderHeads();
+        renderEmployees();
+        renderDanger();
+        updateFooter();
+        openOverlay(manageModal);
+        nameInput.focus();
+    }
+
+    function closeManage() {
+        closeOverlay(manageModal);
+        current = null;
+        confirmingDelete = false;
+    }
+
+    function deactivate() {
+        if (!current) return;
+        const id = current.id;
+        post('<?= site_url('client_portal/access-control/departments/deactivate') ?>', new URLSearchParams({ id: id }))
+            .then(function (data) {
+                toast(data.message || (data.success ? 'Deactivated.' : 'Something went wrong.'), data.success);
+                if (data.success) {
+                    departments = departments.filter(function (d) { return String(d.id) !== String(id); });
+                    delete deptTeamHeads[id];
+                    closeManage();
+                    refreshTable();
+                } else {
+                    confirmingDelete = false;
+                    renderDanger();
+                }
+            })
+            .catch(function () {
+                toast('Something went wrong.', false);
+                confirmingDelete = false;
+                renderDanger();
+            });
+    }
+
+    renameBtn.addEventListener('click', function () {
+        if (!current) return;
+        const dep = current;
+        const newName = nameInput.value.trim();
+        if (!newName) return;
+        renameBtn.disabled = true;
+        post('<?= site_url('client_portal/access-control/departments/rename') ?>', new URLSearchParams({ id: dep.id, name: newName }))
+            .then(function (data) {
+                toast(data.message || (data.success ? 'Renamed.' : 'Something went wrong.'), data.success);
+                if (data.success) {
+                    dep.name = newName;
+                    if (current === dep) syncHeader();
+                    refreshTable();
+                }
+            })
+            .catch(function () { toast('Something went wrong.', false); })
+            .finally(function () { renameBtn.disabled = false; });
+    });
+    nameInput.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); renameBtn.click(); } });
+
+    headsEl.addEventListener('change', updateFooter);
+
+    saveBtn.addEventListener('click', function () {
+        if (!current || saveBtn.disabled) return;
+        const dep = current;
+        const checked = checkedHeads();
+
+        saveBtn.disabled = true;
+        saveBtn.textContent = 'Saving…';
+
+        const params = new URLSearchParams({ department_id: dep.id });
+        checked.forEach(function (uid) { params.append('team_head_user_ids[]', uid); });
+
+        post('<?= site_url('client_portal/access-control/departments/team-heads') ?>', params)
+            .then(function (data) {
+                toast(data.message || (data.success ? 'Saved.' : 'Something went wrong.'), data.success);
+                if (data.success) {
+                    deptTeamHeads[dep.id] = checked.map(Number);
+                    savedHeads = checked;
+                    refreshTable();
+                }
+            })
+            .catch(function () { toast('Something went wrong.', false); })
+            .finally(function () {
+                saveBtn.textContent = 'Save Team Heads';
+                if (current) updateFooter();
+            });
+    });
+
+    document.getElementById('adClose').addEventListener('click', closeManage);
+    document.getElementById('adCancel').addEventListener('click', closeManage);
+    manageModal.addEventListener('click', function (e) { if (e.target === manageModal) closeManage(); });
+    document.addEventListener('keydown', function (e) {
+        if (e.key !== 'Escape') return;
+        if (manageModal.classList.contains('is-open')) closeManage();
+        if (addModal.classList.contains('is-open')) closeAdd();
+    });
+
+    // ---- open from the table ----
+    const body = tableCard.querySelector('.crud-body');
+    body.addEventListener('click', function (e) {
+        const btn = e.target.closest('[data-manage-dept]');
+        if (!btn) return;
+        const dep = findDepartment(btn.dataset.manageDept);
+        if (dep) openManage(dep);
+    });
 })();
 
 // ================= ROLE PERMISSIONS =================
+// Neutral segmented role picker + a toggle row per permission. Same endpoint and payload as before
+// (role + permissions[]); the sensitive-permission confirm is now an in-card step instead of confirm().
 (function () {
     const section = document.getElementById('rolePermissionsSection');
     const tabsEl = document.getElementById('rolePermissionTabs');
@@ -694,24 +860,16 @@ let acTeamHeadAccounts = ACCESS_CONTROL_TEAM_HEAD_ACCOUNTS.slice();
     if (!roles.length) return;
     section.style.display = 'block';
 
-    // Sensitive permissions — toggling these ON for a role gets a confirm() prompt.
+    // Sensitive permissions — newly turning these ON for a role needs an extra confirmation.
     const SENSITIVE_PERMISSIONS = ['roles', 'payroll', 'compensation'];
 
-    function escapeHtml(s) {
-        return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
-            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
-        });
-    }
-
+    const escapeHtml = acEscapeHtml;
     let activeRole = roles[0];
 
     function renderTabs() {
         tabsEl.innerHTML = roles.map(function (role) {
-            const active = role === activeRole;
             const label = (ACCESS_CONTROL_ROLE_OPTIONS[role] || role);
-            return '<button type="button" data-role="' + escapeHtml(role) + '" class="px-3 py-2 rounded-lg text-sm font-medium"' +
-                (active ? ' style="background:#A891FC;color:#fff;"' : ' style="background:#f3f4f6;color:#374151;"') +
-                '>' + escapeHtml(label) + '</button>';
+            return '<button type="button" data-role="' + escapeHtml(role) + '" class="' + (role === activeRole ? 'is-active' : '') + '">' + escapeHtml(label) + '</button>';
         }).join('');
 
         tabsEl.querySelectorAll('button').forEach(function (btn) {
@@ -726,36 +884,91 @@ let acTeamHeadAccounts = ACCESS_CONTROL_TEAM_HEAD_ACCOUNTS.slice();
     function renderBody() {
         const rolePerms = permissions[activeRole] || {};
         const permKeys = Object.keys(rolePerms);
+        const roleTitle = ACCESS_CONTROL_ROLE_OPTIONS[activeRole] || activeRole;
+        let confirming = false;
 
-        bodyEl.innerHTML = '<div class="grid grid-cols-2 gap-2" id="rpChecklist">' +
+        bodyEl.innerHTML = '<div id="rpChecklist" class="acp-list">' +
             permKeys.map(function (key) {
                 const label = ACCESS_CONTROL_PERMISSION_LABELS[key] || key;
-                const checked = rolePerms[key] ? ' checked' : '';
-                return '<label class="flex items-center gap-2 text-sm py-1">' +
-                    '<input type="checkbox" value="' + escapeHtml(key) + '"' + checked + '>' +
-                    escapeHtml(label) +
-                    '</label>';
+                const sensitive = SENSITIVE_PERMISSIONS.indexOf(key) !== -1;
+                return '<label class="acp-perm" data-perm="' + escapeHtml(key) + '">' +
+                    '<span class="acp-perm-main">' +
+                        '<span class="acp-perm-name">' + escapeHtml(label) + '</span>' +
+                        (sensitive ? '<span class="acp-sensitive">Sensitive</span>' : '') +
+                    '</span>' +
+                    '<span class="acp-perm-state"></span>' +
+                    '<span class="ac-switch"><input type="checkbox" value="' + escapeHtml(key) + '"' + (rolePerms[key] ? ' checked' : '') + '><span class="ac-switch-track"></span></span>' +
+                '</label>';
             }).join('') +
             '</div>' +
-            '<div class="flex justify-end mt-4">' +
-                '<button type="button" id="rpSaveBtn" class="px-4 py-2 rounded-lg text-sm font-semibold text-white" style="background:#A891FC;" onmouseover="this.style.background=\'#9678f5\'" onmouseout="this.style.background=\'#A891FC\'">Save Permissions</button>' +
+            '<div id="rpConfirm" class="acr-warn" style="display:none;"></div>' +
+            '<div class="acp-footer">' +
+                '<span id="rpNote" class="acr-note"></span>' +
+                '<button type="button" id="rpBack" class="acr-btn acr-cancel" style="display:none;">Back</button>' +
+                '<button type="button" id="rpSaveBtn" class="acr-btn acr-save" disabled>Save permissions</button>' +
             '</div>';
 
-        document.getElementById('rpSaveBtn').addEventListener('click', function () {
-            const saveBtn = this;
-            const checked = Array.from(bodyEl.querySelectorAll('#rpChecklist input:checked')).map(function (cb) { return cb.value; });
+        const noteEl = document.getElementById('rpNote');
+        const saveBtn = document.getElementById('rpSaveBtn');
+        const backBtn = document.getElementById('rpBack');
+        const confirmEl = document.getElementById('rpConfirm');
 
-            const newlySensitive = checked.filter(function (p) {
-                return SENSITIVE_PERMISSIONS.indexOf(p) !== -1 && !rolePerms[p];
+        function checkedKeys() {
+            return Array.from(bodyEl.querySelectorAll('#rpChecklist input:checked')).map(function (cb) { return cb.value; });
+        }
+
+        function newlySensitive(checked) {
+            return checked.filter(function (p) { return SENSITIVE_PERMISSIONS.indexOf(p) !== -1 && !rolePerms[p]; });
+        }
+
+        function changeCount(checked) {
+            return permKeys.filter(function (k) { return (checked.indexOf(k) !== -1) !== !!rolePerms[k]; }).length;
+        }
+
+        function update() {
+            const checked = checkedKeys();
+            const changes = changeCount(checked);
+
+            bodyEl.querySelectorAll('.acp-perm').forEach(function (row) {
+                const on = checked.indexOf(row.dataset.perm) !== -1;
+                row.classList.toggle('is-on', on);
+                row.querySelector('.acp-perm-state').textContent = on ? 'Allowed' : 'Not allowed';
             });
-            if (newlySensitive.length && !confirm(
-                'Grant ' + newlySensitive.map(function (p) { return ACCESS_CONTROL_PERMISSION_LABELS[p] || p; }).join(', ') +
-                ' to every "' + (ACCESS_CONTROL_ROLE_OPTIONS[activeRole] || activeRole) + '" account? This affects everyone currently assigned that role.'
-            )) {
+
+            if (confirming) {
+                const names = newlySensitive(checked).map(function (p) { return ACCESS_CONTROL_PERMISSION_LABELS[p] || p; });
+                confirmEl.style.display = 'flex';
+                confirmEl.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none;margin-top:1px;" aria-hidden="true"><path d="M12 3 5 6v5c0 4.6 3 8.3 7 10 4-1.7 7-5.4 7-10V6l-7-3Z"/><path d="M12 9v4"/><path d="M12 16.5v.01"/></svg>' +
+                    '<span>Grant ' + escapeHtml(names.join(', ')) + ' to every "' + escapeHtml(roleTitle) + '" account? This affects everyone currently assigned that role.</span>';
+                noteEl.textContent = '';
+                backBtn.style.display = '';
+                saveBtn.textContent = 'Yes, grant access';
+                saveBtn.disabled = false;
+                return;
+            }
+
+            confirmEl.style.display = 'none';
+            backBtn.style.display = 'none';
+            saveBtn.textContent = 'Save permissions';
+            saveBtn.disabled = changes === 0;
+            noteEl.innerHTML = changes ? '<span class="acr-dirty"></span>' + changes + ' unsaved change' + (changes === 1 ? '' : 's') : 'No changes';
+        }
+
+        bodyEl.querySelector('#rpChecklist').addEventListener('change', function () { confirming = false; update(); });
+        backBtn.addEventListener('click', function () { confirming = false; update(); });
+
+        saveBtn.addEventListener('click', function () {
+            if (saveBtn.disabled) return;
+            const checked = checkedKeys();
+
+            if (newlySensitive(checked).length && !confirming) {
+                confirming = true;
+                update();
                 return;
             }
 
             saveBtn.disabled = true;
+            backBtn.style.display = 'none';
             saveBtn.textContent = 'Saving…';
 
             const params = new URLSearchParams({ role: activeRole });
@@ -781,10 +994,12 @@ let acTeamHeadAccounts = ACCESS_CONTROL_TEAM_HEAD_ACCOUNTS.slice();
                     if (window.showToast) window.showToast('Something went wrong.', 'error');
                 })
                 .finally(function () {
-                    saveBtn.disabled = false;
-                    saveBtn.textContent = 'Save Permissions';
+                    confirming = false;
+                    update();
                 });
         });
+
+        update();
     }
 
     renderTabs();
@@ -794,8 +1009,8 @@ let acTeamHeadAccounts = ACCESS_CONTROL_TEAM_HEAD_ACCOUNTS.slice();
 // ================= ACCESS CONTROL SUB-TABS =================
 // Accounts / Team Head Assignments / Role Permissions used to all sit
 // stacked in one scroll area, leaving almost no room to actually work with
-// the accounts table. Splitting them into sub-tabs (same pill style as the
-// Role Permissions tabs) lets whichever one is active use the full height
+// the accounts table. Splitting them into sub-tabs (the same segmented control
+// the Payroll Register uses) lets whichever one is active use the full height
 // of the panel instead of competing for space with the other two.
 (function () {
     const tabsWrap = document.getElementById('acSubTabs');
@@ -824,17 +1039,15 @@ let acTeamHeadAccounts = ACCESS_CONTROL_TEAM_HEAD_ACCOUNTS.slice();
 
     function activate(key) {
         buttons.forEach(function (btn) {
-            const active = btn.dataset.acTab === key;
-            btn.style.background = active ? '#A891FC' : '#f3f4f6';
-            btn.style.color = active ? '#fff' : '#374151';
+            btn.classList.toggle('is-active', btn.dataset.acTab === key);
         });
         Object.keys(panels).forEach(function (k) {
             if (panels[k]) panels[k].style.display = k === key ? 'block' : 'none';
         });
+        document.dispatchEvent(new CustomEvent('ac:tab', { detail: key }));
     }
 
     buttons.forEach(function (btn) {
-        btn.style.cssText += ';padding:8px 12px;border-radius:8px;font-size:13px;font-weight:500;';
         btn.addEventListener('click', function () { activate(btn.dataset.acTab); });
     });
 
@@ -888,8 +1101,8 @@ let acTeamHeadAccounts = ACCESS_CONTROL_TEAM_HEAD_ACCOUNTS.slice();
         chipsWrap.querySelectorAll('.attendance-ip-chip').forEach(el => el.remove());
         ranges.forEach((range, i) => {
             const chip = document.createElement('span');
-            chip.className = 'attendance-ip-chip inline-flex items-center gap-1 bg-indigo-100 text-indigo-700 text-xs font-semibold px-2 py-1 rounded-full';
-            chip.innerHTML = `${htmlEsc(range)} <button type="button" aria-label="Remove" class="text-indigo-400 hover:text-indigo-700" style="line-height:1;">&times;</button>`;
+            chip.className = 'attendance-ip-chip ac-ip-chip';
+            chip.innerHTML = `${htmlEsc(range)} <button type="button" aria-label="Remove">&times;</button>`;
             chip.querySelector('button').addEventListener('click', () => { ranges.splice(i, 1); renderChips(); });
             chipsWrap.insertBefore(chip, ipInput);
         });
@@ -1043,6 +1256,10 @@ let acTeamHeadAccounts = ACCESS_CONTROL_TEAM_HEAD_ACCOUNTS.slice();
 const CURRENT_USER_ID = <?= (int) ($currentUserId ?? 0) ?>;
 const EDIT_ICON = "<?= base_url('icons/edit.png') ?>";
 const VIEW_ICON = "<?= base_url('icons/view.png') ?>";
+// Line icons for the row action buttons (same style as the Access Control icons).
+const ROW_SVG_OPEN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">';
+const VIEW_ICON_SVG = ROW_SVG_OPEN + '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>';
+const EDIT_ICON_SVG = ROW_SVG_OPEN + '<path d="M12 5H6a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-6"/><path d="M17.5 3.5a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4 8.5-8.5Z"/></svg>';
 const LOAN_UPDATE_URL = "<?= site_url('client_portal/loans/update') ?>";
 const UPDATE_URL = "<?= site_url('client_portal/employees/update') ?>";
 
@@ -1140,13 +1357,13 @@ function htmlEsc(val)
                 <div class="p-4 flex justify-center gap-4">
 
                     <div
-                        class="cursor-pointer w-7 h-7 hover:scale-110 transition"
+                        class="crud-icon-btn" title="View" aria-label="View"
                         onclick="viewEmployeeDetails(${htmlEsc(p.id)})">
-                        <img src="${VIEW_ICON}" class="w-6 h-6" alt="View">
+                        ${VIEW_ICON_SVG}
                     </div>
 
                     <div
-                        class="cursor-pointer w-7 h-7 hover:scale-110 transition"
+                        class="crud-icon-btn" title="Edit" aria-label="Edit"
                         data-action="edit"
                         data-modal="editEmployeeModal"
                         data-update-url="${UPDATE_URL}"
@@ -1203,7 +1420,7 @@ function htmlEsc(val)
                         data-leave_total="${htmlEsc(p.leave_total)}"
                         data-status="${htmlEsc(p.status ?? 0)}">
 
-                        <img src="${EDIT_ICON}" class="w-6 h-6" alt="Edit">
+                        ${EDIT_ICON_SVG}
                     </div>
 
                 </div>
@@ -1592,10 +1809,10 @@ function faceRecognitionRowTemplate(p) {
                 ${FACE_REQUIREMENT_LABELS[requirement]}
                 <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
-            <div class="hidden absolute left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-md text-xs z-10 overflow-hidden w-40" data-face-requirement-menu>
-                <button type="button" class="block w-full text-left px-3 py-2 hover:bg-gray-50" onclick="selectFaceRequirement(this, 'default')">System Default</button>
-                <button type="button" class="block w-full text-left px-3 py-2 hover:bg-gray-50" onclick="selectFaceRequirement(this, 'required')">Always Require</button>
-                <button type="button" class="block w-full text-left px-3 py-2 hover:bg-gray-50" onclick="selectFaceRequirement(this, 'exempt')">Exempt</button>
+            <div class="hidden bg-white border border-gray-200 rounded-lg shadow-md text-xs overflow-hidden w-40" style="position:fixed;z-index:60;" data-face-requirement-menu>
+                <button type="button" class="block w-full text-left px-3 py-2 hover:bg-gray-50" data-option="default" onclick="selectFaceRequirement(this, 'default')">System Default</button>
+                <button type="button" class="block w-full text-left px-3 py-2 hover:bg-gray-50" data-option="required" onclick="selectFaceRequirement(this, 'required')">Always Require</button>
+                <button type="button" class="block w-full text-left px-3 py-2 hover:bg-gray-50" data-option="exempt" onclick="selectFaceRequirement(this, 'exempt')">Exempt</button>
             </div>
         </div>`;
 
@@ -1621,14 +1838,14 @@ function faceRecognitionRowTemplate(p) {
 
             <div class="p-4 flex justify-center gap-4">
                 <div
-                    class="cursor-pointer w-7 h-7 hover:scale-110 transition"
+                    class="crud-icon-btn" title="Enroll / manage face" aria-label="Enroll / manage face"
                     data-action="edit-face"
                     data-user_id="${htmlEsc(p.user_id)}"
                     data-name="${htmlEsc(p.name)}"
                     data-enrolled="${p.enrolled ? '1' : '0'}"
                     data-enrollment_count="${htmlEsc(p.enrollment_count)}"
                     data-enrollment_latest_at="${htmlEsc(p.enrollment_latest_at)}">
-                    <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-label="Edit face enrollment">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-label="Edit face enrollment">
                         <path d="M4 8V6a2 2 0 0 1 2-2h2" />
                         <path d="M16 4h2a2 2 0 0 1 2 2v2" />
                         <path d="M20 16v2a2 2 0 0 1-2 2h-2" />
@@ -1655,15 +1872,40 @@ function closeAllFaceRequirementMenus(except) {
 }
 
 function toggleFaceRequirementMenu(badgeBtn) {
-    const menu = badgeBtn.closest('[data-face-requirement-cell]').querySelector('[data-face-requirement-menu]');
+    const cell = badgeBtn.closest('[data-face-requirement-cell]');
+    const menu = cell.querySelector('[data-face-requirement-menu]');
     const willOpen = menu.classList.contains('hidden');
     closeAllFaceRequirementMenus();
     menu.classList.toggle('hidden', !willOpen);
+    if (!willOpen) return;
+
+    // Highlight the current choice.
+    menu.querySelectorAll('[data-option]').forEach(opt => {
+        const current = opt.dataset.option === (cell.dataset.value || 'default');
+        opt.classList.toggle('bg-gray-100', current);
+        opt.classList.toggle('font-semibold', current);
+    });
+
+    // The menu is position:fixed so the table's scroll area can't clip it. Open below the
+    // badge, or above it when there isn't room (last rows of the table).
+    const rect = badgeBtn.getBoundingClientRect();
+    const menuH = menu.offsetHeight;
+    const menuW = menu.offsetWidth;
+    const below = rect.bottom + 4;
+    const top = (below + menuH > window.innerHeight - 8 && rect.top - menuH - 4 >= 8) ? rect.top - menuH - 4 : below;
+    menu.style.top = Math.max(8, top) + 'px';
+    menu.style.left = Math.max(8, Math.min(rect.left, window.innerWidth - menuW - 8)) + 'px';
 }
 
 document.addEventListener('click', function (e) {
     if (!e.target.closest('[data-face-requirement-cell]')) closeAllFaceRequirementMenus();
 });
+// A fixed menu would otherwise drift away from its badge: close it on scroll or Escape.
+document.addEventListener('scroll', function (e) {
+    if (e.target && e.target.closest && e.target.closest('[data-face-requirement-menu]')) return;
+    closeAllFaceRequirementMenus();
+}, true);
+document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeAllFaceRequirementMenus(); });
 
 function selectFaceRequirement(optionBtn, value) {
     const cell = optionBtn.closest('[data-face-requirement-cell]');
@@ -1780,18 +2022,18 @@ function loanRowTemplate(loan)
             <div class="p-4 flex justify-center gap-4">
                 <!-- VIEW -->
                 <div
-                    class="cursor-pointer w-7 h-7 flex items-center justify-center hover:scale-110 transition"
+                    class="crud-icon-btn" title="View loan" aria-label="View loan"
                     data-loan-action="view"
                     data-loan-id="${loan.id}">
-                    <img src="${VIEW_ICON}" class="w-6 h-6" alt="View">
+                    ${VIEW_ICON_SVG}
                 </div>
 
                 <!-- EDIT - pass ID instead of encoded object -->
                 <div
-                    class="cursor-pointer w-7 h-7 flex items-center justify-center hover:scale-110 transition"
+                    class="crud-icon-btn" title="Edit loan" aria-label="Edit loan"
                     data-loan-action="edit"
                     data-loan-id="${loan.id}">
-                    <img src="${EDIT_ICON}" class="w-6 h-6" alt="Edit">
+                    ${EDIT_ICON_SVG}
                 </div>
             </div>
 
