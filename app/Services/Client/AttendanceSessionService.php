@@ -80,7 +80,14 @@ final class AttendanceSessionService
     private function enforceOnsiteNetworkForRow(int $userId, array $row, ?string $ipAddress, string $what): void
     {
         $date = $row['shift_date'] ?? substr((string) $row['time_in'], 0, 10);
-        $this->enforceOnsiteNetwork($userId, AttendanceWindow::schedule($row), $date, $ipAddress, $what);
+        $schedule = AttendanceWindow::schedule($row);
+        // Snapshots written before wfh_days existed (older open shifts, CSV
+        // imports) have no such key — fall back to the employee's current WFH
+        // days instead of treating a WFH day as Onsite and blocking the break.
+        if (!array_key_exists('wfh_days', $schedule)) {
+            $schedule['wfh_days'] = $this->currentSchedule($userId)['wfh_days'] ?? null;
+        }
+        $this->enforceOnsiteNetwork($userId, $schedule, $date, $ipAddress, $what);
     }
 
     /**
