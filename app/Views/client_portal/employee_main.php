@@ -24,7 +24,7 @@
     </div>
 
     <div class="employee-tab-panel tab-panel h-full min-h-0 overflow-visible px-8 pb-8 min-w-0" data-panel="access-control" style="display:none;">
-        <?php if (\App\Libraries\PortalAccess::canManageAccessControl()): ?><?= view('client_portal/employee_access_control') ?><?php endif; ?>
+        <?php if (\App\Libraries\PortalAccess::canManageAccessControl()): ?><?= view('client_portal/employee_access_control', ['roleOptions' => $accessControlRoleOptions ?? []]) ?><?php endif; ?>
     </div>
 
     <div class="employee-tab-panel tab-panel h-full min-h-0 overflow-visible px-8 pb-8 min-w-0" data-panel="face-recognition" style="display:none;">
@@ -199,17 +199,13 @@ let acTeamHeadAccounts = ACCESS_CONTROL_TEAM_HEAD_ACCOUNTS.slice();
 // request are unchanged: same exclusivity (Employee vs staff roles), same
 // locked rows, and the POST still sends only user_id + roles[].
 (function () {
-    const body = document.getElementById('accessControlBody');
-    if (!body) return; // panel not rendered (PortalAccess::canManageAccessControl() was false)
+    const tableCard = document.querySelector('[data-crud-table="accessControlTable"]');
+    if (!tableCard) return; // panel not rendered (PortalAccess::canManageAccessControl() was false)
+    const body = tableCard.querySelector('.crud-body');
 
     const accounts = ACCESS_CONTROL_ACCOUNTS;
     const roleOptions = ACCESS_CONTROL_ROLE_OPTIONS;
     const roleDescriptions = ACCESS_CONTROL_ROLE_DESCRIPTIONS;
-
-    if (!accounts.length) {
-        body.innerHTML = '<tr><td colspan="3" class="px-4 py-6 text-center text-gray-400">No accounts found.</td></tr>';
-        return;
-    }
 
     const svg = function (inner) {
         return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + inner + '</svg>';
@@ -227,7 +223,7 @@ let acTeamHeadAccounts = ACCESS_CONTROL_TEAM_HEAD_ACCOUNTS.slice();
     function roleBadges(roles) {
         if (!roles.length) return '<span class="text-xs text-red-500">No role assigned</span>';
         return roles.map(function (r) {
-            return '<span class="inline-flex items-center rounded-full px-2 py-1 text-xs font-medium mr-2 mb-1" style="background:#eef0f3;color:#344054;">' + acEscapeHtml(roleOptions[r] || r) + '</span>';
+            return '<span class="inline-block px-3 py-1 mr-2 mb-1 rounded-full text-xs font-semibold bg-gray-200 text-gray-700">' + acEscapeHtml(roleOptions[r] || r) + '</span>';
         }).join('');
     }
 
@@ -238,10 +234,6 @@ let acTeamHeadAccounts = ACCESS_CONTROL_TEAM_HEAD_ACCOUNTS.slice();
     function initials(name) {
         const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
         return ((parts[0] || '?').charAt(0) + (parts.length > 1 ? parts[parts.length - 1].charAt(0) : '')).toUpperCase();
-    }
-
-    function personCell(acc) {
-        return '<div class="acr-person"><span class="acr-avatar" aria-hidden="true">' + acEscapeHtml(initials(acc.name)) + '</span><span class="acr-person-name">' + acEscapeHtml(acc.name) + '</span></div>';
     }
 
     const WARN_ICON = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none;margin-top:1px;" aria-hidden="true"><path d="M12 3 5 6v5c0 4.6 3 8.3 7 10 4-1.7 7-5.4 7-10V6l-7-3Z"/><path d="M12 9v4"/><path d="M12 16.5v.01"/></svg>';
@@ -258,40 +250,73 @@ let acTeamHeadAccounts = ACCESS_CONTROL_TEAM_HEAD_ACCOUNTS.slice();
         return '<div class="acr-chips">' + chips + more + '</div>';
     }
 
-    // ---- table ----
-    function renderTable() {
-        body.innerHTML = accounts.map(function (acc) {
-            if (acc.user_id === ACCESS_CONTROL_CURRENT_USER_ID) {
-                return '<tr class="acr-row">' +
-                    '<td class="px-4 py-3">' + personCell(acc) + '</td>' +
-                    '<td class="px-4 py-3 acr-email">' + acEscapeHtml(acc.email || '—') + '</td>' +
-                    '<td class="px-4 py-3 text-gray-400 italic">' + roleBadges(acc.roles) + ' (you)</td>' +
-                    '</tr>';
-            }
+    // ---- table: the shared component (search, Filters, sort, grid look) used by Employee Management ----
+    const ROW_GRID = 'minmax(0,1.5fr) minmax(0,1.6fr) minmax(0,2.2fr) minmax(0,0.7fr)';
+    const EDIT_ICON_URL = '<?= base_url('icons/edit.png') ?>';
 
-            const isSuperadminLocked = acc.roles.indexOf('superadmin') !== -1 && !ACCESS_CONTROL_ACTOR_IS_SUPERADMIN;
-            if (isSuperadminLocked) {
-                return '<tr class="acr-row">' +
-                    '<td class="px-4 py-3">' + personCell(acc) + '</td>' +
-                    '<td class="px-4 py-3 acr-email">' + acEscapeHtml(acc.email || '—') + '</td>' +
-                    '<td class="px-4 py-3">' + roleBadges(acc.roles) + '<div class="text-xs text-gray-400 italic mt-1">Only Super Admin can change a Super Admin account.</div></td>' +
-                    '</tr>';
-            }
+    function rowTemplate(acc) {
+        const isSelf = acc.user_id === ACCESS_CONTROL_CURRENT_USER_ID;
+        const isSuperadminLocked = acc.roles.indexOf('superadmin') !== -1 && !ACCESS_CONTROL_ACTOR_IS_SUPERADMIN;
 
-            return '<tr class="acr-row">' +
-                '<td class="px-4 py-3" style="vertical-align:middle;">' + personCell(acc) + '</td>' +
-                '<td class="px-4 py-3 acr-email" style="vertical-align:middle;">' + acEscapeHtml(acc.email || '—') + '</td>' +
-                '<td class="px-4 py-3" style="vertical-align:middle;">' +
-                    '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">' +
-                        '<div>' + roleBadges(acc.roles) + '</div>' +
-                        '<button type="button" class="acr-edit-btn" data-edit-user="' + acc.user_id + '">Edit access</button>' +
-                    '</div>' +
-                '</td>' +
-                '</tr>';
-        }).join('');
+        let roleCell = roleBadges(acc.roles);
+        if (isSelf) {
+            roleCell += '<span class="text-xs text-gray-400 italic">(you)</span>';
+        } else if (isSuperadminLocked) {
+            roleCell += '<div class="text-xs text-gray-400 italic mt-1">Only Super Admin can change a Super Admin account.</div>';
+        }
+
+        const action = (isSelf || isSuperadminLocked)
+            ? '<span class="text-gray-300">—</span>'
+            : '<img src="' + EDIT_ICON_URL + '" alt="Edit access" title="Edit access" role="button" tabindex="0" class="cursor-pointer w-7 h-7 hover:scale-110 transition" data-edit-user="' + acc.user_id + '">';
+
+        // Same row markup/classes as employeeRowTemplate() / loanRowTemplate().
+        return '<div class="grid items-center border-b hover:bg-gray-50" style="grid-template-columns:' + ROW_GRID + ';border-left:1px solid transparent;border-right:1px solid transparent;">' +
+            '<div class="p-4 flex items-center gap-3">' +
+                '<div class="w-10 h-10 bg-gray-300 rounded-full flex items-center justify-center text-xs font-bold text-gray-700 shrink-0">' + acEscapeHtml(initials(acc.name)) + '</div>' +
+                '<span class="font-medium truncate">' + acEscapeHtml(acc.name) + '</span>' +
+            '</div>' +
+            '<div class="p-4 truncate">' + acEscapeHtml(acc.email || '—') + '</div>' +
+            '<div class="p-4">' + roleCell + '</div>' +
+            '<div class="p-4 flex justify-center">' + action + '</div>' +
+        '</div>';
     }
 
-    renderTable();
+    createCrudTable({
+        tableId: 'accessControlTable',
+        data: accounts,
+        renderRow: rowTemplate,
+        filters: function (ctx) {
+            const item = (ctx && ctx.item) || {};
+            const query = (ctx && ctx.query) || '';
+            const values = (ctx && ctx.values) || {};
+            const roles = item.roles || [];
+            const roleTitles = roles.map(function (r) { return roleOptions[r] || r; }).join(' ');
+            const matchesSearch = !query || (String(item.name || '') + ' ' + String(item.email || '') + ' ' + roleTitles).toLowerCase().includes(query);
+            const matchesRole = !values.role || roles.indexOf(values.role) !== -1;
+            return matchesSearch && matchesRole;
+        },
+        sort: function (ctx) {
+            const key = ctx.sortBy === 'email' ? 'email' : 'name';
+            const left = String(ctx.a[key] || '').toLowerCase();
+            const right = String(ctx.b[key] || '').toLowerCase();
+            if (left < right) return ctx.sortOrder === 'asc' ? -1 : 1;
+            if (left > right) return ctx.sortOrder === 'asc' ? 1 : -1;
+            return 0;
+        },
+    });
+
+    // The component has no refresh call; a search "input" event makes it re-run its own
+    // filter/sort/render, which is what picks up a role change after saving.
+    function refreshTable() {
+        const search = tableCard.querySelector('.crud-search');
+        if (search) search.dispatchEvent(new Event('input'));
+    }
+
+    body.addEventListener('keydown', function (e) {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        const btn = e.target.closest('[data-edit-user]');
+        if (btn) { e.preventDefault(); btn.click(); }
+    });
     body.addEventListener('click', function (e) {
         const btn = e.target.closest('[data-edit-user]');
         if (!btn) return;
@@ -457,7 +482,7 @@ let acTeamHeadAccounts = ACCESS_CONTROL_TEAM_HEAD_ACCOUNTS.slice();
                         acTeamHeadAccounts = acTeamHeadAccounts.filter(function (t) { return t.user_id !== acc.user_id; });
                     }
                     acc.roles = checked;
-                    renderTable();
+                    refreshTable();
                     closeModal();
                 } else {
                     confirming = false;

@@ -14,17 +14,33 @@
         <button type="button" class="ac-subtab" data-ac-tab="network">Attendance Network</button>
     </div>
 
-    <div class="flex-1 min-h-0 overflow-y-auto rounded-2xl border border-gray-200 shadow-sm" data-ac-panel="accounts">
-        <table class="w-full text-sm">
-            <thead class="bg-gray-50 sticky top-0">
-                <tr>
-                    <th class="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500">Name</th>
-                    <th class="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500">Email</th>
-                    <th class="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500">Role(s)</th>
-                </tr>
-            </thead>
-            <tbody id="accessControlBody" class="divide-y divide-gray-100"></tbody>
-        </table>
+    <div class="flex-1 min-h-0" data-ac-panel="accounts">
+        <div id="acListView" style="height:100%;">
+            <?php
+            // Same shared table component Employee Management and Loan Management use,
+            // so search, Filters, sorting and the grid look are identical.
+            $roleFilterOptions = [['value' => '', 'label' => 'All']];
+            foreach (($roleOptions ?? []) as $roleKey => $roleTitle) {
+                $roleFilterOptions[] = ['value' => $roleKey, 'label' => $roleTitle];
+            }
+            echo view('components/crud_table', [
+                'title'       => 'Accounts',
+                'tableId'     => 'accessControlTable',
+                // Raw CSS value (not a Tailwind arbitrary class) and minmax(0,Nfr) tracks, for
+                // the same reasons documented in employee_loan.php. Must match rowTemplate()'s
+                // ROW_GRID in employee_main.php.
+                'gridStyle'   => 'minmax(0,1.5fr) minmax(0,1.6fr) minmax(0,2.2fr) minmax(0,0.7fr)',
+                'columns'     => ['Name', 'Email', 'Role(s)', 'Action'],
+                'filters'     => [
+                    ['key' => 'role', 'label' => 'Role', 'options' => $roleFilterOptions],
+                ],
+                'sortOptions' => [
+                    ['value' => 'name',  'label' => 'Name'],
+                    ['value' => 'email', 'label' => 'Email'],
+                ],
+            ]);
+            ?>
+        </div>
     </div>
 
     <!-- DEPARTMENTS -->
@@ -157,15 +173,9 @@
 .acr-save{ background:var(--acr-accent); color:var(--acr-on-accent); }
 .acr-save:hover:not(:disabled){ background:var(--sidebar-hover, #333); transform:translateY(-2px); }
 .acr-save:disabled{ background:#e5e7eb; color:#9ca3af; cursor:not-allowed; }
-.acr-edit-btn{ border:1px solid #d1d5db; color:#344054; background:#fff; border-radius:8px; padding:5px 12px; font-size:12px; font-weight:600; cursor:pointer; transition:background .15s ease; }
-.acr-edit-btn:hover{ background:#f3f4f6; }
-.acr-avatar{ display:inline-flex; align-items:center; justify-content:center; flex:none; width:32px; height:32px; border-radius:50%; background:var(--sidebar-bg, #1e1e1e); color:var(--sidebar-text, #fff); font-size:11px; font-weight:700; letter-spacing:.02em; }
+.acr-avatar{ display:inline-flex; align-items:center; justify-content:center; flex:none; width:32px; height:32px; border-radius:50%; background:#d1d5db; color:#374151; font-size:11px; font-weight:700; letter-spacing:.02em; }
 .acr-avatar-lg{ width:40px; height:40px; font-size:13px; }
-.acr-person{ display:flex; align-items:center; gap:10px; }
-.acr-person-name{ font-weight:600; color:#17223b; }
-.acr-email{ color:#667085; }
-tr.acr-row{ transition:background .12s ease; }
-tr.acr-row:hover{ background:#fafafa; }
+
 </style>
 
 <div id="acRoleModal" class="acr-overlay" aria-hidden="true">
