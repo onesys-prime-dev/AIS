@@ -1990,6 +1990,34 @@ class PayrollController extends BaseController
         $contributionKeys = ['phic_rate', 'phic_cap', 'hdmf_rate', 'hdmf_max'];
         $changed = [];
 
+        // Reject a bad contribution value up front (nothing is saved) — e.g.
+        // typing 5 instead of 0.05 as a rate would multiply everyone's
+        // deduction by 100 on the next payslip. Rates are fractions (0-1),
+        // caps are non-negative amounts; other settings are untouched.
+        // The toast also rides on the redirect URL (toast.js reads and strips
+        // it) so it isn't lost to the one-shot flash-data race.
+        $rejectSettings = function (string $message) {
+            $target = (string) previous_url();
+            $target .= (str_contains($target, '?') ? '&' : '?') . 'toast_error=' . rawurlencode($message);
+            return redirect()->to($target)->with('error', $message);
+        };
+        foreach (['phic_rate', 'hdmf_rate'] as $rateKey) {
+            if (array_key_exists('setting_' . $rateKey, $data)) {
+                $v = trim((string) $data['setting_' . $rateKey]);
+                if (! is_numeric($v) || (float) $v < 0 || (float) $v > 1) {
+                    return $rejectSettings("Invalid value for {$rateKey}: enter a rate between 0 and 1 (e.g. 0.05 for 5%). Nothing was saved.");
+                }
+            }
+        }
+        foreach (['phic_cap', 'hdmf_max'] as $capKey) {
+            if (array_key_exists('setting_' . $capKey, $data)) {
+                $v = trim((string) $data['setting_' . $capKey]);
+                if (! is_numeric($v) || (float) $v < 0) {
+                    return $rejectSettings("Invalid value for {$capKey}: enter a non-negative amount. Nothing was saved.");
+                }
+            }
+        }
+
         foreach ($data as $key => $value) {
             if (strpos($key, 'setting_') === 0) {
                 $realKey = substr($key, 8);

@@ -3592,7 +3592,7 @@ async function syncToRegister() {
             else if (taxable <= 33333)  { lo =  16667; fixedTax =     937.50; rate = 0.20; }
             else if (taxable <= 83333)  { lo =  33333; fixedTax =    4270.70; rate = 0.25; }
             else if (taxable <= 333333) { lo =  83333; fixedTax =   16770.70; rate = 0.30; }
-            else                        { lo = 333333; fixedTax =   91770.00; rate = 0.35; }
+            else                        { lo = 333333; fixedTax =   91770.70; rate = 0.35; }
         } else {
             if      (taxable <= 20833)  { lo =      0; fixedTax =          0; rate = 0;    }
             else if (taxable <= 33333)  { lo =  20833; fixedTax =          0; rate = 0.15; }
@@ -4083,7 +4083,7 @@ function semiMonthlyBracket(t) {
     else if (t <= 33333)  return   937.50 + (t -  16667) * 0.20;
     else if (t <= 83333)  return  4270.70 + (t -  33333) * 0.25;
     else if (t <= 333333) return 16770.70 + (t -  83333) * 0.30;
-    else                  return 91770.00 + (t - 333333) * 0.35;
+    else                  return 91770.70 + (t - 333333) * 0.35;
 }
 
 // Called whenever the period type or period start changes.
@@ -5414,19 +5414,6 @@ window.undoYearEndApply = function () {
 window.applyYearEndToPayroll = async function (type, payload) {
     const { empId, empName, year, amount } = payload;
 
-    // Snapshot exactly the fields this call is going to touch BEFORE anything
-    // below changes the form (including fillEmployeeData), so Undo restores
-    // the real original values — including the additive Salary Adjustment
-    // field, which can't be reverse-derived once another amount is added to it.
-    const touchedIds = type === '13th'
-        ? ['yearEndGifts', 'deMinYearEnd', 'salaryAdjustment']
-        : (payload.isRefund ? ['salNonTaxAdj'] : ['advSalary']);
-    yearEndUndoSnapshot = {};
-    touchedIds.forEach((id) => {
-        const el = document.getElementById(id);
-        if (el) yearEndUndoSnapshot[id] = el.value;
-    });
-
     // 1. Switch inner raw-sheet sub-tab to Raw
     document.querySelectorAll('.sub-tab').forEach(b => b.classList.remove('active'));
     document.querySelectorAll('.tab-content').forEach(p => p.classList.remove('active'));
@@ -5460,6 +5447,19 @@ window.applyYearEndToPayroll = async function (type, payload) {
 
     // 5. Pre-fill the relevant field and show banner
     let bannerMsg = '';
+
+    // Snapshot the fields this call is about to touch — AFTER fillEmployeeData
+    // has loaded this employee (so Undo never writes the previous employee's
+    // values onto this one) but BEFORE the pre-fill below. Includes the
+    // additive Salary Adjustment field, which can't be reverse-derived.
+    const touchedIds = type === '13th'
+        ? ['yearEndGifts', 'deMinYearEnd', 'salaryAdjustment']
+        : (payload.isRefund ? ['salNonTaxAdj'] : ['advSalary']);
+    yearEndUndoSnapshot = {};
+    touchedIds.forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) yearEndUndoSnapshot[id] = el.value;
+    });
 
     if (type === '13th') {
         // BIR: 13th month + other benefits ≤ ₱90,000 is non-taxable; excess is taxable.
