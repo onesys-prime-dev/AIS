@@ -12,6 +12,10 @@ use CodeIgniter\Filters\InvalidChars;
 use CodeIgniter\Filters\PageCache;
 use CodeIgniter\Filters\PerformanceMetrics;
 use CodeIgniter\Filters\SecureHeaders;
+use CodeIgniter\Shield\Filters\SessionAuth;
+use CodeIgniter\Shield\Filters\TokenAuth;
+use CodeIgniter\Shield\Filters\ChainAuth;
+use App\Filters\FaceVerified;
 
 class Filters extends BaseFilters
 {
@@ -34,6 +38,11 @@ class Filters extends BaseFilters
         'forcehttps'    => ForceHTTPS::class,
         'pagecache'     => PageCache::class,
         'performance'   => PerformanceMetrics::class,
+        'session'       => SessionAuth::class,
+        'tokens'        => TokenAuth::class,
+        'auth'          => [ChainAuth::class, \App\Filters\PortalAccessFilter::class, \App\Filters\TrackPresence::class],
+        'portalaccess' => \App\Filters\PortalAccessFilter::class,
+        'faceverified'  => FaceVerified::class,
     ];
 
     /**
@@ -72,8 +81,31 @@ class Filters extends BaseFilters
      */
     public array $globals = [
         'before' => [
+            // CodeIgniter's Filters::processGlobals() only honors an "except"
+            // list when the entry itself is this array shape — a bare 'csrf'
+            // string here (as this used to be) is always kept regardless of
+            // the separate $csrf property below, which the framework never
+            // reads at all.
+            //
+            // compute/sendPdf/send/*/savePayslipRecord/computeYearEnd used to
+            // be exempted here because their JS sent no token at all, so the
+            // real fix was to add the token to each of those fetch calls
+            // (done — see payroll_management.php, payroll_13th_month.php,
+            // payroll_payslip_history.php) rather than leave five real,
+            // state-changing payroll endpoints permanently unprotected.
+            // presence/heartbeat is the one genuine exception left below.
+            'csrf' => ['except' => [
+                // navigator.sendBeacon() (presence.js's beforeunload handler,
+                // firing on every page navigation) cannot set custom headers,
+                // so its CSRF token can only travel as a URL query param the
+                // server-side CSRF check never reads — structurally
+                // impossible to pass otherwise. By far the single largest
+                // source of CRITICAL log noise before this was added (99
+                // failures in one day, dwarfing every other route combined).
+                // Low-sensitivity payload (Online/Away/Offline status only).
+                'client_portal/presence/heartbeat',
+            ]],
             // 'honeypot',
-            // 'csrf',
             // 'invalidchars',
         ],
         'after' => [
@@ -97,14 +129,13 @@ class Filters extends BaseFilters
      */
     public array $methods = [];
 
-    /**
-     * List of filter aliases that should run on any
-     * before or after URI patterns.
-     *
-     * Example:
-     * 'isLoggedIn' => ['before' => ['account/*', 'profiles/*']]
-     *
-     * @var array<string, array<string, list<string>>>
-     */
-    public array $filters = [];
+    public array $filters = [
+        'portalaccess' => ['before' => ['register']],
+        'faceverified' => [
+            'before' => [
+                'client_portal',
+                'client_portal/*',
+            ],
+        ],
+    ];
 }

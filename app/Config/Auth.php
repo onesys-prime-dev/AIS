@@ -47,7 +47,7 @@ class Auth extends ShieldAuth
      */
     public array $views = [
         'login'                       => 'auth/login',
-        'register'                    => '\CodeIgniter\Shield\Views\register',
+        'register'                    => 'auth/register',
         'layout'                      => '\CodeIgniter\Shield\Views\layout',
         'action_email_2fa'            => '\CodeIgniter\Shield\Views\email_2fa_show',
         'action_email_2fa_verify'     => '\CodeIgniter\Shield\Views\email_2fa_verify',
@@ -74,9 +74,9 @@ class Auth extends ShieldAuth
      * to apply any logic you may need.
      */
     public array $redirects = [
-        'register'          => '/',
-        'login'             => 'employee/dashboard',
-        'logout'            => 'login',
+        'register'          => '/login',
+        'login'             => '/client_portal/dashboard',
+        'logout'            => '/login',
         'force_reset'       => '/',
         'permission_denied' => '/',
         'group_denied'      => '/',
@@ -181,7 +181,7 @@ class Auth extends ShieldAuth
      * could be modified as the only method of login once an account
      * has been set up.
      */
-    public bool $allowMagicLinkLogins = true;
+    public bool $allowMagicLinkLogins = false;
 
     /**
      * --------------------------------------------------------------------

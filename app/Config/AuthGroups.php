@@ -17,6 +17,12 @@ use CodeIgniter\Shield\Config\AuthGroups as ShieldAuthGroups;
 
 class AuthGroups extends ShieldAuthGroups
 {
+    /** Shared by 'admin' and 'client_payroll_staff' in $matrix so the two lists can't silently drift apart. */
+    private const PORTAL_PAYROLL_PERMISSIONS = [
+        'portal.employees', 'portal.compensation', 'portal.payroll', 'portal.release', 'portal.loans',
+        'portal.requests', 'portal.request_codes', 'portal.attendance', 'portal.announcements', 'portal.help', 'portal.branding',
+    ];
+
     /**
      * --------------------------------------------------------------------
      * Default Group
@@ -41,6 +47,13 @@ class AuthGroups extends ShieldAuthGroups
      * @see https://codeigniter4.github.io/shield/quick_start_guide/using_authorization/#change-available-groups for more info
      */
     public array $groups = [
+        'hr_admin' => [
+            'title' => 'HR Admin', 
+            'description' => 'Employee records, attendance and requests.'
+        ],
+        'team_head' => ['title' => 'Team Head', 
+            'description' => 'Attendance and requests for explicitly assigned employees.'
+        ],
         'superadmin' => [
             'title'       => 'Super Admin',
             'description' => 'Complete control of the site.',
@@ -61,6 +74,14 @@ class AuthGroups extends ShieldAuthGroups
             'title'       => 'Beta User',
             'description' => 'Has access to beta-level features.',
         ],
+        'client_payroll_staff' => [
+            'title' => 'Client Payroll Staff',
+            'description' => 'Client payroll managers and payroll processors'
+        ],
+        'employee' => [
+            'title' => 'Employee',
+            'description' => 'Employees who can view payslips and payroll records'
+        ],
     ];
 
     /**
@@ -72,6 +93,21 @@ class AuthGroups extends ShieldAuthGroups
      * If a permission is not listed here it cannot be used.
      */
     public array $permissions = [
+        'portal.employees' => 'employees access',
+        'portal.compensation' => 'compensation access',
+        'portal.payroll' => 'payroll access',
+        'portal.release' => 'release access',
+        'portal.loans' => 'loans access',
+        'portal.requests' => 'requests access',
+        'portal.request_codes' => 'request_codes access',
+        'portal.attendance' => 'attendance access',
+        'portal.announcements' => 'announcements access',
+        'portal.help' => 'help access',
+        'portal.branding' => 'branding access',
+        'portal.roles' => 'roles access',
+        'portal.team' => 'team access',
+        'portal.face_recognition' => 'face recognition management access',
+
         'admin.access'        => 'Can access the sites admin area',
         'admin.settings'      => 'Can access the main site settings',
         'users.manage-admins' => 'Can manage other admins',
@@ -91,11 +127,17 @@ class AuthGroups extends ShieldAuthGroups
      */
     public array $matrix = [
         'superadmin' => [
+            'portal.*',
             'admin.*',
             'users.*',
             'beta.*',
         ],
         'admin' => [
+            ...self::PORTAL_PAYROLL_PERMISSIONS,
+            // Not part of PORTAL_PAYROLL_PERMISSIONS (shared with
+            // client_payroll_staff) — face enrollment is deliberately
+            // restricted to superadmin/admin only.
+            'portal.face_recognition',
             'admin.access',
             'users.create',
             'users.edit',
@@ -113,5 +155,12 @@ class AuthGroups extends ShieldAuthGroups
         'beta' => [
             'beta.access',
         ],
+        'employee' => [
+            /* 'employee.view',
+            'employee.edit', */
+        ],
+        'client_payroll_staff' => self::PORTAL_PAYROLL_PERMISSIONS,
+        'hr_admin' => ['portal.employees', 'portal.requests', 'portal.request_codes', 'portal.attendance', 'portal.announcements'],
+        'team_head' => ['portal.team'],
     ];
 }

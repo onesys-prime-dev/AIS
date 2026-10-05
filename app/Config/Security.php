@@ -70,8 +70,14 @@ class Security extends BaseConfig
      * --------------------------------------------------------------------------
      *
      * Regenerate CSRF Token on every submission.
+     *
+     * Kept false: with this true, the token rotates after every successful
+     * POST, so a second form submit from a page that wasn't freshly reloaded
+     * (another open tab, or a page left open across an earlier save) fails
+     * with a 403 CSRF mismatch even though nothing was wrong. One token per
+     * session (same default Laravel/Rails use) avoids that footgun.
      */
-    public bool $regenerate = true;
+    public bool $regenerate = false;
 
     /**
      * --------------------------------------------------------------------------
