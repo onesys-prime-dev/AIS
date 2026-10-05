@@ -1,6 +1,6 @@
 <div class="h-full flex flex-col min-h-0 overflow-visible">
 
-    <div class="flex justify-between items-center my-4">
+    <div class="payroll-status-header flex justify-between items-center my-4 gap-3">
         <div class="p-1">
             <h1 class="text-3xl font-bold text-gray-800 mb-1">Payroll Status</h1>
             <p class="text-gray-500 text-sm">Track payroll per period. Mark as Paid once processed.</p>
@@ -33,7 +33,7 @@
     </div>
 
     <!-- Period tabs + Search row -->
-    <div class="flex items-center justify-between mb-3 gap-3 flex-wrap">
+    <div class="payroll-status-controls flex items-center justify-between mb-3 gap-3 flex-wrap">
         <!-- Period Tabs -->
         <div class="flex items-center bg-gray-100 rounded-xl p-1 gap-1" id="periodTabBar">
 <?php
@@ -64,7 +64,7 @@
         </div>
 
         <!-- Search -->
-        <div class="relative flex-shrink-0">
+        <div class="payroll-status-search relative flex-shrink-0">
             <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"/>
             </svg>
@@ -74,8 +74,8 @@
     </div>
 
     <!-- Table -->
-    <div class="bg-white border border-gray-400 rounded-2xl shadow-lg flex flex-col min-h-0 overflow-hidden p-5 gap-3">
-        <div class="grid grid-cols-[2.5fr_1.5fr_1.5fr_1.2fr_1fr]
+    <div class="payroll-status-card bg-white border border-gray-400 rounded-2xl shadow-lg flex flex-col min-h-0 overflow-hidden p-5 gap-3">
+        <div class="payroll-status-grid grid grid-cols-[2.5fr_1.5fr_1.5fr_1.2fr_1fr]
                     bg-[#DCDCDC] text-[#737373] border border-[#9E9E9E] rounded-lg overflow-hidden text-sm font-bold">
             <div class="p-4">Employee</div>
             <div class="p-4">Monthly Salary</div>
@@ -112,6 +112,60 @@
     .month-picker-cell { border:0; border-radius:10px; padding:8px 6px; background:#f3f4f6; color:#374151; font-size:0.82rem; cursor:pointer; text-align:center; }
     .month-picker-cell:hover { background:#e2e8f0; }
     .month-picker-cell.active { background:#2563eb; color:#ffffff; }
+
+    .payroll-status-card {
+        overflow-x: auto;
+        overscroll-behavior-x: contain;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .payroll-status-grid,
+    #payrollStatusRows,
+    #payrollStatusEmpty,
+    #payrollStatusNoMatch {
+        min-width: 720px;
+    }
+
+    @media (max-width: 900px) {
+        .payroll-status-header {
+            align-items: flex-start;
+            flex-direction: column;
+        }
+
+        .payroll-status-header h1 {
+            font-size: 1.5rem;
+            line-height: 2rem;
+        }
+
+        #periodTabBar {
+            width: 100%;
+            overflow-x: auto;
+            scrollbar-width: none;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        #periodTabBar::-webkit-scrollbar {
+            display: none;
+        }
+
+        #periodTabBar .period-tab {
+            flex: 0 0 auto;
+        }
+
+        #employeeSearch {
+            width: 100%;
+        }
+
+        .payroll-status-controls,
+        .payroll-status-search {
+            width: 100%;
+        }
+
+        .payroll-status-card {
+            padding: 12px;
+            border-radius: 14px;
+        }
+    }
 </style>
 
 <script>
@@ -203,10 +257,28 @@
         try {
             const resp = await fetch(MARK_URL, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': CSRF_HASH },
                 body: JSON.stringify({ employee_id: employeeId, month_year: MONTH, status, period_type: PERIOD })
             });
-            const result = await resp.json();
+
+            // A permission denial comes back as real JSON ({success:false,
+            // error:'...'}) and is handled below like any other failure. But
+            // a CSRF failure (e.g. this tab's token going stale after logging
+            // in as a different account elsewhere) throws server-side and
+            // comes back as an HTML error page instead — resp.json() on that
+            // throws its own confusing "Unexpected token <" rather than
+            // telling the user what actually happened, so detect that
+            // specific case and point at the obvious fix (refresh).
+            let result;
+            try {
+                result = await resp.json();
+            } catch (parseErr) {
+                throw new Error(
+                    resp.status === 403
+                        ? 'Action blocked (403) — your session may be stale. Please refresh the page and try again.'
+                        : `Server returned an unexpected response (${resp.status}).`
+                );
+            }
             if (!resp.ok || !result.success) throw new Error(result.error || 'Server error');
 
             const row = btn.closest('[data-employee-id]');

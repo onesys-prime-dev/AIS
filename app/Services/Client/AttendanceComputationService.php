@@ -265,11 +265,26 @@ class AttendanceComputationService{
      * arrival. Previously clock-in/import floor()ed the difference while
      * Timesheet/Payroll round()ed it, so the same arrival could be reported as
      * (for example) 5 minutes late in one place and 6 in another.
+     *
+     * $graceMinutes (per-employee, from Work Schedule) is a gate, not a
+     * discount: arriving within it counts as exactly 0 minutes late, but
+     * crossing it does NOT subtract the grace from the total — the full
+     * lateness from the scheduled start still counts. Defaults to 0 (no
+     * grace, today's exact-minute behavior) for any caller that doesn't
+     * pass one.
+     *
+     * Uses floor(), not round() — seconds are never held against the
+     * employee. 7:30:59 against a 7:30:00 start is 0 minutes late, not
+     * "rounded up" to 1 just for landing past the 30-second mark. Only
+     * whole elapsed minutes ever count. This is purely a reported/HR
+     * figure (confirmed not used in any pay/deduction calculation), so it
+     * can't affect payroll math.
      */
-    public static function lateMinutes(\DateTimeInterface $actualStart, ?\DateTimeInterface $windowStart): int
+    public static function lateMinutes(\DateTimeInterface $actualStart, ?\DateTimeInterface $windowStart, int $graceMinutes = 0): int
     {
         if (!$windowStart || $actualStart <= $windowStart) return 0;
-        return (int) round(($actualStart->getTimestamp() - $windowStart->getTimestamp()) / 60);
+        $minutes = (int) floor(($actualStart->getTimestamp() - $windowStart->getTimestamp()) / 60);
+        return $minutes <= $graceMinutes ? 0 : $minutes;
     }
 
     /**
@@ -286,8 +301,18 @@ class AttendanceComputationService{
      * or late doesn't shift the window). Excess = time worked outside it, on
      * either side. Both are computed independently, so a shift can show both
      * excess (late departure) and a shortfall (late arrival) at once.
+     *
+     * $otGraceMinutes (per-employee, from Work Schedule) is applied
+     * independently to EACH edge — up to that many minutes early (before
+     * scheduled start) or late (after scheduled end) isn't counted as
+     * excess, but it's a gate per edge, not a shared pool: 5 minutes early
+     * AND 5 minutes late in the same shift are each separately forgiven,
+     * not netted against one 5-minute budget. Crossing an edge's grace
+     * counts that edge's full minutes, same non-discount rule as
+     * lateMinutes(). Defaults to 0 (no grace) for any caller that doesn't
+     * pass one.
      */
-    public function splitShiftWindow(string $timeIn, string $timeOut, float $breakHours, ?string $scheduledStart, ?string $scheduledEnd, string $windowDate): array
+    public function splitShiftWindow(string $timeIn, string $timeOut, float $breakHours, ?string $scheduledStart, ?string $scheduledEnd, string $windowDate, int $otGraceMinutes = 0): array
     {
         $start = new \DateTime($timeIn);
         $end = new \DateTime($timeOut);
@@ -295,17 +320,45 @@ class AttendanceComputationService{
 
         $hasSchedule = (bool) ($scheduledStart && $scheduledEnd);
         $windowStart = $windowEnd = null;
+        $excessHours = 0.0;
         if ($hasSchedule) {
             $windowStart = new \DateTime($windowDate . ' ' . $scheduledStart);
             $windowEnd = new \DateTime($windowDate . ' ' . $scheduledEnd);
             if ($windowEnd < $windowStart) $windowEnd->modify('+1 day');
-            $overlapStart = max($start, $windowStart);
+            // Clock-in seconds are floored to the minute here, matching
+            // lateMinutes(): 7:30:30 is 0 minutes late, so it must not also
+            // lose a minute of regular hours (which showed up as a phantom
+            // 0.02 undertime on a shift that ran past the scheduled end).
+            $startFloored = (clone $start)->setTime((int) $start->format('G'), (int) $start->format('i'), 0);
+            $overlapStart = max($startFloored, $windowStart);
             $overlapEnd = min($end, $windowEnd);
             $windowMinutes = 0;
             if ($overlapStart < $overlapEnd) {
                 $diff = $overlapStart->diff($overlapEnd);
                 $windowMinutes = $diff->h * 60 + $diff->i + $diff->days * 1440;
             }
+
+            // Each edge graced on its own — equivalent to the old combined
+            // "total worked outside the window" figure when grace is 0.
+            // Minutes counted the same way regularHours/windowMinutes above
+            // already do (DateInterval decomposition, seconds truncated) —
+            // NOT round() or floor() on a raw seconds/60 division, which
+            // would change actual OT pay for sub-minute edge cases. This
+            // keeps OT math byte-for-byte identical to before grace/floor
+            // existed whenever otGraceMinutes is 0.
+            $leadingMinutes = 0;
+            if ($start < $windowStart) {
+                $diff = $start->diff($windowStart);
+                $leadingMinutes = $diff->h * 60 + $diff->i + $diff->days * 1440;
+            }
+            $trailingMinutes = 0;
+            if ($end > $windowEnd) {
+                $diff = $windowEnd->diff($end);
+                $trailingMinutes = $diff->h * 60 + $diff->i + $diff->days * 1440;
+            }
+            $gracedLeading = $leadingMinutes > $otGraceMinutes ? $leadingMinutes : 0;
+            $gracedTrailing = $trailingMinutes > $otGraceMinutes ? $trailingMinutes : 0;
+            $excessHours = round(($gracedLeading + $gracedTrailing) / 60, 2);
         } else {
             // No schedule on file — fall back to the full worked span.
             $diff = $end->diff($start);
@@ -314,11 +367,6 @@ class AttendanceComputationService{
 
         $breakMinutes = $breakHours * 60;
         $regularHours = round(max(0, $windowMinutes - $breakMinutes) / 60, 2);
-
-        $totalDiff = $end->diff($start);
-        $totalWorkedMinutes = $totalDiff->h * 60 + $totalDiff->i + $totalDiff->days * 1440;
-        $totalWorkedHours = max(0, ($totalWorkedMinutes - $breakMinutes) / 60);
-        $excessHours = max(0, round($totalWorkedHours - $regularHours, 2));
 
         return [
             'span_start'    => $start,
@@ -344,7 +392,8 @@ class AttendanceComputationService{
             (float) ($attendance['break_duration'] ?? 0),
             $schedule['start_time'] ?? null,
             $schedule['end_time'] ?? null,
-            $date
+            $date,
+            (int) ($schedule['ot_grace_minutes'] ?? 0)
         );
 
         // Checked once, shared by the OT figure below and by night differential —
@@ -358,7 +407,7 @@ class AttendanceComputationService{
         }
 
         if ($split['has_schedule']) {
-            $requiredHours = ($split['window_end']->getTimestamp() - $split['window_start']->getTimestamp()) / 3600;
+            $requiredHours = \App\Libraries\AttendanceWindow::requiredHours(($split['window_end']->getTimestamp() - $split['window_start']->getTimestamp()) / 3600, $schedule);
             $undertime = max(0, round($requiredHours - $split['regular_hours'], 2));
             if ($undertime > 0) {
                 $approvedUt = $this->getApprovedRequest($userId, $date, 'undertime');

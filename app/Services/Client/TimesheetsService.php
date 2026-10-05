@@ -6,6 +6,7 @@ use App\Models\Client\AttendanceModel;
 use App\Models\Client\TasksModel;
 use App\Models\Client\RequestModel;
 use App\Models\Client\EmployeePositionModel;
+use App\Models\Client\SavedClientsModel;
 use App\Models\Client\SavedTasksModel;
 use DateTime;
 
@@ -225,6 +226,10 @@ class TimesheetsService
             $this->saveAsPreset($userId, $taskPerformed);
         }
 
+        if (!empty($payload['save_client']) && $client !== '') {
+            $this->saveClientPreset($userId, $client);
+        }
+
         return ['success' => true, 'task' => $this->tasksModel->find($id)];
     }
 
@@ -232,6 +237,19 @@ class TimesheetsService
      * Saves a task description as a reusable preset (the "Select Preset Task"
      * dropdown), skipping the insert if this user already has an identical one.
      */
+    private function saveClientPreset(int $userId, string $client): void
+    {
+        $model = new SavedClientsModel();
+        $exists = $model->where('user_id', $userId)->where('client', $client)->first();
+        if ($exists) return;
+
+        $model->insert([
+            'user_id'  => $userId,
+            'client'   => $client,
+            'saved_at' => date('Y-m-d H:i:s'),
+        ]);
+    }
+
     private function saveAsPreset(int $userId, string $taskPerformed): void
     {
         $savedTasksModel = new SavedTasksModel();
@@ -341,6 +359,7 @@ class TimesheetsService
             'night_diff'          => 0,
             'unapproved_ot_hours' => 0,
             'undertime_hours'     => 0,
+            'unapproved_undertime_hours' => 0,
         ];
 
         $db = db_connect();
@@ -377,34 +396,49 @@ class TimesheetsService
             $requiredHours = ($reqEnd - $reqStart) / 3600;
         }
 
-        // Batch-fetch approved overtime/undertime requests for the whole range up
-        // front (one query instead of one per day) — a date only counts as "OT
-        // approved" or "UT approved" if an actual approved request covers it.
+        // Batch-fetch approved requests for the whole range. OT/UT requests drive
+        // approval calculations, while every request contributes a dated remark.
         $approvedOtDates = [];
         $approvedUtDates = [];
+        $requestRemarksByDate = [];
+        $leaveRemarksByDate = [];
         $approvalRequests = $this->requestModel
             ->where('requested_by', $userId)
             ->where('status', 'approved')
-            ->whereIn('request_type', ['overtime', 'undertime'])
             ->where('start_date <=', $endDate)
             ->groupStart()
                 ->where('end_date >=', $startDate)
                 ->orWhere('end_date', null)
             ->groupEnd()
+            ->orderBy('start_date', 'ASC')
+            ->orderBy('id', 'ASC')
             ->findAll();
         foreach ($approvalRequests as $req) {
-            $rangeStart = max(strtotime($req['start_date']), strtotime($startDate));
-            $rangeEnd   = min(strtotime($req['end_date'] ?? $req['start_date']), strtotime($endDate));
+            $requestStart = strtotime((string) ($req['start_date'] ?? ''));
+            $requestEnd = strtotime((string) (($req['end_date'] ?? '') ?: ($req['start_date'] ?? '')));
+            if ($requestStart === false || $requestEnd === false) continue;
+
+            $rangeStart = max($requestStart, strtotime($startDate));
+            $rangeEnd   = min($requestEnd, strtotime($endDate));
+            if ($rangeStart > $rangeEnd) continue;
+
+            $remark = $this->formatApprovedRequestRemark($req);
             for ($t = $rangeStart; $t <= $rangeEnd; $t += 86400) {
                 $d = date('Y-m-d', $t);
                 if ($req['request_type'] === 'overtime') {
                     $approvedOtDates[$d] = true;
-                } else {
+                } elseif ($req['request_type'] === 'undertime') {
                     $approvedUtDates[$d] = true;
+                }
+
+                $requestRemarksByDate[$d][] = $remark;
+                if ($req['request_type'] === 'leave') {
+                    $leaveRemarksByDate[$d][] = $remark;
                 }
             }
         }
 
+        $attendanceDates = [];
         foreach ($attendances as $att) {
             // Derive date and time components from the datetime columns
             $date    = $att['shift_date'] ?? ($att['time_in'] ? date('Y-m-d', strtotime($att['time_in'])) : null);
@@ -423,7 +457,9 @@ class TimesheetsService
                 $windowStart = null;
                 $windowEnd = null;
             }
-            $requiredHours = $windowStart && $windowEnd ? ($windowEnd->getTimestamp() - $windowStart->getTimestamp()) / 3600 : 0;
+            $requiredHours = $windowStart && $windowEnd
+                ? \App\Libraries\AttendanceWindow::requiredHours(($windowEnd->getTimestamp() - $windowStart->getTimestamp()) / 3600, $recordSchedule ?? [])
+                : 0;
             $timeIn  = $att['time_in']  ? date('H:i:s', strtotime($att['time_in']))  : null;
             $timeOut = $att['time_out'] ? date('H:i:s', strtotime($att['time_out'])) : null;
 
@@ -435,17 +471,26 @@ class TimesheetsService
             $otHours           = 0;
             $unapprovedOtHours = 0;
             $undertimeHours    = 0;
+            $unapprovedUndertimeHours = 0;
             $tardyMinutes      = 0;
             $nightDiff         = 0;
             $hasSchedule       = (bool) ($scheduledStart && $scheduledEnd);
             $hasApprovedOt     = isset($approvedOtDates[$date]);
+            // Same split as OT above (approved-request lookup, not the
+            // attendance row's own attendance_status), so "Undertime" here
+            // means the same thing "OT Hrs" does: only the approved portion,
+            // with unapproved shown/totaled separately — previously this
+            // lookup was built ($approvedUtDates) but never actually used,
+            // so every undertime minute was shown as one blended number
+            // regardless of approval, unlike OT which always split.
+            $hasApprovedUt     = isset($approvedUtDates[$date]);
 
             // Tardiness only depends on the clock-in time, not the clock-out —
             // computed here, unconditionally, so a still-open shift (clocked in
             // late, not yet clocked out) still shows it instead of silently
             // showing nothing until the employee eventually clocks out.
             if ($timeIn) {
-                $tardyMinutes = AttendanceComputationService::lateMinutes(new DateTime($att['time_in']), $windowStart);
+                $tardyMinutes = AttendanceComputationService::lateMinutes(new DateTime($att['time_in']), $windowStart, (int) (($recordSchedule ?? [])['tardiness_grace_minutes'] ?? 0));
             }
 
             if ($timeIn && $timeOut) {
@@ -468,7 +513,8 @@ class TimesheetsService
                     (float) ($att['break_duration'] ?? 0),
                     $scheduledStart,
                     $scheduledEnd,
-                    $date
+                    $date,
+                    (int) (($recordSchedule ?? [])['ot_grace_minutes'] ?? 0)
                 );
                 $start = $split['span_start'];
                 $end   = $split['span_end'];
@@ -484,7 +530,12 @@ class TimesheetsService
                 // during the shift the employee simply wasn't there (late arrival,
                 // early leave, etc.), independent of any OT worked outside it.
                 if ($hasSchedule) {
-                    $undertimeHours = max(0, round($requiredHours - $regularHours, 2));
+                    $shortfall = max(0, round($requiredHours - $regularHours, 2));
+                    if ($hasApprovedUt) {
+                        $undertimeHours = $shortfall;
+                    } else {
+                        $unapprovedUndertimeHours = $shortfall;
+                    }
                 }
 
 
@@ -509,8 +560,13 @@ class TimesheetsService
                 $rdotHours = $regularHours;
             }
 
-            // Remarks (leave or task)
-            $remarks = $this->getRemarksForDay($userId, $date);
+            $attendanceDates[$date] = true;
+            $remarks = $this->getRemarksForAttendance(
+                $att,
+                $requestRemarksByDate[$date] ?? [],
+                $unapprovedOtHours,
+                $unapprovedUndertimeHours
+            );
 
             // All tasks logged against this exact attendance session (scoped by
             // attendance_id, not by calendar date — an employee with two clock
@@ -537,6 +593,8 @@ class TimesheetsService
                 'attendance_id'       => $att['id'],
                 'time_in_datetime'    => $att['time_in'],
                 'time_out_datetime'   => $att['time_out'],
+                'break_hours'         => (float) ($att['break_duration'] ?? 0),
+                'out_date'            => $att['time_out'] ? substr($att['time_out'], 0, 10) : null,
                 'state_version'       => (int) ($att['state_version'] ?? 0),
                 'date'                => $date,
                 'in'                  => $timeIn ? date('h:i A', strtotime($timeIn)) : '-',
@@ -548,6 +606,7 @@ class TimesheetsService
                 'night_diff'          => $nightDiff,
                 'unapproved_ot_hours' => $unapprovedOtHours,
                 'undertime_hours'     => $undertimeHours,
+                'unapproved_undertime_hours' => $unapprovedUndertimeHours,
                 'remarks'             => $remarks,
                 'task_performed'      => $taskPerformed,
                 'client'              => $taskClient,
@@ -561,7 +620,45 @@ class TimesheetsService
             $totals['night_diff']          += $nightDiff;
             $totals['unapproved_ot_hours'] += $unapprovedOtHours;
             $totals['undertime_hours']     += $undertimeHours;
+            $totals['unapproved_undertime_hours'] += $unapprovedUndertimeHours;
         }
+
+        // Approved leave normally has no attendance row. Keep it visible as a
+        // read-only zero-hour entry instead of silently dropping the day.
+        foreach ($leaveRemarksByDate as $date => $leaveRemarks) {
+            if (isset($attendanceDates[$date])) continue;
+
+            $dailyRecords[] = [
+                'attendance_id'       => null,
+                'time_in_datetime'    => null,
+                'time_out_datetime'   => null,
+                'break_hours'         => 0.0,
+                'out_date'            => null,
+                'state_version'       => 0,
+                'date'                => $date,
+                'in'                  => '-',
+                'out'                 => '-',
+                'regular_hours'       => 0.0,
+                'ot_hours'            => 0.0,
+                'rdot_hours'          => 0.0,
+                'tardy_minutes'       => 0,
+                'night_diff'          => 0.0,
+                'unapproved_ot_hours' => 0.0,
+                'undertime_hours'     => 0.0,
+                'unapproved_undertime_hours' => 0.0,
+                'remarks'             => implode('; ', array_values(array_unique($leaveRemarks))),
+                'task_performed'      => '',
+                'client'              => '',
+                'tasks'               => [],
+                'is_leave_day'        => true,
+            ];
+        }
+
+        usort($dailyRecords, static function (array $a, array $b): int {
+            $dateCompare = strcmp((string) $a['date'], (string) $b['date']);
+            if ($dateCompare !== 0) return $dateCompare;
+            return strcmp((string) ($a['time_in_datetime'] ?? ''), (string) ($b['time_in_datetime'] ?? ''));
+        });
 
         return [
             'daily'  => $dailyRecords,
@@ -582,60 +679,47 @@ class TimesheetsService
         return \App\Libraries\AttendanceWindow::nightHours($start->format('Y-m-d H:i:s'), $end->format('Y-m-d H:i:s'));
     }
 
-    private function getRemarksForDay(
-        int $userId,
-        string $date
-    ): string
+    private function formatApprovedRequestRemark(array $request): string
     {
-        // Approved leave request
-        $request = $this->requestModel
-            ->where('requested_by', $userId)
-            ->where('status', 'approved')
-            ->groupStart()
-                ->where('start_date <=', $date)
-                ->where('end_date >=', $date)
-            ->groupEnd()
-            ->first();
-
-        if ($request)
-        {
-            return ucfirst($request['request_type'])
-                . ' (' . $request['reason'] . ')';
+        $type = (string) ($request['request_type'] ?? 'request');
+        if ($type === 'leave') {
+            $category = (string) ($request['leave_category'] ?? '');
+            $label = $category !== '' && $category !== 'leave'
+                ? ucfirst($category) . ' Leave'
+                : 'Leave';
+        } else {
+            $label = 'Approved ' . ucfirst($type);
         }
 
-        $attendance = $this->attendanceModel
-            ->where('user_id', $userId)
-            ->where('COALESCE(shift_date, DATE(time_in))', $date)
-            ->first();
+        $reason = trim((string) ($request['reason'] ?? ''));
+        return $reason === '' ? $label : $label . ' (' . $reason . ')';
+    }
 
-        if ($attendance)
-        {
-            switch (
-                $attendance['attendance_status']
-                ?? 'present'
-            )
-            {
-                case 'approved_undertime':
-                    return 'Approved Undertime';
+    private function getRemarksForAttendance(
+        array $attendance,
+        array $approvedRequestRemarks,
+        float $unapprovedOtHours,
+        float $unapprovedUndertimeHours
+    ): string {
+        $remarks = $approvedRequestRemarks;
 
-                case 'unapproved_undertime':
-                    return 'Unapproved Undertime';
-
-                case 'approved_overtime':
-                    return 'Approved Overtime';
-
-                case 'unapproved_overtime':
-                    return 'Unapproved Overtime';
-
-                case 'present':
-                default:
-                    break;
-            }
+        if ($unapprovedOtHours > 0) {
+            $remarks[] = 'Unapproved Overtime';
         }
 
-        // Task descriptions have their own column now (see getDetailedTimesheet's
-        // 'task_performed' field) — no fallback needed here.
-        return '';
+        if ($unapprovedUndertimeHours > 0) {
+            $reason = trim((string) ($attendance['unapproved_ut_reason'] ?? ''));
+            $remarks[] = $reason === ''
+                ? 'Unapproved Undertime'
+                : 'Unapproved Undertime (' . $reason . ')';
+        }
+
+        $missedClockoutReason = trim((string) ($attendance['missed_clockout_reason'] ?? ''));
+        if ($missedClockoutReason !== '') {
+            $remarks[] = 'Missed Clock-out (' . $missedClockoutReason . ')';
+        }
+
+        return implode('; ', array_values(array_unique(array_filter($remarks))));
     }
     // ---------- Private helpers ----------
     private function baseListByUserIdBuilder(int $userId): TasksModel
@@ -650,12 +734,7 @@ class TimesheetsService
 
     private function resolveCutoffByDate(string $date): array
     {
-        $base = new DateTime($date);
-        $day = (int) $base->format('d');
-        if ($day <= 15) {
-            return ['start' => $base->format('Y-m-01'), 'end' => $base->format('Y-m-15')];
-        }
-        return ['start' => $base->format('Y-m-16'), 'end' => $base->format('Y-m-t')];
+        return \App\Libraries\PayrollCutoff::forDate((new DateTime($date))->format('Y-m-d'));
     }
 
     private function cutoffKeyByDate(string $date): string

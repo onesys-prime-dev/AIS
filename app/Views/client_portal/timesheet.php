@@ -12,19 +12,20 @@
         'night_diff' => 0,
         'unapproved_ot_hours' => 0,
         'undertime_hours' => 0,
+        'unapproved_undertime_hours' => 0,
     ];
     $isPayrollAdmin = $isPayrollAdmin ?? false;
 ?>
 
-<div class="h-full flex flex-col min-h-0 overflow-hidden px-8 pb-8">
+<div id="timesheetPageRoot" class="h-full flex flex-col min-h-0 overflow-hidden px-8 pb-8">
 
     <!-- Page Header (unchanged) -->
-    <div class="flex justify-between items-center my-4">
+    <div class="flex justify-between items-center my-4 flex-wrap gap-3">
         <div class="p-1">
             <h1 class="text-3xl font-bold text-gray-800 mb-1">Timesheets</h1>
             <p class="text-gray-500 text-sm">Manage timesheets here.</p>
         </div>
-        <div class="flex items-center gap-4">
+        <div class="timesheet-header-actions flex items-center gap-4 flex-wrap">
             <button type="button"
                 data-modal-open="viewDailyTimeLog"
                 onclick="openModalById('viewDailyTimeLog')"
@@ -49,10 +50,19 @@
                 Review Employee Timesheets
             </button>
 
-            <button type="button" onclick="openAttendanceIssues()"
+            <button type="button" id="attendanceIssuesBtn" onclick="openAttendanceIssues()"
                 class="bg-[#FFFFFF] hover:bg-[#f3f4f6] px-3 py-3 rounded-lg shadow hover:shadow-[0_6px_12px_rgba(0,0,0,0.2)] flex items-center gap-2 transition hover:translate-y-[-2px] text-gray-700 text-sm font-medium">
-                <img src="<?= base_url('icons/alarms.png'); ?>" class="w-7 h-7" alt="Attendance Issues">
-                Attendance Issues
+                <!-- Flat black line icon, same size/style as the other buttons' icons; badge = records needing attention -->
+                <span style="position:relative;display:inline-flex;width:28px;height:28px;flex:none;">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="#000" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <rect x="4.5" y="4" width="15" height="17.5" rx="2.5"/>
+                        <path d="M9 4V3.2A1.2 1.2 0 0 1 10.2 2h3.6A1.2 1.2 0 0 1 15 3.2V4"/>
+                        <path d="M8.5 13.2l2.6 2.6 4.6-5"/>
+                    </svg>
+                    <span id="attendanceIssuesBadge" hidden
+                        style="position:absolute;top:-9px;right:-7px;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:#dc2626;color:#fff;font-size:11px;font-weight:700;line-height:18px;text-align:center;box-shadow:0 0 0 2px #fff;">0</span>
+                </span>
+                Attendance Corrections
             </button>
             <?php endif; ?>
 
@@ -67,11 +77,11 @@
     </div>
 
     <!-- Main Card -->
-    <div class="bg-white h-full rounded-2xl shadow-lg border border-gray-400 flex flex-col overflow-hidden">
+    <div class="timesheet-main-card bg-white flex-1 min-h-0 rounded-2xl shadow-lg border border-gray-400 flex flex-col overflow-hidden">
 
         <!-- Filter bar -->
-        <div class="px-5 py-4 border-b border-gray-200 flex justify-between items-center gap-4 flex-wrap">
-            <div class="relative w-72">
+        <div class="timesheet-filter-bar px-5 py-4 border-b border-gray-200 flex justify-between items-center gap-4 flex-wrap">
+            <div class="timesheet-search relative w-72">
                 <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-500">
                     <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                         <path fill-rule="evenodd" d="M10.5 3.75a6.75 6.75 0 1 0 0 13.5 6.75 6.75 0 0 0 0-13.5ZM2.25 10.5a8.25 8.25 0 1 1 14.59 5.28l4.69 4.69a.75.75 0 1 1-1.06 1.06l-4.69-4.69A8.25 8.25 0 0 1 2.25 10.5Z" clip-rule="evenodd"/>
@@ -80,7 +90,7 @@
                 <input type="text" id="searchInput" placeholder="Search date, remarks…"
                     class="w-full bg-gray-100 text-gray-700 text-sm pl-10 pr-4 py-2.5 rounded-lg outline-none focus:ring-2 focus:ring-purple-400 border border-transparent focus:border-purple-300">
             </div>
-            <div class="flex gap-3">
+            <div class="timesheet-filter-controls flex gap-3">
                 <select id="sortBy" class="bg-gray-100 text-gray-700 text-sm border border-gray-200 rounded-lg px-3 py-2.5 outline-none focus:ring-2 focus:ring-purple-400">
                     <option value="date">Sort: Date</option>
                     <option value="regular_hours">Sort: Regular Hrs</option>
@@ -96,21 +106,42 @@
             </div>
         </div>
 
-        <!-- TABLE -->
-        <div class="flex-1 flex flex-col overflow-hidden">
+        <!-- TABLE — the header/body/footer tables below are all a fixed
+             1370px min-width (16 columns). Previously this container just
+             clipped anything past the viewport with no way to reach it at
+             all on a phone; now it scrolls horizontally as one unit (all
+             three tables move together since they're stacked in the same
+             scroll container), while the body's own vertical scroll (for
+             rows) stays independent, exactly as before.
+
+             This single element now handles BOTH scroll axes at once — it
+             previously only scrolled horizontally, with a separate inner div
+             (below) doing its own vertical scroll for just the rows. That
+             inner div had no overflow-x of its own set, and CSS silently
+             forces overflow-x to "auto" on any element whose overflow-y isn't
+             "visible" — so it grew a second, independent horizontal
+             scrollbar. Scrolling THAT one moved only the body, leaving the
+             header/footer behind (a real mismatch, on top of the colgroup
+             one already fixed above). The header and footer tables are
+             pinned in place with position:sticky (top/bottom) instead, which
+             tracks this container's horizontal scroll normally while staying
+             put vertically — the usual frozen-header-row technique. -->
+        <div class="flex-1 flex flex-col overflow-auto hide-scroll-bar">
 
             <!-- HEADER -->
-            <table class="min-w-[1280px] w-full text-md border-collapse table-fixed">
+            <table class="min-w-[1370px] w-full text-md border-collapse table-fixed sticky top-0 z-10">
                 <colgroup>
                     <col class="w-[120px]">
                     <col class="w-[100px]">
                     <col class="w-[100px]">
+                    <col class="w-[90px]">
                     <col class="w-[110px]">
                     <col class="w-[90px]">
                     <col class="w-[110px]">
                     <col class="w-[100px]">
                     <col class="w-[110px]">
                     <col class="w-[100px]">
+                    <col class="w-[130px]">
                     <col class="w-[110px]">
                     <col class="w-[150px]">
                     <col class="w-[130px]">
@@ -124,13 +155,15 @@
                         <th class="px-4 text-left font-bold">Date</th>
                         <th class="px-4 text-left font-bold">Time In</th>
                         <th class="px-4 text-left font-bold">Time Out</th>
+                        <th class="px-4 text-right font-bold" title="Unpaid break deducted from the day">Break (hrs)</th>
 
                         <th class="px-4 text-right font-bold">Regular Hrs</th>
                         <th class="px-4 text-right font-bold">OT Hrs</th>
                         <th class="px-4 text-right font-bold" title="Worked but not approved — not counted toward Regular or OT">Unapproved OT</th>
                         <th class="px-4 text-right font-bold">RDOT Hrs</th>
                         <th class="px-4 text-right font-bold">Tardy (min)</th>
-                        <th class="px-4 text-right font-bold" title="Time missed within the scheduled window (late arrival, early leave, etc.)">Undertime</th>
+                        <th class="px-4 text-right font-bold" title="Approved undertime — excused, no pay impact">Undertime</th>
+                        <th class="px-4 text-right font-bold" title="Time missed that wasn't approved — counted against you">Unapproved UT</th>
                         <th class="px-4 text-right font-bold">Night Diff</th>
 
                         <th class="px-4 text-left font-bold">Remarks</th>
@@ -151,21 +184,30 @@
                 </thead>
             </table>
 
-            <!-- BODY -->
-            <div class="overflow-y-auto hide-scroll-bar flex-1">
+            <!-- BODY — no longer its own scroll container; the outer div above
+                 now does both the vertical scroll (for these rows) and the
+                 horizontal one (for all three tables together). -->
+            <div class="flex-1">
 
-                <table class="min-w-[1280px] w-full text-sm border-collapse table-fixed">
+                <table class="min-w-[1370px] w-full text-sm border-collapse table-fixed">
 
                     <colgroup>
                         <col class="w-[120px]">
                         <col class="w-[100px]">
                         <col class="w-[100px]">
+                        <col class="w-[90px]">
                         <col class="w-[110px]">
                         <col class="w-[90px]">
                         <col class="w-[110px]">
                         <col class="w-[100px]">
                         <col class="w-[110px]">
                         <col class="w-[100px]">
+                        <!-- Unapproved UT — this col was missing here, shifting every
+                             column from here on (Night Diff through Action) one slot
+                             out of alignment with the header/footer tables above and
+                             below, which both have the full 16. That's what showed up
+                             as the columns drifting apart while scrolling sideways. -->
+                        <col class="w-[130px]">
                         <col class="w-[110px]">
                         <col class="w-[150px]">
                         <col class="w-[130px]">
@@ -182,18 +224,25 @@
             </div>
 
             <!-- FOOTER -->
-            <table class="min-w-[1280px] w-full text-sm border-collapse table-fixed">
+            <!-- "bottom-0" isn't in this build's precompiled Tailwind CSS (unlike
+                 "top-0", used on the header above, which is) — no plain class
+                 for it would ever actually apply, so it's a raw inline style
+                 instead, same workaround already used for gridStyle elsewhere
+                 in this file. -->
+            <table class="min-w-[1370px] w-full text-sm border-collapse table-fixed sticky z-10" style="bottom:0;">
 
                 <colgroup>
                     <col class="w-[120px]">
                     <col class="w-[100px]">
                     <col class="w-[100px]">
+                    <col class="w-[90px]">
                     <col class="w-[110px]">
                     <col class="w-[90px]">
                     <col class="w-[110px]">
                     <col class="w-[100px]">
                     <col class="w-[110px]">
                     <col class="w-[100px]">
+                    <col class="w-[130px]">
                     <col class="w-[110px]">
                     <col class="w-[150px]">
                     <col class="w-[130px]">
@@ -215,6 +264,9 @@
                         <td class="text-center border-r border-[#C5C5C5] tracking-wide">
                             TOTALS
                         </td>
+
+                        <!-- BREAK -->
+                        <td></td>
 
                         <!-- REGULAR -->
                         <td class="px-4 text-right">
@@ -244,6 +296,11 @@
                         <!-- UNDERTIME -->
                         <td class="px-4 text-right">
                             <span id="totalUndertime">0.00</span>
+                        </td>
+
+                        <!-- UNAPPROVED UNDERTIME -->
+                        <td class="px-4 text-right">
+                            <span id="totalUnapprovedUndertime">0.00</span>
                         </td>
 
                         <!-- NIGHT DIFF -->
@@ -321,11 +378,27 @@
     <!-- Attendance Issues Modal (client_payroll_staff / admin only) -->
     <?php if ($isPayrollAdmin): ?>
     <?php
-        $content = '<p class="text-sm text-gray-500 -mt-2 mb-3">Sessions clocked in but never closed, and records with an impossible total (negative, or over 24h). Fixing one recomputes it the same way live clock-out does.</p>'
-                 . '<div id="attendanceIssuesList" style="max-height:60vh;overflow:auto;"><p class="text-gray-400 text-sm">Loading…</p></div>';
+        $tabBtn = 'style="padding:8px 14px;border:none;border-bottom:3px solid transparent;background:none;font-size:14px;font-weight:600;color:#6b7280;cursor:pointer;"';
+        $field  = 'style="display:block;border:1px solid #d1d5db;border-radius:6px;padding:6px 8px;font-size:13px;"';
+        $content = '<p class="text-sm text-gray-500 -mt-2 mb-3">Fix a wrong time, a session that was never closed, or an impossible total. Every fix is recomputed the same way a live clock-out is, and is logged.</p>'
+                 . '<div role="tablist" style="display:flex;gap:4px;border-bottom:1px solid #e5e7eb;margin-bottom:12px;">'
+                 .   '<button type="button" role="tab" id="attTabIssues" onclick="switchAttendanceTab(\'issues\')" ' . $tabBtn . '>Needs attention <span id="attTabIssuesCount" style="margin-left:4px;background:#fee2e2;color:#b91c1c;border-radius:9px;padding:1px 7px;font-size:11px;">0</span></button>'
+                 .   '<button type="button" role="tab" id="attTabAll" onclick="switchAttendanceTab(\'all\')" ' . $tabBtn . '>All records</button>'
+                 . '</div>'
+                 . '<div id="attPanelIssues"><div id="attendanceIssuesList" style="max-height:58vh;overflow:auto;"><p class="text-gray-400 text-sm">Loading…</p></div></div>'
+                 . '<div id="attPanelAll" hidden>'
+                 .   '<div style="display:flex;gap:10px;align-items:end;flex-wrap:wrap;margin-bottom:10px;">'
+                 .     '<label style="font-size:12px;color:#555;">Employee<select id="arEmployee" style="display:block;border:1px solid #d1d5db;border-radius:6px;padding:6px 8px;font-size:13px;min-width:220px;"><option value="">Loading…</option></select></label>'
+                 .     '<label style="font-size:12px;color:#555;">From<input type="date" id="arFrom" ' . $field . '></label>'
+                 .     '<label style="font-size:12px;color:#555;">To<input type="date" id="arTo" ' . $field . '></label>'
+                 .     '<button type="button" onclick="searchAttendanceRecords(1)" style="background:#007bff;color:#fff;border:none;border-radius:6px;padding:8px 16px;font-size:13px;cursor:pointer;">Show records</button>'
+                 .   '</div>'
+                 .   '<div id="arList" style="max-height:52vh;overflow:auto;"><p class="text-gray-400 text-sm">Choose an employee and a date range.</p></div>'
+                 .   '<div id="arPager" style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px;font-size:12px;color:#666;"></div>'
+                 . '</div>';
         echo view('components/view_modal', [
             'id'       => 'attendanceIssuesModal',
-            'title'    => 'Attendance Issues',
+            'title'    => 'Attendance Corrections',
             'maxWidth' => '900px',
             'content'  => $content,
         ]);
@@ -400,24 +473,32 @@
                         <button type="button" id="tl_cancel_edit_btn" onclick="cancelTaskEdit()" class="hidden text-xs text-purple-600 hover:text-purple-700 font-semibold">Cancel edit</button>
                     </div>
 
+                    <label class="block text-[11px] text-gray-400 mb-0.5">Select Preset Task</label>
+                    <select id="savedTasksDropdown" class="tl-field mb-2">
+                        <option value="">-- Write your task manually --</option>
+                    </select>
+
+                    <label class="block text-[11px] text-gray-400 mb-0.5">Or write your task *</label>
+                    <textarea id="task_att_text" rows="2" placeholder="e.g. Coding Session" class="tl-field resize-none mb-2"></textarea>
+
                     <div class="grid grid-cols-2 mb-2" style="gap:10px;">
                         <div>
-                            <label class="block text-[11px] text-gray-400 mb-0.5">Start Time</label>
+                            <label class="block text-[11px] text-gray-400 mb-0.5">Start Time *</label>
                             <input type="hidden" id="task_start_time">
                             <div class="tl-time-row">
-                                <select id="task_start_hour" class="tl-time-select"></select>
+                                <input type="number" id="task_start_hour" class="tl-time-select" min="1" max="12" inputmode="numeric" placeholder="hh">
                                 <span class="tl-time-colon">:</span>
-                                <select id="task_start_minute" class="tl-time-select"></select>
+                                <input type="number" id="task_start_minute" class="tl-time-select" min="0" max="59" inputmode="numeric" placeholder="mm">
                                 <select id="task_start_ampm" class="tl-time-select tl-time-ampm"></select>
                             </div>
                         </div>
                         <div>
-                            <label class="block text-[11px] text-gray-400 mb-0.5">End Time</label>
+                            <label class="block text-[11px] text-gray-400 mb-0.5">End Time *</label>
                             <input type="hidden" id="task_end_time">
                             <div class="tl-time-row">
-                                <select id="task_end_hour" class="tl-time-select"></select>
+                                <input type="number" id="task_end_hour" class="tl-time-select" min="1" max="12" inputmode="numeric" placeholder="hh">
                                 <span class="tl-time-colon">:</span>
-                                <select id="task_end_minute" class="tl-time-select"></select>
+                                <input type="number" id="task_end_minute" class="tl-time-select" min="0" max="59" inputmode="numeric" placeholder="mm">
                                 <select id="task_end_ampm" class="tl-time-select tl-time-ampm"></select>
                             </div>
                         </div>
@@ -433,11 +514,20 @@
                         <span id="tl_duration_label" class="text-[11px] font-semibold text-gray-500"></span>
                     </div>
 
-                    <label class="block text-[11px] text-gray-400 mb-0.5">Client</label>
+                    <label class="block text-[11px] text-gray-400 mb-0.5">Select Preset Client</label>
+                    <select id="savedClientsDropdown" class="tl-field mb-2">
+                        <option value="">-- Type a client manually --</option>
+                    </select>
+
+                    <label class="block text-[11px] text-gray-400 mb-0.5">Or type the client</label>
                     <input type="text" id="task_att_client" placeholder="e.g. Acme Corp" class="tl-field mb-2">
 
-                    <label class="block text-[11px] text-gray-400 mb-0.5">Task Performed</label>
-                    <textarea id="task_att_text" rows="2" placeholder="Describe the task…" class="tl-field resize-none"></textarea>
+                    <label class="text-xs text-gray-600" style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+                        <input type="checkbox" id="saveTaskToggle"> Save this task as a preset
+                    </label>
+                    <label class="text-xs text-gray-600" style="display:flex;align-items:center;gap:6px;">
+                        <input type="checkbox" id="saveClientToggle"> Save this client as a preset
+                    </label>
 
                     <p id="tl_form_error" class="text-xs text-red-600 hidden" style="margin-top:6px;"></p>
 
@@ -470,6 +560,66 @@
     </div>
 
     <style>
+        @media (max-width: 900px){
+            #timesheetPageRoot{
+                padding-left:12px;
+                padding-right:12px;
+            }
+            #timesheetPageRoot h1{
+                font-size:22px;
+            }
+
+            .timesheet-header-actions{
+                width:100%;
+                display:grid;
+                grid-template-columns:repeat(2, minmax(0, 1fr));
+                gap:8px;
+            }
+
+            .timesheet-header-actions > button{
+                width:100%;
+                min-height:48px;
+                justify-content:center;
+                padding:9px 10px;
+                text-align:center;
+            }
+
+            .timesheet-filter-bar{
+                align-items:stretch;
+                padding:12px;
+                gap:10px;
+            }
+
+            .timesheet-search,
+            .timesheet-filter-controls{
+                width:100%;
+            }
+
+            .timesheet-filter-controls > select{
+                flex:1 1 0;
+                min-width:0;
+            }
+        }
+
+        @media (max-width: 380px){
+            .timesheet-header-actions{
+                grid-template-columns:1fr;
+            }
+        }
+
+        @media (max-width: 900px) and (orientation: portrait){
+            #timesheetPageRoot{
+                overflow-x:hidden;
+                overflow-y:auto;
+            }
+
+            .timesheet-main-card{
+                flex:0 0 auto;
+                height:calc(100dvh - 260px);
+                min-height:520px;
+            }
+        }
+
         @keyframes tlModalPop{ from{ transform:scale(0.95); opacity:0; } to{ transform:scale(1); opacity:1; } }
 
         .tl-field{
@@ -519,7 +669,7 @@
 
 <?= $this->section('scripts') ?>
 <script src="<?= base_url('js/components/modal-handler.js') ?>?v=2"></script>
-<script src="<?= base_url('js/components/crud-table.js') ?>"></script>
+<script src="<?= base_url('js/components/crud-table.js') ?>?v=<?= is_file(FCPATH . 'js/components/crud-table.js') ? filemtime(FCPATH . 'js/components/crud-table.js') : time() ?>"></script>
 
 <script>
 const DAILY_DATA = <?= json_encode($dailyTimesheet) ?>;
@@ -527,12 +677,16 @@ const TOTALS = <?= json_encode($totals) ?>;
 const TASKS_BASE_URL  = "<?= site_url('client_portal/timesheet/tasks') ?>";
 const UPDATE_TASK_URL = "<?= site_url('client_portal/timesheet/tasks/edit') ?>";
 const DELETE_TASK_URL = "<?= site_url('client_portal/timesheet/tasks/delete') ?>";
+const SAVED_TASKS_URL   = "<?= site_url('client_portal/tasks/saved') ?>";
+const SAVED_CLIENTS_URL = "<?= site_url('client_portal/tasks/saved-clients') ?>";
 
 let currentData = [...DAILY_DATA];
 
 function escapeHtml(str) {
     if (!str) return '';
-    return str.replace(/[&<>]/g, m => m === '&' ? '&amp;' : (m === '<' ? '&lt;' : '&gt;'));
+    return String(str).replace(/[&<>"']/g, m => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
+    })[m]);
 }
 
 function formatDate(dateStr) {
@@ -551,12 +705,46 @@ function badge(value, formatted, type) {
         reg:   'text-gray-800 font-medium',
         unot:  'bg-red-100 text-red-700',
         ut:    'bg-orange-100 text-orange-700',
+        uut:   'bg-red-100 text-red-700',
     };
     const cls = styles[type] || 'text-gray-800';
-    const pill = ['ot','rdot','tardy','nd','unot','ut'].includes(type);
+    const pill = ['ot','rdot','tardy','nd','unot','ut','uut'].includes(type);
     return pill
         ? `<span class="inline-block ${cls} px-2 py-0.5 rounded-full text-xs font-semibold">${formatted}</span>`
         : `<span class="${cls}">${formatted}</span>`;
+}
+
+// Remarks arrive as one "; "-joined string ("Unapproved Overtime; Unapproved
+// Undertime (left early)"), which wrapped into a 4-line wall of gray text in
+// the narrow column. Split it back into separate items — only at a "; " that
+// sits OUTSIDE parentheses, since a leave/undertime reason can itself contain
+// "; " — and show each as its own color-coded chip so the meaning (approved /
+// unapproved / leave / missed clock-out) reads at a glance.
+function splitRemarks(str) {
+    const parts = [];
+    let depth = 0, cur = '';
+    for (let i = 0; i < str.length; i++) {
+        const ch = str[i];
+        if (ch === '(') depth++;
+        else if (ch === ')') depth = Math.max(0, depth - 1);
+        if (depth === 0 && ch === ';' && str[i + 1] === ' ') { parts.push(cur.trim()); cur = ''; i++; continue; }
+        cur += ch;
+    }
+    if (cur.trim()) parts.push(cur.trim());
+    return parts.filter(Boolean);
+}
+
+function remarksChips(remarks) {
+    const items = splitRemarks(String(remarks || ''));
+    if (!items.length) return '<span class="text-gray-300">—</span>';
+    return '<div style="display:flex;flex-direction:column;align-items:flex-start;gap:4px;">' + items.map(item => {
+        let cls = 'bg-gray-100 text-gray-700';
+        if (/^unapproved/i.test(item)) cls = 'bg-red-100 text-red-700';
+        else if (/^missed clock-out/i.test(item)) cls = 'bg-yellow-100 text-yellow-700';
+        else if (/leave/i.test(item)) cls = 'bg-blue-100 text-blue-700';
+        else if (/^approved/i.test(item)) cls = 'bg-green-100 text-green-700';
+        return `<span class="${cls} px-2 py-0.5 rounded-full text-xs font-semibold" style="white-space:normal;line-height:1.3;" title="${escapeHtml(item)}">${escapeHtml(item)}</span>`;
+    }).join('') + '</div>';
 }
 
 function renderTable() {
@@ -564,7 +752,7 @@ function renderTable() {
     if (!tbody) return;
     if (currentData.length === 0) {
         tbody.innerHTML = `
-            <tr><td colspan="14" class="px-6 py-12 text-center">
+            <tr><td colspan="16" class="px-6 py-12 text-center">
                 <div class="flex flex-col items-center gap-2 text-gray-400">
                     <svg class="w-10 h-10 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
@@ -580,7 +768,9 @@ function renderTable() {
     currentData.forEach((day, i) => {
         const rowBg = i % 2 === 0 ? '' : 'bg-gray-50/60';
         const timeInDisplay  = day.in  && day.in  !== '-' ? escapeHtml(day.in)  : '<span class="text-gray-400">—</span>';
-        const timeOutDisplay = day.out && day.out !== '-' ? escapeHtml(day.out) : '<span class="text-gray-400">—</span>';
+        const nextDay = day.out_date && day.out_date !== day.date ? ` <span class="text-[10px] font-semibold text-gray-400">${escapeHtml(formatDate(day.out_date))}</span>` : '';
+        const timeOutDisplay = day.out && day.out !== '-' ? escapeHtml(day.out) + nextDay : '<span class="text-gray-400">—</span>';
+        const breakDisplay = day.break_hours > 0 ? Number(day.break_hours).toFixed(2) : '<span class="text-gray-400">—</span>';
         const dayTasks = day.tasks || [];
         const clientCell = day.client
             ? `<span class="text-gray-700">${escapeHtml(day.client)}</span>`
@@ -588,27 +778,30 @@ function renderTable() {
         const taskCell = dayTasks.length
             ? `<span class="text-gray-700">${escapeHtml(dayTasks[0].task_performed)}</span>${dayTasks.length > 1 ? `<span class="ml-1 text-[10px] font-semibold text-purple-500 cursor-pointer hover:underline" onclick="openTaskLogModal(${day.attendance_id}, '${day.date}')">+${dayTasks.length - 1} more</span>` : ''}`
             : `<span class="text-gray-300">—</span>`;
+        const actionCell = day.attendance_id
+            ? `<div class="cursor-pointer w-7 h-7 hover:scale-110 transition inline-block"
+                    onclick="openTaskLogModal(${day.attendance_id}, '${day.date}')">
+                   <img src="<?= base_url('icons/edit.png') ?>" class="w-7 h-7" alt="Edit">
+               </div>`
+            : '<span class="text-gray-300">—</span>';
         html += `
             <tr class="border-b border-gray-100 hover:bg-purple-50/40 transition-colors ${rowBg}">
                 <td class="px-4 py-3 whitespace-nowrap font-medium text-gray-700">${formatDate(day.date)}</td>
                 <td class="px-4 py-3 whitespace-nowrap text-gray-600">${timeInDisplay}</td>
                 <td class="px-4 py-3 whitespace-nowrap text-gray-600">${timeOutDisplay}</td>
+                <td class="px-4 py-3 text-right whitespace-nowrap text-gray-600" title="Unpaid break deducted from the day">${breakDisplay}</td>
                 <td class="px-4 py-3 text-right whitespace-nowrap">${badge(day.regular_hours, day.regular_hours.toFixed(2), 'reg')}</td>
                 <td class="px-4 py-3 text-right whitespace-nowrap">${badge(day.ot_hours, day.ot_hours.toFixed(2), 'ot')}</td>
                 <td class="px-4 py-3 text-right whitespace-nowrap" title="Worked but not approved — not counted toward Regular or OT">${badge(day.unapproved_ot_hours, day.unapproved_ot_hours.toFixed(2), 'unot')}</td>
                 <td class="px-4 py-3 text-right whitespace-nowrap">${badge(day.rdot_hours, day.rdot_hours.toFixed(2), 'rdot')}</td>
                 <td class="px-4 py-3 text-right whitespace-nowrap">${badge(Math.round(day.tardy_minutes), Math.round(day.tardy_minutes), 'tardy')}</td>
-                <td class="px-4 py-3 text-right whitespace-nowrap" title="Time missed within the scheduled window">${badge(day.undertime_hours, day.undertime_hours.toFixed(2), 'ut')}</td>
+                <td class="px-4 py-3 text-right whitespace-nowrap" title="Approved undertime — excused, no pay impact">${badge(day.undertime_hours, day.undertime_hours.toFixed(2), 'ut')}</td>
+                <td class="px-4 py-3 text-right whitespace-nowrap" title="Time missed that wasn't approved — counted against you">${badge(day.unapproved_undertime_hours, day.unapproved_undertime_hours.toFixed(2), 'uut')}</td>
                 <td class="px-4 py-3 text-right whitespace-nowrap">${badge(day.night_diff, day.night_diff.toFixed(2), 'nd')}</td>
-                <td class="px-4 py-3 text-sm text-gray-500" title="${escapeHtml(day.remarks)}">${escapeHtml(day.remarks) || '<span class="text-gray-300">—</span>'}</td>
+                <td class="px-4 py-3 text-sm" title="${escapeHtml(day.remarks)}">${remarksChips(day.remarks)}</td>
                 <td class="px-4 py-3 text-sm" title="${escapeHtml(day.client)}">${clientCell}</td>
                 <td class="px-4 py-3 text-sm" title="${escapeHtml(day.task_performed)}">${taskCell}</td>
-                <td class="px-4 py-3 text-center whitespace-nowrap">
-                    <div class="cursor-pointer w-7 h-7 hover:scale-110 transition inline-block"
-                         onclick="openTaskLogModal(${day.attendance_id}, '${day.date}')">
-                        <img src="<?= base_url('icons/edit.png') ?>" class="w-7 h-7" alt="Edit">
-                    </div>
-                </td>
+                <td class="px-4 py-3 text-center whitespace-nowrap">${actionCell}</td>
             </tr>
         `;
     });
@@ -625,8 +818,9 @@ function renderTable() {
         acc.night_diff          += day.night_diff || 0;
         acc.unapproved_ot_hours += day.unapproved_ot_hours || 0;
         acc.undertime_hours     += day.undertime_hours || 0;
+        acc.unapproved_undertime_hours += day.unapproved_undertime_hours || 0;
         return acc;
-    }, { regular_hours: 0, ot_hours: 0, rdot_hours: 0, tardy_minutes: 0, night_diff: 0, unapproved_ot_hours: 0, undertime_hours: 0 });
+    }, { regular_hours: 0, ot_hours: 0, rdot_hours: 0, tardy_minutes: 0, night_diff: 0, unapproved_ot_hours: 0, undertime_hours: 0, unapproved_undertime_hours: 0 });
 
     document.getElementById('totalRegular').innerText = shown.regular_hours.toFixed(2);
     document.getElementById('totalOt').innerText = shown.ot_hours.toFixed(2);
@@ -634,6 +828,7 @@ function renderTable() {
     document.getElementById('totalRdot').innerText = shown.rdot_hours.toFixed(2);
     document.getElementById('totalTardy').innerText = Math.round(shown.tardy_minutes);
     document.getElementById('totalUndertime').innerText = shown.undertime_hours.toFixed(2);
+    document.getElementById('totalUnapprovedUndertime').innerText = shown.unapproved_undertime_hours.toFixed(2);
     document.getElementById('totalNightDiff').innerText = shown.night_diff.toFixed(2);
 }
 
@@ -673,17 +868,107 @@ document.getElementById('departmentFilter')?.addEventListener('change', filterAn
 
 renderTable();
 
-// ========== ATTENDANCE ISSUES (stuck/broken records finder + corrector) ==========
+// ========== ATTENDANCE CORRECTIONS (flagged finder + all-records browser + corrector) ==========
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const CSRF = () => document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 
 function toLocalInputValue(mysqlDatetime) {
-    // "2026-06-15 21:33:00" -> "2026-06-15T21:33" for a datetime-local input.
+    // "2026-06-15 21:33:42" -> "2026-06-15T21:33:42" for a datetime-local input
+    // (step="1" below keeps the seconds, so a correction doesn't silently round them off).
     if (!mysqlDatetime) return '';
-    return mysqlDatetime.replace(' ', 'T').slice(0, 16);
+    return mysqlDatetime.replace(' ', 'T').slice(0, 19);
+}
+
+const localDate = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+const attStatusLabel = s => ({
+    present: ['On time', '#166534', '#dcfce7'],
+    approved_overtime: ['Approved OT', '#1d4ed8', '#dbeafe'],
+    unapproved_overtime: ['Unapproved OT', '#b45309', '#fef3c7'],
+    approved_undertime: ['Approved UT', '#1d4ed8', '#dbeafe'],
+    unapproved_undertime: ['Unapproved UT', '#b91c1c', '#fee2e2'],
+}[s] || [String(s || '—').replace(/_/g, ' '), '#374151', '#f3f4f6']);
+
+let attendanceTab = 'issues';
+let arState = { page: 1 };
+
+function setBadge(count) {
+    const badge = document.getElementById('attendanceIssuesBadge');
+    const tabCount = document.getElementById('attTabIssuesCount');
+    if (badge) { badge.textContent = count > 99 ? '99+' : count; badge.hidden = count < 1; }
+    if (tabCount) tabCount.textContent = count;
+}
+
+// One row = one attendance record with its correction form. `kind` only changes the description line.
+function attendanceRowHtml(r, kind) {
+    const line = kind === 'stuck_open'
+        ? `Clocked in ${esc(r.time_in)} — never clocked out`
+        : kind === 'bad_hours'
+            ? `${esc(r.time_in)} → ${esc(r.time_out)} — total_hours: ${esc(r.total_hours)}`
+            : `${esc(r.time_in)} → ${r.time_out ? esc(r.time_out) : '<em>still open</em>'} · ${esc(r.total_hours ?? '—')} h · break ${esc(r.break_duration ?? 0)} h${Number(r.late_minutes) > 0 ? ' · late ' + esc(r.late_minutes) + ' min' : ''}`;
+    const [stText, stFg, stBg] = attStatusLabel(r.attendance_status);
+    const chip = kind === 'record'
+        ? `<span style="margin-left:6px;background:${stBg};color:${stFg};border-radius:9px;padding:1px 8px;font-size:11px;font-weight:600;">${esc(stText)}</span>` : '';
+    const notes = [
+        r.break_start ? `<div style="color:#b45309;">Left mid-break since ${esc(r.break_start)}. Saving closes it.</div>` : '',
+        r.last_correction ? `<div style="color:#6b7280;">Last corrected by ${esc(r.last_correction.by)} on ${esc(r.last_correction.at)}</div>` : '',
+        r.payslip_issued ? `<div style="color:#b91c1c;">A payslip already covers this day. Correcting it will NOT change the payslip already generated.</div>` : '',
+    ].join('');
+    const nameLine = kind === 'record' ? '' : `
+                        <strong>${esc(r.employee_name)}</strong>
+                        <span style="color:#888;font-size:12px;"> (${esc(r.employee_number || '')})</span>`;
+    return `
+        <div style="border:1px solid #e5e7eb;border-radius:10px;padding:12px;margin-bottom:10px;">
+            <div>${nameLine}${chip}
+                <div style="font-size:12px;color:#666;margin-top:2px;">${line}</div>
+                <div style="font-size:12px;margin-top:2px;">${notes}</div>
+            </div>
+            <form onsubmit="return submitAttendanceCorrection(event, ${Number(r.id)})" data-payslip="${r.payslip_issued ? '1' : '0'}"
+                  style="display:flex;gap:8px;align-items:end;flex-wrap:wrap;margin-top:10px;">
+                <label style="font-size:12px;color:#555;">Time In
+                    <input type="datetime-local" step="1" name="time_in" value="${esc(toLocalInputValue(r.time_in))}" required
+                        style="display:block;border:1px solid #ccc;border-radius:6px;padding:5px 8px;">
+                </label>
+                <label style="font-size:12px;color:#555;">Time Out
+                    <input type="datetime-local" step="1" name="time_out" value="${esc(toLocalInputValue(r.time_out || r.suggested_time_out))}" required
+                        style="display:block;border:1px solid #ccc;border-radius:6px;padding:5px 8px;">
+                    ${kind === 'stuck_open' && r.suggested_time_out ? '<span style="display:block;font-size:11px;color:#b45309;margin-top:2px;">Suggested: end of scheduled shift. Confirm the actual time.</span>' : ''}
+                </label>
+                <label style="font-size:12px;color:#555;">Break (hrs)
+                    <input type="number" name="break_hours" step="0.01" min="0" value="${esc(r.break_duration ?? 0)}"
+                        style="display:block;border:1px solid #ccc;border-radius:6px;padding:5px 8px;width:80px;">
+                </label>
+                <button type="submit" style="background:#007bff;color:#fff;border:none;border-radius:6px;padding:7px 14px;font-size:13px;cursor:pointer;">Save correction</button>
+                <span class="correction-status" style="font-size:12px;"></span>
+            </form>
+        </div>`;
+}
+
+async function attFetchJson(url) {
+    const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+    let data;
+    try { data = await res.json(); }
+    catch (e) { throw new Error(res.status === 403 ? 'You do not have access to this.' : 'Unexpected server response (' + res.status + ').'); }
+    if (data.error) throw new Error(data.error);
+    return data;
+}
+
+function switchAttendanceTab(tab) {
+    attendanceTab = tab;
+    const on  = 'color:#007bff;border-bottom:3px solid #007bff;';
+    const off = 'color:#6b7280;border-bottom:3px solid transparent;';
+    for (const [id, name] of [['attTabIssues', 'issues'], ['attTabAll', 'all']]) {
+        const el = document.getElementById(id);
+        el.setAttribute('aria-selected', String(tab === name));
+        el.style.cssText += tab === name ? on : off;
+    }
+    document.getElementById('attPanelIssues').hidden = tab !== 'issues';
+    document.getElementById('attPanelAll').hidden = tab !== 'all';
+    if (tab === 'all') initAttendanceBrowser();
 }
 
 async function openAttendanceIssues() {
     openModalById('attendanceIssuesModal');
+    switchAttendanceTab('issues');
     await loadAttendanceIssues();
 }
 
@@ -691,53 +976,82 @@ async function loadAttendanceIssues() {
     const list = document.getElementById('attendanceIssuesList');
     list.innerHTML = '<p class="text-gray-400 text-sm">Loading…</p>';
     try {
-        const res = await fetch('<?= site_url('client_portal/timesheet/flagged') ?>');
-        const data = await res.json();
-        if (data.error) throw new Error(data.error);
+        const data = await attFetchJson('<?= site_url('client_portal/timesheet/flagged') ?>');
+        const stuckRows = data.stuck_open || [];
+        const badRows = data.bad_hours || [];
+        setBadge(stuckRows.length + badRows.length);
 
-        const rowHtml = (r, kind) => `
-            <div style="border:1px solid #e5e7eb;border-radius:10px;padding:12px;margin-bottom:10px;">
-                <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
-                    <div>
-                        <strong>${esc(r.employee_name)}</strong>
-                        <span style="color:#888;font-size:12px;"> (${esc(r.employee_number || '')})</span>
-                        <div style="font-size:12px;color:#666;margin-top:2px;">
-                            ${kind === 'stuck_open'
-                                ? `Clocked in ${esc(r.time_in)} — never clocked out`
-                                : `${esc(r.time_in)} → ${esc(r.time_out)} — total_hours: ${esc(r.total_hours)}`}
-                        </div>
-                    </div>
-                </div>
-                <form onsubmit="return submitAttendanceCorrection(event, ${r.id})" style="display:flex;gap:8px;align-items:end;flex-wrap:wrap;margin-top:10px;">
-                    <label style="font-size:12px;color:#555;">Time In
-                        <input type="datetime-local" name="time_in" value="${esc(toLocalInputValue(r.time_in))}" required
-                            style="display:block;border:1px solid #ccc;border-radius:6px;padding:5px 8px;">
-                    </label>
-                    <label style="font-size:12px;color:#555;">Time Out
-                        <input type="datetime-local" name="time_out" value="${esc(toLocalInputValue(r.time_out))}" required
-                            style="display:block;border:1px solid #ccc;border-radius:6px;padding:5px 8px;">
-                    </label>
-                    <label style="font-size:12px;color:#555;">Break (hrs)
-                        <input type="number" name="break_hours" step="0.01" min="0" value="0"
-                            style="display:block;border:1px solid #ccc;border-radius:6px;padding:5px 8px;width:80px;">
-                    </label>
-                    <button type="submit" style="background:#007bff;color:#fff;border:none;border-radius:6px;padding:7px 14px;font-size:13px;">Save correction</button>
-                    <span class="correction-status" style="font-size:12px;"></span>
-                </form>
+        if (!stuckRows.length && !badRows.length) {
+            list.innerHTML = `<div style="text-align:center;padding:28px 8px;color:#4b5563;">
+                <div style="font-size:30px;">✅</div>
+                <p style="font-weight:600;margin-top:6px;">Nothing needs attention right now.</p>
+                <p style="font-size:13px;color:#6b7280;margin:4px 0 12px;">No unclosed sessions or impossible totals.</p>
+                <button type="button" onclick="switchAttendanceTab('all')" style="background:#007bff;color:#fff;border:none;border-radius:6px;padding:8px 16px;font-size:13px;cursor:pointer;">Browse all records</button>
             </div>`;
-
-        const stuck = (data.stuck_open || []).map(r => rowHtml(r, 'stuck_open')).join('');
-        const bad = (data.bad_hours || []).map(r => rowHtml(r, 'bad_hours')).join('');
-
-        if (!stuck && !bad) {
-            list.innerHTML = '<p class="text-gray-400 text-sm">No flagged records right now.</p>';
             return;
         }
         list.innerHTML =
-            (stuck ? '<h4 style="font-weight:600;margin:6px 0;">Never clocked out</h4>' + stuck : '') +
-            (bad   ? '<h4 style="font-weight:600;margin:6px 0;">Impossible totals</h4>' + bad   : '');
+            (stuckRows.length ? '<h4 style="font-weight:600;margin:6px 0;">Never clocked out</h4>' + stuckRows.map(r => attendanceRowHtml(r, 'stuck_open')).join('') : '') +
+            (badRows.length   ? '<h4 style="font-weight:600;margin:6px 0;">Impossible totals</h4>' + badRows.map(r => attendanceRowHtml(r, 'bad_hours')).join('') : '');
     } catch (err) {
         list.innerHTML = `<p style="color:#c0392b;font-size:13px;">${esc(err.message || 'Could not load flagged records.')}</p>`;
+    }
+}
+
+// Badge on the button: how many records need attention, without opening the modal.
+async function refreshAttendanceBadge() {
+    if (!document.getElementById('attendanceIssuesBadge')) return;
+    try {
+        const data = await attFetchJson('<?= site_url('client_portal/timesheet/flagged') ?>');
+        setBadge((data.stuck_open || []).length + (data.bad_hours || []).length);
+    } catch (e) { /* badge is a nicety; stay hidden on failure */ }
+}
+document.addEventListener('DOMContentLoaded', refreshAttendanceBadge);
+
+let attendanceEmployeesLoaded = false;
+async function initAttendanceBrowser() {
+    const fromEl = document.getElementById('arFrom'), toEl = document.getElementById('arTo');
+    if (!toEl.value) toEl.value = localDate(new Date());
+    if (!fromEl.value) { const d = new Date(); d.setDate(d.getDate() - 30); fromEl.value = localDate(d); }
+    if (attendanceEmployeesLoaded) return;
+    const sel = document.getElementById('arEmployee');
+    try {
+        const employees = await attFetchJson('<?= site_url('client_portal/timesheet/review-employees') ?>');
+        sel.innerHTML = '<option value="">Select an employee…</option>' +
+            employees.map(e => `<option value="${Number(e.id)}">${esc(e.label)} (${esc(e.employee_number || '')})</option>`).join('');
+        attendanceEmployeesLoaded = true;
+    } catch (err) {
+        sel.innerHTML = '<option value="">Could not load employees</option>';
+    }
+}
+
+async function searchAttendanceRecords(page) {
+    const list = document.getElementById('arList'), pager = document.getElementById('arPager');
+    const employeeId = document.getElementById('arEmployee').value;
+    if (!employeeId) { list.innerHTML = '<p style="color:#c0392b;font-size:13px;">Please choose an employee first.</p>'; pager.innerHTML = ''; return; }
+    arState = { page };
+    list.innerHTML = '<p class="text-gray-400 text-sm">Loading…</p>';
+    try {
+        const qs = new URLSearchParams({
+            employee_id: employeeId,
+            from: document.getElementById('arFrom').value,
+            to: document.getElementById('arTo').value,
+            page,
+        });
+        const data = await attFetchJson('<?= site_url('client_portal/timesheet/records') ?>?' + qs.toString());
+        const pages = Math.max(1, Math.ceil(data.total / data.per_page));
+        list.innerHTML = data.records.length
+            ? data.records.map(r => attendanceRowHtml(r, 'record')).join('')
+            : '<p class="text-gray-400 text-sm">No attendance records in this range.</p>';
+        const btn = (label, target, disabled) => `<button type="button" ${disabled ? 'disabled' : `onclick="searchAttendanceRecords(${target})"`}
+            style="border:1px solid #d1d5db;border-radius:6px;padding:5px 12px;background:#fff;${disabled ? 'opacity:.4;cursor:default;' : 'cursor:pointer;'}">${label}</button>`;
+        pager.innerHTML = data.total
+            ? `<span>${esc(data.employee_name)} · ${data.total} record${data.total === 1 ? '' : 's'} · page ${data.page} of ${pages}</span>
+               <span style="display:flex;gap:6px;">${btn('‹ Prev', data.page - 1, data.page <= 1)}${btn('Next ›', data.page + 1, data.page >= pages)}</span>`
+            : '';
+    } catch (err) {
+        list.innerHTML = `<p style="color:#c0392b;font-size:13px;">${esc(err.message || 'Could not load records.')}</p>`;
+        pager.innerHTML = '';
     }
 }
 
@@ -745,7 +1059,12 @@ async function submitAttendanceCorrection(event, attendanceId) {
     event.preventDefault();
     const form = event.target;
     const statusEl = form.querySelector('.correction-status');
-    const toMysql = v => v ? v.replace('T', ' ') + ':00' : '';
+    if (form.dataset.payslip === '1' &&
+        !confirm('A payslip already covers this day. Correcting the attendance will NOT change that payslip.\n\nSave the correction anyway?')) {
+        return false;
+    }
+    // datetime-local gives "YYYY-MM-DDTHH:MM", or "...THH:MM:SS" when seconds are set.
+    const toMysql = v => v ? v.replace('T', ' ') + (v.length === 16 ? ':00' : '') : '';
     const payload = {
         time_in: toMysql(form.time_in.value),
         time_out: toMysql(form.time_out.value),
@@ -755,18 +1074,29 @@ async function submitAttendanceCorrection(event, attendanceId) {
     try {
         const res = await fetch('<?= site_url('client_portal/timesheet/update-attendance') ?>/' + attendanceId, {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
+            headers: {
+                'Content-Type': 'application/json',
+                // Without this the CSRF filter rejects the save ("The action you requested is not allowed").
+                'X-CSRF-TOKEN': CSRF(),
+            },
             body: JSON.stringify(payload),
         });
-        const result = await res.json();
+        // A non-JSON reply (e.g. an expired session or CSRF rejection) used to surface as a cryptic parse error.
+        let result;
+        try { result = await res.json(); } catch (e) { throw new Error(res.status === 403 ? 'Session expired or request blocked. Refresh the page and try again.' : 'Unexpected server response (' + res.status + ').'); }
         if (!result.success) throw new Error(result.message || 'Correction failed.');
-        statusEl.textContent = 'Saved.'; statusEl.style.color = '#16a34a';
-        setTimeout(loadAttendanceIssues, 800);
+        // The main table above (Remarks, hours, tardy, etc.) is baked into the page
+        // as DAILY_DATA/TOTALS at load time — it does not re-fetch on its own, so a
+        // correction here would otherwise show as saved in this modal but invisible
+        // in the table until a manual refresh. Reload, same as task-log.js does for
+        // its own edits, so the table and modal lists both come back current.
+        statusEl.textContent = 'Saved. Refreshing…'; statusEl.style.color = '#16a34a';
+        setTimeout(() => location.reload(), 700);
     } catch (err) {
         statusEl.textContent = err.message || 'Could not save.'; statusEl.style.color = '#c0392b';
     }
     return false;
 }
 </script>
-<script src="<?= base_url('js/components/task-log.js') ?>"></script>
+<script src="<?= base_url('js/components/task-log.js') ?>?v=<?= is_file(FCPATH . 'js/components/task-log.js') ? filemtime(FCPATH . 'js/components/task-log.js') : time() ?>"></script>
 <?= $this->endSection() ?>

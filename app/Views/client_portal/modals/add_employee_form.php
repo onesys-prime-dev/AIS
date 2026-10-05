@@ -177,6 +177,17 @@
         border-color: #A891FC;
         color: #ffffff;
     }
+
+    /* teal-* Tailwind utilities aren't in the compiled main.css safelist,
+       so this section's accent color is defined directly instead. */
+    .teal-icon-link {
+        color: #14b8a6;
+        transition: color .15s ease;
+    }
+
+    .teal-icon-link:hover {
+        color: #0f766e;
+    }
 </style>
 
 <form id="employeeForm"
@@ -415,9 +426,9 @@
 
                         <select name="employment_type" class="form-select">
                             <option value="">Select employment type</option>
-                            <option>Part-time</option>
-                            <option>Full-time</option>
-                            <option>Contractual</option>
+                            <?php foreach ($employmentTypeOptions ?? [] as $type): ?>
+                                <option value="<?= esc($type) ?>"><?= esc($type) ?></option>
+                            <?php endforeach; ?>
                         </select>
                     </div>
 
@@ -501,6 +512,28 @@
                                 class="form-input">
                         </div>
 
+                        <div>
+                            <label class="block text-sm text-gray-600 mb-2">
+                                Tardiness Grace Period (minutes)
+                                <span class="text-xs text-gray-400">(clocking in this many minutes late still counts as on time)</span>
+                            </label>
+
+                            <input type="number" min="0" step="1" value="0"
+                                name="tardiness_grace_minutes"
+                                class="form-input">
+                        </div>
+
+                        <div>
+                            <label class="block text-sm text-gray-600 mb-2">
+                                Overtime Grace Period (minutes)
+                                <span class="text-xs text-gray-400">(this many minutes early/late at the schedule edge isn't counted as OT)</span>
+                            </label>
+
+                            <input type="number" min="0" step="1" value="0"
+                                name="ot_grace_minutes"
+                                class="form-input">
+                        </div>
+
                     </div>
 
                     <div>
@@ -517,6 +550,7 @@
                         </button>
 
                         <input type="hidden" name="break_schedule" id="add_break_schedule_input">
+                        <input type="hidden" name="break_windows" id="add_break_windows_input">
                     </div>
 
                 </div>
@@ -563,10 +597,12 @@
                                 Department
                             </label>
 
-                            <input type="text"
-                                name="department"
-                                placeholder="e.g., Information Technology"
-                                class="form-input">
+                            <select name="department_id" class="form-input">
+                                <option value="">-- Select department --</option>
+                                <?php foreach ($activeDepartments ?? [] as $dept): ?>
+                                    <option value="<?= esc($dept['id']) ?>"><?= esc($dept['name']) ?></option>
+                                <?php endforeach; ?>
+                            </select>
                         </div>
 
                         <div>
@@ -801,6 +837,44 @@
 
                 </div>
 
+                <!-- Additional De Minimis (BIR) — separate, additive set of
+                     categories from the block above, which stays untouched. -->
+                <div class="rounded-3xl p-6 space-y-4" style="background:#f0fdfa;">
+
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-sm font-semibold uppercase tracking-wide" style="color:#115e59;">
+                            Additional De Minimis (BIR)
+                        </h3>
+
+                        <a href="<?= site_url('client_portal/payroll') ?>"
+                            title="Manage categories in Payroll Settings"
+                            class="teal-icon-link">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                        </a>
+                    </div>
+                    <p class="text-xs text-gray-500">
+                        Other BIR-recognized categories (RR No. 29-2025), on top of the breakdown above. Amounts over a category's cap are taxed automatically when the payslip is generated.
+                    </p>
+
+                    <div>
+                        <label class="block text-sm text-gray-600 mb-2">Total (computed from the breakdown below)</label>
+                        <div class="form-input font-semibold" style="color:#115e59;">
+                            ₱<span id="additional_deminimis_total">0</span>
+                        </div>
+                    </div>
+
+                    <div id="additional_deminimis_list" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <p class="text-sm text-gray-400 md:col-span-2">Loading categories...</p>
+                    </div>
+
+                    <input type="hidden" id="additional_de_minimis_benefit" name="additional_de_minimis_benefit">
+                    <input type="hidden" id="additional_de_minimis_breakdown" name="additional_de_minimis_breakdown">
+
+                </div>
+
 
                 <!-- Leaves -->
                 <div class="bg-orange-50 rounded-3xl p-6 space-y-4">
@@ -911,18 +985,52 @@
 function toggleAddScheduleTime(type) {
     const row = document.getElementById('add_schedule_time_row');
     if (row) row.style.display = (type === 'flexible') ? 'none' : '';
+    // Time-of-day windows only make sense against a fixed daily schedule.
+    toggleBreakWindowUI('add', type);
 }
 
-// ---- Break Schedule (each break has its own duration) ----
-function breakRowTemplate(prefix, idx, minutes) {
-    return `<div class="flex items-center gap-2" data-break-row>
-        <span class="text-xs text-gray-500 w-16 shrink-0">Break ${idx + 1}</span>
-        <input type="number" min="1" step="1" value="${minutes}"
-            class="form-input flex-1" data-break-minutes
-            oninput="syncBreakSchedule('${prefix}')" placeholder="Minutes">
-        <span class="text-xs text-gray-400 shrink-0">min</span>
-        <button type="button" onclick="removeBreakRow('${prefix}', this)"
-            class="text-red-400 hover:text-red-600 text-xs shrink-0">✕</button>
+function toggleBreakWindowUI(prefix, workingDayType) {
+    const list = document.getElementById(prefix + '_break_list');
+    if (!list) return;
+    const show = workingDayType !== 'flexible';
+    list.querySelectorAll('[data-break-window]').forEach(el => { el.style.display = show ? '' : 'none'; });
+}
+
+// ---- Break Schedule (each break has its own duration + optional time-of-day policy) ----
+// Window modes: 'flexible' (no restriction, today's default behavior),
+// 'strict' (Start Break only works inside the window, and the break is
+// capped to the window's end even if that's short of the full duration),
+// 'slightly_strict' (Start Break only works inside the window, but once
+// started the full scheduled duration always applies).
+function breakRowTemplate(prefix, idx, minutes, windowVal) {
+    windowVal = windowVal || null;
+    const mode = windowVal ? windowVal.mode : 'flexible';
+    const start = windowVal ? windowVal.start : '';
+    const end = windowVal ? windowVal.end : '';
+    const showTimes = mode !== 'flexible' ? '' : 'display:none;';
+    return `<div class="space-y-1.5 border border-gray-100 rounded-lg p-2" data-break-row>
+        <div class="flex items-center gap-2">
+            <span class="text-xs text-gray-500 w-16 shrink-0">Break ${idx + 1}</span>
+            <input type="number" min="1" step="1" value="${minutes}"
+                class="form-input flex-1" data-break-minutes
+                oninput="syncBreakSchedule('${prefix}')" placeholder="Minutes">
+            <span class="text-xs text-gray-400 shrink-0">min</span>
+            <button type="button" onclick="removeBreakRow('${prefix}', this)"
+                class="text-red-400 hover:text-red-600 text-xs shrink-0">✕</button>
+        </div>
+        <div class="flex items-center gap-2 pl-[4.5rem]" data-break-window>
+            <select class="form-select text-xs flex-1" data-break-mode
+                onchange="syncBreakSchedule('${prefix}'); this.closest('[data-break-row]').querySelector('[data-break-times]').style.display = this.value === 'flexible' ? 'none' : '';">
+                <option value="flexible" ${mode === 'flexible' ? 'selected' : ''}>Flexible — anytime</option>
+                <option value="slightly_strict" ${mode === 'slightly_strict' ? 'selected' : ''}>Slightly strict — must start in window, full duration either way</option>
+                <option value="strict" ${mode === 'strict' ? 'selected' : ''}>Strict — must start and end within window</option>
+            </select>
+        </div>
+        <div class="flex items-center gap-2 pl-[4.5rem]" data-break-times style="${showTimes}">
+            <input type="time" class="form-input text-xs" data-break-window-start value="${start}" oninput="syncBreakSchedule('${prefix}')">
+            <span class="text-xs text-gray-400">to</span>
+            <input type="time" class="form-input text-xs" data-break-window-end value="${end}" oninput="syncBreakSchedule('${prefix}')">
+        </div>
     </div>`;
 }
 
@@ -930,7 +1038,7 @@ function addBreakRow(prefix, minutes) {
     const list = document.getElementById(prefix + '_break_list');
     if (!list) return;
     const idx = list.querySelectorAll('[data-break-row]').length;
-    list.insertAdjacentHTML('beforeend', breakRowTemplate(prefix, idx, minutes || 60));
+    list.insertAdjacentHTML('beforeend', breakRowTemplate(prefix, idx, minutes || 60, null));
     syncBreakSchedule(prefix);
 }
 
@@ -947,28 +1055,74 @@ function removeBreakRow(prefix, btn) {
 function syncBreakSchedule(prefix) {
     const list = document.getElementById(prefix + '_break_list');
     const input = document.getElementById(prefix + '_break_schedule_input');
+    const windowsInput = document.getElementById(prefix + '_break_windows_input');
     if (!list || !input) return;
-    const minutes = Array.from(list.querySelectorAll('[data-break-minutes]'))
-        .map(el => parseInt(el.value, 10) || 0)
-        .filter(v => v > 0);
-    input.value = JSON.stringify(minutes);
+    const rows = Array.from(list.querySelectorAll('[data-break-row]'));
+    const minutes = rows.map(row => parseInt(row.querySelector('[data-break-minutes]').value, 10) || 0);
+    const keep = minutes.map(v => v > 0);
+    input.value = JSON.stringify(minutes.filter((v, i) => keep[i]));
+
+    if (windowsInput) {
+        const windows = rows.map(row => {
+            const mode = row.querySelector('[data-break-mode]')?.value || 'flexible';
+            if (mode === 'flexible') return null;
+            const start = row.querySelector('[data-break-window-start]')?.value || '';
+            const end = row.querySelector('[data-break-window-end]')?.value || '';
+            if (!start || !end) return null;
+            return { mode, start, end };
+        });
+        windowsInput.value = JSON.stringify(windows.filter((v, i) => keep[i]));
+    }
 }
 
-// Replace the current break list with a specific set of minutes (used when
-// populating the Edit form from an existing employee's saved break_schedule).
-function rebuildBreakRows(prefix, minutesArray) {
+// Replace the current break list with a specific set of minutes/windows (used
+// when populating the Edit form from an existing employee's saved schedule).
+function rebuildBreakRows(prefix, minutesArray, windowsArray) {
     const list = document.getElementById(prefix + '_break_list');
     if (!list) return;
     list.innerHTML = '';
-    (minutesArray && minutesArray.length ? minutesArray : [60]).forEach(m => {
+    const minutes = (minutesArray && minutesArray.length ? minutesArray : [60]);
+    minutes.forEach((m, i) => {
         const idx = list.querySelectorAll('[data-break-row]').length;
-        list.insertAdjacentHTML('beforeend', breakRowTemplate(prefix, idx, m));
+        list.insertAdjacentHTML('beforeend', breakRowTemplate(prefix, idx, m, (windowsArray && windowsArray[i]) || null));
     });
     syncBreakSchedule(prefix);
 }
 
 // Seed one default break (60 min) so the list isn't empty on a fresh form
 addBreakRow('add', 60);
+
+// Closing this modal never cleared it (modal-handler.js just hides it), so
+// reopening "New Employee" after a previous attempt showed whatever was
+// last typed/added — including old break rows with stale duration/window
+// settings. Called right before the modal opens (see the "New Employee"
+// button in employee_management.php) so every open starts from a clean
+// single 60-minute Flexible break, step 1, and no leftover allocations.
+function resetAddEmployeeForm() {
+    const form = document.getElementById('employeeForm');
+    if (!form) return;
+    form.reset();
+
+    rebuildBreakRows('add', [60], []);
+
+    const otherList = document.getElementById('other_comp_list');
+    if (otherList) otherList.innerHTML = '';
+    deMinimisBreakdownState.allocations = {};
+    deMinimisBreakdownState.other = [];
+    writeDeMinimisBreakdown();
+
+    // form.reset() already restored the Working Day Type select to its
+    // first <option> (Fixed – Mon to Fri) — re-run the dependent toggles
+    // so the schedule-time row and break-window fields match that.
+    const workingDayType = document.getElementById('add_working_day_type');
+    if (workingDayType) toggleAddScheduleTime(workingDayType.value);
+
+    // Re-trigger the De Minimis total/allocated/remaining recalculation
+    // (its listener is closed over locally, so an input event is the hook).
+    document.getElementById('de_minimis_total')?.dispatchEvent(new Event('input'));
+
+    if (typeof resetSteps === 'function') resetSteps();
+}
 
 // Form validation
 document.getElementById('employeeForm').addEventListener('submit', function(e) {
@@ -1183,6 +1337,68 @@ function writeDeMinimisBreakdown() {
     });
 
     recalc();
+})();
+
+/* ===================================================== */
+/* ADDITIONAL DE MINIMIS (BIR) — separate from De Minimis  */
+/* Benefits above; own fields, own total, new employee so  */
+/* there's no existing breakdown to prefill.                */
+/* ===================================================== */
+(function () {
+
+    const list = document.getElementById('additional_deminimis_list');
+    if (!list) return;
+
+    const totalDisplay = document.getElementById('additional_deminimis_total');
+    const totalHidden = document.getElementById('additional_de_minimis_benefit');
+    const breakdownHidden = document.getElementById('additional_de_minimis_breakdown');
+
+    function recalc() {
+        let total = 0;
+        const breakdown = {};
+
+        list.querySelectorAll('input[data-key]').forEach(input => {
+            const value = parseFloat(input.value) || 0;
+            total += value;
+            breakdown[input.dataset.key] = value;
+        });
+
+        totalDisplay.textContent = total.toLocaleString();
+        totalHidden.value = total;
+        breakdownHidden.value = JSON.stringify(breakdown);
+    }
+
+    fetch('<?= site_url('client_portal/payroll/deminimis/categories') ?>')
+        .then(res => res.json())
+        .then(data => {
+            const active = (Array.isArray(data) ? data : []).filter(c => Number(c.is_active) === 1);
+
+            if (!active.length) {
+                list.innerHTML = '<p class="text-sm text-gray-400 md:col-span-2">No additional categories configured yet.</p>';
+                return;
+            }
+
+            list.innerHTML = active.map(c => {
+                const capNote = c.note || (Number(c.cap_amount) > 0
+                    ? `Cap: ₱${Number(c.cap_amount).toLocaleString()} / ${c.cap_period.replace('_', ' ')}`
+                    : 'No fixed peso cap');
+                return `
+                <div>
+                    <label class="block text-sm text-gray-600 mb-2">${c.label}</label>
+                    <input type="number" step="0.01" min="0" data-key="${c.category_key}" placeholder="0.00" class="form-input">
+                    <p class="text-xs text-gray-400 mt-1">${capNote}</p>
+                </div>
+            `;
+            }).join('');
+
+            list.querySelectorAll('input[data-key]').forEach(input => input.addEventListener('input', recalc));
+            recalc();
+        })
+        .catch(err => {
+            console.error('Failed to load additional De Minimis categories.', err);
+            list.innerHTML = '<p class="text-sm text-red-400">Failed to load categories.</p>';
+        });
+
 })();
 
 </script>

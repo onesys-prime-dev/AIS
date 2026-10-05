@@ -116,7 +116,7 @@
 
     const now = new Date();
     const pad = n => String(n).padStart(2, '0');
-    startInput.value = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-01`;
+    startInput.value = '<?= \App\Libraries\PayrollCutoff::forDate(date('Y-m-d'))['start'] ?>';
     endInput.value   = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 
     const icons = {
@@ -143,7 +143,9 @@
 
     function escapeHtml(str) {
         if (!str) return '';
-        return String(str).replace(/[&<>]/g, m => m === '&' ? '&amp;' : (m === '<' ? '&lt;' : '&gt;'));
+        return String(str).replace(/[&<>"']/g, m => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
+        })[m]);
     }
 
     function formatDate(dateStr) {
@@ -158,10 +160,10 @@
             ot: 'bg-green-100 text-green-700', rdot: 'bg-blue-100 text-blue-700',
             tardy: 'bg-yellow-100 text-yellow-700', nd: 'bg-purple-100 text-purple-700',
             reg: 'text-gray-800 font-medium', unot: 'bg-red-100 text-red-700',
-            ut: 'bg-orange-100 text-orange-700',
+            ut: 'bg-orange-100 text-orange-700', uut: 'bg-red-100 text-red-700',
         };
         const cls = styles[type] || 'text-gray-800';
-        const pill = ['ot', 'rdot', 'tardy', 'nd', 'unot', 'ut'].includes(type);
+        const pill = ['ot', 'rdot', 'tardy', 'nd', 'unot', 'ut', 'uut'].includes(type);
         return pill
             ? `<span class="inline-block ${cls} px-2 py-0.5 rounded-full text-xs font-semibold">${formatted}</span>`
             : `<span class="${cls}">${formatted}</span>`;
@@ -409,7 +411,8 @@
                     <td class="px-4 py-3 text-right whitespace-nowrap" title="Worked but not approved">${badge(day.unapproved_ot_hours, (day.unapproved_ot_hours || 0).toFixed(2), 'unot')}</td>
                     <td class="px-4 py-3 text-right whitespace-nowrap">${badge(day.rdot_hours, (day.rdot_hours || 0).toFixed(2), 'rdot')}</td>
                     <td class="px-4 py-3 text-right whitespace-nowrap">${badge(Math.round(day.tardy_minutes || 0), Math.round(day.tardy_minutes || 0).toLocaleString(), 'tardy')}</td>
-                    <td class="px-4 py-3 text-right whitespace-nowrap">${badge(day.undertime_hours, (day.undertime_hours || 0).toFixed(2), 'ut')}</td>
+                    <td class="px-4 py-3 text-right whitespace-nowrap" title="Approved undertime — excused, no pay impact">${badge(day.undertime_hours, (day.undertime_hours || 0).toFixed(2), 'ut')}</td>
+                    <td class="px-4 py-3 text-right whitespace-nowrap" title="Unapproved undertime">${badge(day.unapproved_undertime_hours, (day.unapproved_undertime_hours || 0).toFixed(2), 'uut')}</td>
                     <td class="px-4 py-3 text-right whitespace-nowrap">${badge(day.night_diff, (day.night_diff || 0).toFixed(2), 'nd')}</td>
                     <td class="px-4 py-3 text-sm text-gray-500 max-w-[180px] truncate" title="${remarksTitle}">${escapeHtml(day.remarks) || '<span class="text-gray-300">—</span>'}</td>
                     <td class="px-4 py-3 text-sm max-w-[120px] truncate" title="${clientTitle}">${clientCell}</td>
@@ -420,6 +423,7 @@
         const t = Object.assign({
             regular_hours: 0, ot_hours: 0, rdot_hours: 0, tardy_minutes: 0,
             night_diff: 0, unapproved_ot_hours: 0, undertime_hours: 0,
+            unapproved_undertime_hours: 0,
         }, totals);
 
         tableWrap.innerHTML = `
@@ -435,6 +439,7 @@
                         <th class="px-4 text-right font-bold whitespace-nowrap">RDOT Hrs</th>
                         <th class="px-4 text-right font-bold whitespace-nowrap">Tardy (min)</th>
                         <th class="px-4 text-right font-bold whitespace-nowrap">Undertime</th>
+                        <th class="px-4 text-right font-bold whitespace-nowrap">Unapproved UT</th>
                         <th class="px-4 text-right font-bold whitespace-nowrap">Night Diff</th>
                         <th class="px-4 text-left font-bold whitespace-nowrap">Remarks</th>
                         <th class="px-4 text-left font-bold whitespace-nowrap">Client</th>
@@ -451,6 +456,7 @@
                         <td class="px-4 text-right">${t.rdot_hours.toFixed(2)}</td>
                         <td class="px-4 text-right">${Math.round(t.tardy_minutes).toLocaleString()}</td>
                         <td class="px-4 text-right">${t.undertime_hours.toFixed(2)}</td>
+                        <td class="px-4 text-right">${t.unapproved_undertime_hours.toFixed(2)}</td>
                         <td class="px-4 text-right">${t.night_diff.toFixed(2)}</td>
                         <td colspan="3"></td>
                     </tr>

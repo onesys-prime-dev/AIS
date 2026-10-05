@@ -20,34 +20,6 @@ class TaskController extends BaseController
         $this->attendanceModel = new AttendanceModel();
     }
 
-    public function showLogTaskForm()
-    {
-        $user   = auth()->user();
-        $userId = $user->id;
-
-        // Get current active attendance
-        $currentAttendance = $this->attendanceModel
-            ->where('user_id', $userId)
-            ->where('time_out', null)
-            ->first();
-
-        // If not timed in, do not show form
-        if (!$currentAttendance) {
-            return redirect()->back()->with('error', 'You must be timed in to log tasks!');
-        }
-
-        // Fetch saved tasks for dropdown
-        $savedTasks = $this->savedTasksModel
-            ->where('user_id', $userId)
-            ->orderBy('saved_at', 'DESC')
-            ->findAll();
-
-        return view('client/log_task', [
-            'currentAttendance' => $currentAttendance,
-            'savedTasks'        => $savedTasks,
-        ]);
-    }
-
     public function submitTask()
     {
         $user   = auth()->user();
@@ -133,5 +105,15 @@ class TaskController extends BaseController
             ->findAll();
 
         return $this->response->setJSON($tasks);
+    }
+
+    public function getSavedClients()
+    {
+        $clients = (new \App\Models\Client\SavedClientsModel())
+            ->where('user_id', auth()->user()->id)
+            ->orderBy('client', 'ASC')
+            ->findAll();
+
+        return $this->response->setJSON($clients);
     }
 }

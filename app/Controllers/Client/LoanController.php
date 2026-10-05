@@ -144,6 +144,45 @@ class LoanController extends BaseController
 
     /*
     |--------------------------------------------------------------------------
+    | RESOLVE CUTOFF DATE
+    |--------------------------------------------------------------------------
+    |
+    | Given a target date (defaults to today) and a deduction frequency,
+    | returns the actual payroll cutoff end date (per payroll_settings) that
+    | the deduction would land on. Used by the Add Loan form to preview both
+    | "Next Cutoff" (pass no date) and "Custom Date" (pass the picked date)
+    | choices before submitting.
+    */
+
+    public function resolveCutoffDate()
+    {
+        try {
+            $dateParam = $this->request->getGet('date');
+            $frequency = $this->request->getGet('frequency') ?? 'Semi-Monthly';
+
+            $from = ($dateParam && preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateParam))
+                ? new \DateTime($dateParam)
+                : new \DateTime();
+
+            $resolved = $this->loanService->resolveCutoffEndDate(
+                $from,
+                $frequency === 'Monthly'
+            );
+
+            return $this->response->setJSON([
+                'success' => true,
+                'resolved_date' => $resolved,
+            ]);
+        } catch (\Throwable $e) {
+            return $this->response->setStatusCode(500)->setJSON([
+                'success' => false,
+                'message' => $this->safeErrorMessage($e, 'Unable to resolve cutoff date.'),
+            ]);
+        }
+    }
+
+    /*
+    |--------------------------------------------------------------------------
     | CREATE NEW LOAN
     |--------------------------------------------------------------------------
     */
@@ -226,6 +265,13 @@ class LoanController extends BaseController
 
             'loan_status' =>
                 $this->request->getPost('loan_status'),
+
+            // Uneven/custom installment amounts, e.g. a ₱10,000 loan over 3
+            // cutoffs entered as 2000/5000/3000 instead of an even split.
+            // Sent as a JSON array; empty/absent means "use the even split"
+            // (LoanService::createLoan() validates the sum when present).
+            'custom_amounts' =>
+                json_decode((string) $this->request->getPost('custom_amounts'), true) ?: [],
         ]);
 
             return redirect()->back()->with('success','Employee loan created successfully.');
@@ -330,6 +376,40 @@ class LoanController extends BaseController
             'loan' => $loan,
             'schedule' => $schedule,
         ]);
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | UPDATE ONE PENDING INSTALLMENT'S AMOUNT
+    |--------------------------------------------------------------------------
+    |
+    | Uneven schedule editing after the loan is already active — e.g. this
+    | cutoff's deduction needs to be lower or higher than originally set.
+    | Delegates all the validation/cascading-balance logic to LoanService.
+    */
+
+    public function updateInstallment($loanId, $installmentNo)
+    {
+        try {
+            $newAmount = (float) $this->request->getPost('amount_due');
+
+            $schedule = $this->loanService->updateInstallmentAmount(
+                (int) $loanId,
+                (int) $installmentNo,
+                $newAmount
+            );
+
+            return $this->response->setJSON([
+                'success'  => true,
+                'schedule' => $schedule,
+            ]);
+        } catch (\Throwable $e) {
+            log_message('error', static::class . ': ' . $e->getMessage() . ' | ' . $e->getFile() . ':' . $e->getLine());
+            return $this->response->setStatusCode(400)->setJSON([
+                'success' => false,
+                'message' => $this->safeErrorMessage($e, 'Unable to update this installment.'),
+            ]);
+        }
     }
 
     public function getLoanPayments($loanId)

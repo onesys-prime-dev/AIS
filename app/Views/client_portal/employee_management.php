@@ -1,7 +1,7 @@
 ﻿<div class="flex flex-col w-full min-w-0 min-h-0 overflow-hidden">
 
     <!-- Page Header -->
-    <div class="flex justify-between items-center my-4">
+    <div class="employee-page-header flex justify-between items-center my-4 gap-3">
 
         <div class="p-1">
             <h1 class="text-3xl font-bold text-gray-800 mb-1">
@@ -14,7 +14,7 @@
         </div>
 
         <!-- ACTION BUTTONS -->
-        <div class="flex items-center gap-3">
+        <div class="employee-page-actions flex items-center gap-3">
             <!-- IMPORT -->
             <?php if (\App\Libraries\PortalAccess::can('compensation')): ?>
             <div>
@@ -61,7 +61,7 @@
             </button>
 
             <!-- ADD EMPLOYEE -->
-            <button type="button" data-modal-open="employeeModal" onclick="openModalById('employeeModal')" class="bg-[#FF2D2D] hover:bg-[#ff2d2dd2] 
+            <button type="button" data-modal-open="employeeModal" onclick="if (typeof resetAddEmployeeForm === 'function') resetAddEmployeeForm(); openModalById('employeeModal')" class="bg-[#FF2D2D] hover:bg-[#ff2d2dd2]
                     text-white px-4 py-3 rounded-lg shadow-sm inline-flex items-center gap-2 whitespace-nowrap h-auto w-auto shrink-0 transition">
                 <div class="w-5 h-5 shrink-0 flex items-center justify-center">
                     <img src="<?= base_url('icons/add.png'); ?>" alt="Add" class="w-5 h-5 object-contain block">
@@ -98,3 +98,33 @@
         </div>
     </div>
 </div>
+
+<style>
+    @media (max-width: 900px) {
+        .employee-page-header {
+            align-items: flex-start;
+            flex-direction: column;
+        }
+
+        .employee-page-header h1 {
+            font-size: 1.5rem;
+            line-height: 2rem;
+        }
+
+        .employee-page-actions {
+            width: 100%;
+            overflow-x: auto;
+            padding-bottom: 4px;
+            scrollbar-width: none;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .employee-page-actions::-webkit-scrollbar {
+            display: none;
+        }
+
+        .employee-page-actions > * {
+            flex: 0 0 auto;
+        }
+    }
+</style>

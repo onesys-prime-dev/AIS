@@ -74,6 +74,7 @@
 <script>
 (function () {
     const BASE = '<?= site_url('client_portal/payroll') ?>';
+    const CSRF_HASH = "<?= csrf_hash() ?>";
 
     // ── State ──────────────────────────────────────────────────────────────
     let years   = [];   // [{year, is_active}]
@@ -198,7 +199,7 @@
         try {
             const res = await fetch(`${BASE}/sss/saveBrackets`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': CSRF_HASH },
                 body: JSON.stringify({ year: current, brackets: rows })
             });
             const data = await res.json();
@@ -235,7 +236,7 @@
         if (!confirm(`Set ${current} as the active SSS table?`)) return;
         const res = await fetch(`${BASE}/sss/setActive`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': CSRF_HASH },
             body: JSON.stringify({ year: current })
         });
         const data = await res.json();
@@ -259,7 +260,7 @@
         const copyFrom = copyFromSelect.value || null;
         const res = await fetch(`${BASE}/sss/createYear`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': CSRF_HASH },
             body: JSON.stringify({ year: yr, copy_from: copyFrom })
         });
         const data = await res.json();

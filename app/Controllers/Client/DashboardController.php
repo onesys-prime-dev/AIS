@@ -36,6 +36,31 @@ class DashboardController extends BaseController
             ->orderBy('id', 'ASC')
             ->first();
 
+        // Safety net for anyone who left a break running past its scheduled
+        // length without the dashboard open to auto-submit End Break itself
+        // (see the client-side check in the view) — e.g. they closed the tab,
+        // or their laptop slept. Never changes what gets deducted from pay
+        // (still the fixed scheduled slot length either way), only keeps "on
+        // break" from getting stuck indefinitely.
+        $breakAutoEnded = false;
+        if ($currentAttendance && !empty($currentAttendance['break_start'])) {
+            try {
+                $ended = (new \App\Services\Client\AttendanceSessionService())->autoEndBreakIfOverdue(
+                    (int) $userId,
+                    (int) $currentAttendance['id'],
+                    (int) $currentAttendance['state_version']
+                );
+                if ($ended) {
+                    $currentAttendance = $ended;
+                    $breakAutoEnded = true;
+                }
+            } catch (\Throwable $e) {
+                // Non-fatal — worst case the break just stays open until the
+                // next load or the employee clicks End Break themselves.
+                log_message('warning', 'Auto-end break check failed for user {uid}: {msg}', ['uid' => $userId, 'msg' => $e->getMessage()]);
+            }
+        }
+
         // Total break budget (minutes) from this employee's configured break
         // schedule (see AttendanceController::getBreakScheduleMinutes) — falls
         // back to 60 (one legacy break) if nothing's been configured, so the
@@ -87,12 +112,30 @@ class DashboardController extends BaseController
         $nextBreakMinutes = 60;
         $shiftMinutes = 480;
         $breakMinutesTotal = 0;
+        $totalBreakSlots = 0;
+        $breakWindow = null;
+        $breakWindowAllowed = true;
         if ($currentAttendance) {
             try {
-                $snapshot = \App\Libraries\AttendanceWindow::schedule($currentAttendance, $positionRow ?? []);
-                $breakSlots = \App\Libraries\AttendanceWindow::breaks($snapshot);
+                // Break count/duration reads the employee's CURRENT configured
+                // schedule, not the one frozen at clock-in — so an admin's
+                // mid-shift edit in Employee Management shows up immediately,
+                // and matches what AttendanceSessionService will actually
+                // allow when Start/End Break is clicked (same shared method).
+                $breakSlots = \App\Libraries\AttendanceWindow::liveBreakSlots($currentAttendance, $positionRow ?? []);
+                $totalBreakSlots = count($breakSlots);
                 $breakMinutesTotal = array_sum($breakSlots);
-                $nextBreakMinutes = $breakSlots[(int) ($currentAttendance['breaks_taken'] ?? 0)] ?? 0;
+                $taken = (int) ($currentAttendance['breaks_taken'] ?? 0);
+                $nextBreakMinutes = $breakSlots[$taken] ?? 0;
+
+                // The current (not-yet-taken) slot's time-of-day policy, if
+                // any — drives whether Start Break is disabled right now.
+                if (empty($currentAttendance['break_start']) && $taken < $totalBreakSlots) {
+                    $breakWindows = \App\Libraries\AttendanceWindow::liveBreakWindows($positionRow ?? []);
+                    $breakWindow = $breakWindows[$taken] ?? null;
+                    $breakWindowAllowed = \App\Libraries\AttendanceWindow::withinBreakWindow($breakWindow, $currentAttendance, (new \DateTimeImmutable('now', new \DateTimeZone('Asia/Manila')))->format('Y-m-d H:i:s'));
+                }
+
                 [$shiftStart, $shiftEnd] = \App\Libraries\AttendanceWindow::bounds($currentAttendance, $positionRow ?? []);
                 if ($shiftStart && $shiftEnd) $shiftMinutes = max(1, (int) (($shiftEnd->getTimestamp() - $shiftStart->getTimestamp()) / 60) - $breakMinutesTotal);
                 $currentAttendance['scheduled_end_datetime'] = $shiftEnd?->format('Y-m-d H:i:s');
@@ -117,6 +160,10 @@ class DashboardController extends BaseController
             'publishedNotifications' => $publishedNotifications,
             'unpublishedNotifications' => $unpublishedNotifications,
             'breakMinutesTotal' => $breakMinutesTotal,
+            'totalBreakSlots' => $totalBreakSlots,
+            'breakAutoEnded' => $breakAutoEnded,
+            'breakWindow' => $breakWindow,
+            'breakWindowAllowed' => $breakWindowAllowed,
         ]);
     }
 }

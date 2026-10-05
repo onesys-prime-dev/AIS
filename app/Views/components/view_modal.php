@@ -79,6 +79,12 @@
     animation: civmModalPop .18s ease;
 
     z-index: 1;
+
+    max-height: calc(100dvh - 48px);
+
+    overflow-y: auto;
+
+    overscroll-behavior: contain;
 }
 
 /* CLOSE BUTTON */
@@ -126,6 +132,33 @@
     margin-bottom: 22px;
 
     padding-right: 40px;
+}
+
+/* This shell was already responsive (width:100% capped by max-width), just
+   tightening the padding on very narrow phones so more of the actual
+   content width is usable — 24px on the overlay + 24px on the box each
+   side was ~96px of pure padding on a 375px screen. */
+@media (max-width: 480px) {
+    .modal-overlay.civm-overlay {
+        padding: 10px;
+    }
+    .civm-box {
+        padding: 16px;
+        max-height: calc(100dvh - 20px);
+        border-radius: 14px;
+    }
+    .civm-title {
+        font-size: 18px;
+        padding-right: 32px;
+        margin-bottom: 16px;
+    }
+
+    .civm-box input:not([type="checkbox"]):not([type="radio"]),
+    .civm-box select,
+    .civm-box textarea,
+    .civm-box button {
+        max-width: 100%;
+    }
 }
 
 /* ANIMATION */

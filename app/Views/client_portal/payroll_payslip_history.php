@@ -104,10 +104,10 @@ $companyLogoUrl = $companyBranding && !empty($companyBranding['logo_path'])
         </div>
         <div style="text-align:center; margin-top:16px; padding-top:16px; border-top:1px solid #e5e7eb; display:flex; gap:10px; justify-content:center;">
             <button id="payslipViewerSendBtn"
-                style="background:#16a34a; color:#fff; border:none; padding:10px 28px; border-radius:8px; font-weight:600; cursor:pointer; font-size:14px;"
+                class="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg text-sm font-semibold transition"
                 onclick="sendFromViewer()">Send to Employee Email</button>
             <button onclick="document.getElementById('payslipViewerModal').style.display='none'"
-                style="background:#6b7280; color:#fff; border:none; padding:10px 28px; border-radius:8px; font-weight:600; cursor:pointer; font-size:14px;">Close</button>
+                class="bg-gray-500 hover:bg-gray-600 text-white px-6 py-3 rounded-lg text-sm font-semibold transition">Close</button>
         </div>
     </div>
 </div>
@@ -127,7 +127,7 @@ $companyLogoUrl = $companyBranding && !empty($companyBranding['logo_path'])
 <!-- Embed payslip data server-side so JS doesn't need to call getPayslipData (avoids permission issues) -->
 <script>
 (function() {
-    // This page is now embedded several levels deep (Payroll Register & History
+    // This page is now embedded several levels deep (Payroll Output
     // → History sub-tab → this partial), so move the modals to be direct
     // children of <body> — makes them immune to any ancestor's display/overflow/
     // stacking-context quirks instead of depending on every wrapper in between
@@ -238,7 +238,7 @@ $companyLogoUrl = $companyBranding && !empty($companyBranding['logo_path'])
         try {
             const res  = await fetch(SEND_PDF_URL, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '' },
                 body: JSON.stringify(data)
             });
             const json = await res.json();
@@ -261,7 +261,7 @@ $companyLogoUrl = $companyBranding && !empty($companyBranding['logo_path'])
         try {
             const res  = await fetch(SEND_PDF_URL, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '' },
                 body: JSON.stringify(_viewerData)
             });
             const json = await res.json();

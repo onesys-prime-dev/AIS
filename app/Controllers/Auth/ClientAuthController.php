@@ -4,7 +4,7 @@ namespace App\Controllers\Auth;
 
 use App\Models\Client\CompanyBrandingModel;
 use App\Models\PresenceModel;
-use Config\CompreFace;
+use Config\FaceRecognition;
 use CodeIgniter\HTTP\RedirectResponse;
 use CodeIgniter\Shield\Controllers\LoginController;
 use Throwable;
@@ -36,6 +36,27 @@ class ClientAuthController extends LoginController
      */
     public function loginAction(): RedirectResponse
     {
+        $throttler = service('throttler');
+
+        $ipKey = 'login-ip-' . hash('sha256', $this->request->getIPAddress());
+        if (! $throttler->check($ipKey, 5, 180)) { // 5 attempts per 3mins
+            return redirect()->route('login')
+                ->withInput()
+                ->with('error', 'Too many login attempts. Please try again in a few minutes.');
+        }
+
+        $identifier = strtolower(trim((string) $this->request->getPost('email')));
+
+        if ($identifier !== '') {
+            $emailKey = 'login-email-' . hash('sha256', $identifier);
+
+            if (! $throttler->check($emailKey, 5, 180)) { // 5 attempts per 3min.
+                return redirect()->route('login')
+                    ->withInput()
+                    ->with('error', 'Too many login attempts. Please try again in a few minutes.');
+            }
+        }
+
         $response = parent::loginAction();
 
         if (! auth()->loggedIn()) {
@@ -53,8 +74,7 @@ class ClientAuthController extends LoginController
                 ->with('error', 'Your account has been deactivated. Please contact your administrator.');
         }
 
-        $faceConfig = config(CompreFace::class);
-        if (! $faceConfig->enabled) {
+        if (! $this->isFaceRequiredFor((int) $user->id)) {
             (new PresenceModel())->updatePresence((int) $user->id, 'Online');
             $this->clearFaceVerificationSession();
 
@@ -89,6 +109,20 @@ class ClientAuthController extends LoginController
                 'info',
                 'You have been logged out successfully.'
             );
+    }
+
+    /**
+     * Per-account override (Face Recognition admin page) wins over the
+     * global switch either way — "Always Require" still gates this account
+     * even with the feature globally off, and "Exempt" skips it even with
+     * the feature globally on. No override (every account, by default)
+     * falls back to the global switch. Shared with FaceAuthController and
+     * the FaceVerified filter so all three agree on the same answer.
+     */
+    private function isFaceRequiredFor(int $userId): bool
+    {
+        $override = \App\Libraries\AccountSettings::getFaceRequirement($userId);
+        return $override ?? config(FaceRecognition::class)->enabled;
     }
 
     private function clearFaceVerificationSession(): void

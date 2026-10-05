@@ -47,8 +47,13 @@ class AuthGroups extends ShieldAuthGroups
      * @see https://codeigniter4.github.io/shield/quick_start_guide/using_authorization/#change-available-groups for more info
      */
     public array $groups = [
-        'hr_admin' => ['title' => 'HR Admin', 'description' => 'Employee records, attendance and requests.'],
-        'team_head' => ['title' => 'Team Head', 'description' => 'Attendance and requests for explicitly assigned employees.'],
+        'hr_admin' => [
+            'title' => 'HR Admin', 
+            'description' => 'Employee records, attendance and requests.'
+        ],
+        'team_head' => ['title' => 'Team Head', 
+            'description' => 'Attendance and requests for explicitly assigned employees.'
+        ],
         'superadmin' => [
             'title'       => 'Super Admin',
             'description' => 'Complete control of the site.',
@@ -101,6 +106,7 @@ class AuthGroups extends ShieldAuthGroups
         'portal.branding' => 'branding access',
         'portal.roles' => 'roles access',
         'portal.team' => 'team access',
+        'portal.face_recognition' => 'face recognition management access',
 
         'admin.access'        => 'Can access the sites admin area',
         'admin.settings'      => 'Can access the main site settings',
@@ -128,6 +134,10 @@ class AuthGroups extends ShieldAuthGroups
         ],
         'admin' => [
             ...self::PORTAL_PAYROLL_PERMISSIONS,
+            // Not part of PORTAL_PAYROLL_PERMISSIONS (shared with
+            // client_payroll_staff) — face enrollment is deliberately
+            // restricted to superadmin/admin only.
+            'portal.face_recognition',
             'admin.access',
             'users.create',
             'users.edit',

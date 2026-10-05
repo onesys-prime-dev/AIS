@@ -21,6 +21,90 @@ class EmployeeController extends BaseController
         }
     }
 
+    /**
+     * Every active user account with a face-enrollment summary attached —
+     * source data for the Face Recognition tab's employee list. Starts from
+     * `users` (left-joined to `employees`) rather than `employees` directly
+     * so admin-only accounts with no employee profile still show up.
+     */
+    private function buildFaceRecognitionEmployees(): array
+    {
+        $db = \Config\Database::connect();
+
+        // Every non-GROUP-BY column must be wrapped in an aggregate: employees.user_id
+        // is only a plain (non-unique) FK index, not a unique constraint, so MySQL
+        // can't treat e.* as functionally dependent on u.id — a bare e.first_name
+        // etc. here is rejected outright under sql_mode=ONLY_FULL_GROUP_BY (the
+        // MySQL/MariaDB default on most managed hosts, though not on this XAMPP
+        // dev setup, which is why this previously passed locally but 500'd in prod).
+        $rows = $db->table('users u')
+            ->select("
+                u.id AS user_id,
+                MAX(u.username) AS username,
+                MAX(u.active) AS status,
+                MAX(e.id) AS employee_id,
+                MAX(e.employee_number) AS employee_number,
+                MAX(e.first_name) AS first_name,
+                MAX(e.middle_name) AS middle_name,
+                MAX(e.last_name) AS last_name,
+                MAX(ep.position) AS position,
+                MAX(ep.department) AS department,
+                MAX(ea.photo_path) AS photo_path,
+                MAX(ai.secret) AS email,
+                GROUP_CONCAT(DISTINCT agu.group) AS user_groups
+            ", false)
+            ->join('employees e', 'e.user_id = u.id', 'left')
+            ->join('employee_positions ep', 'ep.employee_id = e.id', 'left')
+            ->join('employee_accounts ea', 'ea.employee_id = e.id', 'left')
+            ->join('auth_identities ai', "ai.user_id = u.id AND ai.type = 'email_password'", 'left')
+            ->join('auth_groups_users agu', 'agu.user_id = u.id', 'left')
+            ->where('u.active', 1)
+            ->groupBy('u.id')
+            ->orderBy('COALESCE(MAX(e.first_name), MAX(u.username))', 'ASC', false)
+            ->get()
+            ->getResultArray();
+
+        $enrollmentSummary = (new \App\Models\FaceEmbeddingModel())->getSummaryForAllUsers();
+
+        return array_map(function ($row) use ($enrollmentSummary) {
+            $userId = (int) $row['user_id'];
+
+            $first  = trim((string) ($row['first_name'] ?? ''));
+            $middle = trim((string) ($row['middle_name'] ?? ''));
+            $last   = trim((string) ($row['last_name'] ?? ''));
+            $mi     = $middle !== '' ? strtoupper(substr($middle, 0, 1)) . '.' : '';
+            $name   = trim($first . ' ' . ($mi !== '' ? $mi . ' ' : '') . $last);
+
+            if ($name === '') {
+                $name = (string) ($row['username'] ?? ('User #' . $userId));
+            }
+
+            $summary = $enrollmentSummary[$userId] ?? null;
+            $override = \App\Libraries\AccountSettings::getFaceRequirement($userId);
+            $faceRequirement = $override === null ? 'default' : ($override ? 'required' : 'exempt');
+
+            return [
+                'user_id'             => $userId,
+                'employee_id'         => $row['employee_id'] !== null ? (int) $row['employee_id'] : null,
+                'employee_number'     => $row['employee_number'],
+                'first_name'          => $first,
+                'middle_name'         => $middle,
+                'last_name'           => $last,
+                'name'                => $name,
+                'position'            => $row['position'] ?: null,
+                'department'          => $row['department'] ?: null,
+                'photo_path'          => !empty($row['photo_path']) ? base_url((string) $row['photo_path']) : null,
+                'email'               => $row['email'],
+                'groups'              => $row['user_groups'] ? explode(',', $row['user_groups']) : [],
+                'status'              => (int) $row['status'],
+                'enrolled'            => $summary !== null,
+                'enrollment_count'    => $summary['count'] ?? 0,
+                'enrollment_latest_at' => $summary['latest_at'] ?? null,
+                'face_requirement'    => $faceRequirement,
+            ];
+        }, $rows);
+    }
+
     public function employeeView()
     {
         $this->ensurePayrollStaff();
@@ -34,19 +118,25 @@ class EmployeeController extends BaseController
         |--------------------------------------------------------------------------
         */
 
+        // employees.id is the only column MariaDB accepts unaggregated under
+        // sql_mode=ONLY_FULL_GROUP_BY — unlike MySQL 5.7+, MariaDB never added
+        // the "functionally dependent on primary key" relaxation, so every
+        // other employees.* column here must be wrapped too, even though
+        // they come from the very table being grouped by its own PK.
         $employees = $employeeModel
         ->select("
             employees.id,
-            employees.user_id,
-            employees.first_name,
-            employees.middle_name,
-            employees.last_name,
-            employees.birthdate,
-            employees.employee_number,
-            employees.gender,
-            employees.civil_status,
+            MAX(employees.user_id) as user_id,
+            MAX(employees.first_name) as first_name,
+            MAX(employees.middle_name) as middle_name,
+            MAX(employees.last_name) as last_name,
+            MAX(employees.birthdate) as birthdate,
+            MAX(employees.employee_number) as employee_number,
+            MAX(employees.gender) as gender,
+            MAX(employees.civil_status) as civil_status,
 
             MAX(employee_positions.department) as department,
+            MAX(employee_positions.department_id) as department_id,
             MAX(employee_positions.position) as position,
             MAX(employee_positions.employment_type) as employment_type,
             MAX(employee_positions.working_day_type) as working_day_type,
@@ -54,11 +144,16 @@ class EmployeeController extends BaseController
             MAX(employee_positions.start_time) as start_time,
             MAX(employee_positions.end_time) as end_time,
             MAX(employee_positions.break_schedule) as break_schedule,
+            MAX(employee_positions.break_windows) as break_windows,
+            MAX(employee_positions.tardiness_grace_minutes) as tardiness_grace_minutes,
+            MAX(employee_positions.ot_grace_minutes) as ot_grace_minutes,
             MAX(employee_positions.monthly_salary) as monthly_salary,
             MAX(employee_positions.de_minimis_benefit) as de_minimis_benefit,
             MAX(employee_positions.allowances) as allowances,
 
             MAX(employee_positions.de_minimis_breakdown) as de_minimis_breakdown,
+            MAX(employee_positions.additional_de_minimis_benefit) as additional_de_minimis_benefit,
+            MAX(employee_positions.additional_de_minimis_breakdown) as additional_de_minimis_breakdown,
 
                 MAX(employee_government_ids.sss) as sss,
                 MAX(employee_government_ids.tin) as tin,
@@ -188,13 +283,88 @@ class EmployeeController extends BaseController
 
         /*
         |--------------------------------------------------------------------------
+        | FACE RECOGNITION (admin-managed enrollment — superadmin/admin only)
+        |--------------------------------------------------------------------------
+        |
+        | Built from `users`, not `employees` — a superadmin/admin account may
+        | have no employees row at all, but still needs to appear here since
+        | face-verify at login applies to any authenticated user.
+        */
+
+        $faceRecognitionEmployees = [];
+        if (\App\Libraries\PortalAccess::can('face_recognition')) {
+            $faceRecognitionEmployees = $this->buildFaceRecognitionEmployees();
+        }
+
+        /*
+        |--------------------------------------------------------------------------
         | LOANS
         |--------------------------------------------------------------------------
         */
 
         $employees = array_map([\App\Libraries\PortalAccess::class, 'hideCompensation'], $employees);
+
+        // Every active department, for the Add/Edit Employee forms' Department
+        // dropdown — available to anyone who can manage employees, unlike the
+        // Access Control tab's own department data (Admin/Super Admin only).
+        $activeDepartments = \Config\Database::connect()->table('departments')
+            ->select('id, name')->where('is_active', 1)->where('deleted_at', null)
+            ->orderBy('name', 'ASC')->get()->getResultArray();
+
+        // The 3 standard options, plus any other value already in use (e.g. a
+        // legacy "Regular"/"Freelance" saved before this was a fixed list) —
+        // so switching Employment Type from free text to a dropdown can never
+        // silently blank out a real employee's existing value.
+        $employmentTypeOptions = ['Part-time', 'Full-time', 'Contractual'];
+        $existingEmploymentTypes = \Config\Database::connect()->table('employee_positions')
+            ->distinct()->select('employment_type')
+            ->where('employment_type IS NOT NULL', null, false)
+            ->where('employment_type !=', '')
+            ->get()->getResultArray();
+        foreach ($existingEmploymentTypes as $row) {
+            if (! in_array($row['employment_type'], $employmentTypeOptions, true)) {
+                $employmentTypeOptions[] = $row['employment_type'];
+            }
+        }
+
+        $accessControlAccounts = [];
+        $accessControlRoleOptions = [];
+        $accessControlDepartments = [];
+        $accessControlTeamHeadAccounts = [];
+        $accessControlDepartmentTeamHeads = [];
+        $accessControlPermissions = [];
+        $accessControlPermissionLabels = [];
+        $accessControlActorIsSuperadmin = false;
+        if (\App\Libraries\PortalAccess::canManageAccessControl()) {
+            $accessControlData = \App\Controllers\Client\AccessControlController::getAccountsData();
+            $accessControlAccounts = $accessControlData['accounts'];
+            $accessControlRoleOptions = $accessControlData['roleOptions'];
+            $accessControlDepartments = $accessControlData['departments'];
+            $accessControlTeamHeadAccounts = $accessControlData['teamHeadAccounts'];
+            $accessControlDepartmentTeamHeads = $accessControlData['departmentTeamHeads'];
+            $accessControlPermissions = $accessControlData['permissions'];
+            $accessControlPermissionLabels = $accessControlData['permissionLabels'];
+            $accessControlActorIsSuperadmin = auth()->user()->inGroup('superadmin');
+        }
+
         if (!\App\Libraries\PortalAccess::can('loans')) {
-            return view('client_portal/employee_main', ['employees' => $employees, 'loans' => [], 'settings' => [], 'currentUserId' => (int) $currentUser->id]);
+            return view('client_portal/employee_main', [
+                'employees' => $employees,
+                'activeDepartments' => $activeDepartments,
+                'employmentTypeOptions' => $employmentTypeOptions,
+                'loans' => [],
+                'settings' => [],
+                'currentUserId' => (int) $currentUser->id,
+                'faceRecognitionEmployees' => $faceRecognitionEmployees,
+                'accessControlAccounts' => $accessControlAccounts,
+                'accessControlRoleOptions' => $accessControlRoleOptions,
+                'accessControlDepartments' => $accessControlDepartments,
+                'accessControlTeamHeadAccounts' => $accessControlTeamHeadAccounts,
+                'accessControlDepartmentTeamHeads' => $accessControlDepartmentTeamHeads,
+                'accessControlPermissions' => $accessControlPermissions,
+                'accessControlPermissionLabels' => $accessControlPermissionLabels,
+                'accessControlActorIsSuperadmin' => $accessControlActorIsSuperadmin,
+            ]);
         }
         $loanModel = new LoanModel();
 
@@ -306,6 +476,8 @@ class EmployeeController extends BaseController
         */
 
         $data['employees'] = $employees;
+        $data['activeDepartments'] = $activeDepartments;
+        $data['employmentTypeOptions'] = $employmentTypeOptions;
 
         $data['loans'] = $formattedLoans;
 
@@ -313,6 +485,16 @@ class EmployeeController extends BaseController
 
         $data['currentUserId'] =
             (int) ($currentUser->id ?? 0);
+
+        $data['faceRecognitionEmployees'] = $faceRecognitionEmployees;
+        $data['accessControlAccounts'] = $accessControlAccounts;
+        $data['accessControlRoleOptions'] = $accessControlRoleOptions;
+        $data['accessControlDepartments'] = $accessControlDepartments;
+        $data['accessControlTeamHeadAccounts'] = $accessControlTeamHeadAccounts;
+        $data['accessControlDepartmentTeamHeads'] = $accessControlDepartmentTeamHeads;
+        $data['accessControlPermissions'] = $accessControlPermissions;
+        $data['accessControlPermissionLabels'] = $accessControlPermissionLabels;
+        $data['accessControlActorIsSuperadmin'] = $accessControlActorIsSuperadmin;
 
         /*
         |--------------------------------------------------------------------------
@@ -384,21 +566,26 @@ class EmployeeController extends BaseController
     {
         $this->ensurePayrollStaff();
 
+        // Same ONLY_FULL_GROUP_BY fix as the other queries in this file —
+        // every non-GROUP-BY column wrapped in an aggregate, since MariaDB
+        // rejects a bare column even from the table being grouped by its
+        // own primary key.
         $employeeModel = new EmployeeModel();
         $employee = $employeeModel
             ->select("
-                employees.id, employees.user_id,
-                employees.first_name, employees.middle_name, employees.last_name,
-                employees.birthdate, employees.employee_number,
-                employees.gender, employees.civil_status,
-                employee_positions.department, employee_positions.position,
-                employee_positions.employment_type, employee_positions.working_day_type,
-                employee_positions.working_days, employee_positions.start_time, employee_positions.end_time,
-                employee_positions.monthly_salary, employee_positions.de_minimis_benefit, employee_positions.de_minimis_breakdown, employee_positions.allowances,
-                employee_government_ids.sss, employee_government_ids.tin,
-                employee_government_ids.pagibig, employee_government_ids.philhealth,
-                ai.secret as email,
-                users.active as status, users.online_status,
+                employees.id, MAX(employees.user_id) as user_id,
+                MAX(employees.first_name) as first_name, MAX(employees.middle_name) as middle_name, MAX(employees.last_name) as last_name,
+                MAX(employees.birthdate) as birthdate, MAX(employees.employee_number) as employee_number,
+                MAX(employees.gender) as gender, MAX(employees.civil_status) as civil_status,
+                MAX(employee_positions.department) as department, MAX(employee_positions.department_id) as department_id, MAX(employee_positions.position) as position,
+                MAX(employee_positions.employment_type) as employment_type, MAX(employee_positions.working_day_type) as working_day_type,
+                MAX(employee_positions.working_days) as working_days, MAX(employee_positions.start_time) as start_time, MAX(employee_positions.end_time) as end_time,
+                MAX(employee_positions.monthly_salary) as monthly_salary, MAX(employee_positions.de_minimis_benefit) as de_minimis_benefit, MAX(employee_positions.de_minimis_breakdown) as de_minimis_breakdown, MAX(employee_positions.allowances) as allowances,
+                MAX(employee_positions.additional_de_minimis_benefit) as additional_de_minimis_benefit, MAX(employee_positions.additional_de_minimis_breakdown) as additional_de_minimis_breakdown,
+                MAX(employee_government_ids.sss) as sss, MAX(employee_government_ids.tin) as tin,
+                MAX(employee_government_ids.pagibig) as pagibig, MAX(employee_government_ids.philhealth) as philhealth,
+                MAX(ai.secret) as email,
+                MAX(users.active) as status, MAX(users.online_status) as online_status,
                 COALESCE(MAX(CASE WHEN agu.group = 'client_payroll_staff' THEN 'client_payroll_staff' WHEN agu.group = 'employee' THEN 'employee' ELSE NULL END), 'employee') as account_role,
                 MAX(ea.mobile_number) as mobile_number,
                 MAX(ea.address) as address,
@@ -437,6 +624,41 @@ class EmployeeController extends BaseController
      * no linked user account, position, or compensation, which silently produced
      * employees who couldn't log in, clock in, or be paid.
      */
+    /**
+     * Rebuilds the de_minimis_breakdown JSON from the export's own columns —
+     * the four allocation columns plus "Other Non-Taxable Compensation
+     * Breakdown" ("purpose: amount; purpose: amount", exportEmployees()'s
+     * $otherCompSummary). Without this, exporting an employee and re-importing
+     * that same file unmodified silently dropped the category split and every
+     * "other" line item, keeping only the flat De Minimis total. Amounts are
+     * always a bare number with no colon, so splitting each "; "-separated
+     * entry on its LAST ": " is safe even if a purpose itself contains one.
+     */
+    private function parseDeMinimisBreakdown(array $row): ?string
+    {
+        $allocations = array_filter([
+            'rice_subsidy'      => trim((string) ($row['Rice Subsidy'] ?? '')),
+            'uniform_allowance' => trim((string) ($row['Uniform/Clothing Allowance'] ?? '')),
+            'laundry_allowance' => trim((string) ($row['Laundry Allowance'] ?? '')),
+            'medical_allowance' => trim((string) ($row['Medical Allowance'] ?? '')),
+        ], static fn ($v) => $v !== '');
+
+        $other = [];
+        foreach (explode(';', (string) ($row['Other Non-Taxable Compensation Breakdown'] ?? '')) as $entry) {
+            $entry = trim($entry);
+            if ($entry === '') continue;
+            $sep = strrpos($entry, ':');
+            if ($sep === false) continue;
+            $purpose = trim(substr($entry, 0, $sep));
+            $amount  = trim(substr($entry, $sep + 1));
+            if ($purpose === '' || !is_numeric($amount)) continue;
+            $other[] = ['purpose' => $purpose, 'amount' => (float) $amount];
+        }
+
+        if (!$allocations && !$other) return null;
+        return json_encode(['allocations' => $allocations, 'other' => $other]);
+    }
+
     private function mapImportRow(array $row, string $tempPassword): array
     {
         $get = static fn (string $key) => trim((string) ($row[$key] ?? ''));
@@ -462,6 +684,7 @@ class EmployeeController extends BaseController
             'end_time'           => $get('End Time'),
             'monthly_salary'     => $get('Basic Salary'),
             'de_minimis_benefit' => $get('De Minimis Benefit'),
+            'de_minimis_breakdown' => $this->parseDeMinimisBreakdown($row),
             'allowances'         => $get('Allowances'),
             'mobile_number'      => $get('Contact No.') ?: null,
             'address'            => $get('Address') ?: null,
@@ -584,36 +807,42 @@ class EmployeeController extends BaseController
 
         $employeeModel = new EmployeeModel();
 
+        // Every non-GROUP-BY column must be wrapped in an aggregate under
+        // sql_mode=ONLY_FULL_GROUP_BY (MariaDB's default on most managed
+        // hosts, incl. this app's — see the identical fix already applied
+        // to employeeView()'s query and buildFaceRecognitionEmployees()) —
+        // MariaDB rejects a bare column even when it's from the very table
+        // being grouped by its own primary key, unlike MySQL 5.7+.
         $employees = $employeeModel
 
             ->select("
                 employees.id,
-                employees.employee_number,
-                employees.first_name,
-                employees.middle_name,
-                employees.last_name,
-                employees.birthdate,
-                employees.gender,
-                employees.civil_status,
+                MAX(employees.employee_number) as employee_number,
+                MAX(employees.first_name) as first_name,
+                MAX(employees.middle_name) as middle_name,
+                MAX(employees.last_name) as last_name,
+                MAX(employees.birthdate) as birthdate,
+                MAX(employees.gender) as gender,
+                MAX(employees.civil_status) as civil_status,
 
-                employee_positions.department,
-                employee_positions.position,
-                employee_positions.employment_type,
-                employee_positions.working_day_type,
-                employee_positions.working_days,
-                employee_positions.start_time,
-                employee_positions.end_time,
-                employee_positions.monthly_salary,
-                employee_positions.de_minimis_benefit,
-                employee_positions.de_minimis_breakdown,
-                employee_positions.allowances,
+                MAX(employee_positions.department) as department,
+                MAX(employee_positions.position) as position,
+                MAX(employee_positions.employment_type) as employment_type,
+                MAX(employee_positions.working_day_type) as working_day_type,
+                MAX(employee_positions.working_days) as working_days,
+                MAX(employee_positions.start_time) as start_time,
+                MAX(employee_positions.end_time) as end_time,
+                MAX(employee_positions.monthly_salary) as monthly_salary,
+                MAX(employee_positions.de_minimis_benefit) as de_minimis_benefit,
+                MAX(employee_positions.de_minimis_breakdown) as de_minimis_breakdown,
+                MAX(employee_positions.allowances) as allowances,
 
-                employee_government_ids.sss,
-                employee_government_ids.tin,
-                employee_government_ids.pagibig,
-                employee_government_ids.philhealth,
+                MAX(employee_government_ids.sss) as sss,
+                MAX(employee_government_ids.tin) as tin,
+                MAX(employee_government_ids.pagibig) as pagibig,
+                MAX(employee_government_ids.philhealth) as philhealth,
 
-                ai.secret as email,
+                MAX(ai.secret) as email,
 
                 MAX(ea.mobile_number) as mobile_number,
                 MAX(ea.address) as address,
@@ -622,7 +851,7 @@ class EmployeeController extends BaseController
                 MAX(ea.account_number) as account_number,
                 MAX(ea.swift_code) as swift_code,
 
-                users.active as status
+                MAX(users.active) as status
             ", false)
 
             ->join(

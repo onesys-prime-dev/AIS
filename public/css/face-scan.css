@@ -1,0 +1,213 @@
+/*
+|--------------------------------------------------------------------------
+| Shared "Face ID"-style scan widget
+|--------------------------------------------------------------------------
+|
+| Used by both the login face-verify modal (auth/login.php) and the
+| admin-managed enrollment modal (client_portal/modals/face_recognition_form.php)
+| via components/face_scan.php + public/js/components/face-scan.js. Plain CSS
+| (no Tailwind utility classes) so this never depends on a Tailwind rebuild.
+|
+| Dark styling is scoped to this widget only (the "biometric" disc) — the
+| surrounding modal/page keeps the app's existing light theme.
+*/
+
+.face-scan-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    font-family: 'Segoe UI', sans-serif;
+}
+
+.face-scan-stage {
+    position: relative;
+    width: calc(var(--fs-size, 220px) + 2 * (var(--fs-ring-gap, 16px) + var(--fs-seg-len, 28px)));
+    height: calc(var(--fs-size, 220px) + 2 * (var(--fs-ring-gap, 16px) + var(--fs-seg-len, 28px)));
+}
+
+/* A dark disc sitting behind the ring so the gaps between segments (and
+   between the circle's edge and the ring) show near-black, not the light
+   modal card behind it — keeps the whole widget reading as one biometric
+   unit instead of a ring of ticks floating on a white background. */
+.face-scan-stage::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    z-index: 0;
+}
+
+.face-scan-ring,
+.face-scan-circle {
+    z-index: 1;
+}
+
+/* ===================== CAMERA CIRCLE ===================== */
+
+.face-scan-circle {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: var(--fs-size, 220px);
+    height: var(--fs-size, 220px);
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    overflow: hidden;
+    background: radial-gradient(circle at 50% 35%, #3a3a40, #0e0e10);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+    transition: box-shadow 0.25s ease;
+}
+
+.face-scan-stage.state-error .face-scan-circle {
+    animation: fsShake 0.4s ease;
+}
+
+.face-scan-circle video {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transform: scaleX(-1);
+    opacity: 0;
+    transition: opacity 0.4s ease;
+}
+
+.face-scan-circle.has-video video {
+    opacity: 1;
+}
+
+/* ===================== FACE-POSITIONING GUIDES (static, decorative) ===================== */
+
+.face-scan-guides {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.face-scan-circle.has-video .face-scan-guides {
+    opacity: 1;
+}
+
+.face-scan-guide-v {
+    position: absolute;
+    left: 50%;
+    top: 10%;
+    bottom: 10%;
+    width: 1px;
+    background: rgba(56, 189, 248, 0.35);
+    transform: translateX(-50%);
+}
+
+.face-scan-guide-h {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+}
+
+.face-scan-guide-h path {
+    fill: none;
+    stroke: rgba(56, 189, 248, 0.35);
+    stroke-width: 0.6;
+}
+
+/* ===================== RADIAL SEGMENT RING ===================== */
+
+.face-scan-ring {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+
+.face-scan-ring-seg {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: var(--fs-seg-w, 4px);
+    height: var(--fs-seg-len, 28px);
+    margin-left: calc(var(--fs-seg-w, 4px) / -2);
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.15);
+    transform-origin: calc(var(--fs-seg-w, 4px) / 2) 0;
+    transform: rotate(var(--fs-seg-angle, 0deg)) translateY(calc(var(--fs-size, 220px) / 2 + var(--fs-ring-gap, 16px)));
+    transition: background 0.12s ease;
+}
+
+.face-scan-ring-seg.filled {
+    background: #22c55e;
+}
+
+.face-scan-stage.state-error .face-scan-ring-seg {
+    background: #ef4444;
+}
+
+/* ===================== STATE-DRIVEN ICONS ===================== */
+
+.face-scan-icon {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    pointer-events: none;
+    opacity: 0;
+    transform: scale(0.7);
+    transition: opacity 0.25s ease, transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.face-scan-icon svg {
+    width: 34%;
+    height: 34%;
+}
+
+.face-scan-icon-face {
+    opacity: 0.85;
+    transform: scale(1);
+}
+
+.face-scan-circle.has-video .face-scan-icon-face {
+    opacity: 0;
+}
+
+.face-scan-stage.state-success .face-scan-icon-check {
+    opacity: 1;
+    transform: scale(1);
+}
+
+.face-scan-stage.state-error .face-scan-icon-error {
+    opacity: 1;
+    transform: scale(1);
+}
+
+@keyframes fsShake {
+    0%, 100% { transform: translate(-50%, -50%); }
+    20%      { transform: translate(calc(-50% - 5px), -50%); }
+    40%      { transform: translate(calc(-50% + 5px), -50%); }
+    60%      { transform: translate(calc(-50% - 3px), -50%); }
+    80%      { transform: translate(calc(-50% + 3px), -50%); }
+}
+
+/* ===================== STATUS TEXT ===================== */
+
+.face-scan-status {
+    min-height: 20px;
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.5;
+    color: #6b7280;
+    text-align: center;
+    max-width: 300px;
+}
+
+.face-scan-status.tone-error {
+    color: #dc2626;
+}
+
+.face-scan-status.tone-success {
+    color: #059669;
+}

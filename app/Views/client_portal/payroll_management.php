@@ -15,16 +15,13 @@ $_day      = (int)$_today->format('d');
 $_year     = $_today->format('Y');
 $_month    = $_today->format('m');
 $_lastDay  = (int)$_today->format('t');
-if ($_day <= $_cutoff) {
-    $_defaultPeriod = 'first_half';
-    $_defaultStart  = "{$_year}-{$_month}-01";
-    $_defaultEnd    = "{$_year}-{$_month}-" . str_pad($_cutoff, 2, '0', STR_PAD_LEFT);
-} else {
-    $_defaultPeriod = 'second_half';
-    $_defaultStart  = "{$_year}-{$_month}-" . str_pad($_cutoff + 1, 2, '0', STR_PAD_LEFT);
-    $_defaultEnd    = "{$_year}-{$_month}-{$_lastDay}";
-}
-$_defaultYearMonth = "{$_year}-{$_month}";
+// Default to the cutoff that actually contains today, per Payroll Settings
+// (including cross-month definitions such as Aug 26 - Sep 10).
+$_current       = \App\Libraries\PayrollCutoff::forDate($_today->format('Y-m-d'));
+$_defaultPeriod = $_current['half'];
+$_defaultStart  = $_current['start'];
+$_defaultEnd    = $_current['end'];
+$_defaultYearMonth = $_current['salary_month'];
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -35,6 +32,20 @@ $_defaultYearMonth = "{$_year}-{$_month}";
 <script src="https://cdn.tailwindcss.com"></script>
 <style>
     body{ font-family: 'Segoe UI', Arial, sans-serif; background: #f0f2f5; }
+
+    /* Inline button spinner (e.g. Send Payslip while waiting on the server) */
+    .btn-spinner{
+        display:inline-block;
+        width:14px;
+        height:14px;
+        border:2px solid rgba(255,255,255,0.5);
+        border-top-color:#fff;
+        border-radius:50%;
+        animation:btn-spin 0.7s linear infinite;
+        vertical-align:middle;
+        margin-right:6px;
+    }
+    @keyframes btn-spin{ to{ transform:rotate(360deg); } }
 
     /* Tabs */
     .sub-tab{
@@ -533,6 +544,22 @@ $_defaultYearMonth = "{$_year}-{$_month}";
     .send-pdf-btn:hover {
         background: #218838;
     }
+    .mark-paid-btn {
+        background: #0d6efd;
+        color: white;
+        border: none;
+        padding: 10px 24px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-weight: 500;
+    }
+    .mark-paid-btn:hover {
+        background: #0b5ed7;
+    }
+    .mark-paid-btn:disabled {
+        background: #6c757d;
+        cursor: default;
+    }
 
 /* ─── LAYOUT & UI IMPROVEMENTS ─── */
 /* Raw-sheet & register section cards */
@@ -653,6 +680,56 @@ $_defaultYearMonth = "{$_year}-{$_month}";
     width: 100%;
     margin-bottom: 12px;
 }
+
+@media (max-width: 900px) {
+    #payrollOuterCard {
+        height: auto;
+        min-height: 0;
+        padding: 14px !important;
+        border-radius: 14px;
+    }
+
+    .grid-2,
+    .grid-3,
+    .grid-4,
+    .grid-5,
+    .ot-grid,
+    .loan-grid {
+        grid-template-columns: 1fr;
+    }
+
+    #bulkSetupSection > div:first-child,
+    #bulkSetupSection > div:first-child > div:last-child > div:first-child {
+        grid-template-columns: 1fr !important;
+    }
+
+    .mode-switch {
+        width: 100%;
+        max-width: 280px;
+    }
+
+    .sub-tabs {
+        overflow-x: auto;
+        gap: 18px;
+        scrollbar-width: none;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .sub-tabs::-webkit-scrollbar {
+        display: none;
+    }
+
+    .sub-tab {
+        flex: 0 0 auto;
+        white-space: nowrap;
+    }
+
+    .import-modal-content {
+        width: calc(100vw - 20px) !important;
+        max-height: calc(100dvh - 20px);
+        overflow-y: auto;
+    }
+}
 </style>
 </head>
 <body class="p-6">
@@ -720,8 +797,9 @@ $_defaultYearMonth = "{$_year}-{$_month}";
                             <span id="bulkBtnSpinner" style="display:none;">⏳</span>
                         </button>
                         <button type="button" id="bulkSendAllBtn" onclick="sendBulkAll()" style="display:none;
-                            background:#16a34a;color:#fff;border:none;border-radius:8px;padding:9px 20px;font-size:13px;font-weight:600;cursor:pointer;">
-                            ✉ Send All
+                            background:#16a34a;color:#fff;border:none;border-radius:8px;padding:9px 20px;font-size:13px;font-weight:600;cursor:pointer;align-items:center;">
+                            <span id="bulkSendBtnSpinner" class="btn-spinner" style="display:none;width:18px;height:18px;border-width:3px;"></span>
+                            <span id="bulkSendBtnText">✉ Send All</span>
                         </button>
                         <button type="button" id="bulkExportBtn" onclick="exportBulkCSV()" style="display:none;
                             background:#374151;color:#fff;border:none;border-radius:8px;padding:9px 20px;font-size:13px;font-weight:600;cursor:pointer;">
@@ -738,6 +816,11 @@ $_defaultYearMonth = "{$_year}-{$_month}";
              the actual table below. -->
         <div id="bulkReviewPanel" style="display:none;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;">
             <div id="bulkReviewSummary" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 12px;font-size:13px;font-weight:600;color:#374151;background:#f9fafb;"></div>
+            <div id="bulkSendProgressWrap" style="display:none;padding:0 12px 10px;background:#f9fafb;">
+                <div style="height:10px;background:#e5e7eb;border-radius:6px;overflow:hidden;">
+                    <div id="bulkSendProgressFill" style="height:100%;width:0%;background:#16a34a;border-radius:6px;transition:width .2s ease;"></div>
+                </div>
+            </div>
             <div id="bulkReviewDetails" style="display:none;">
                 <div style="display:grid;grid-template-columns:2fr 1.1fr 1.1fr 1.2fr 90px;background:#DCDCDC;color:#737373;font-size:13px;font-weight:700;border-top:1px solid #e5e7eb;border-bottom:1px solid #9E9E9E;">
                     <div style="padding:8px 12px;">Employee</div>
@@ -872,6 +955,23 @@ $_defaultYearMonth = "{$_year}-{$_month}";
                     <div><label>Medical Allowance (Additional)</label><input type="number" id="medicalAllowanceAdd" value="0"></div>
                     <div><label>Other Non-Taxable</label><input type="number" id="salaryAdjustmentNonTax" value="0"></div>
                 </div>
+            </div>
+
+            <!-- ADDITIONAL DE MINIMIS (BIR) — separate categories from Payroll Settings.
+                 Amount up to each category's cap is non-taxable; any excess is pushed
+                 into taxableOther so it actually gets withheld, per RR No. 29-2025. -->
+            <div class="section rs-card">
+                <h3 class="font-semibold">Additional De Minimis (BIR)</h3>
+                <div class="grid-3" id="additionalDeMinimisList">
+                    <p style="color:#9ca3af;font-size:.85rem;">Loading categories...</p>
+                </div>
+                <div style="display:flex;justify-content:space-between;font-size:.85rem;color:#6b7280;margin-top:8px;">
+                    <span>Non-taxable: ₱<span id="additionalDeMinimisNonTaxDisplay">0.00</span></span>
+                    <span>Taxable excess: ₱<span id="additionalDeMinimisTaxDisplay">0.00</span></span>
+                </div>
+                <input type="hidden" id="additionalDeMinimisBreakdown" value="{}">
+                <input type="hidden" id="additionalDeMinimisNonTaxable" value="0">
+                <input type="hidden" id="additionalDeMinimisTaxable" value="0">
             </div>
 
             <!-- OTHER NON-SOCIAL COMPENSATION -->
@@ -1415,7 +1515,8 @@ $_defaultYearMonth = "{$_year}-{$_month}";
         </div>
         <div id="staticPayslipContent"></div>
         <div class="modal-footer">
-            <button class="send-pdf-btn" id="sendPdfBtn">Send Payslip to Employee</button>
+            <button class="send-pdf-btn" id="sendPdfBtn"><span id="sendPdfBtnSpinner" class="btn-spinner" style="display:none;"></span><span id="sendPdfBtnText">Send Payslip to Employee</span></button>
+            <button class="mark-paid-btn" id="markPaidBtn" title="Marks this payroll transaction as paid. This cannot be undone."><span id="markPaidBtnText">Mark as Paid</span></button>
         </div>
     </div>
 </div>
@@ -1426,8 +1527,16 @@ $_defaultYearMonth = "{$_year}-{$_month}";
         <span style="float:right; cursor:pointer; font-size:24px;" onclick="closeImportModal()">&times;</span>
         <h3>Import Timesheet (CSV / XLSX)</h3>
         <form id="importTimesheetForm" enctype="multipart/form-data">
+            <?= csrf_field() ?>
+            <label style="display:block;font-size:13px;font-weight:600;margin-top:8px;">1. Choose the file</label>
             <input type="file" id="timesheetImportFile" name="timesheet_file" accept=".csv,.xlsx" required>
-            <p class="text-xs text-gray-500 mt-2">Required: employee_number, time_in, time_out. Include date for time-only entries. Optional: break_duration. Maximum 5 MB and 5,000 rows; XLSX uses the first worksheet. Hours are recalculated.</p>
+            <p class="text-xs text-gray-500 mt-2">Needs time_in and time_out columns (add a date column for time-only entries). Time out may be left blank only for today's shift; earlier days must have one. Optional: break_duration, Client, Task Performed. Maximum 5 MB and 5,000 rows; XLSX uses the first worksheet. Hours are recalculated.</p>
+
+            <label for="importEmployeeSelect" style="display:block;font-size:13px;font-weight:600;margin-top:14px;">2. Who is this timesheet for?</label>
+            <select id="importEmployeeSelect" name="employee_id" style="width:100%;padding:8px;border:1px solid #d1d5db;border-radius:6px;margin-top:4px;">
+                <option value="">Match automatically using the employee_number column in the file</option>
+            </select>
+            <p id="importEmployeeHint" class="text-xs text-gray-500 mt-1">Pick an employee to import every row for that person, even if the file has no employee number or the number is wrong.</p>
 
             <div id="importColumnMapping" style="display:none; margin-top:14px;">
                 <p style="font-size:13px; color:#555; margin-bottom:8px;">
@@ -1470,6 +1579,94 @@ let selectedEmployeeIds = new Set();
 
 // Logo URL injected from PHP
 var companyLogoUrl = <?= json_encode($companyLogoUrl) ?>;
+
+// ================= ADDITIONAL DE MINIMIS (BIR) =================
+// Categories from Payroll Settings → De Minimis Categories (RR No. 29-2025).
+// Amount up to a category's cap is non-taxable; anything entered above the
+// cap is pushed into the taxable side so it actually gets withheld.
+let DEMINIMIS_CATEGORIES = [];
+let _pendingAddlDeMinAllocations = null; // set if an employee is selected before categories finish loading
+
+function _addlDeMinCutoffDivisor() {
+    // Same halving convention used elsewhere on this page: monthly figures
+    // are halved for a semi-monthly cutoff, kept whole for a monthly one.
+    const period = document.querySelector('.period-btn.active')?.dataset.period
+        || document.getElementById('payslipPeriodType')?.value || 'first_half';
+    return period === 'monthly' ? 1 : 2;
+}
+
+function computeAdditionalDeMinimisSplit(breakdown) {
+    const divisor = _addlDeMinCutoffDivisor();
+    let nonTaxable = 0, taxable = 0;
+    DEMINIMIS_CATEGORIES.forEach(c => {
+        const amount = parseFloat(breakdown[c.category_key]) || 0;
+        const cap = parseFloat(c.cap_amount) || 0;
+        if (cap <= 0) { nonTaxable += amount; return; } // no fixed peso cap (e.g. wage % or day-count rule)
+        let effectiveCap = cap;
+        if (c.cap_period === 'monthly') effectiveCap = cap / divisor;
+        else if (c.cap_period === 'annual') effectiveCap = cap / (divisor * 12);
+        nonTaxable += Math.min(amount, effectiveCap);
+        taxable    += Math.max(0, amount - effectiveCap);
+    });
+    return { nonTaxable, taxable };
+}
+
+function renderAdditionalDeMinimisInputs() {
+    const list = document.getElementById('additionalDeMinimisList');
+    if (!list) return;
+    const active = DEMINIMIS_CATEGORIES.filter(c => Number(c.is_active) === 1);
+    if (!active.length) {
+        list.innerHTML = '<p style="color:#9ca3af;font-size:.85rem;">No additional categories configured — set them up in Payroll Settings.</p>';
+        return;
+    }
+    list.innerHTML = active.map(c => `
+        <div><label>${c.label}</label><input type="number" data-addldm-key="${c.category_key}" value="0"></div>
+    `).join('');
+    list.querySelectorAll('[data-addldm-key]').forEach(input => input.addEventListener('input', recalcAdditionalDeMinimis));
+    if (_pendingAddlDeMinAllocations) {
+        const pending = _pendingAddlDeMinAllocations;
+        _pendingAddlDeMinAllocations = null;
+        applyAdditionalDeMinimisAllocations(pending);
+    } else {
+        recalcAdditionalDeMinimis();
+    }
+}
+
+function recalcAdditionalDeMinimis() {
+    const list = document.getElementById('additionalDeMinimisList');
+    if (!list) return;
+    const breakdown = {};
+    list.querySelectorAll('[data-addldm-key]').forEach(input => {
+        breakdown[input.dataset.addldmKey] = parseFloat(input.value) || 0;
+    });
+    const { nonTaxable, taxable } = computeAdditionalDeMinimisSplit(breakdown);
+    document.getElementById('additionalDeMinimisBreakdown').value = JSON.stringify(breakdown);
+    document.getElementById('additionalDeMinimisNonTaxable').value = nonTaxable.toFixed(2);
+    document.getElementById('additionalDeMinimisTaxable').value = taxable.toFixed(2);
+    const ntEl = document.getElementById('additionalDeMinimisNonTaxDisplay');
+    const txEl = document.getElementById('additionalDeMinimisTaxDisplay');
+    if (ntEl) ntEl.textContent = nonTaxable.toFixed(2);
+    if (txEl) txEl.textContent = taxable.toFixed(2);
+}
+
+function applyAdditionalDeMinimisAllocations(allocations) {
+    if (!document.querySelector('#additionalDeMinimisList [data-addldm-key]')) {
+        _pendingAddlDeMinAllocations = allocations;
+        return;
+    }
+    const divisor = _addlDeMinCutoffDivisor();
+    document.querySelectorAll('#additionalDeMinimisList [data-addldm-key]').forEach(input => {
+        const key = input.dataset.addldmKey;
+        const monthlyAmount = parseFloat((allocations || {})[key]) || 0;
+        input.value = (monthlyAmount / divisor).toFixed(2);
+    });
+    recalcAdditionalDeMinimis();
+}
+
+fetch('<?= site_url('client_portal/payroll/deminimis/categories') ?>')
+    .then(res => res.json())
+    .then(data => { DEMINIMIS_CATEGORIES = Array.isArray(data) ? data : []; renderAdditionalDeMinimisInputs(); })
+    .catch(err => console.error('Failed to load additional De Minimis categories.', err));
 
 // ================= TAB NAVIGATION =================
 function nextTab(tabId){
@@ -1869,6 +2066,9 @@ function _buildBulkPayload(empId, d) {
         meal_allowance: gv('mealAllowance'), medical_allowance: gv('medicalAllowance') + gv('medicalAllowanceAdd'),
         salary_adjustment_non_tax: gv('salaryAdjustmentNonTax'),
         sal_non_tax_adj: gv('salNonTaxAdj'),
+        additional_de_minimis_nontax: gv('additionalDeMinimisNonTaxable'),
+        additional_de_minimis_tax: gv('additionalDeMinimisTaxable'),
+        additional_de_minimis_breakdown: document.getElementById('additionalDeMinimisBreakdown')?.value || '{}',
         de_minimis: d.nonTaxable, vl_cash_conversion: d.vlCashConversion||0,
         other_earnings_non_taxable: (d.vlCashConversion||0) + gv('salNonTaxAdj'),
         gross_pay: d.grossPay, sss_ee: d.sssDed, phic_ee: d.phicDed, hdmf_ee: d.hdmfDed,
@@ -1883,6 +2083,41 @@ function _buildBulkPayload(empId, d) {
     };
 }
 
+// Re-applies whatever CSV import / Raw Sheet table edits are currently
+// sitting in this employee's payload/d onto the Individual-mode form
+// fields — fillEmployeeData() only knows how to recompute fresh baseline
+// values from attendance/schedule, it has no idea an import happened, so
+// without this View would silently show pre-import numbers even though
+// Send (which reads payload/d directly, not these form fields) already
+// sends the correct edited ones. Every field set here is read directly by
+// getComputedPayslipValues() (confirmed: none of them get recalculated
+// from an hours field at generation time), so setting them straight from
+// payload/d is safe and doesn't touch fillEmployeeData's own logic at all.
+function _applyBulkOverridesToForm(p, d) {
+    const sv = (id, v) => { const el = document.getElementById(id); if (el) el.value = Number(v||0).toFixed(2); };
+    sv('yearEndGifts', p.year_end_gifts); sv('riceSubsidy', p.rice_subsidy);
+    sv('uniformAllowance', p.uniform_allowance); sv('laundryAllowance', p.laundry_allowance);
+    sv('mealAllowance', p.meal_allowance);
+    // p.medical_allowance is the already-combined medicalAllowance + medicalAllowanceAdd
+    // total (see _buildBulkPayload) — the original split can't be recovered from it,
+    // so the full amount goes in the base field and the "Additional" one is zeroed;
+    // the combined total fed into the calculation is what matters for correctness.
+    sv('medicalAllowance', p.medical_allowance); sv('medicalAllowanceAdd', 0);
+    sv('additionalDeMinimisNonTaxable', p.additional_de_minimis_nontax);
+    sv('additionalDeMinimisTaxable', p.additional_de_minimis_tax);
+    sv('salaryAdjustment', p.salary_adjustment); sv('overrideAmount', p.override_amount); sv('nedAmount', p.ned_amount);
+    sv('holidayPay', p.holiday_pay);
+    sv('sssSalaryLoan', p.sss_loan); sv('sssCalamityLoan', p.calamity_loan);
+    sv('hdmfLoan', p.hdmf_loan); sv('hdmfMplLoan', p.hdmf_mpl_loan); sv('hdmfCalamityLoan', p.hdmf_calamity_loan);
+    sv('advSalary', p.salary_advance); sv('advCash', p.cash_advance); sv('advEmergency', p.emergency_advance);
+    sv('absentPhp', d.absentAmt); sv('utPhp', d.undertimeAmt);
+    sv('workdayOtPhp', d.regOt); sv('regOtGt10Php', d.regOtGt10); sv('regOtNightPhp', d.regOtNightPrem);
+    sv('workdayNightDiffPhp', d.nightPremium);
+    sv('satOtPhp', d.satOt); sv('satOtGt10Php', d.satOtGt10); sv('satNightDiffPhp', d.satNightPrem);
+    sv('sunOtPhp', d.sunOt); sv('sunOtGt10Php', d.sunOtGt10); sv('sunNightDiffPhp', d.sunNightPrem);
+    sv('holOtPhp', d.holOt); sv('holOtGt10Php', d.holOtGt10); sv('holNightDiffPhp', d.holNightPrem);
+}
+
 async function viewBulkPayslip(idx) {
     const item = bulkGeneratedPayloads[idx];
     if (!item) return;
@@ -1892,6 +2127,8 @@ async function viewBulkPayslip(idx) {
     await fillEmployeeData(item.empId, true);
     document.getElementById('empName').value = item.empName;
     document.getElementById('selectedEmployeeId').value = item.empId;
+    // Then layer any CSV import / table edits back on top of that fresh baseline.
+    _applyBulkOverridesToForm(item.payload, item.d);
     // Also sync to payslip tab so user can see it there
     await syncToRegister();
     syncToPayslip();
@@ -1902,24 +2139,47 @@ async function viewBulkPayslip(idx) {
 async function sendBulkAll() {
     if (!bulkGeneratedPayloads.length) { showToast('Generate payslips first.', 'warning'); return; }
     const sendBtn = document.getElementById('bulkSendAllBtn');
+    const spinner = document.getElementById('bulkSendBtnSpinner');
+    const btnText = document.getElementById('bulkSendBtnText');
     const msgEl   = document.getElementById('bulkStatusMsg');
     const reviewSumm = document.getElementById('bulkReviewSummary');
+    const progressWrap = document.getElementById('bulkSendProgressWrap');
+    const progressFill = document.getElementById('bulkSendProgressFill');
     sendBtn.disabled = true;
-    sendBtn.textContent = 'Sending…';
+    // Setting sendBtn.textContent here used to wipe out the spinner/text
+    // child spans entirely, leaving nothing but plain text to show progress
+    // — no visible animation, easy to mistake for a frozen button on a
+    // batch that takes a while. Target the spans instead so the spinner
+    // actually spins.
+    if (spinner) spinner.style.display = 'inline-block';
+    if (btnText) btnText.textContent = 'Sending…';
+    if (progressWrap) progressWrap.style.display = 'block';
+    if (progressFill) { progressFill.style.width = '0%'; progressFill.style.background = '#16a34a'; }
 
-    let sent = 0, failed = 0;
+    let sent = 0, failed = 0, processed = 0;
+    let firstErrMsg = '';
+    const total = bulkGeneratedPayloads.length;
     for (const { empId, empName, payload } of bulkGeneratedPayloads) {
+        processed++;
+        // Visible progress — without this, a batch of 20+ (each one a real
+        // PDF render + email send, not instant) just sits on "Sending…" with
+        // no sign of life for however long that actually takes.
+        if (btnText) btnText.textContent = `Sending ${processed} of ${total}…`;
+        reviewSumm.innerHTML = `<span class="btn-spinner" style="border-color:rgba(55,65,81,.25);border-top-color:#374151;"></span> <strong>Sending ${processed} of ${total}</strong> — please wait, this can take a while for a large batch…`;
+        reviewSumm.style.color = '#6b7280';
+        if (progressFill) progressFill.style.width = Math.round((processed - 1) / total * 100) + '%';
+
         const statusEl = document.getElementById('bcell-status-'+empId);
         try {
             // Save record
             await fetch('<?= site_url('client_portal/payroll/savePayslipRecord') ?>', {
-                method:'POST', headers:{'Content-Type':'application/json'},
+                method:'POST', headers:{'Content-Type':'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''},
                 body: JSON.stringify(payload)
             }).then(r => r.json());
 
             // Send PDF
             const resp = await fetch('<?= site_url('client_portal/payroll/sendPdf') ?>', {
-                method:'POST', headers:{'Content-Type':'application/json'},
+                method:'POST', headers:{'Content-Type':'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''},
                 body: JSON.stringify({ ...payload, send_method: 'bulk' })
             });
             const res = await resp.json();
@@ -1928,18 +2188,35 @@ async function sendBulkAll() {
             if (statusEl) statusEl.innerHTML = '<span style="color:#16a34a;font-size:11px;font-weight:700;">✓ Sent</span>';
             sent++;
         } catch(err) {
-            if (statusEl) statusEl.innerHTML = '<span style="color:#dc2626;font-size:11px;">✗ Error</span>';
+            if (statusEl) statusEl.innerHTML = `<span style="color:#dc2626;font-size:11px;cursor:help;" title="${String(err.message||err).replace(/"/g,'&quot;')}">✗ Error ⓘ</span>`;
             console.error('Send error for '+empName+':', err);
+            if (!firstErrMsg) firstErrMsg = String(err.message || err);
             failed++;
         }
     }
 
     sendBtn.disabled = false;
-    sendBtn.textContent = sent > 0 ? '✉ Send All Payslips' : '✉ Retry';
+    if (spinner) spinner.style.display = 'none';
+    if (btnText) btnText.textContent = sent > 0 ? '✉ Send All Payslips' : '✉ Retry';
+    if (progressFill) { progressFill.style.width = '100%'; progressFill.style.background = failed ? (sent ? '#d97706' : '#dc2626') : '#16a34a'; }
+    if (progressWrap) setTimeout(() => { progressWrap.style.display = 'none'; }, 1500);
     reviewSumm.textContent = sent + ' sent' + (failed ? ', ' + failed + ' failed' : '') + '.';
     reviewSumm.style.color = failed ? '#dc2626' : '#16a34a';
     msgEl.textContent = '';
     if (sent > 0 && !failed) sendBtn.style.display = 'none';
+
+    if (typeof showToast === 'function') {
+        if (!sent && !failed) {
+            // Shouldn't happen (bulkGeneratedPayloads was non-empty going in), but
+            // covers it rather than silently showing nothing either way.
+            showToast('Nothing was sent.', 'warning');
+        } else if (failed) {
+            const reason = firstErrMsg ? ` (${firstErrMsg})` : '';
+            showToast(`${sent} payslip(s) sent, ${failed} failed${reason} — hover the status column for each one's reason.`, sent ? 'warning' : 'error');
+        } else {
+            showToast(`${sent} payslip(s) sent successfully.`, 'success');
+        }
+    }
 }
 
 // ================= BULK CSV EXPORT =================
@@ -1953,7 +2230,9 @@ function _bRowCalc(p, d) {
     const meal        = p.meal_allowance||0,   medical = p.medical_allowance||0;
     const deMin       = yearEnd+rice+uniform+laundry+meal+medical+(p.salary_adjustment_non_tax||0);
     const otherNonTax = (d.vlCashConversion||0) + (p.sal_non_tax_adj||0);
-    const nonTax      = deMin+otherNonTax;
+    const additionalDeMinNonTax = p.additional_de_minimis_nontax||0;
+    const additionalDeMinTax    = p.additional_de_minimis_tax||0;
+    const nonTax      = deMin+otherNonTax+additionalDeMinNonTax;
     const salAdj      = (p.salary_adjustment||0) + (p.override_amount||0) + (p.ned_amount||0);
     // NSD = workday NSD + Sat NSD + Sun NSD + Reg Hol NSD (matches Excel column O; no regOtNightPrem)
     const nsd = (d.nightPremium||0)+(d.satNightPrem||0)+(d.sunNightPrem||0)+(d.holNightPrem||0);
@@ -1962,7 +2241,7 @@ function _bRowCalc(p, d) {
     // Mirror computePayslipData(): cap absences at basicPay, NSD goes into netBasicPay
     const absCapped   = Math.min(absTotal, d.basicPay);
     const netBasicPay = Math.max(0, d.basicPay - absCapped + nsd);
-    const grossTaxable= netBasicPay + totalOT + salAdj + holiday;
+    const grossTaxable= netBasicPay + totalOT + salAdj + holiday + additionalDeMinTax;
     const grossComp   = grossTaxable+nonTax;
     const sssTotal    = d.sssDed||0, phic = d.phicDed||0, hdmf = d.hdmfDed||0;
     const wtRaw       = d.withholdingTax||0;   // signed: negative = refund
@@ -1989,17 +2268,29 @@ function exportBulkCSV(type = 'raw') {
     if (!bulkGeneratedPayloads.length) { showToast('Nothing to export — generate payslips first.', 'warning'); return; }
     const esc = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
     const fmt = v => Number(v||0).toFixed(2);
+    // Full parity with the Individual payslip's editable fields — every
+    // column below round-trips through importBulkCSV() (see the mapping
+    // there). 'overtime'/'nsd' stay as read-only reference totals (they're
+    // derived from the granular reg/sat/sun/hol columns, so there's no
+    // single field to write an edit back into).
     const headers = [
         'employee_id','employee_name','period_start','period_end',
         'monthly_basic_salary','semi_monthly_basic_salary',
         'year_end_gifts','rice_subsidy','uniform_allowance','laundry_allowance','meal_allowance','medical_allowance',
-        'other_non_taxable_compensation','salary_adjustment','overtime','nsd','absences_tardiness','holiday_pay',
+        'additional_de_minimis_nontax','additional_de_minimis_tax',
+        'other_non_taxable_compensation','salary_adjustment','override_amount','ned_amount',
+        'reg_ot','reg_ot_gt10','reg_ot_night','workday_night_diff',
+        'sat_ot','sat_ot_gt10','sat_night_prem',
+        'sun_ot','sun_ot_gt10','sun_night_prem',
+        'hol_ot','hol_ot_gt10','hol_night_prem',
+        'overtime','nsd','absent_amt','undertime_amt','holiday_pay',
         'gross_compensation','gross_taxable_compensation','non_taxable_compensation',
         'sss_rss','sss_wisp','sss_total','phic','hdmf',
         'regular_net_taxable','net_taxable_prev_cutoff','monthly_taxable_compensation',
         'wt_bracket','wt_basic','wt_pct','wt_basic_amt','wt_excess',
         'wt_paid_last_cutoff','withholding_tax_payable',
-        'sss_loan_salary','sss_loan_calamity','advances_to_employees','tax_adjustment_refund',
+        'sss_loan_salary','sss_loan_calamity','hdmf_loan','hdmf_mpl_loan','hdmf_calamity_loan',
+        'salary_advance','cash_advance','emergency_advance','tax_adjustment_refund',
         'net_pay'
     ];
     const rows = bulkGeneratedPayloads.map(({empId, empName, payload: p, d}) => {
@@ -2008,13 +2299,20 @@ function exportBulkCSV(type = 'raw') {
             empId, empName, d.periodStart||'', d.periodEnd||'',
             fmt(c.monthly), fmt(c.semi),
             fmt(c.yearEnd), fmt(c.rice), fmt(c.uniform), fmt(c.laundry), fmt(c.meal), fmt(c.medical),
-            fmt(c.otherNonTax), fmt(c.salAdj), fmt(c.totalOT), fmt(c.nsd), fmt(c.absTotal), fmt(c.holiday),
+            fmt(p.additional_de_minimis_nontax), fmt(p.additional_de_minimis_tax),
+            fmt(c.otherNonTax), fmt(p.salary_adjustment), fmt(p.override_amount), fmt(p.ned_amount),
+            fmt(d.regOt), fmt(d.regOtGt10), fmt(d.regOtNightPrem), fmt(d.nightPremium),
+            fmt(d.satOt), fmt(d.satOtGt10), fmt(d.satNightPrem),
+            fmt(d.sunOt), fmt(d.sunOtGt10), fmt(d.sunNightPrem),
+            fmt(d.holOt), fmt(d.holOtGt10), fmt(d.holNightPrem),
+            fmt(c.totalOT), fmt(c.nsd), fmt(d.absentAmt), fmt(d.undertimeAmt), fmt(p.holiday_pay),
             fmt(c.grossComp), fmt(c.grossTaxable), fmt(c.nonTax),
             fmt(c.sssRss), fmt(c.sssWisp), fmt(c.sssTotal), fmt(c.phic), fmt(c.hdmf),
             fmt(c.regNetTax), fmt(c.netTaxPrev), fmt(c.monthlyTax),
             fmt(c.wtBracket), fmt(c.wtBasic), fmt(c.wtPct), fmt(c.wtBasicAmt), fmt(c.wtExcess),
             fmt(c.wtPaid), fmt(c.wt),
-            fmt(c.sssLoan), fmt(c.calLoan), fmt(c.advances), fmt(c.taxAdj),
+            fmt(c.sssLoan), fmt(c.calLoan), fmt(c.hdmfLoan), fmt(c.hdmfMplLoan), fmt(c.hdmfCalamityLoan),
+            fmt(c.advances), fmt(c.cashAdvance), fmt(c.emergencyAdvance), fmt(c.taxAdj),
             fmt(c.netPay)
         ];
     });
@@ -2164,63 +2462,71 @@ function recomputeBulkRow(empId, trigger) {
     // Step 2: read all editable fields (first matching input — both tables are now in sync)
     const gf = f => parseFloat(document.querySelector(`input[data-emp="${empId}"][data-f="${f}"]`)?.value) || 0;
 
-    const yearEnd  = gf('year_end'),  rice    = gf('rice'),    uniform = gf('uniform');
-    const laundry  = gf('laundry'),   meal    = gf('meal'),    medical = gf('medical');
-    const salAdj   = gf('sal_adj'),   ot      = gf('ot'),      nsd     = gf('nsd');
-    const absences = gf('absences'),  holiday = gf('holiday');
-    const sssLoan  = gf('sss_loan'),  calLoan = gf('cal_loan'), advances = gf('advances');
-    // HDMF loan and calamity advance aren't editable columns in the register — read from payload/d
-    const hdmfLoan = p.hdmf_loan || d.hdmfLoan || 0;
-    const calAdv   = p.cal_adv   || d.calAdv   || 0;
-
-    // Step 3: compute — mirrors computePayslipData() logic exactly
-    const deMin        = yearEnd + rice + uniform + laundry + meal + medical + (p.salary_adjustment_non_tax || 0);
-    const otherNonTax  = (d.vlCashConversion || 0) + (p.sal_non_tax_adj || 0);
-    const nonTax       = deMin + otherNonTax;
-    const absCapped    = Math.min(absences, d.basicPay);           // can't deduct more than basic pay
-    const netBasicPay  = Math.max(0, d.basicPay - absCapped + nsd); // NSD included in net basic pay
-    const grossTaxable = netBasicPay + ot + salAdj + holiday;       // taxable portion
-    const grossComp    = Math.round((grossTaxable + nonTax) * 100) / 100;  // total gross (taxable + non-taxable)
-    const sssTotal     = d.sssDed || 0, phic = d.phicDed || 0, hdmf = d.hdmfDed || 0;
-    const wtRaw        = d.withholdingTax || 0;  // signed: negative = refund
-    const wt           = Math.max(0, wtRaw);     // deduction (non-negative for display)
-    const taxAdj       = Math.max(0, -wtRaw);    // refund (non-negative for display)
-    const regNetTax    = grossTaxable - sssTotal - phic - hdmf;
-    const totalDed     = sssTotal + phic + hdmf + wt + sssLoan + calLoan + hdmfLoan + advances + calAdv;
-    const netPay       = grossComp - totalDed + taxAdj;
-
-    // Step 4: update all computed spans in BOTH tables simultaneously
-    const sf = (f, v) => document.querySelectorAll(`span[data-emp="${empId}"][data-f="${f}"]`).forEach(el => { el.textContent = _bfmt(v); });
-    sf('gross_comp',    grossComp);
-    sf('gross_taxable', grossTaxable);
-    sf('non_taxable',   nonTax);
-    sf('sss_total',     sssTotal);
-    sf('phic',          phic);
-    sf('hdmf',          hdmf);
-    sf('reg_net_tax',   regNetTax);
-    sf('wt',            wt);
-    sf('tax_adj',       taxAdj);
-    sf('net_pay',       netPay);
-
-    // Step 5: persist to payload so Send uses updated values
+    // Step 3: write each edited cell into the SAME p/d fields _bRowCalc() and
+    // the CSV import read — this used to be a second, independent formula
+    // that duplicated _bRowCalc()'s math (and had drifted out of sync with
+    // it: missing the HDMF MPL/Calamity loans and Cash/Emergency advances,
+    // so editing any cell here after a CSV import silently discarded those
+    // fields from what Send actually transmitted). Now there is exactly one
+    // formula, so this can never drift from the import/export again.
     Object.assign(p, {
-        year_end_gifts:yearEnd, rice_subsidy:rice, uniform_allowance:uniform,
-        laundry_allowance:laundry, meal_allowance:meal, medical_allowance:medical,
-        salary_adjustment:salAdj, holiday_pay:holiday,
-        sss_loan:sssLoan, calamity_loan:calLoan, hdmf_loan:hdmfLoan,
-        salary_advance:advances, cal_adv:calAdv,
-        de_minimis:deMin, gross_pay:grossComp, net_pay:netPay
+        year_end_gifts: gf('year_end'), rice_subsidy: gf('rice'), uniform_allowance: gf('uniform'),
+        laundry_allowance: gf('laundry'), meal_allowance: gf('meal'), medical_allowance: gf('medical'),
+        salary_adjustment: gf('sal_adj'), holiday_pay: gf('holiday'),
+        sss_loan: gf('sss_loan'), calamity_loan: gf('cal_loan'), salary_advance: gf('advances'),
     });
-    d.absentAmt = absences; d.grossPay = grossComp; d.netPay = netPay;
-    d.taxableOther = salAdj + holiday; d.totalDeductions = totalDed; d.nonTaxable = nonTax;
+    // The Raw Sheet table's single "OT"/"NSD"/"Absences" cells are a blunt
+    // view over what CSV import can edit as separate reg/sat/sun/hol
+    // components — editing the blunt cell here collapses the whole amount
+    // into the primary bucket and zeroes the others, same precedent CSV
+    // import has always used for these same three combined columns.
+    if (trigger?.dataset.f === 'ot') {
+        d.regOt = gf('ot'); d.regOtGt10 = 0; d.satOt = 0; d.satOtGt10 = 0; d.sunOt = 0; d.sunOtGt10 = 0; d.holOt = 0; d.holOtGt10 = 0;
+    }
+    if (trigger?.dataset.f === 'nsd') {
+        d.nightPremium = gf('nsd'); d.regOtNightPrem = 0; d.satNightPrem = 0; d.sunNightPrem = 0; d.holNightPrem = 0;
+    }
+    if (trigger?.dataset.f === 'absences') {
+        d.absentAmt = gf('absences'); d.undertimeAmt = 0;
+    }
 
-    // Step 6: live-update payslip list card and bulk panel row
+    // Step 4: recompute every total from the single source of truth.
+    const c = _bRowCalc(p, d);
+
+    // Step 5: update all computed spans in BOTH tables simultaneously
+    const sf = (f, v) => document.querySelectorAll(`span[data-emp="${empId}"][data-f="${f}"]`).forEach(el => { el.textContent = _bfmt(v); });
+    sf('gross_comp',    c.grossComp);
+    sf('gross_taxable', c.grossTaxable);
+    sf('non_taxable',   c.nonTax);
+    sf('sss_total',     c.sssTotal);
+    sf('phic',          c.phic);
+    sf('hdmf',          c.hdmf);
+    sf('reg_net_tax',   c.regNetTax);
+    sf('wt',            c.wt);
+    sf('tax_adj',       c.taxAdj);
+    sf('net_pay',       c.netPay);
+
+    // Step 6: persist to payload so Send uses updated values
+    d.netBasicPay = c.netBasicPay; d.totalOvertime = c.totalOT; d.nonTaxable = c.nonTax;
+    d.grossPay = c.grossComp; d.netPay = c.netPay;
+    Object.assign(p, {
+        net_basic_pay: d.netBasicPay, total_overtime: d.totalOvertime, overtime_pay: d.totalOvertime,
+        night_diff_pay: d.nightPremium||0, absent_amt: d.absentAmt||0, undertime_amt: d.undertimeAmt||0,
+        reg_ot: d.regOt||0, reg_ot_gt10: d.regOtGt10||0, reg_ot_night: d.regOtNightPrem||0,
+        sat_ot: d.satOt||0, sat_ot_gt10: d.satOtGt10||0, sat_night_prem: d.satNightPrem||0,
+        sun_ot: d.sunOt||0, sun_ot_gt10: d.sunOtGt10||0, sun_night_prem: d.sunNightPrem||0,
+        hol_ot: d.holOt||0, hol_ot_gt10: d.holOtGt10||0, hol_night_prem: d.holNightPrem||0,
+        de_minimis: d.nonTaxable, gross_pay: d.grossPay, net_pay: d.netPay,
+    });
+    d.totalDeductions = c.sssTotal + c.phic + c.hdmf + c.wt + c.sssLoan + c.calLoan + c.hdmfLoan + c.hdmfMplLoan + c.hdmfCalamityLoan + c.advances + c.cashAdvance + c.emergencyAdvance + c.calAdv;
+
+    // Step 7: live-update payslip list card and bulk panel row
     const grossEl = document.getElementById('bpgross-'+empId);
     const netEl   = document.getElementById('bpnet-'+empId);
-    if (grossEl) grossEl.textContent = '₱'+_bfmt(grossComp);
-    if (netEl)   netEl.textContent   = '₱'+_bfmt(netPay);
+    if (grossEl) grossEl.textContent = '₱'+_bfmt(c.grossComp);
+    if (netEl)   netEl.textContent   = '₱'+_bfmt(c.netPay);
     const bcNet = document.getElementById('bcell-net-'+empId);
-    if (bcNet) bcNet.innerHTML = '<strong>₱'+_bfmt(netPay)+'</strong>';
+    if (bcNet) bcNet.innerHTML = '<strong>₱'+_bfmt(c.netPay)+'</strong>';
 }
 
 async function sendSingleBulk(idx, btn) {
@@ -2229,11 +2535,11 @@ async function sendSingleBulk(idx, btn) {
     btn.disabled = true; btn.textContent = '…';
     try {
         await fetch('<?= site_url('client_portal/payroll/savePayslipRecord') ?>', {
-            method:'POST', headers:{'Content-Type':'application/json'},
+            method:'POST', headers:{'Content-Type':'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''},
             body: JSON.stringify(item.payload)
         });
         const resp = await fetch('<?= site_url('client_portal/payroll/sendPdf') ?>', {
-            method:'POST', headers:{'Content-Type':'application/json'},
+            method:'POST', headers:{'Content-Type':'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''},
             body: JSON.stringify({ ...item.payload, send_method: 'bulk' })
         });
         const res = await resp.json();
@@ -2242,9 +2548,10 @@ async function sendSingleBulk(idx, btn) {
         // Also update bulk panel review row status
         const statusEl = document.getElementById('bcell-status-'+item.empId);
         if (statusEl) statusEl.innerHTML = '<span style="color:#16a34a;font-size:11px;font-weight:700;">✓ Sent</span>';
+        if (typeof showToast === 'function') showToast(`Payslip sent to ${item.empName}.`, 'success');
     } catch(err) {
         btn.disabled = false; btn.textContent = 'Retry';
-        showToast('Send failed: ' + err.message, 'error');
+        if (typeof showToast === 'function') showToast('Send failed: ' + err.message, 'error');
     }
 }
 
@@ -2278,33 +2585,80 @@ function importBulkCSV(type, input) {
             const idx = bulkGeneratedPayloads.findIndex(b => String(b.empId) === String(empId));
             if (idx === -1) return;
             const { payload: p, d } = bulkGeneratedPayloads[idx];
-            // Map CSV columns → payload/d fields
-            if (row['year_end_gifts']          !== undefined) p.year_end_gifts      = n(row['year_end_gifts']);
-            if (row['rice_subsidy']            !== undefined) p.rice_subsidy        = n(row['rice_subsidy']);
-            if (row['uniform_allowance']       !== undefined) p.uniform_allowance   = n(row['uniform_allowance']);
-            if (row['laundry_allowance']       !== undefined) p.laundry_allowance   = n(row['laundry_allowance']);
-            if (row['meal_allowance']          !== undefined) p.meal_allowance      = n(row['meal_allowance']);
-            if (row['medical_allowance']       !== undefined) p.medical_allowance   = n(row['medical_allowance']);
-            if (row['salary_adjustment']       !== undefined) p.salary_adjustment   = n(row['salary_adjustment']);
-            if (row['sss_loan_salary']         !== undefined) p.sss_loan            = n(row['sss_loan_salary']);
-            if (row['sss_loan_calamity']       !== undefined) p.calamity_loan       = n(row['sss_loan_calamity']);
-            if (row['advances_to_employees']   !== undefined) p.salary_advance      = n(row['advances_to_employees']);
-            if (row['absences_tardiness']      !== undefined) d.absentAmt           = n(row['absences_tardiness']);
-            if (row['nsd'] !== undefined) {
-                d.nightPremium = n(row['nsd']);
-                // Zero individual night prems — imported NSD total already covers all of them
-                d.regOtNightPrem=0; d.satNightPrem=0; d.sunNightPrem=0; d.holNightPrem=0;
-            }
-            if (row['holiday_pay'] !== undefined) {
-                p.holiday_pay = n(row['holiday_pay']);
-                // Zero sat/sun/hol OT — imported holiday total already covers them
-                d.satOt=0; d.satOtGt10=0; d.sunOt=0; d.sunOtGt10=0; d.holOt=0; d.holOtGt10=0;
-            }
-            if (row['overtime'] !== undefined) {
-                d.regOt=n(row['overtime']); d.satOt=0; d.sunOt=0; d.holOt=0;
-                d.regOtGt10=0; d.satOtGt10=0; d.sunOtGt10=0; d.holOtGt10=0;
-                d.regOtNightPrem=0; d.satNightPrem=0; d.sunNightPrem=0; d.holNightPrem=0;
-            }
+
+            // Full parity with Individual's editable fields. Two kinds of
+            // targets here, matching how _bRowCalc(p, d) actually reads
+            // them: the de-minimis/loan/override-style fields live on `p`
+            // (the object that gets sent as-is to save/send), while the
+            // hours-based OT/night-diff/absence fields live on `d` (set at
+            // Generate time from that employee's actual computed hours).
+            // 'overtime'/'nsd' are read-only reference totals in the export
+            // (derived from the granular columns below) — not accepted here,
+            // since there's no single field to write such an edit back into.
+            const setP = (key, target) => { if (row[key] !== undefined && row[key] !== '') p[target] = n(row[key]); };
+            const setD = (key, target) => { if (row[key] !== undefined && row[key] !== '') d[target] = n(row[key]); };
+
+            setP('year_end_gifts', 'year_end_gifts');
+            setP('rice_subsidy', 'rice_subsidy');
+            setP('uniform_allowance', 'uniform_allowance');
+            setP('laundry_allowance', 'laundry_allowance');
+            setP('meal_allowance', 'meal_allowance');
+            setP('medical_allowance', 'medical_allowance');
+            setP('additional_de_minimis_nontax', 'additional_de_minimis_nontax');
+            setP('additional_de_minimis_tax', 'additional_de_minimis_tax');
+            setP('salary_adjustment', 'salary_adjustment');
+            setP('override_amount', 'override_amount');
+            setP('ned_amount', 'ned_amount');
+            setP('holiday_pay', 'holiday_pay');
+            setP('sss_loan_salary', 'sss_loan');
+            setP('sss_loan_calamity', 'calamity_loan');
+            setP('hdmf_loan', 'hdmf_loan');
+            setP('hdmf_mpl_loan', 'hdmf_mpl_loan');
+            setP('hdmf_calamity_loan', 'hdmf_calamity_loan');
+            setP('salary_advance', 'salary_advance');
+            setP('cash_advance', 'cash_advance');
+            setP('emergency_advance', 'emergency_advance');
+
+            setD('reg_ot', 'regOt');
+            setD('reg_ot_gt10', 'regOtGt10');
+            setD('reg_ot_night', 'regOtNightPrem');
+            setD('workday_night_diff', 'nightPremium');
+            setD('sat_ot', 'satOt');
+            setD('sat_ot_gt10', 'satOtGt10');
+            setD('sat_night_prem', 'satNightPrem');
+            setD('sun_ot', 'sunOt');
+            setD('sun_ot_gt10', 'sunOtGt10');
+            setD('sun_night_prem', 'sunNightPrem');
+            setD('hol_ot', 'holOt');
+            setD('hol_ot_gt10', 'holOtGt10');
+            setD('hol_night_prem', 'holNightPrem');
+            setD('absent_amt', 'absentAmt');
+            setD('undertime_amt', 'undertimeAmt');
+
+            // Re-derive every total this row's edits could have touched —
+            // _bRowCalc() is the same single source of truth the on-screen
+            // tables and the CSV export both already use, so this keeps the
+            // payload that Send actually transmits consistent with whatever
+            // the table shows after this import (savePayslipRecord/sendPdf
+            // trust net_pay etc. as given, they don't recompute server-side).
+            const c = _bRowCalc(p, d);
+            d.netBasicPay = c.netBasicPay;
+            d.totalOvertime = c.totalOT;
+            d.nonTaxable = c.nonTax;
+            d.grossPay = c.grossComp;
+            d.netPay = c.netPay;
+            Object.assign(p, {
+                net_basic_pay: d.netBasicPay,
+                total_overtime: d.totalOvertime, overtime_pay: d.totalOvertime,
+                night_diff_pay: d.nightPremium||0,
+                absent_amt: d.absentAmt||0, undertime_amt: d.undertimeAmt||0,
+                reg_ot: d.regOt||0, reg_ot_gt10: d.regOtGt10||0, reg_ot_night: d.regOtNightPrem||0,
+                sat_ot: d.satOt||0, sat_ot_gt10: d.satOtGt10||0, sat_night_prem: d.satNightPrem||0,
+                sun_ot: d.sunOt||0, sun_ot_gt10: d.sunOtGt10||0, sun_night_prem: d.sunNightPrem||0,
+                hol_ot: d.holOt||0, hol_ot_gt10: d.holOtGt10||0, hol_night_prem: d.holNightPrem||0,
+                de_minimis: d.nonTaxable, gross_pay: d.grossPay, net_pay: d.netPay,
+            });
+
             matched++;
         });
         input.value = '';
@@ -2440,6 +2794,9 @@ async function fillEmployeeData(employeeId, silent = false) {
     const _salAdjNonTaxEl = document.getElementById('salaryAdjustmentNonTax');
     if (_salAdjNonTaxEl) {
         _salAdjNonTaxEl.value = ((empData.other_non_taxable_default || 0) / _dmDiv).toFixed(2);
+    }
+    if (document.getElementById('additionalDeMinimisList')) {
+        applyAdditionalDeMinimisAllocations(empData.additional_de_minimis_allocations || {});
     }
 
     // 2. Fetch attendance summary
@@ -3104,7 +3461,9 @@ async function syncToRegister() {
     document.getElementById('deMinMedical').value     = (parseFloat(document.getElementById('medicalAllowance').value) + parseFloat(document.getElementById('medicalAllowanceAdd').value)) || 0;
     const totalDeMin = ['deMinYearEnd','deMinRiceSubsidy','deMinUniform','deMinLaundry','deMinMealAllowance','deMinMedical']
         .reduce((s, id) => s + (parseFloat(document.getElementById(id)?.value) || 0), 0)
-        + (parseFloat(document.getElementById('salaryAdjustmentNonTax')?.value) || 0);
+        + (parseFloat(document.getElementById('salaryAdjustmentNonTax')?.value) || 0)
+        + (parseFloat(document.getElementById('additionalDeMinimisNonTaxable')?.value) || 0);
+    const additionalDeMinTaxable = parseFloat(document.getElementById('additionalDeMinimisTaxable')?.value) || 0;
 
     const _totalSalAdj = (parseFloat(document.getElementById('salaryAdjustment')?.value) || 0)
                        + (parseFloat(document.getElementById('overrideAmount')?.value)    || 0)
@@ -3139,7 +3498,7 @@ async function syncToRegister() {
     const vlCash       = parseFloat(document.getElementById('vlCashPhp')?.value || 0);
     const salNonTaxAdj = parseFloat(document.getElementById('salNonTaxAdj')?.value || 0);
     const otherNonTax  = vlCash + salNonTaxAdj;
-    const grossTaxable = semiMonthly + overtime + nd + holPay + salAdj - absAmt;
+    const grossTaxable = semiMonthly + overtime + nd + holPay + salAdj - absAmt + additionalDeMinTaxable;
     const grossComp    = Math.round((grossTaxable + totalDeMin + otherNonTax) * 100) / 100;
 
     // Ensure period type is detected and prior-half data is loaded before computing WT.
@@ -3376,7 +3735,8 @@ function getComputedPayslipValues() {
                        safeParseFloat(document.getElementById('overrideAmount')?.value) +
                        safeParseFloat(document.getElementById('nedAmount')?.value) +
                        safeParseFloat(document.getElementById('holidayPay')?.value);
-    
+    taxableOther += safeParseFloat(document.getElementById('additionalDeMinimisTaxable')?.value);
+
     let salAdjNonTax = safeParseFloat(document.getElementById('salaryAdjustmentNonTax')?.value);
     let salNonTaxAdj = safeParseFloat(document.getElementById('salNonTaxAdj')?.value);
     let nonTaxable = safeParseFloat(document.getElementById('yearEndGifts')?.value) +
@@ -3387,6 +3747,7 @@ function getComputedPayslipValues() {
                      safeParseFloat(document.getElementById('medicalAllowance')?.value) +
                      safeParseFloat(document.getElementById('medicalAllowanceAdd')?.value) +
                      salAdjNonTax + salNonTaxAdj;
+    nonTaxable += safeParseFloat(document.getElementById('additionalDeMinimisNonTaxable')?.value);
 
     let totalDeductionsFromPay = absentAmt + undertimeAmt;
     if (totalDeductionsFromPay > basicPay) totalDeductionsFromPay = basicPay;
@@ -4096,7 +4457,8 @@ function computePayslipData() {
                        safeParseFloat(document.getElementById('overrideAmount')?.value) +
                        safeParseFloat(document.getElementById('nedAmount')?.value) +
                        safeParseFloat(document.getElementById('holidayPay')?.value);
-    
+    taxableOther += safeParseFloat(document.getElementById('additionalDeMinimisTaxable')?.value);
+
     let salAdjNonTax = safeParseFloat(document.getElementById('salaryAdjustmentNonTax')?.value);
     let salNonTaxAdj = safeParseFloat(document.getElementById('salNonTaxAdj')?.value);
     let nonTaxable = safeParseFloat(document.getElementById('yearEndGifts')?.value) +
@@ -4107,6 +4469,7 @@ function computePayslipData() {
                      safeParseFloat(document.getElementById('medicalAllowance')?.value) +
                      safeParseFloat(document.getElementById('medicalAllowanceAdd')?.value) +
                      salAdjNonTax + salNonTaxAdj;
+    nonTaxable += safeParseFloat(document.getElementById('additionalDeMinimisNonTaxable')?.value);
 
     let totalDeductionsFromPay = absentAmt + undertimeAmt;
     if (totalDeductionsFromPay > basicPay) totalDeductionsFromPay = basicPay;
@@ -4472,17 +4835,21 @@ function generateStaticPayslip() {
 
     fetch('<?= site_url('client_portal/payroll/compute') ?>?employee_id=' + employeeIdToSubmit + '&start_date=' + startDate + '&end_date=' + endDate, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '' },
         body: JSON.stringify(payload)
     }).then(response => response.ok ? response.json() : Promise.reject())
       .then(result => {
-          if (result.transaction_id) console.log('Transaction saved, ID:', result.transaction_id);
+          if (result.transaction_id) {
+              d.transactionId = result.transaction_id;
+              updateMarkPaidButtonState();
+          }
       }).catch(() => {});
 
     const html = generatePayslipHTML(d);
     document.getElementById('staticPayslipContent').innerHTML = html;
     document.getElementById('staticPayslipModal').style.display = 'block';
     window.currentPayslipData = d;
+    updateMarkPaidButtonState();
 
     let employeeIdToPersist = document.getElementById('selectedEmployeeId').value;
     if (!employeeIdToPersist && selectedEmployeeIds.size > 0) {
@@ -4530,6 +4897,9 @@ function generateStaticPayslip() {
             medical_allowance:  safeParseFloat(document.getElementById('medicalAllowance')?.value) + safeParseFloat(document.getElementById('medicalAllowanceAdd')?.value),
             salary_adjustment_non_tax: safeParseFloat(document.getElementById('salaryAdjustmentNonTax')?.value),
             sal_non_tax_adj:    safeParseFloat(document.getElementById('salNonTaxAdj')?.value),
+            additional_de_minimis_nontax: safeParseFloat(document.getElementById('additionalDeMinimisNonTaxable')?.value),
+            additional_de_minimis_tax: safeParseFloat(document.getElementById('additionalDeMinimisTaxable')?.value),
+            additional_de_minimis_breakdown: document.getElementById('additionalDeMinimisBreakdown')?.value || '{}',
             de_minimis:  d.nonTaxable,
             vl_cash_conversion: d.vlCashConversion || 0,
             other_earnings_non_taxable: (d.vlCashConversion || 0) + safeParseFloat(document.getElementById('salNonTaxAdj')?.value),
@@ -4553,7 +4923,7 @@ function generateStaticPayslip() {
         };
         fetch('<?= site_url('client_portal/payroll/savePayslipRecord') ?>', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '' },
             body: JSON.stringify(savePayload)
         }).then(r => r.json()).then(result => {
             if (result.success) window.currentPayslipId = result.payslip_id;
@@ -4577,6 +4947,13 @@ async function sendPdfToEmployee() {
         showToast('Please select an employee first.', 'warning');
         return;
     }
+    // sendPdf() isn't guarded against a retried request sending a second
+    // email — the other two send buttons on this page already disable
+    // themselves for the duration of the request; this one didn't. A
+    // deliberate resend is still possible afterward (button re-enables), this
+    // only blocks an accidental double-click/slow-network double-submit.
+    const sendBtn = document.getElementById('sendPdfBtn');
+    if (sendBtn) { if (sendBtn.disabled) return; sendBtn.disabled = true; }
     const payload = {
         employee_id: employeeId,
         period_start: window.currentPayslipData.periodStart,
@@ -4614,6 +4991,9 @@ async function sendPdfToEmployee() {
         uniform_allowance: safeParseFloat(document.getElementById('uniformAllowance')?.value),
         laundry_allowance: safeParseFloat(document.getElementById('laundryAllowance')?.value),
         medical_allowance: safeParseFloat(document.getElementById('medicalAllowance')?.value) + safeParseFloat(document.getElementById('medicalAllowanceAdd')?.value),
+        additional_de_minimis_nontax: safeParseFloat(document.getElementById('additionalDeMinimisNonTaxable')?.value),
+        additional_de_minimis_tax: safeParseFloat(document.getElementById('additionalDeMinimisTaxable')?.value),
+        additional_de_minimis_breakdown: document.getElementById('additionalDeMinimisBreakdown')?.value || '{}',
         de_minimis: window.currentPayslipData.nonTaxable,
         vl_cash_conversion: window.currentPayslipData.vlCashConversion || 0,
         other_earnings_non_taxable: window.currentPayslipData.vlCashConversion || 0,
@@ -4633,10 +5013,26 @@ async function sendPdfToEmployee() {
         other_deductions: 0,
         net_pay: window.currentPayslipData.netPay,
     };
+
+    const sendSpinner = document.getElementById('sendPdfBtnSpinner');
+    const sendBtnText = document.getElementById('sendPdfBtnText');
+
+    sendBtn.disabled = true;
+    sendSpinner.style.display = 'inline-block';
+    sendBtnText.textContent = 'Sending...';
+
+    // showToast() just renders the toast and returns immediately — it used
+    // to be followed straight away by window.location.reload(), which wiped
+    // the whole page (toast included) before it had a chance to actually
+    // appear on screen. This flag keeps the button in its post-send state
+    // and skips the normal reset in `finally` while the confirmation is
+    // shown, so the reload only happens once the user has actually seen it.
+    let reloading = false;
+
     try {
         const response = await fetch('<?= site_url('client_portal/payroll/sendPdf') ?>', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '' },
             body: JSON.stringify({ ...payload, send_method: 'individual' })
         });
         const result = await response.json();
@@ -4644,11 +5040,78 @@ async function sendPdfToEmployee() {
             showToast('Error sending PDF: ' + (result.error || `Server error ${response.status}`), 'error');
             return;
         }
-        showToast('PDF payslip sent successfully to employee email.', 'success');
-        window.location.reload();
+        if (result.warning) {
+            showToast(result.warning, 'warning');
+        } else {
+            showToast('PDF payslip sent successfully to employee email.', 'success');
+        }
+        reloading = true;
+        sendSpinner.style.display = 'none';
+        sendBtnText.textContent = 'Sent ✓';
+        setTimeout(() => window.location.reload(), 1800);
     } catch (error) {
         console.error('Send PDF error:', error);
         showToast('Network error — could not reach server. Check console for details.', 'error');
+    } finally {
+        if (!reloading) {
+            sendBtn.disabled = false;
+            sendSpinner.style.display = 'none';
+            sendBtnText.textContent = 'Send Payslip to Employee';
+        }
+    }
+}
+
+// ================= MARK AS PAID =================
+// Reflects whether the currently-previewed payslip's transaction is known
+// and not already paid. transactionId only exists once the compute/generate
+// call above has round-tripped, so this stays disabled until then.
+function updateMarkPaidButtonState() {
+    const btn     = document.getElementById('markPaidBtn');
+    const btnText = document.getElementById('markPaidBtnText');
+    if (!btn || !btnText) return;
+
+    const alreadyPaid = window.currentPayslipData?.alreadyPaid === true;
+    const hasTxId     = !!window.currentPayslipData?.transactionId;
+
+    btn.disabled = alreadyPaid || !hasTxId;
+    btnText.textContent = alreadyPaid ? 'Already Paid' : 'Mark as Paid';
+}
+
+async function markPayrollTransactionPaid() {
+    const txId = window.currentPayslipData?.transactionId;
+    if (!txId) {
+        showToast('Generate the payslip first so a payroll transaction exists to mark.', 'warning');
+        return;
+    }
+    if (window.currentPayslipData?.alreadyPaid) return;
+
+    if (!confirm('Mark this payroll transaction as paid? This cannot be undone.')) return;
+
+    const btn     = document.getElementById('markPaidBtn');
+    const btnText = document.getElementById('markPaidBtnText');
+    btn.disabled = true;
+    btnText.textContent = 'Marking...';
+
+    try {
+        const response = await fetch('<?= site_url('client_portal/payroll/markPaid') ?>/' + txId, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '' }
+        });
+        const result = await response.json();
+        if (!response.ok || !result.success) {
+            showToast('Error: ' + (result.error || `Server error ${response.status}`), 'error');
+            btn.disabled = false;
+            btnText.textContent = 'Mark as Paid';
+            return;
+        }
+        window.currentPayslipData.alreadyPaid = true;
+        updateMarkPaidButtonState();
+        showToast('Payroll transaction marked as paid.', 'success');
+    } catch (error) {
+        console.error('Mark paid error:', error);
+        showToast('Network error — could not reach server. Check console for details.', 'error');
+        btn.disabled = false;
+        btnText.textContent = 'Mark as Paid';
     }
 }
 
@@ -4682,6 +5145,8 @@ function exportRawSheet() {
         laundry_allowance:    g('laundryAllowance'),
         medical_allowance:    g('medicalAllowance'),
         medical_allowance_add:g('medicalAllowanceAdd'),
+        additional_de_minimis_nontax: g('additionalDeMinimisNonTaxable'),
+        additional_de_minimis_tax:    g('additionalDeMinimisTaxable'),
         salary_adjustment:    g('salaryAdjustment'),
         override_amount:      g('overrideAmount'),
         ned_amount:           g('nedAmount'),
@@ -4805,12 +5270,8 @@ function exportRegister() {
 // ================= INITIALIZATION =================
 document.addEventListener('DOMContentLoaded', function() {
     loadEmployees();
-    const today = new Date();
-    const year = today.getFullYear();
-    const month = String(today.getMonth() + 1).padStart(2, '0');
-    document.getElementById('periodStart').value = `${year}-${month}-01`;
-    const lastDay = new Date(year, today.getMonth() + 1, 0).getDate();
-    document.getElementById('periodEnd').value = `${year}-${month}-${String(lastDay).padStart(2, '0')}`;
+    document.getElementById('periodStart').value = '<?= $_defaultStart ?>';
+    document.getElementById('periodEnd').value = '<?= $_defaultEnd ?>';
     
     document.getElementById('autoFillBtn')?.addEventListener('click', autoFillPayslip);
     document.getElementById('generateStaticBtn')?.addEventListener('click', generateStaticPayslip);
@@ -4818,6 +5279,7 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('payslipPeriodStart')?.addEventListener('change', () => { autoDetectPeriodType(); fetchAndSetPriorHalfWT(); });
     document.getElementById('payslipPeriodType')?.addEventListener('change', fetchAndSetPriorHalfWT);
     document.getElementById('sendPdfBtn')?.addEventListener('click', sendPdfToEmployee);
+    document.getElementById('markPaidBtn')?.addEventListener('click', markPayrollTransactionPaid);
     document.getElementById('exportRawSheetBtn')?.addEventListener('click', exportRawSheet);
     document.getElementById('exportRegisterBtn')?.addEventListener('click', exportRegister);
     
@@ -4834,8 +5296,39 @@ document.addEventListener('DOMContentLoaded', function() {
     
     document.getElementById('importTimesheetBtn')?.addEventListener('click', function() {
         document.getElementById('importTimesheetModal').style.display = 'block';
+        loadImportEmployeeSelect();
     });
-    
+
+    // Fills the "Who is this timesheet for?" dropdown (no fallback list on failure — better to hide
+    // the option than let someone pick a placeholder employee).
+    let importEmployeesLoaded = false;
+    async function loadImportEmployeeSelect() {
+        const select = document.getElementById('importEmployeeSelect');
+        const hint = document.getElementById('importEmployeeHint');
+        if (!select || importEmployeesLoaded) return;
+        try {
+            const res = await fetch('<?= site_url('client_portal/payroll/employees_json') ?>');
+            if (!res.ok) throw new Error('load failed');
+            const list = await res.json();
+            list.forEach(e => {
+                const opt = document.createElement('option');
+                opt.value = e.id;
+                opt.textContent = e.name;
+                select.appendChild(opt);
+            });
+            importEmployeesLoaded = true;
+            select.addEventListener('change', () => {
+                const chosen = select.options[select.selectedIndex];
+                hint.textContent = select.value
+                    ? 'Every row will be imported for ' + chosen.textContent + '. Rows whose employee number belongs to someone else are skipped.'
+                    : 'Pick an employee to import every row for that person, even if the file has no employee number or the number is wrong.';
+            });
+        } catch (e) {
+            select.style.display = 'none';
+            hint.textContent = 'Employees are matched using the employee_number column in the file.';
+        }
+    }
+
     // Every file is previewed before a separate confirmation saves attendance.
     (function() {
         const form=document.getElementById('importTimesheetForm');
@@ -4888,7 +5381,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 importFields=result.fields;
                 fields.innerHTML=(result.source_columns||result.headers.map(header=>({header,letter:'',samples:[]}))).map(column=>`<div style="padding:8px 0;border-bottom:1px solid #ddd"><label style="display:flex;align-items:center;gap:8px"><span style="flex:1;overflow-wrap:anywhere"><strong>${escape(column.letter)} ${escape(column.header)}</strong><small style="display:block;color:#666">${column.samples.map(escape).join(' / ')||'No sample values'}</small></span><select style="width:190px;padding:5px;max-width:50%" data-source-column="${escape(column.header)}"><option value="">Ignore this column</option>${result.fields.map(f=>`<option value="${escape(f.key)}" ${result.guess[f.key]===column.header?'selected':''}>${escape(f.label)}</option>`).join('')}</select></label></div>`).join('');
                 const needsMapping=result.fields.some(f=>f.required&&f.key!=='employee_number'&&!result.guess[f.key])||result.rows.some(r=>r.message.includes('Provide a date'));
-                const isClean=result.summary.error===0&&result.summary.pending===0&&result.summary.out_of_period===0;
+                const reassigned=result.reassigned||[];
+                const isClean=result.summary.error===0&&result.summary.pending===0&&result.summary.out_of_period===0&&reassigned.length===0;
                 mapping.style.display=needsMapping?'block':'none';
                 employees.innerHTML=result.unmatched_employees.map(u=>`<label style="display:block;margin:8px 0">${escape(u.label||u.value)} (${u.count} row${u.count===1?'':'s'}) <select style="width:100%;padding:6px" data-employee="${escape(u.value)}"><option value="">Select employee</option>${result.employees.map(e=>`<option value="${e.id}" ${String(employeeMap[u.value])===String(e.id)?'selected':''}>${escape(e.label)}</option>`).join('')}</select></label>`).join('');
                 employeeSection.style.display=result.unmatched_employees.length?'block':'none';
@@ -4905,7 +5399,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     if(!saved.success)throw new Error(saved.error||'Import failed. Please try again.');
                     showToast(saved.message,'success');closeImportModal();form.reset();reset();return;
                 }
-                notice.textContent=needsMapping?'Match the missing columns, then click Continue Import.':result.unmatched_employees.length?'Select the employee, then click Continue Import.':result.can_import?'Review the rows below, then click Continue Import to save the ready rows.':'Resolve the errors below, then try again.';
+                const reassignedRows=reassigned.reduce((n,r)=>n+r.count,0);
+                if(reassigned.length)review.insertAdjacentHTML('afterbegin',`<p style="padding:10px;background:#fff7ed;border:1px solid #fdba74;border-radius:6px;margin-bottom:8px"><strong>Please check:</strong> ${reassignedRows} row${reassignedRows===1?'':'s'} will be imported for <strong>${escape(result.forced_employee_name)}</strong> as you selected, even though the file's employee number belongs to someone else (${reassigned.map(r=>escape(r.number)+' = '+escape(r.owner)).join(', ')}).</p>`);
+                notice.textContent=reassigned.length&&!needsMapping?'Check the highlighted note below, then click Continue Import to confirm.':needsMapping?'Match the missing columns, then click Continue Import.':result.unmatched_employees.length?'Select the employee, then click Continue Import.':result.can_import?'Review the rows below, then click Continue Import to save the ready rows.':'Resolve the errors below, then try again.';
                 button.textContent='Continue Import';back.style.display='inline-block';
             } catch(error){invalidate();notice.textContent=error.message||'Could not reach the server. Preview again before retrying.';showToast(notice.textContent,'error');}
             finally{button.disabled=false;}

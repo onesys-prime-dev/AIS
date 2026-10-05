@@ -17,21 +17,42 @@ final class PortalAccess
         return self::can('requests', $user) || self::can('team', $user);
     }
 
+    /**
+     * Access Control (assigning portal roles, Team Head assignments, and role
+     * permission edits) is restricted to Admin and Super Admin accounts only —
+     * a hard rule on top of (and independent from) the editable portal.roles
+     * permission, which other roles can still hold for unrelated purposes
+     * (e.g. canEditEmployee() below, or the registration role selector).
+     */
+    public static function canManageAccessControl(?object $user = null): bool
+    {
+        $user ??= auth()->user();
+        return $user !== null && ($user->inGroup('superadmin') || $user->inGroup('admin'));
+    }
+
     public static function reviewsAttendance(?object $user = null): bool
     {
         return self::can('attendance', $user) || self::can('team', $user);
     }
 
     /** Explicit assignments, never a guessed relationship based on a department/job title. */
+    /**
+     * Everyone this user can review — every employee in every department this
+     * user is a Team Head for (department_team_heads), not a manually picked
+     * per-employee list.
+     */
     public static function teamUserIds(?object $user = null): array
     {
         $user ??= auth()->user();
         if (!$user || !self::can('team', $user)) return [];
         $db = db_connect();
-        if (!$db->tableExists('team_access_assignments')) return [];
-        return array_map('intval', array_column($db->table('team_access_assignments a')
-            ->select('e.user_id')->join('employees e', 'e.id=a.employee_id')
-            ->where('a.team_head_user_id', (int) $user->id)->get()->getResultArray(), 'user_id'));
+        if (!$db->tableExists('department_team_heads')) return [];
+        return array_map('intval', array_column($db->table('department_team_heads dth')
+            ->select('e.user_id', false)
+            ->join('employee_positions ep', 'ep.department_id = dth.department_id')
+            ->join('employees e', 'e.id = ep.employee_id')
+            ->where('dth.team_head_user_id', (int) $user->id)
+            ->get()->getResultArray(), 'user_id'));
     }
 
     public static function canReviewEmployee(int $employeeId, ?object $user = null): bool
@@ -62,7 +83,7 @@ final class PortalAccess
     public static function hideCompensation(array $row): array
     {
         if (self::can('compensation')) return $row;
-        foreach (['monthly_salary', 'de_minimis_benefit', 'de_minimis_breakdown', 'allowances', 'salary', 'daily_rate', 'net_pay'] as $key) unset($row[$key]);
+        foreach (['monthly_salary', 'de_minimis_benefit', 'de_minimis_breakdown', 'allowances', 'salary', 'daily_rate', 'net_pay', 'additional_de_minimis_benefit', 'additional_de_minimis_breakdown'] as $key) unset($row[$key]);
         return $row;
     }
 
@@ -82,7 +103,7 @@ final class PortalAccess
     {
         if (self::can('compensation')) return $data;
         $existing = $employeeId ? db_connect()->table('employee_positions')->where('employee_id', $employeeId)->get()->getRowArray() : [];
-        foreach (['monthly_salary', 'de_minimis_benefit', 'de_minimis_breakdown', 'allowances'] as $key) {
+        foreach (['monthly_salary', 'de_minimis_benefit', 'de_minimis_breakdown', 'allowances', 'additional_de_minimis_benefit', 'additional_de_minimis_breakdown'] as $key) {
             $data[$key] = $existing[$key] ?? null;
         }
         return $data;
@@ -97,10 +118,15 @@ final class PortalAccess
         if ($path === 'client_portal/employees/import') return 'compensation';
         if ($path === 'client_portal/timesheet/review-employees') return 'attendance_roster';
         if (preg_match('~^client_portal/employees(?:/|$)~', $path)) return 'employees';
+        if (preg_match('~^client_portal/access-control(?:/|$)~', $path)) return 'access_control';
         if (preg_match('~^client_portal/loans(?:/|$)~', $path)) return 'loans';
+        // Admin-managed face enrollment — deliberately not gated by 'employees'
+        // (see AuthGroups::PORTAL_PAYROLL_PERMISSIONS vs 'portal.face_recognition').
+        if (preg_match('~^client_portal/face-recognition(?:/|$)~', $path)) return 'face_recognition';
         if (preg_match('~^client_portal/payroll/(?:getmypayslips)$~', $path)) return 'self';
+        if ($path === 'client_portal/performance/my-summary') return 'self';
         if (preg_match('~^client_portal/payroll/(?:downloadpayslip|getpayslipdata)/[0-9]+$~', $path)) return 'self';
-        if (preg_match('~^client_portal/payroll/(?:markstatus|send(?:/.*)?|sendpdf|sendstatic)$~', $path)) return 'release';
+        if (preg_match('~^client_portal/payroll/(?:markstatus|markpaid/[0-9]+|send(?:/.*)?|sendpdf|sendstatic)$~', $path)) return 'release';
         if (preg_match('~^client_portal/payroll(?:/|$)~', $path)) return 'payroll';
         if (preg_match('~^client_portal/timesheet/employee(?:/|$)~', $path)) return 'review_attendance';
         // Correcting a clocked time is a review/oversight action, not
@@ -114,12 +140,15 @@ final class PortalAccess
         // per-employee canReviewEmployee() check afterward.
         if (preg_match('~^client_portal/timesheet/update-attendance/[0-9]+$~', $path)) return 'attendance_roster';
         if ($path === 'client_portal/timesheet/flagged') return 'attendance_roster';
+        // Reads one employee's full attendance list — same per-employee check as
+        // the roster/history views (employee_id comes from the query string).
+        if ($path === 'client_portal/timesheet/records') return 'review_attendance';
         if (preg_match('~^client_portal/requests/update/[0-9]+$~', $path)) return 'review_request';
         if ($path === 'client_portal/requests/generate-code') return 'request_codes';
         if (preg_match('~^client_portal/announcements/(?:store|delete/[0-9]+|edit/[0-9]+|update/[0-9]+|attachments/delete/[0-9]+)$~', $path)) return 'announcements';
         if (preg_match('~^client_portal/help/(?:update/[0-9]+)$~', $path)) return 'help';
-        if (preg_match('~^settings/(?:customization(?:/save)?|face-recognition(?:/(?:enroll|status))?)$~', $path)) return 'self';
-        if (preg_match('~^client_portal/(?:dashboard|profile(?:/(?:photo|identity|contact|username|emergency|password|payslip-password(?:/reset)?))?|presence/(?:heartbeat|statuses)|help(?:/store)?|company-logo|time-in|time-out/[0-9]+|toggle-break/[0-9]+|requests(?:/(?:new|store|lookup-code))?|request-notifications/(?:viewed|dismiss)|announcements/(?:viewed|dismiss|download/[0-9]+)|tasks/(?:submit|saved)|timesheets/daily-log|timesheet(?:/(?:history-details|export-history|tasks/[0-9]+(?:/create)?|tasks/(?:edit|delete)/[0-9]+))?)$~', $path)) return 'self';
+        if (preg_match('~^settings/customization(?:/save)?$~', $path)) return 'self';
+        if (preg_match('~^client_portal/(?:dashboard|profile(?:/(?:photo|identity|contact|username|emergency|password|payslip-password(?:/reset)?))?|presence/(?:heartbeat|statuses)|help(?:/store|/search-index)?|company-logo|time-in|time-out/[0-9]+|toggle-break/[0-9]+|requests(?:/(?:new|store|lookup-code))?|request-notifications/(?:viewed|dismiss)|announcements/(?:viewed|dismiss|download/[0-9]+)|tasks/(?:submit|saved|saved-clients)|timesheets/daily-log|timesheet(?:/(?:history-details|export-history|tasks/[0-9]+(?:/create)?|tasks/(?:edit|delete)/[0-9]+))?)$~', $path)) return 'self';
         return 'deny';
     }
 }

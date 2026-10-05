@@ -37,17 +37,48 @@
             readonly>
     </div>
 
-    <!-- START DATE -->
+    <!-- EFFECTIVE DATE -->
     <div>
         <label class="block text-xs font-medium text-gray-600 mb-1">
-            Start Date
+            Effective Date
         </label>
 
+        <div class="flex gap-4 mb-2">
+            <label class="flex items-center gap-2 text-sm text-gray-700">
+                <input
+                    type="radio"
+                    name="edit_effective_date_mode"
+                    id="edit_effective_mode_next_cutoff"
+                    value="next_cutoff">
+                Next Cutoff
+            </label>
+            <label class="flex items-center gap-2 text-sm text-gray-700">
+                <input
+                    type="radio"
+                    name="edit_effective_date_mode"
+                    id="edit_effective_mode_custom"
+                    value="custom"
+                    checked>
+                Custom Date
+            </label>
+        </div>
+
+        <!-- NEXT CUTOFF PREVIEW -->
+        <div id="editNextCutoffPreview" class="hidden border rounded-lg px-3 py-2 bg-gray-100 text-sm text-gray-700">
+            Resolving next cutoff date...
+        </div>
+
+        <!-- CUSTOM DATE PICKER -->
         <input
             type="date"
-            name="start_date"
-            id="edit_start_date"
+            id="edit_custom_start_date"
             class="w-full border rounded-lg px-3 py-2 text-sm">
+
+        <p id="editDeductionDatePreview" class="text-xs text-gray-500 mt-1"></p>
+
+        <!-- ACTUAL VALUE SUBMITTED — always the resolved cutoff date -->
+        <input type="hidden" name="start_date" id="edit_start_date">
+        <input type="hidden" id="edit_deduction_frequency_hidden">
     </div>
 
     <!-- INSTALLMENTS -->
@@ -180,7 +211,7 @@
             Loan Record Locked
         </p>
 
-        <p class="text-xs text-red-600">
+        <p id="loanLockedNoticeText" class="text-xs text-red-600">
             Completed or cancelled loans can no longer be modified.
         </p>
 
@@ -245,25 +276,46 @@
     const saveLoanChangesBtn =
         document.getElementById('saveLoanChangesBtn');
 
-    const startDateField =
-        document.getElementById('edit_start_date');
+    const editModeNextCutoff =
+        document.getElementById('edit_effective_mode_next_cutoff');
+
+    const editModeCustom =
+        document.getElementById('edit_effective_mode_custom');
+
+    const editCustomStartDate =
+        document.getElementById('edit_custom_start_date');
+
+    const editNextCutoffPreview =
+        document.getElementById('editNextCutoffPreview');
 
     const loanLockedNotice =
         document.getElementById('loanLockedNotice');
+
+    const loanLockedNoticeText =
+        document.getElementById('loanLockedNoticeText');
 
     /*
     |--------------------------------------------------------------------------
     | APPLY LOAN STATUS RULES
     |--------------------------------------------------------------------------
+    |
+    | active            : fully editable — Save, Complete, Cancel all shown.
+    | active_ongoing    : this cutoff's deduction is already locked in —
+    |                     fields locked, Save hidden, but Complete/Cancel
+    |                     still available (the loan itself can still be
+    |                     closed out or cancelled).
+    | completed/cancelled: terminal states — everything locked, no buttons.
     */
 
     function applyLoanStatusRules(status)
     {
         status = (status || '').toLowerCase();
 
-        const isLocked =
-            status === 'completed' ||
-            status === 'cancelled';
+        const fieldsLocked = status !== 'active';
+
+        const actionButtonsVisible =
+            status === 'active' ||
+            status === 'active_ongoing';
 
         /*
         |--------------------------------------------------------------------------
@@ -271,33 +323,36 @@
         |--------------------------------------------------------------------------
         */
 
-        startDateField.disabled = isLocked;
+        editModeNextCutoff.disabled = fieldsLocked;
+        editModeCustom.disabled = fieldsLocked;
+        editCustomStartDate.disabled = fieldsLocked;
 
-        if (isLocked)
+        if (fieldsLocked)
         {
-            startDateField.classList.add(
+            editCustomStartDate.classList.add(
                 'bg-gray-100',
                 'cursor-not-allowed'
             );
 
+            loanLockedNoticeText.textContent =
+                status === 'active_ongoing'
+                    ? 'This loan\'s deduction for the current cutoff has already been processed — it is locked from edits until completed or cancelled.'
+                    : 'Completed or cancelled loans can no longer be modified.';
+
             loanLockedNotice.classList.remove('hidden');
 
-            saveLoanChangesBtn.classList.add(
-                'hidden'
-            );
+            saveLoanChangesBtn.classList.add('hidden');
         }
         else
         {
-            startDateField.classList.remove(
+            editCustomStartDate.classList.remove(
                 'bg-gray-100',
                 'cursor-not-allowed'
             );
 
             loanLockedNotice.classList.add('hidden');
 
-            saveLoanChangesBtn.classList.remove(
-                'hidden'
-            );
+            saveLoanChangesBtn.classList.remove('hidden');
         }
 
         /*
@@ -306,7 +361,7 @@
         |--------------------------------------------------------------------------
         */
 
-        if (status === 'active')
+        if (actionButtonsVisible)
         {
             completeLoanBtn.classList.remove('hidden');
             cancelLoanBtn.classList.remove('hidden');
@@ -317,6 +372,93 @@
             cancelLoanBtn.classList.add('hidden');
         }
     }
+
+    /*
+    |--------------------------------------------------------------------------
+    | EFFECTIVE DATE (NEXT CUTOFF / CUSTOM) — mirrors add_loan_form.php
+    |--------------------------------------------------------------------------
+    */
+
+    async function editResolveCutoffDate(dateStr)
+    {
+        const frequency =
+            document.getElementById('edit_deduction_frequency_hidden')?.value
+            || 'Semi-Monthly';
+
+        const params = new URLSearchParams({ frequency });
+        if (dateStr) params.set('date', dateStr);
+
+        const res = await fetch(
+            "<?= site_url('client_portal/loans/resolveCutoffDate') ?>?" + params.toString()
+        );
+
+        if (!res.ok) {
+            throw new Error('Failed to resolve cutoff date: ' + res.status);
+        }
+
+        const data = await res.json();
+
+        if (!data.success) {
+            throw new Error(data.message || 'Unable to resolve cutoff date.');
+        }
+
+        return data.resolved_date;
+    }
+
+    async function refreshEditEffectiveDate()
+    {
+        const mode = document.querySelector(
+            'input[name="edit_effective_date_mode"]:checked'
+        )?.value || 'custom';
+
+        const startDateInput = document.getElementById('edit_start_date');
+        const deductionPreview = document.getElementById('editDeductionDatePreview');
+
+        if (mode === 'custom' && !editCustomStartDate.value) {
+            deductionPreview.textContent = '';
+            startDateInput.value = '';
+            return;
+        }
+
+        try {
+            const resolved = await editResolveCutoffDate(
+                mode === 'custom' ? editCustomStartDate.value : null
+            );
+
+            startDateInput.value = resolved;
+
+            if (mode === 'next_cutoff') {
+                editNextCutoffPreview.textContent =
+                    'Next cutoff: ' + resolved;
+            } else {
+                deductionPreview.textContent =
+                    'Deduction will be scheduled on: ' + resolved;
+            }
+        } catch (err) {
+            console.error('editResolveCutoffDate error:', err);
+
+            if (mode === 'next_cutoff') {
+                editNextCutoffPreview.textContent = 'Unable to resolve next cutoff date.';
+            } else {
+                deductionPreview.textContent = 'Unable to resolve cutoff date for this date.';
+            }
+        }
+    }
+
+    editModeNextCutoff.addEventListener('change', () => {
+        editNextCutoffPreview.classList.remove('hidden');
+        editCustomStartDate.classList.add('hidden');
+        document.getElementById('editDeductionDatePreview').textContent = '';
+        refreshEditEffectiveDate();
+    });
+
+    editModeCustom.addEventListener('change', () => {
+        editNextCutoffPreview.classList.add('hidden');
+        editCustomStartDate.classList.remove('hidden');
+        refreshEditEffectiveDate();
+    });
+
+    editCustomStartDate.addEventListener('change', refreshEditEffectiveDate);
 
     /*
     |--------------------------------------------------------------------------

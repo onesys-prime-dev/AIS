@@ -1,25 +1,27 @@
 <div class="bg-white rounded-2xl shadow-lg p-8 h-full border border-gray-300 flex flex-col min-h-0">
 
-    <!-- ── Sub-tabs: Raw Sheet | Register | Payslip | History — same pill-toggle
+    <!-- ── Sub-tabs: Raw Sheet | Register | Payslip | History | Bank File — same pill-toggle
          style as the Individual/Bulk Send switch on the Generate Payslip tab ── -->
     <div class="reg-mode-switch">
         <button type="button" class="reg-subtab reg-subtab-active" data-regview="raw" onclick="switchRegView('raw', this)">Raw Sheet</button>
         <button type="button" class="reg-subtab" data-regview="table" onclick="switchRegView('table', this)">Register</button>
         <button type="button" class="reg-subtab" data-regview="payslip" onclick="switchRegView('payslip', this)">Payslip</button>
         <button type="button" class="reg-subtab" data-regview="history" onclick="switchRegView('history', this)">History</button>
+        <button type="button" class="reg-subtab" data-regview="bank" onclick="switchRegView('bank', this)">Bank File</button>
     </div>
     <style>
-        .reg-mode-switch{ background:#e5e5e5; width:420px; border-radius:20px; padding:3px; display:flex; margin-bottom:20px; }
+        .reg-mode-switch{ background:#e5e5e5; width:520px; border-radius:20px; padding:3px; display:flex; margin-bottom:20px; }
         .reg-subtab{ flex:1; border:none; padding:6px; border-radius:20px; font-size:12px; cursor:pointer; background:transparent; font-weight:500; color:#374151; white-space:nowrap; }
         .reg-subtab-active{ background:#fff; box-shadow:0 1px 3px rgba(0,0,0,0.1); color:#111827; }
     </style>
     <script>
         function switchRegView(view, btn) {
-            document.getElementById('regControls').style.display    = view === 'history' ? 'none' : 'flex';
+            document.getElementById('regControls').style.display    = (view === 'history' || view === 'bank') ? 'none' : 'flex';
             document.getElementById('regViewRaw').style.display     = view === 'raw'     ? 'flex' : 'none';
             document.getElementById('regViewTable').style.display   = view === 'table'   ? 'flex' : 'none';
             document.getElementById('regViewPayslip').style.display = view === 'payslip' ? 'flex' : 'none';
             document.getElementById('regViewHistory').style.display = view === 'history' ? 'flex' : 'none';
+            document.getElementById('regViewBankFile').style.display= view === 'bank'    ? 'flex' : 'none';
             document.querySelectorAll('.reg-subtab').forEach(b => b.classList.remove('reg-subtab-active'));
             btn.classList.add('reg-subtab-active');
         }
@@ -41,7 +43,7 @@
                 <option value="">Full Month</option>
             </select>
 
-            <button onclick="loadRegister()" class="bg-[#7b5cff] hover:bg-[#6249e0] text-white px-4 py-2 rounded-lg text-sm font-semibold transition shadow">
+            <button onclick="loadRegister()" class="bg-[#7b5cff] hover:bg-[#6a4de0] text-white px-4 py-2 rounded-lg text-sm font-semibold transition shadow">
                 Load
             </button>
 
@@ -55,7 +57,8 @@
     <div id="regViewRaw" class="flex-1 min-h-0 flex flex-col gap-2">
         <div class="flex items-center justify-between gap-3 flex-wrap">
             <p class="text-xs text-gray-400">Editable — yellow cells only. Change a value and it's marked <span style="color:#b45309;font-weight:600;">unsaved</span> until you save it.</p>
-            <button type="button" onclick="saveAllRawRows()" id="rawSaveAllBtn" style="display:none;background:#16a34a;color:#fff;border:none;border-radius:8px;padding:7px 16px;font-size:13px;font-weight:600;cursor:pointer;">
+            <button type="button" onclick="saveAllRawRows()" id="rawSaveAllBtn" style="display:none;"
+                class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition">
                 Save All Changes
             </button>
         </div>
@@ -108,8 +111,16 @@
         <div class="flex items-center justify-between flex-wrap gap-2">
             <h3 class="font-semibold text-lg">Payslips — Loaded Period</h3>
             <div style="display:flex;gap:8px;">
-                <button type="button" onclick="sendAllRegisterPayslips()" style="background:#16a34a;color:#fff;border:none;border-radius:8px;padding:7px 16px;font-size:13px;font-weight:600;cursor:pointer;">&#9993; Send All</button>
-                <button type="button" onclick="exportRegisterCsv()" style="background:#28a745;color:#fff;border:none;border-radius:8px;padding:7px 16px;font-size:13px;font-weight:600;cursor:pointer;">&#8681; Export CSV</button>
+                <button type="button" id="regSendAllBtn" onclick="sendAllRegisterPayslips(this)" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition" style="display:inline-flex;align-items:center;">
+                    <span id="regSendBtnSpinner" class="btn-spinner" style="display:none;width:18px;height:18px;border-width:3px;"></span>
+                    <span id="regSendBtnText">&#9993; Send All</span>
+                </button>
+                <button type="button" onclick="exportRegisterCsv()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition">&#8681; Export CSV</button>
+            </div>
+        </div>
+        <div id="regSendProgressWrap" style="display:none;">
+            <div style="height:10px;background:#e5e7eb;border-radius:6px;overflow:hidden;">
+                <div id="regSendProgressFill" style="height:100%;width:0%;background:#16a34a;border-radius:6px;transition:width .2s ease;"></div>
             </div>
         </div>
         <div id="payslipViewLoading" class="py-16 text-center text-gray-400 text-sm">Select a month and period, then click Load.</div>
@@ -173,6 +184,10 @@
 
     <div id="regViewHistory" style="display:none;" class="flex-1 min-h-0 flex flex-col">
         <?= view('client_portal/payroll_payslip_history') ?>
+    </div>
+
+    <div id="regViewBankFile" style="display:none;" class="flex-1 min-h-0 flex flex-col">
+        <?= view('client_portal/payroll_bank_file') ?>
     </div>
 
 </div><!-- /outer -->
@@ -878,22 +893,41 @@ tr.raw-row-dirty td:first-child { border-left: 3px solid #f59e0b; }
                 <div style="font-size:12px;color:#374151;">Deductions: <strong>&#8369;${fmt(r.sss + r.phic + r.hdmf + r.wth + r.sss_loan + r.calamity_loan + r.hdmf_loan + r.advances)}</strong></div>
                 <div style="font-size:12px;color:#15803d;">Net: <strong>&#8369;${fmt(r.net_pay)}</strong></div>
                 <div style="display:flex;gap:6px;">
-                    <button onclick="openPayslipViewer(${r.payslip_id})" style="background:#7b5cff;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:12px;cursor:pointer;font-weight:600;">View</button>
-                    <button onclick="resendPayslipEmail(${r.payslip_id}, this)" style="background:#16a34a;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:12px;cursor:pointer;font-weight:600;">Send</button>
+                    <button onclick="openPayslipViewer(${r.payslip_id})" class="px-3 py-1.5 bg-[#7b5cff] hover:bg-[#6a4de0] text-white rounded-lg text-xs font-semibold transition">View</button>
+                    <button onclick="resendPayslipEmail(${r.payslip_id}, this)" class="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs font-semibold transition">Send</button>
                 </div>
             </div>`).join('');
     }
 
     /* Send every payslip in the currently loaded period — same pattern as
        Bulk Send's "Send All", one confirm up front instead of one per row. */
-    window.sendAllRegisterPayslips = async function () {
+    window.sendAllRegisterPayslips = async function (btn) {
         if (!_lastRegisterRows.length) { if (typeof showToast === 'function') showToast('Load a period first.', 'warning'); return; }
         if (!confirm(`Send payslips to ${_lastRegisterRows.length} employee(s)?`)) return;
 
-        let sent = 0, failed = 0;
+        const spinner = document.getElementById('regSendBtnSpinner');
+        const btnText = document.getElementById('regSendBtnText');
+        const progressWrap = document.getElementById('regSendProgressWrap');
+        const progressFill = document.getElementById('regSendProgressFill');
+        const origText = btnText ? btnText.textContent : '';
+        if (btn) btn.disabled = true;
+        if (spinner) spinner.style.display = 'inline-block';
+        if (progressWrap) progressWrap.style.display = 'block';
+        if (progressFill) { progressFill.style.width = '0%'; progressFill.style.background = '#16a34a'; }
+
+        let sent = 0, failed = 0, noData = 0, processed = 0;
+        let firstErrMsg = '';
+        const total = _lastRegisterRows.length;
         for (const r of _lastRegisterRows) {
+            processed++;
+            // Each one is a real PDF render + email send, not instant — show
+            // progress instead of leaving the button looking stuck for however
+            // long a large batch actually takes.
+            if (btnText) btnText.textContent = `Sending ${processed} of ${total}…`;
+            if (progressFill) progressFill.style.width = Math.round((processed - 1) / total * 100) + '%';
+
             const data = window.PAYSLIP_DATA ? window.PAYSLIP_DATA[r.payslip_id] : null;
-            if (!data) { failed++; continue; }
+            if (!data) { failed++; noData++; continue; }
             try {
                 const res  = await fetch(REG_URL_SENDPDF, {
                     method: 'POST', headers: {'Content-Type':'application/json'},
@@ -902,10 +936,28 @@ tr.raw-row-dirty td:first-child { border-left: 3px solid #f59e0b; }
                 const json = await res.json();
                 if (!res.ok || !json.success) throw new Error(json.error || 'Send failed');
                 sent++;
-            } catch (e) { failed++; }
+            } catch (e) {
+                failed++;
+                if (!firstErrMsg) firstErrMsg = String(e.message || e);
+            }
         }
+
+        if (btn) btn.disabled = false;
+        if (spinner) spinner.style.display = 'none';
+        if (btnText) btnText.textContent = origText || '✉ Send All';
+        if (progressFill) { progressFill.style.width = '100%'; progressFill.style.background = failed ? (sent ? '#d97706' : '#dc2626') : '#16a34a'; }
+        if (progressWrap) setTimeout(() => { progressWrap.style.display = 'none'; }, 1500);
+
         if (typeof showToast === 'function') {
-            showToast(failed ? `${sent} sent, ${failed} failed.` : `${sent} payslip(s) sent.`, failed ? 'error' : 'success');
+            if (!failed) {
+                showToast(`${sent} payslip(s) sent.`, 'success');
+            } else {
+                const reasonParts = [];
+                if (firstErrMsg) reasonParts.push(firstErrMsg);
+                if (noData) reasonParts.push(`${noData} had no stored payslip data to send`);
+                const reason = reasonParts.length ? ` (${reasonParts.join('; ')})` : '';
+                showToast(`${sent} sent, ${failed} failed${reason}.`, sent ? 'warning' : 'error');
+            }
         }
     };
 

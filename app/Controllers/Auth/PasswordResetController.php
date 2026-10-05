@@ -2,16 +2,18 @@
 
 namespace App\Controllers\Auth;
 
+use App\Models\Client\CompanyBrandingModel;
 use CodeIgniter\Controller;
 use CodeIgniter\HTTP\RedirectResponse;
 use CodeIgniter\Shield\Models\UserIdentityModel;
 use CodeIgniter\Shield\Models\UserModel;
 use CodeIgniter\HTTP\RequestInterface;
+use Throwable;
 
 class PasswordResetController extends Controller
 {
     private const RESET_TYPE = 'password-reset';
-    private const RESET_LIFETIME = 3600; // 60 minutes
+    private const RESET_LIFETIME = 900; // 15 minutes
 
     public function forgotPassword()
     {
@@ -19,7 +21,9 @@ class PasswordResetController extends Controller
             return redirect()->to(config('Auth')->loginRedirect());
         }
 
-        return view(setting('Auth.views')['forgotPassword'] ?? 'auth/forgot_password');
+        return view(setting('Auth.views')['forgotPassword'] ?? 'auth/forgot_password', [
+            'companyLogoUrl' => $this->getCompanyLogoUrl(),
+        ]);
     }
 
     // send password reset email
@@ -162,6 +166,7 @@ class PasswordResetController extends Controller
 
         return view('auth/reset_password', [
             'token' => $token,
+            'companyLogoUrl' => $this->getCompanyLogoUrl(),
         ]);
     }
 
@@ -273,5 +278,27 @@ class PasswordResetController extends Controller
         }
 
         return $identity;
+    }
+
+    private function getCompanyLogoUrl(): ?string
+    {
+        try {
+            $companyId = (int) (session('company_id') ?? 1);
+            $branding  = (new CompanyBrandingModel())
+                ->where('company_id', $companyId)
+                ->first();
+
+            if (empty($branding['logo_path'])) {
+                return null;
+            }
+
+            return base_url((string) $branding['logo_path']);
+        } catch (Throwable $e) {
+            log_message('debug', 'Unable to load company logo for password reset pages: {message}', [
+                'message' => $e->getMessage(),
+            ]);
+
+            return null;
+        }
     }
 }

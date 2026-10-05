@@ -12,11 +12,14 @@
             data-tab="wtax">Withholding Tax</button>
         <button type="button" class="payroll-tab px-5 py-2 text-sm font-medium rounded-t-lg border border-b-0 border-transparent"
             data-tab="holidays" onclick="loadHolidays()">Holidays</button>
+        <button type="button" class="payroll-tab px-5 py-2 text-sm font-medium rounded-t-lg border border-b-0 border-transparent"
+            data-tab="deminimis">De Minimis Categories</button>
     </div>
 
     <!-- Tab: General -->
     <div class="payroll-tab-content flex-1 overflow-auto hide-scroll-bar" id="tab-general">
         <form id="payrollSettingsForm" action="<?= site_url('client_portal/payroll/saveSettings') ?>" method="post">
+            <?= csrf_field() ?>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div class="bg-gray-50 p-4 rounded shadow">
                     <h4 class="font-semibold border-b pb-1 mb-2">Working Hours</h4>
@@ -187,6 +190,11 @@
     <!-- Tab: Withholding Tax -->
     <div class="payroll-tab-content hidden flex-1 min-h-0 flex flex-col" id="tab-wtax">
         <?= view('client_portal/wtax_brackets_panel') ?>
+    </div>
+
+    <!-- Tab: Additional De Minimis Categories (BIR) -->
+    <div class="payroll-tab-content hidden flex-1 min-h-0 flex flex-col" id="tab-deminimis">
+        <?= view('client_portal/deminimis_categories_panel') ?>
     </div>
 
     <!-- Tab: Holidays -->

@@ -82,6 +82,7 @@
                 <input
                     type="number"
                     step="0.01"
+                    min="0.01"
                     name="principal_amount"
                     id="principal_amount"
                     placeholder="Enter principal amount"
@@ -121,17 +122,66 @@
                     class="w-full border rounded-lg px-3 py-2">
             </div>
 
-            <!-- START DATE -->
+            <!-- UNEVEN / CUSTOM INSTALLMENT AMOUNTS -->
+            <div class="mb-4">
+                <label class="flex items-center gap-2 text-sm text-gray-700">
+                    <input type="checkbox" id="useCustomInstallments">
+                    Use uneven amounts per installment
+                </label>
+                <p class="text-xs text-gray-400 mt-1">
+                    e.g. a ₱10,000 loan over 3 cutoffs doesn't have to be split evenly —
+                    it can be entered as 2000 / 5000 / 3000, as long as they add up to the total payable.
+                </p>
+
+                <div id="customInstallmentsWrap" class="hidden mt-3 space-y-2">
+                    <div id="customInstallmentInputs" class="space-y-2"></div>
+                    <p id="customInstallmentTotal" class="text-sm font-medium"></p>
+                </div>
+
+                <input type="hidden" name="custom_amounts" id="custom_amounts">
+            </div>
+
+            <!-- EFFECTIVE DATE -->
             <div class="mb-6">
                 <label class="block text-sm font-medium text-gray-700 mb-1">
-                    Start Date
+                    Effective Date
                 </label>
+
+                <div class="flex gap-4 mb-2">
+                    <label class="flex items-center gap-2 text-sm text-gray-700">
+                        <input
+                            type="radio"
+                            name="effective_date_mode"
+                            id="effective_mode_next_cutoff"
+                            value="next_cutoff"
+                            checked>
+                        Next Cutoff
+                    </label>
+                    <label class="flex items-center gap-2 text-sm text-gray-700">
+                        <input
+                            type="radio"
+                            name="effective_date_mode"
+                            id="effective_mode_custom"
+                            value="custom">
+                        Custom Date
+                    </label>
+                </div>
+
+                <!-- NEXT CUTOFF PREVIEW -->
+                <div id="nextCutoffPreview" class="border rounded-lg px-3 py-2 bg-gray-100 text-sm text-gray-700">
+                    Resolving next cutoff date...
+                </div>
+
+                <!-- CUSTOM DATE PICKER -->
                 <input
                     type="date"
-                    name="start_date"
-                    id="start_date"
-                    required
-                    class="w-full border rounded-lg px-3 py-2">
+                    id="custom_start_date"
+                    class="w-full border rounded-lg px-3 py-2 hidden">
+
+                <p id="deductionDatePreview" class="text-xs text-gray-500 mt-1"></p>
+
+                <!-- ACTUAL VALUE SUBMITTED — always the resolved cutoff date -->
+                <input type="hidden" name="start_date" id="start_date" required>
             </div>
 
             <!-- HIDDEN COMPUTED FIELDS -->
@@ -192,6 +242,8 @@
                 <p id="preview_deduction" class="text-lg font-bold text-gray-800">₱0.00</p>
             </div>
         </div>
+
+        <p id="preview_custom_schedule" class="hidden text-sm text-gray-600 mb-6 -mt-4"></p>
 
         <!-- DETAILS -->
         <div class="border rounded-xl overflow-hidden mb-6">
@@ -683,6 +735,8 @@
 
         applyLoanSettings();
 
+        await refreshEffectiveDate();
+
     })();
 
     let LOAN_SETTINGS = [];
@@ -769,7 +823,105 @@
 
         installmentInput.value =
             setting.max_installments || 1;
+
+        refreshEffectiveDate();
     }
+
+    /*
+    |--------------------------------------------------------------------------
+    | EFFECTIVE DATE (NEXT CUTOFF / CUSTOM)
+    |--------------------------------------------------------------------------
+    |
+    | Whichever mode is picked, the actual value submitted as start_date is
+    | always the real payroll cutoff end date resolved server-side from
+    | payroll_settings — never the raw date the user sees.
+    */
+
+    async function resolveCutoffDate(dateStr)
+    {
+        const frequency =
+            document.getElementById('deduction_frequency_hidden')?.value
+            || 'Semi-Monthly';
+
+        const params = new URLSearchParams({ frequency });
+        if (dateStr) params.set('date', dateStr);
+
+        const res = await fetch(
+            "<?= site_url('client_portal/loans/resolveCutoffDate') ?>?" + params.toString()
+        );
+
+        if (!res.ok) {
+            throw new Error('Failed to resolve cutoff date: ' + res.status);
+        }
+
+        const data = await res.json();
+
+        if (!data.success) {
+            throw new Error(data.message || 'Unable to resolve cutoff date.');
+        }
+
+        return data.resolved_date;
+    }
+
+    async function refreshEffectiveDate()
+    {
+        const mode = document.querySelector(
+            'input[name="effective_date_mode"]:checked'
+        )?.value || 'next_cutoff';
+
+        const startDateInput = document.getElementById('start_date');
+        const nextCutoffPreview = document.getElementById('nextCutoffPreview');
+        const customDateInput = document.getElementById('custom_start_date');
+        const deductionPreview = document.getElementById('deductionDatePreview');
+
+        if (mode === 'custom' && !customDateInput.value) {
+            deductionPreview.textContent = '';
+            startDateInput.value = '';
+            return;
+        }
+
+        try {
+            const resolved = await resolveCutoffDate(
+                mode === 'custom' ? customDateInput.value : null
+            );
+
+            startDateInput.value = resolved;
+
+            if (mode === 'next_cutoff') {
+                nextCutoffPreview.textContent =
+                    'Next cutoff: ' + resolved;
+            } else {
+                deductionPreview.textContent =
+                    'Deduction will be scheduled on: ' + resolved;
+            }
+        } catch (err) {
+            console.error('resolveCutoffDate error:', err);
+
+            if (mode === 'next_cutoff') {
+                nextCutoffPreview.textContent = 'Unable to resolve next cutoff date.';
+            } else {
+                deductionPreview.textContent = 'Unable to resolve cutoff date for this date.';
+            }
+        }
+    }
+
+    document.getElementById('effective_mode_next_cutoff')
+        ?.addEventListener('change', () => {
+            document.getElementById('nextCutoffPreview').classList.remove('hidden');
+            document.getElementById('custom_start_date').classList.add('hidden');
+            document.getElementById('deductionDatePreview').textContent = '';
+            refreshEffectiveDate();
+        });
+
+    document.getElementById('effective_mode_custom')
+        ?.addEventListener('change', () => {
+            document.getElementById('nextCutoffPreview').classList.add('hidden');
+            document.getElementById('custom_start_date').classList.remove('hidden');
+            refreshEffectiveDate();
+        });
+
+    document.getElementById('custom_start_date')
+        ?.addEventListener('change', refreshEffectiveDate);
 
     function formatCurrency(value)
     {
@@ -781,11 +933,102 @@
         }).format(value);
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | UNEVEN / CUSTOM INSTALLMENT AMOUNTS
+    |--------------------------------------------------------------------------
+    |
+    | Renders one amount input per installment (defaulting to the even split
+    | so editing from there is easy), and keeps a live running total against
+    | the current total payable so a mismatch is obvious before submitting
+    | rather than only failing server-side.
+    */
+
+    function currentTotalPayable()
+    {
+        const principal = parseFloat(document.getElementById('principal_amount').value || 0);
+        const loanType = document.getElementById('loanType').value;
+        const loanCategory = document.getElementById('loanCategory').value;
+        const setting = LOAN_SETTINGS.find(s => s.loan_type === loanType && s.loan_category === loanCategory);
+        const interestRate = setting ? parseFloat(setting.interest_rate || 0) : 0;
+        return parseFloat((principal + principal * (interestRate / 100)).toFixed(2));
+    }
+
+    function renderCustomInstallmentInputs()
+    {
+        const count = parseInt(document.getElementById('installment_count').value || 0);
+        const container = document.getElementById('customInstallmentInputs');
+        const totalPayable = currentTotalPayable();
+        const evenShare = count > 0 ? parseFloat((totalPayable / count).toFixed(2)) : 0;
+
+        if (!count || count < 1) {
+            container.innerHTML = '<p class="text-xs text-gray-400">Enter an installment count first.</p>';
+            return;
+        }
+
+        const existing = Array.from(container.querySelectorAll('input[data-installment]')).map(i => i.value);
+
+        container.innerHTML = Array.from({ length: count }, (_, i) => `
+            <div class="flex items-center gap-2">
+                <span class="text-xs text-gray-500 w-20 shrink-0">Installment ${i + 1}</span>
+                <input type="number" step="0.01" min="0.01" data-installment="${i}"
+                    value="${existing[i] ?? evenShare}"
+                    class="w-full border rounded-lg px-3 py-1.5 text-sm">
+            </div>
+        `).join('');
+
+        container.querySelectorAll('input[data-installment]').forEach(input => {
+            input.addEventListener('input', updateCustomInstallmentTotal);
+        });
+
+        updateCustomInstallmentTotal();
+    }
+
+    function readCustomInstallmentAmounts()
+    {
+        return Array.from(document.querySelectorAll('#customInstallmentInputs input[data-installment]'))
+            .map(input => parseFloat(input.value || 0));
+    }
+
+    function updateCustomInstallmentTotal()
+    {
+        const amounts = readCustomInstallmentAmounts();
+        const sum = parseFloat(amounts.reduce((a, b) => a + b, 0).toFixed(2));
+        const totalPayable = currentTotalPayable();
+        const label = document.getElementById('customInstallmentTotal');
+        const matches = Math.abs(sum - totalPayable) < 0.01;
+
+        label.textContent = matches
+            ? `${formatCurrency(sum)} / ${formatCurrency(totalPayable)} ✓`
+            : `${formatCurrency(sum)} / ${formatCurrency(totalPayable)} — ${sum < totalPayable ? 'short by ' + formatCurrency(totalPayable - sum) : 'over by ' + formatCurrency(sum - totalPayable)}`;
+
+        label.className = matches ? 'text-sm font-medium text-green-600' : 'text-sm font-medium text-red-600';
+
+        return matches;
+    }
+
+    document.getElementById('useCustomInstallments')?.addEventListener('change', function () {
+        document.getElementById('customInstallmentsWrap').classList.toggle('hidden', !this.checked);
+        if (this.checked) renderCustomInstallmentInputs();
+    });
+
+    document.getElementById('installment_count')?.addEventListener('input', function () {
+        if (document.getElementById('useCustomInstallments').checked) renderCustomInstallmentInputs();
+    });
+
+    document.getElementById('principal_amount')?.addEventListener('input', function () {
+        if (document.getElementById('useCustomInstallments').checked) updateCustomInstallmentTotal();
+    });
+
     function goToLoanPreview()
     {
-        const principal = parseFloat(
-            document.getElementById('principal_amount').value || 0
-        );
+        // Read the raw string separately from the parsed number — "0" is a
+        // valid, non-empty value the user actually typed, but `!principal`
+        // below would treat parseFloat("0") === 0 as falsy and wrongly
+        // report it as a missing field (BL-031). Emptiness is judged on the
+        // raw string; validity of the amount itself is checked afterward.
+        const principalRaw = document.getElementById('principal_amount').value;
+        const principal = parseFloat(principalRaw || 0);
 
         const installments = parseInt(
             document.getElementById('installment_count').value || 1
@@ -827,7 +1070,7 @@
         ).value = frequency;
 
         if (
-            !principal ||
+            principalRaw === '' ||
             !installments ||
             !startDate ||
             !employee
@@ -835,6 +1078,19 @@
         {
             showToast(
                 'Please complete all required fields.', 'warning'
+            );
+
+            return;
+        }
+
+        // Zero/negative principal previously slipped straight through here
+        // (a negative number is truthy in JS, so `!principal` never caught
+        // it) and let the user proceed to the next step with an invalid
+        // loan amount (BL-031).
+        if (principal <= 0)
+        {
+            showToast(
+                'Principal amount must be greater than 0.', 'warning'
             );
 
             return;
@@ -896,6 +1152,29 @@
             'remaining_balance'
         ).value = totalPayable;
 
+        /*
+        |--------------------------------------------------------------------------
+        | UNEVEN / CUSTOM INSTALLMENT AMOUNTS — validate and carry through
+        |--------------------------------------------------------------------------
+        */
+
+        const useCustom = document.getElementById('useCustomInstallments').checked;
+        let customAmounts = [];
+
+        if (useCustom) {
+            if (!updateCustomInstallmentTotal()) {
+                showToast('Custom installment amounts must add up to the total payable.', 'warning');
+                return;
+            }
+            customAmounts = readCustomInstallmentAmounts();
+            if (customAmounts.length !== installments || customAmounts.some(a => !(a > 0))) {
+                showToast('Enter a valid amount (greater than 0) for every installment.', 'warning');
+                return;
+            }
+        }
+
+        document.getElementById('custom_amounts').value = useCustom ? JSON.stringify(customAmounts) : '';
+
         const monthlySalary = parseFloat(
             document.getElementById('employee_monthly_salary').value || 0
         );
@@ -947,7 +1226,18 @@
 
         document.getElementById(
             'preview_deduction'
-        ).innerText = formatCurrency(deductionPerPayroll);
+        ).innerText = useCustom
+            ? 'Custom (see below)'
+            : formatCurrency(deductionPerPayroll);
+
+        const scheduleNote = document.getElementById('preview_custom_schedule');
+        if (useCustom) {
+            scheduleNote.innerHTML = 'Custom schedule: ' +
+                customAmounts.map(a => formatCurrency(a)).join(' → ');
+            scheduleNote.classList.remove('hidden');
+        } else {
+            scheduleNote.classList.add('hidden');
+        }
 
         document.getElementById(
             'preview_installments'

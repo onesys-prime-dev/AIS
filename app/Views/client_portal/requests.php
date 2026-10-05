@@ -805,9 +805,76 @@
 .review-action-btn.approve { background: #16a34a; }
 .review-action-btn.cancel  { background: #6b7280; }
 
-@media (max-width: 768px) {
+@media (max-width: 900px) {
+    .requests-content-container {
+        padding-left: 0.75rem;
+        padding-right: 0.75rem;
+        padding-bottom: 1rem;
+    }
+
+    .page-title {
+        font-size: 1.5rem;
+        line-height: 2rem;
+    }
+
+    .tab-bar {
+        width: 100%;
+        overflow-x: auto;
+        padding-bottom: 4px;
+        scrollbar-width: none;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .tab-bar::-webkit-scrollbar {
+        display: none;
+    }
+
+    .tab-btn {
+        flex: 0 0 auto;
+        min-height: 42px;
+    }
+
+    .request-cards-container {
+        padding: 1rem;
+        border-radius: 0.875rem;
+    }
+
+    /* .page-header was a plain flex row with no wrap — the title plus
+       Generate Code + the status dropdown just ran off the right edge on a
+       phone, with the dropdown unreachable past the edge. */
+    .page-header{
+        flex-wrap: wrap;
+        row-gap: 12px;
+    }
+
+    .filter-container{
+        width: 100%;
+    }
+
+    #requestsControls{
+        width: 100%;
+        flex-wrap: wrap;
+    }
+
+    .generate-code-btn,
+    .filter-dropdown{
+        flex: 1 1 auto;
+        min-height: 44px;
+    }
+}
+
+@media (max-width: 900px) {
     .request-review-modal { max-height: calc(100vh - 1rem); }
     .request-review-modal-body { grid-template-columns: 1fr; }
+
+    /* .request-grid's minmax(400px, 1fr) guaranteed horizontal overflow on
+       any screen under 400px wide — even a single column couldn't fit. */
+    .request-grid { grid-template-columns: 1fr; }
+
+    /* Ratio-based grids (approval codes list, etc.) don't overflow, but 6
+       columns crammed into a phone width is unreadable rather than broken —
+       collapse to a single column same as the modal body above. */
+    .approval-codes-grid { grid-template-columns: 1fr; }
 }
 
 /* ── Staff Detail Modal (payroll staff — approved/rejected, read-only) ── */
@@ -1181,6 +1248,7 @@
             </div>
 
             <form id="requestReviewForm" method="post">
+                <?= csrf_field() ?>
                 <input type="hidden" name="status" id="requestReviewStatus" value="pending">
 
                 <div class="request-review-modal-body">
@@ -1372,7 +1440,7 @@
 <?= $this->endSection() ?>
 <?= $this->section('scripts') ?>
 
-<script src="<?= base_url('js/components/crud-table.js') ?>"></script>
+<script src="<?= base_url('js/components/crud-table.js') ?>?v=<?= is_file(FCPATH . 'js/components/crud-table.js') ? filemtime(FCPATH . 'js/components/crud-table.js') : time() ?>"></script>
 
 <script>
 // ── Data from PHP ─────────────────────────────────────────────────────────────
@@ -1568,7 +1636,36 @@ function submitRequestReview(status) {
     }
 
     document.getElementById('requestReviewStatus').value = status;
-    form.submit();
+
+    const approveBtn = document.getElementById('reviewApproveBtn');
+    const rejectBtn  = document.getElementById('reviewRejectBtn');
+    [approveBtn, rejectBtn].forEach(btn => { if (btn) btn.disabled = true; });
+
+    fetch(form.getAttribute('action'), {
+        method: 'POST',
+        body: new FormData(form),
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+    })
+        .then(res => res.json().catch(() => ({
+            success: false,
+            message: 'Something went wrong. Please try again.',
+        })))
+        .then(data => {
+            window.showToast(data.message || (data.success ? 'Done.' : 'Something went wrong.'), data.success ? 'success' : 'error');
+            if (data.success) {
+                closeRequestReviewModal();
+                // The list (pending counts, statuses, balances) needs a fresh
+                // pull from the server — simplest correct way is a reload,
+                // same end result the old full-page form submit already had.
+                window.location.reload();
+            }
+        })
+        .catch(() => {
+            window.showToast('Network error. Please try again.', 'error');
+        })
+        .finally(() => {
+            [approveBtn, rejectBtn].forEach(btn => { if (btn) btn.disabled = false; });
+        });
 }
 
 document.getElementById('requestReviewModalOverlay')?.addEventListener('click', function (e) {
@@ -1776,7 +1873,11 @@ async function doGenerateCode() {
     try {
         const resp = await fetch('<?= site_url('client_portal/requests/generate-code') ?>', {
             method: 'POST',
-            headers: { 'X-Requested-With': 'XMLHttpRequest', 'Content-Type': 'application/json' },
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': '<?= csrf_hash() ?>',
+            },
             body: JSON.stringify({ preset_data: presetData }),
         });
 

@@ -18,6 +18,14 @@ writable/uploads/*
 !writable/session/index.html
 !writable/uploads/index.html
 
+# Runtime-uploaded files (profile photos, company logos) — never source,
+# and must stay out of the deploy pipeline's rsync source tree or they get
+# wiped by --delete on every push (see .github/workflows/deploy.yml).
+public/uploads/*
+!public/uploads/announcement_attachments/
+public/uploads/announcement_attachments/*
+!public/uploads/announcement_attachments/.gitkeep
+
 phpunit.xml
 .phpunit.*.cache
 
@@ -32,15 +40,33 @@ phpunit.xml
 .env
 # env
 
-CompreFace/
-
 #-------------------------
 # IDE / OS
 #-------------------------
 .vscode/
 .idea/
+.claude/
 *.swp
 *.swo
 *~
 .DS_Store
 Thumbs.db
+
+# PHPUnit generated output (logs, coverage cache) — never source
+build/
+
+#-------------------------
+# Real payroll/timesheet data files, and accidental git-command-output
+# files from a stray shell redirect — none of these are ever read by the
+# app; they just ended up committed by hand at some point.
+#-------------------------
+*.xlsx
+*.xls
+*.zip
+et --hard*
+tatus
+
+# Local-only working files — not read by the app, meant to stay on this
+# machine only.
+Testing Log book and pay.docx
+reset_for_new_company.sql

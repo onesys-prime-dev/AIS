@@ -139,8 +139,10 @@ class PayrollController extends BaseController
 
         $payslipModel = new \App\Models\Client\EmployeePayslipModel();
         $data['payslips'] = $payslipModel
-            ->select("employee_payslips.*, CONCAT(employees.first_name,' ',employees.last_name) AS employee_name")
+            ->select("employee_payslips.*, CONCAT(employees.first_name,' ',employees.last_name) AS employee_name,
+                ea.bank, ea.account_number, ea.swift_code, ea.bank_address", false)
             ->join('employees', 'employees.id = employee_payslips.employee_id')
+            ->join('employee_accounts as ea', 'ea.employee_id = employees.id', 'left')
             ->orderBy('employee_payslips.created_at', 'DESC')
             ->findAll();
 
@@ -191,6 +193,77 @@ class PayrollController extends BaseController
             return $this->response->setJSON(['success' => true, 'id' => $id, 'status' => $status]);
         } catch (\Throwable $e) {
             return $this->jsonError($e, 'Unable to update payroll status. Please try again.');
+        }
+    }
+
+    /**
+     * POST client_portal/payroll/markPaid/(:num)
+     *
+     * Marks one computed payroll_transactions row as 'paid'. One-way: only a
+     * 'computed' row may transition to 'paid' — already-'paid' or still-'draft'
+     * rows are rejected, so this can't double-mark a payment or skip
+     * computation. Traceable via paid_by/paid_at plus an activity log entry,
+     * mirroring the computed_by/computed_at and payslip sent_by/sent_at
+     * patterns already used elsewhere in this controller.
+     */
+    public function markTransactionPaid($id = null)
+    {
+        try {
+            $txModel = new PayrollTransactionModel();
+            $tx      = $txModel->find($id);
+
+            if (!$tx) {
+                return $this->response->setStatusCode(404)->setJSON(['error' => 'Payroll transaction not found.']);
+            }
+
+            if ($tx['status'] !== 'computed') {
+                return $this->response->setStatusCode(409)->setJSON([
+                    'error' => $tx['status'] === 'paid'
+                        ? 'This payroll transaction is already marked as paid.'
+                        : 'Only a computed payroll transaction can be marked as paid.',
+                ]);
+            }
+
+            $actor = auth()->user();
+            $db    = \Config\Database::connect();
+
+            $db->transBegin();
+
+            // Conditional update guards against a concurrent double-click/second
+            // request racing past the status check above.
+            $affected = $db->table('payroll_transactions')
+                ->where('id', $id)
+                ->where('status', 'computed')
+                ->update([
+                    'status'  => 'paid',
+                    'paid_by' => $actor ? $actor->id : null,
+                    'paid_at' => date('Y-m-d H:i:s'),
+                ]);
+
+            if (!$affected || !$db->transStatus()) {
+                $db->transRollback();
+                return $this->response->setStatusCode(409)->setJSON(['error' => 'This payroll transaction was already updated by another request.']);
+            }
+
+            $db->transCommit();
+
+            service('activityLogger')->log(
+                'updated', 'payroll',
+                'Payroll transaction #' . $id . ' marked as paid',
+                null, null,
+                [
+                    'transaction_id' => (int)$id,
+                    'employee_id'    => $tx['employee_id'],
+                    'period_start'   => $tx['period_start'],
+                    'period_end'     => $tx['period_end'],
+                    'net_pay'        => $tx['net_pay'],
+                    'paid_by'        => $actor ? ($actor->username ?? $actor->id) : 'system',
+                ]
+            );
+
+            return $this->response->setJSON(['success' => true, 'id' => (int)$id, 'status' => 'paid']);
+        } catch (\Throwable $e) {
+            return $this->jsonError($e, 'Unable to mark payroll transaction as paid. Please try again.');
         }
     }
 
@@ -273,7 +346,7 @@ class PayrollController extends BaseController
 
             // Employee management is the canonical source for salary and benefits
             $posRow = $db->table('employee_positions')
-                ->select('position, monthly_salary, de_minimis_benefit, de_minimis_breakdown, allowances')
+                ->select('position, monthly_salary, de_minimis_benefit, de_minimis_breakdown, allowances, additional_de_minimis_benefit, additional_de_minimis_breakdown')
                 ->where('employee_id', $id)
                 ->get()->getRowArray();
 
@@ -281,6 +354,8 @@ class PayrollController extends BaseController
             $monthlySalary = (float)($posRow['monthly_salary']     ?? 0);
             $deMinimis     = (float)($posRow['de_minimis_benefit'] ?? 0);
             $allowances    = (float)($posRow['allowances']         ?? 0);
+            $additionalDeMinimis = (float)($posRow['additional_de_minimis_benefit'] ?? 0);
+            $additionalAllocations = json_decode($posRow['additional_de_minimis_breakdown'] ?? '{}', true) ?: [];
 
             $breakdown             = [];
             $allocations           = [];
@@ -351,6 +426,8 @@ class PayrollController extends BaseController
                 'laundry_allowance'         => isset($allocations['laundry_allowance']) ? (float) $allocations['laundry_allowance'] : null,
                 'medical_allowance'         => isset($allocations['medical_allowance']) ? (float) $allocations['medical_allowance'] : null,
                 'other_non_taxable_default' => round($otherNonTaxableTotal, 2),
+                'additional_de_minimis_default' => round($additionalDeMinimis, 2),
+                'additional_de_minimis_allocations' => $additionalAllocations,
             ]);
         } catch (\Exception $e) {
             return $this->jsonError($e, 'Unable to load employee details.');
@@ -550,7 +627,7 @@ class PayrollController extends BaseController
                 $reqStart = strtotime($dayScheduledStart);
                 $reqEnd   = strtotime($dayScheduledEnd);
                 if ($reqEnd < $reqStart) $reqEnd += 86400;
-                $dayRequiredHours = ($reqEnd - $reqStart) / 3600;
+                $dayRequiredHours = \App\Libraries\AttendanceWindow::requiredHours(($reqEnd - $reqStart) / 3600, $daySchedule);
             }
 
             // Same shared formula as Timesheet/live clock-in/import — full
@@ -559,7 +636,7 @@ class PayrollController extends BaseController
             // against its scheduled start across the midnight boundary.
             $firstRecDate = date('Y-m-d', strtotime($recs[0]['time_in']));
             $dayWindowStart = $dayScheduledStart ? new \DateTime($firstRecDate . ' ' . $dayScheduledStart) : null;
-            $tardyMinutes += AttendanceComputationService::lateMinutes(new \DateTime($recs[0]['time_in']), $dayWindowStart);
+            $tardyMinutes += AttendanceComputationService::lateMinutes(new \DateTime($recs[0]['time_in']), $dayWindowStart, (int) ($daySchedule['tardiness_grace_minutes'] ?? 0));
 
             $dayNsd           = 0.0;
             $dayBreak         = 0.0;
@@ -586,7 +663,8 @@ class PayrollController extends BaseController
                     (float) ($rec['break_duration'] ?? 0),
                     $recSchedule['start_time'] ?? null,
                     $recSchedule['end_time'] ?? null,
-                    $recDate
+                    $recDate,
+                    (int) ($recSchedule['ot_grace_minutes'] ?? 0)
                 );
                 $dayRegularHours += $split['regular_hours'];
                 $dayExcessHours  += $split['excess_hours'];
@@ -727,17 +805,6 @@ class PayrollController extends BaseController
                 $adjustments
             );
 
-            /*
-            |--------------------------------------------------------------------------
-            | DEBUG COMPUTED
-            |--------------------------------------------------------------------------
-            */
-
-            log_message(
-                'error',
-                'COMPUTED DATA: ' . print_r($computed, true)
-            );
-
             $txModel = new PayrollTransactionModel();
 
             $cleanTxData = [
@@ -793,29 +860,13 @@ class PayrollController extends BaseController
                 'computed_at' => date('Y-m-d H:i:s')
             ];
 
-            /*
-            |--------------------------------------------------------------------------
-            | DEBUG CLEAN TX
-            |--------------------------------------------------------------------------
-            */
-
-            log_message(
-                'error',
-                'CLEAN TX DATA: ' . print_r($cleanTxData, true)
-            );
-
             $txModel->insert($cleanTxData);
 
             $txId = $txModel->getInsertID();
 
-            $loanService = new \App\Services\Client\LoanService();
-
-            $loanService->markInstallmentPaid(
-                (int) $employeeId,
-                $start,
-                $end,
-                $txId
-            );
+            // Loan installments are locked/marked paid only once the payslip is
+            // actually sent to the employee (see sendPdf()), not on this preview
+            // computation — this endpoint fires on every "Generate Payslip" click.
 
             return $this->response->setJSON([
 
@@ -831,6 +882,35 @@ class PayrollController extends BaseController
 
             return $this->jsonError($e, 'Unable to compute payroll. Please check the inputs and try again.');
         }
+    }
+
+    /**
+     * Marks any 'active' loan that has a pending installment due on this
+     * payroll's period_end as 'active_ongoing', locking it from further
+     * edits now that this cutoff's deduction has been saved. Must run
+     * before markInstallmentPaid() flips the schedule row to 'paid'.
+     */
+    private function markLoansActiveOngoing(int $employeeId, string $periodEnd): void
+    {
+        $db = \Config\Database::connect();
+
+        $loanIds = $db->table('employee_loan_schedule els')
+            ->select('el.id')
+            ->join('employee_loans el', 'el.id = els.loan_id')
+            ->where('el.employee_id', $employeeId)
+            ->where('el.loan_status', 'active')
+            ->where('els.schedule_status', 'pending')
+            ->where('els.due_date', $periodEnd)
+            ->get()
+            ->getResultArray();
+
+        if (!$loanIds) {
+            return;
+        }
+
+        $db->table('employee_loans')
+            ->whereIn('id', array_column($loanIds, 'id'))
+            ->update(['loan_status' => 'active_ongoing']);
     }
 
     // ================= PAYROLL REGISTER (JSON for view) =================
@@ -1453,13 +1533,14 @@ class PayrollController extends BaseController
             $periodStart=$this->request->getPost('period_start');$periodEnd=$this->request->getPost('period_end');
             $periodStart=($periodStart===null||$periodStart==='')?null:(string)$periodStart;
             $periodEnd=($periodEnd===null||$periodEnd==='')?null:(string)$periodEnd;
+            $forcedEmployee=filter_var($this->request->getPost('employee_id'),FILTER_VALIDATE_INT,['options'=>['min_range'=>1]])?:null;
             $extension=strtolower(pathinfo($file->getClientName(),PATHINFO_EXTENSION));
-            $plan=(new \App\Services\Client\TimesheetImportService())->preview($file->getTempName(),$extension,$columns,$employees,$order,$unit,$periodStart,$periodEnd);
+            $plan=(new \App\Services\Client\TimesheetImportService())->preview($file->getTempName(),$extension,$columns,$employees,$order,$unit,$periodStart,$periodEnd,$forcedEmployee);
             if($plan['can_import']) {
                 $token=bin2hex(random_bytes(32));
                 session()->set('timesheet_import_preview',['token'=>$token,'user_id'=>(int)auth()->id(),'created'=>time(),
                     'columns'=>$plan['column_map'],'employees'=>$employees,'order'=>$order,'unit'=>$unit,'extension'=>$extension,
-                    'period_start'=>$periodStart,'period_end'=>$periodEnd,
+                    'period_start'=>$periodStart,'period_end'=>$periodEnd,'forced_employee'=>$forcedEmployee,
                     'file_hash'=>$plan['file_hash'],'hash'=>$plan['plan_hash']]);
                 $plan['preview_token']=$token;
             }
@@ -1483,7 +1564,7 @@ class PayrollController extends BaseController
             $file=$this->request->getFile('timesheet_file');
             if(!$file||!$file->isValid()||!hash_equals($plan['file_hash'],hash_file('sha256',$file->getTempName())))
                 throw new \DomainException('The file changed. Preview it again.');
-            $result=(new \App\Services\Client\TimesheetImportService())->commit($file->getTempName(),$plan['extension'],$plan['columns'],$plan['employees'],$plan['order'],$plan['unit'],$plan['hash'],$plan['period_start']??null,$plan['period_end']??null,$file->getClientName(),(int)auth()->id());
+            $result=(new \App\Services\Client\TimesheetImportService())->commit($file->getTempName(),$plan['extension'],$plan['columns'],$plan['employees'],$plan['order'],$plan['unit'],$plan['hash'],$plan['period_start']??null,$plan['period_end']??null,$file->getClientName(),(int)auth()->id(),$plan['forced_employee']??null);
             session()->remove('timesheet_import_preview');
             return $this->response->setJSON($result);
         } catch(\DomainException $e) {
@@ -1733,39 +1814,6 @@ class PayrollController extends BaseController
         return $this->response->setJSON($settings);
     }
 
-    public function sendStatic()
-    {
-        try {
-            $data = $this->request->getJSON(true);
-            $employeeId = $data['employee_id'];
-            
-            $employeeModel = new EmployeeModel();
-            $employee = $employeeModel->find($employeeId);
-            if (!$employee) throw new \App\Exceptions\ValidationException('Employee not found');
-
-            $emailAddress = $this->getUserEmail($employee['user_id']);
-
-            if (!$emailAddress) {
-                throw new \App\Exceptions\ValidationException('Employee email not found');
-            }
-
-            $html = view('client_portal/email_payslip', ['data' => $data, 'employee' => $employee]);
-
-            $email = service('email');
-            $email->setTo($emailAddress);
-            $email->setSubject("Payslip for period {$data['period_start']} to {$data['period_end']}");
-            $email->setMessage($html);
-
-            if ($email->send()) {
-                return $this->response->setJSON(['success' => true]);
-            } else {
-                throw new \App\Exceptions\ValidationException('Failed to send email');
-            }
-        } catch (\Exception $e) {
-            return $this->jsonError($e, 'Unable to send payslip email.');
-        }
-    }
-
     public function sendPdf()
     {
         try {
@@ -1883,6 +1931,43 @@ class PayrollController extends BaseController
                         'sent_by' => $senderName,
                     ]);
 
+                // Only now — the payslip has actually been emailed to the
+                // employee — do we lock the loan and consume the installment.
+                // Locking on Generate/Save instead would create a permanent
+                // payment record for a payslip that might never be sent.
+                // payroll_id references employee_payslips (this flow has no
+                // payroll_transactions row) so payments stay traceable to the
+                // payslip that generated them.
+                //
+                // markInstallmentPaid() can update several loans' schedules
+                // for one employee; without a transaction, a failure partway
+                // through left some installments marked paid and others not,
+                // with no way to tell which reflect this send. Wrapped so
+                // it's all-or-nothing — a failure here doesn't undo the email
+                // that already went out (can't recall it), so it's caught
+                // and logged rather than surfaced as a failed send; the
+                // payslip record itself still reflects sent_at/sent_by above.
+                $loanWarning = null;
+                $db = \Config\Database::connect();
+                $db->transBegin();
+                try {
+                    $this->markLoansActiveOngoing((int) $employeeId, (string) $data['period_end']);
+                    (new \App\Services\Client\LoanService())->markInstallmentPaid(
+                        (int) $employeeId,
+                        (string) $data['period_start'],
+                        (string) $data['period_end'],
+                        (int) $payslipRecordId
+                    );
+                    if (!$db->transStatus()) throw new \RuntimeException('Loan installment update failed to save.');
+                    $db->transCommit();
+                } catch (\Throwable $e) {
+                    $db->transRollback();
+                    log_message('error', 'sendPdf: loan installment marking failed for employee {id}, payslip {payslip}: {message}', [
+                        'id' => $employeeId, 'payslip' => $payslipRecordId, 'message' => $e->getMessage(),
+                    ]);
+                    $loanWarning = 'Payslip sent, but loan installment deduction could not be recorded — please review this employee\'s loans manually.';
+                }
+
                 $sendMethod = ($data['send_method'] ?? 'individual') === 'bulk' ? 'bulk' : 'individual';
                 service('activityLogger')->payslipSent(
                     $payslipRecordId,
@@ -1893,7 +1978,7 @@ class PayrollController extends BaseController
                     $sendMethod
                 );
 
-                return $this->response->setJSON(['success' => true]);
+                return $this->response->setJSON($loanWarning ? ['success' => true, 'warning' => $loanWarning] : ['success' => true]);
             } else {
                 $debugInfo = $email->printDebugger(['headers', 'subject', 'body']);
                 log_message('error', 'sendPdf email failed: ' . $debugInfo);
@@ -2220,9 +2305,17 @@ class PayrollController extends BaseController
 
         $filename = 'payslip_' . ($payslip['period_start'] ?? 'unknown') . '.pdf';
 
+        // Same password-protected file either way — only how the browser
+        // hands it to the user differs. "Print Payslip" opens it inline in
+        // the browser's own PDF viewer so the toolbar's print button/Ctrl+P
+        // works; "Download PDF" forces a save-to-disk. Without this, both
+        // buttons pointed at the same URL with a forced "attachment"
+        // disposition, so Print silently just downloaded the file too.
+        $disposition = $this->request->getGet('mode') === 'inline' ? 'inline' : 'attachment';
+
         return $this->response
             ->setHeader('Content-Type', 'application/pdf')
-            ->setHeader('Content-Disposition', 'attachment; filename="' . $filename . '"')
+            ->setHeader('Content-Disposition', $disposition . '; filename="' . $filename . '"')
             ->setBody($pdfOutput);
     }
 
@@ -2241,8 +2334,10 @@ class PayrollController extends BaseController
     {
         $payslipModel = new \App\Models\Client\EmployeePayslipModel();
         $payslips = $payslipModel
-            ->select('employee_payslips.*, CONCAT(employees.first_name, " ", employees.last_name) as employee_name')
+            ->select("employee_payslips.*, CONCAT(employees.first_name, ' ', employees.last_name) as employee_name,
+                ea.bank, ea.account_number, ea.swift_code, ea.bank_address", false)
             ->join('employees', 'employees.id = employee_payslips.employee_id')
+            ->join('employee_accounts as ea', 'ea.employee_id = employees.id', 'left')
             ->orderBy('employee_payslips.created_at', 'DESC')
             ->findAll();
 
@@ -3120,6 +3215,67 @@ class PayrollController extends BaseController
     }
 
     // =========================================================================
+    // ADDITIONAL DE MINIMIS CATEGORIES (BIR) — separate from the existing
+    // fixed rice/uniform/laundry/medical fields on employee_positions, which
+    // this never touches. Caps live here, editable, not hardcoded, since BIR
+    // revises them periodically.
+    // =========================================================================
+
+    /** GET client_portal/payroll/deminimis/categories */
+    public function getDeMinimisCategories()
+    {
+        $model = new \App\Models\Client\DeMinimisCategoryModel();
+        return $this->response->setJSON(
+            $model->orderBy('label', 'ASC')->findAll()
+        );
+    }
+
+    /** POST client_portal/payroll/deminimis/saveCategories  { categories: [...] } */
+    public function saveDeMinimisCategories()
+    {
+        $body       = $this->request->getJSON(true);
+        $categories = $body['categories'] ?? [];
+
+        if (!is_array($categories)) {
+            return $this->response->setStatusCode(400)
+                ->setJSON(['success' => false, 'message' => 'Invalid payload.']);
+        }
+
+        $model = new \App\Models\Client\DeMinimisCategoryModel();
+
+        foreach ($categories as $c) {
+            $id = (int) ($c['id'] ?? 0);
+            if (!$id) {
+                continue;
+            }
+
+            $model->update($id, [
+                'label'      => $c['label'] ?? '',
+                'note'       => $c['note'] ?? null,
+                'cap_amount' => (float) ($c['cap_amount'] ?? 0),
+                'cap_period' => in_array($c['cap_period'] ?? '', ['monthly', 'annual', 'per_payroll'], true)
+                    ? $c['cap_period']
+                    : 'annual',
+                'is_active'  => !empty($c['is_active']) ? 1 : 0,
+            ]);
+        }
+
+        return $this->response->setJSON(['success' => true]);
+    }
+
+    /** POST client_portal/payroll/deminimis/restoreDefaults */
+    public function restoreDeMinimisDefaults()
+    {
+        $model = new \App\Models\Client\DeMinimisCategoryModel();
+        $model->seedBirDefaults();
+
+        return $this->response->setJSON([
+            'success'    => true,
+            'categories' => $model->orderBy('label', 'ASC')->findAll(),
+        ]);
+    }
+
+    // =========================================================================
     // 13TH MONTH PAY & ANNUALIZATION
     // =========================================================================
 
@@ -3221,6 +3377,14 @@ class PayrollController extends BaseController
         $thirteenthData     = [];
         $annualizationData  = [];
 
+        // Every employee's 13th-month/annualization upsert used to run as its
+        // own unguarded write — a failure partway through a large roster left
+        // some employees recomputed against this run and others still holding
+        // whatever a previous run (or nothing) had saved, with no way to tell
+        // which employees actually reflect this computation. Wrapping the
+        // whole pass keeps it all-or-nothing without changing a single
+        // computed value or the response shape for the success case.
+        $db->transBegin();
         foreach ($byEmployee as $empId => $agg) {
             // ── 13th Month ───────────────────────────────────────────────────
             $totalPureBasic = $agg['total_pure_basic'];
@@ -3298,6 +3462,21 @@ class PayrollController extends BaseController
                 'year_end_adjustment'        => $adjustment,
             ];
         }
+
+        if (!$db->transStatus()) {
+            $db->transRollback();
+            log_message('error', 'Year-end computation failed to save for {count} employee(s); rolled back.', ['count' => count($byEmployee)]);
+            return $this->response->setStatusCode(500)->setJSON(['error' => 'Year-end computation could not be saved. Please try again.']);
+        }
+        $db->transCommit();
+
+        $actor = auth()->user();
+        service('activityLogger')->log(
+            'updated', 'payroll',
+            'Year-end 13th-month/annualization computed for ' . $year . ' (' . count($byEmployee) . ' employee(s))',
+            null, null,
+            ['year' => $year, 'employee_count' => count($byEmployee), 'run_by' => $actor ? ($actor->username ?? $actor->id) : 'system']
+        );
 
         return $this->response->setJSON([
             'success'          => true,
@@ -3437,7 +3616,7 @@ class PayrollController extends BaseController
 
             ->where('el.employee_id', $employeeId)
 
-            ->where('el.loan_status', 'active')
+            ->whereIn('el.loan_status', ['active', 'active_ongoing'])
 
             ->where('els.schedule_status', 'pending')
 

@@ -84,7 +84,7 @@
     $docCategories = [
         [
             'title' => 'System Overview',
-            'desc' => 'What OTIS is, its purpose, and the three portals it provides.',
+            'desc' => 'What OTIS is and which modules it actually covers.',
             'tag' => 'System',
             'target' => '#doc-system-overview',
             'icon' => 'overview',
@@ -98,7 +98,7 @@
         ],
         [
             'title' => 'Operational Workflows',
-            'desc' => 'Step-by-step flow for payroll, bookkeeping, reconciliation, and tax.',
+            'desc' => 'Step-by-step flow for attendance, requests, payroll, loans, and announcements.',
             'tag' => 'Workflows',
             'target' => '#doc-operational-workflows',
             'icon' => 'workflows',
@@ -126,7 +126,7 @@
         ],
         [
             'title' => 'Release Notes',
-            'desc' => 'What shipped, what is coming, and current known limitations.',
+            'desc' => 'What the system covers today, and what it doesn\'t do.',
             'tag' => 'Updates',
             'target' => '#doc-release-notes',
             'icon' => 'release',
@@ -151,21 +151,21 @@
 
 <style>
     :root {
-        --help-bg: #eef1f5;
+        --help-bg: #f1efec;
         --help-surface: rgba(255, 255, 255, 0.92);
         --help-surface-strong: #ffffff;
-        --help-border: #d7dee8;
-        --help-text: #182230;
-        --help-muted: #5f6b7a;
-        --help-accent: #4f7fe0;
-        --help-accent-strong: #3e67c7;
+        --help-border: #e3ded8;
+        --help-text: #201c1c;
+        --help-muted: #6b6560;
+        --help-accent: #ef4444;
+        --help-accent-strong: #dc2626;
         --help-shadow: 0 18px 40px rgba(17, 24, 39, 0.08);
     }
 
     .help-shell {
         background:
-            radial-gradient(circle at top left, rgba(79, 127, 224, 0.12), transparent 34%),
-            radial-gradient(circle at top right, rgba(112, 148, 224, 0.12), transparent 28%),
+            radial-gradient(circle at top left, rgba(239, 68, 68, 0.12), transparent 34%),
+            radial-gradient(circle at top right, rgba(220, 38, 38, 0.12), transparent 28%),
             var(--help-bg);
         height: 100%;
         min-height: 0;
@@ -223,8 +223,8 @@
         display: grid;
         place-items: center;
         color: var(--help-accent);
-        background: linear-gradient(180deg, #edf3ff, #dfe8f7);
-        border: 1px solid #c9d5ea;
+        background: linear-gradient(180deg, #fef1f1, #fbdada);
+        border: 1px solid #f3bcbc;
         padding: 0;
         cursor: pointer;
         box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
@@ -261,7 +261,7 @@
 
     .top-card:hover {
         transform: translateY(-3px);
-        border-color: rgba(79, 127, 224, 0.35);
+        border-color: rgba(239, 68, 68, 0.35);
         box-shadow: 0 22px 46px rgba(17, 24, 39, 0.11);
     }
 
@@ -329,9 +329,9 @@
     }
 
     .search-chip:hover {
-        background: rgba(79, 127, 224, 0.1);
+        background: rgba(239, 68, 68, 0.1);
         color: var(--help-accent-strong);
-        border-color: rgba(79, 127, 224, 0.35);
+        border-color: rgba(239, 68, 68, 0.35);
     }
 
     .docs-empty-state {
@@ -485,7 +485,7 @@
         min-height: 360px;
         height: 100%;
         position: relative;
-        background: #e9eef7;
+        background: #efece8;
     }
 
     .map-box iframe {
@@ -554,7 +554,7 @@
         width: 100%;
         border: 1px solid var(--help-border);
         border-radius: 12px;
-        background: #fbfcfe;
+        background: #fdfcfb;
         padding: 12px 14px;
         font-size: 0.95rem;
         color: var(--help-text);
@@ -569,8 +569,8 @@
     .contact-form input:focus,
     .contact-form select:focus,
     .contact-form textarea:focus {
-        border-color: #dd1414;
-        box-shadow: 0 0 0 3px rgba(224, 128, 128, 0.141);
+        border-color: var(--help-accent-strong);
+        box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.14);
     }
 
     .contact-check {
@@ -589,7 +589,7 @@
         min-width: 16px;
         margin: 0;
         padding: 0;
-        border: 1px solid #9aa7b8;
+        border: 1px solid #a39c95;
         border-radius: 3px;
         accent-color: var(--help-accent);
         background: #fff;
@@ -603,19 +603,19 @@
     .contact-btn {
         border: 0;
         border-radius: 12px;
-        background: linear-gradient(135deg, #cf5252, #dd1414) /* linear-gradient(135deg, var(--help-accent), var(--help-accent-strong)) */;
+        background: linear-gradient(135deg, var(--help-accent), var(--help-accent-strong));
         color: #fff;
         font-size: 0.98rem;
         font-weight: 700;
         padding: 13px 16px;
         cursor: pointer;
-        box-shadow: 0 14px 24px rgba(106, 69, 69, 0.161);
+        box-shadow: 0 14px 24px rgba(239, 68, 68, 0.16);
         transition: transform 0.18s ease, box-shadow 0.18s ease;
     }
 
     .contact-btn:hover {
         transform: translateY(-1px);
-        box-shadow: 0 16px 28px rgba(79, 127, 224, 0.3);
+        box-shadow: 0 16px 28px rgba(239, 68, 68, 0.3);
     }
 
     .history-wrap {
@@ -632,8 +632,8 @@
     }
 
     .footer-bar {
-        background: #2E2E2E /* 1d2633 */;
-        color: #d7dee8;
+        background: #2E2E2E;
+        color: #e3ded8;
         font-size: 0.84rem;
         padding: 15px 0px;
     }
@@ -709,12 +709,12 @@
     }
 
     .docs-sidebar a:hover {
-        background: rgba(79, 127, 224, 0.08);
+        background: rgba(239, 68, 68, 0.08);
         color: var(--help-text);
     }
 
     .docs-sidebar a.active {
-        background: rgba(79, 127, 224, 0.12);
+        background: rgba(239, 68, 68, 0.12);
         color: var(--help-accent-strong);
         border-left-color: var(--help-accent);
     }
@@ -830,7 +830,7 @@
         width: 20px;
         height: 20px;
         border-radius: 999px;
-        background: rgba(79, 127, 224, 0.12);
+        background: rgba(239, 68, 68, 0.12);
         color: var(--help-accent-strong);
         font-size: 0.7rem;
         font-weight: 700;
@@ -849,7 +849,7 @@
     }
 
     .doc-article thead th {
-        background: rgba(79, 127, 224, 0.08);
+        background: rgba(239, 68, 68, 0.08);
         color: var(--help-text);
         text-align: left;
         font-weight: 700;
@@ -866,7 +866,7 @@
     }
 
     .doc-article tbody tr:nth-child(even) {
-        background: rgba(79, 127, 224, 0.03);
+        background: rgba(239, 68, 68, 0.03);
     }
 
     @media (max-width: 900px) {
@@ -927,7 +927,7 @@
 
     .guide-card:hover {
         transform: translateY(-4px);
-        border-color: rgba(79, 127, 224, 0.35);
+        border-color: rgba(239, 68, 68, 0.35);
         box-shadow: 0 24px 48px rgba(17, 24, 39, 0.12);
     }
 
@@ -937,7 +937,7 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        background: rgba(79, 127, 224, 0.1);
+        background: rgba(239, 68, 68, 0.1);
         border-radius: 12px;
         color: var(--help-accent);
         margin-bottom: 16px;
@@ -1043,11 +1043,11 @@
                     <a href="<?= esc($item['target']) ?>" class="top-card">
                         <div class="icon-s" aria-hidden="true">
                             <?php if ($item['icon'] === 'about'): ?>
-                                <img src="<?= base_url('icons/help-about.png') ?>" class="icon">
+                                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>
                             <?php elseif ($item['icon'] === 'faq'): ?>
-                                <img src="<?= base_url('icons/help-questions.png') ?>" class="icon">
+                                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 015.82 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
                             <?php else: ?>
-                                <img src="<?= base_url('icons/help-features.png') ?>" class="icon">
+                                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/></svg>
                             <?php endif; ?>
                         </div>
                         <div>
@@ -1055,7 +1055,7 @@
                             <div class="top-card-desc"><?= esc($item['desc']) ?></div>
                         </div>
                         <div class="top-card-arrow">
-                            <img src="<?= base_url('icons/help-arrow.png') ?>" class="icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px;display:block;"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
                         </div>
                     </a>
                 <?php endforeach; ?>
@@ -1111,7 +1111,7 @@
     <section id="faq-list" class="section-gray faq-wrap">
         <div class="help-container">
             <div class="faq-head">
-                <img src="<?= base_url('icons/help-questions.png') ?>" class="icon">
+                <div class="faq-badge" aria-hidden="true">?</div>
                 <h2>Frequently Asked Questions <span style="font-size: 15px; color:#777; font-weight:500;">(FAQs)</span></h2>
                 <p>Can’t find what you’re looking for?</p>
             </div>
@@ -1366,6 +1366,14 @@
                 applyFilter(term);
             });
         });
+
+        // Arriving here via the header's search box (?q=...) — pre-fill and
+        // run the same filter/scroll behavior as typing it in directly.
+        const queryTerm = new URLSearchParams(window.location.search).get('q') || '';
+        if (queryTerm.trim() !== '') {
+            input.value = queryTerm;
+            applyFilter(queryTerm);
+        }
     })();
 </script>
 

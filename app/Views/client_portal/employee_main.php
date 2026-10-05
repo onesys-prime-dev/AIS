@@ -1,33 +1,62 @@
 <?= $this->extend('layouts/main') ?>
 
+<?php if (\App\Libraries\PortalAccess::can('face_recognition')): ?>
+<?= $this->section('styles') ?>
+<link href="<?= base_url('css/face-scan.css') ?>" rel="stylesheet">
+<?= $this->endSection() ?>
+<?php endif; ?>
+
 <?= $this->section('content') ?>
 
-<div class="h-full flex flex-col min-h-0 overflow-visible">
+<div id="employeePortalRoot" class="h-full flex flex-col min-h-0 overflow-visible min-w-0">
 
     <div class="tabs">
         <button type="button" class="tab active" data-tab="employee-management">Employee Management</button>
+        <?php if (\App\Libraries\PortalAccess::canManageAccessControl()): ?><button type="button" class="tab" data-tab="access-control">Access Control</button><?php endif; ?>
+        <?php if (\App\Libraries\PortalAccess::can('face_recognition')): ?><button type="button" class="tab" data-tab="face-recognition">Face Recognition</button><?php endif; ?>
         <?php if (\App\Libraries\PortalAccess::can('loans')): ?><button type="button" class="tab" data-tab="loan-management">Loan Management</button><?php endif; ?>
     </div>
 
-    <div class="tab-panel h-full min-h-0 overflow-visible px-8 pb-8"
+    <div class="employee-tab-panel tab-panel h-full min-h-0 overflow-visible px-8 pb-8 min-w-0"
         data-panel="employee-management"
         style="display:flex;">
         <?= view('client_portal/employee_management') ?>
     </div>
 
-    <div class="tab-panel h-full min-h-0 overflow-visible px-8 pb-8" data-panel="loan-management" style="display:none;">
+    <div class="employee-tab-panel tab-panel h-full min-h-0 overflow-visible px-8 pb-8 min-w-0" data-panel="access-control" style="display:none;">
+        <?php if (\App\Libraries\PortalAccess::canManageAccessControl()): ?><?= view('client_portal/employee_access_control') ?><?php endif; ?>
+    </div>
+
+    <div class="employee-tab-panel tab-panel h-full min-h-0 overflow-visible px-8 pb-8 min-w-0" data-panel="face-recognition" style="display:none;">
+        <?php if (\App\Libraries\PortalAccess::can('face_recognition')): ?><?= view('client_portal/employee_face_recognition') ?><?php endif; ?>
+    </div>
+
+    <div class="employee-tab-panel tab-panel h-full min-h-0 overflow-visible px-8 pb-8 min-w-0" data-panel="loan-management" style="display:none;">
         <?php if (\App\Libraries\PortalAccess::can('loans')): ?><?= view('client_portal/employee_loan') ?><?php endif; ?>
     </div>
 
 
 </div>
 
+<style>
+    @media (max-width: 900px) {
+        #employeePortalRoot {
+            overflow-y: auto;
+        }
+
+        #employeePortalRoot .employee-tab-panel {
+            height: auto;
+            padding: 0 12px 16px;
+        }
+    }
+</style>
+
 <?= $this->endSection() ?>
 
 <?= $this->section('modals') ?>
 
     <?php
-    $content = view('client_portal/modals/add_employee_form');
+    $content = view('client_portal/modals/add_employee_form', ['activeDepartments' => $activeDepartments ?? [], 'employmentTypeOptions' => $employmentTypeOptions ?? []]);
     echo view('components/add_employee_modal', [
         'id' => 'employeeModal',
         'title' => 'Employee Management',
@@ -36,7 +65,7 @@
     ?>
 
     <?php
-    $content = view('client_portal/modals/edit_employee_form');
+    $content = view('client_portal/modals/edit_employee_form', ['activeDepartments' => $activeDepartments ?? [], 'employmentTypeOptions' => $employmentTypeOptions ?? []]);
     echo view('components/edit_employee_modal', [
         'id' => 'editEmployeeModal',
         'title' => 'Employee Management',
@@ -55,6 +84,18 @@
         'title' => 'Employee Details',
         'content' => $content
     ]);
+    ?>
+
+    <?php
+    if (\App\Libraries\PortalAccess::can('face_recognition')) {
+    $content = view('client_portal/modals/face_recognition_form');
+
+    echo view('components/edit_loan_modal', [
+        'id' => 'faceRecognitionModal',
+        'title' => 'Face Recognition Enrollment',
+        'content' => $content
+    ]);
+    }
     ?>
 
     <?php
@@ -107,8 +148,11 @@
 
 <script src="<?= base_url('js/components/modal-handler.js') ?>"></script>
 <script src="<?= base_url('js/components/crud-actions.js') ?>"></script>
-<script src="<?= base_url('js/components/crud-table.js') ?>"></script>
+<script src="<?= base_url('js/components/crud-table.js') ?>?v=<?= is_file(FCPATH . 'js/components/crud-table.js') ? filemtime(FCPATH . 'js/components/crud-table.js') : time() ?>"></script>
 <script src="<?= base_url('js/components/password-toggle.js') ?>"></script>
+<?php if (\App\Libraries\PortalAccess::can('face_recognition')): ?>
+<script src="<?= base_url('js/components/face-scan.js') ?>"></script>
+<?php endif; ?>
 
 <script>
 
@@ -121,6 +165,527 @@ document.addEventListener('DOMContentLoaded', () => {
 <?php endif; ?>
 const EMPLOYEES = <?= json_encode($employees) ?>;
 const LOANS = <?= json_encode($loans ?? []) ?>;
+const FACE_RECOGNITION_EMPLOYEES = <?= json_encode($faceRecognitionEmployees ?? []) ?>;
+const ACCESS_CONTROL_ACCOUNTS = <?= json_encode($accessControlAccounts ?? []) ?>;
+const ACCESS_CONTROL_ROLE_OPTIONS = <?= json_encode($accessControlRoleOptions ?? []) ?>;
+const ACCESS_CONTROL_CURRENT_USER_ID = <?= json_encode((int) $currentUserId) ?>;
+const ACCESS_CONTROL_DEPARTMENTS = <?= json_encode($accessControlDepartments ?? []) ?>;
+const ACCESS_CONTROL_TEAM_HEAD_ACCOUNTS = <?= json_encode($accessControlTeamHeadAccounts ?? []) ?>;
+const ACCESS_CONTROL_DEPARTMENT_TEAM_HEADS = <?= json_encode($accessControlDepartmentTeamHeads ?? []) ?>;
+const ACCESS_CONTROL_PERMISSIONS = <?= json_encode($accessControlPermissions ?? []) ?>;
+const ACCESS_CONTROL_PERMISSION_LABELS = <?= json_encode($accessControlPermissionLabels ?? []) ?>;
+const ACCESS_CONTROL_ACTOR_IS_SUPERADMIN = <?= json_encode((bool) ($accessControlActorIsSuperadmin ?? false)) ?>;
+const CSRF_HASH = "<?= csrf_hash() ?>";
+
+function acEscapeHtml(s) {
+    return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+    });
+}
+
+// Shared across the Accounts and Departments sections below, so giving
+// someone the Team Head role in Accounts immediately makes them pickable
+// in the Departments section's Team Head list — no page refresh needed.
+let acTeamHeadAccounts = ACCESS_CONTROL_TEAM_HEAD_ACCOUNTS.slice();
+
+// ================= ACCOUNTS (multi-role) =================
+(function () {
+    const body = document.getElementById('accessControlBody');
+    if (!body) return; // panel not rendered (PortalAccess::canManageAccessControl() was false)
+
+    const accounts = ACCESS_CONTROL_ACCOUNTS;
+    const roleOptions = ACCESS_CONTROL_ROLE_OPTIONS;
+
+    if (!accounts.length) {
+        body.innerHTML = '<tr><td colspan="3" class="px-4 py-6 text-center text-gray-400">No accounts found.</td></tr>';
+        return;
+    }
+
+    function roleBadges(roles) {
+        if (!roles.length) return '<span class="text-xs text-red-500">No role assigned</span>';
+        return roles.map(function (r) {
+            return '<span class="inline-flex items-center rounded-full bg-gray-100 text-gray-700 px-2 py-1 text-xs font-medium mr-2 mb-1">' + acEscapeHtml(roleOptions[r] || r) + '</span>';
+        }).join('');
+    }
+
+    function setPillSelected(pill, selected) {
+        pill.dataset.selected = selected ? '1' : '0';
+        pill.style.background = selected ? '#A891FC' : '#f3f4f6';
+        pill.style.color = selected ? '#fff' : '#374151';
+    }
+
+    function currentSelection(container) {
+        return Array.from(container.querySelectorAll('.ac-role-pill[data-selected="1"]')).map(function (p) { return p.dataset.role; });
+    }
+
+    function sameRoles(a, b) {
+        const sa = a.slice().sort().join(',');
+        const sb = b.slice().sort().join(',');
+        return sa === sb;
+    }
+
+    // Roles are always shown as clickable pills — no separate "Edit" step to
+    // find first. Save only appears once the selection actually differs from
+    // what's saved, same as the original single-role dropdown used to work.
+    body.innerHTML = accounts.map(function (acc) {
+        if (acc.user_id === ACCESS_CONTROL_CURRENT_USER_ID) {
+            return '<tr>' +
+                '<td class="px-4 py-3">' + acEscapeHtml(acc.name) + '</td>' +
+                '<td class="px-4 py-3">' + acEscapeHtml(acc.email || '—') + '</td>' +
+                '<td class="px-4 py-3 text-gray-400 italic">' + roleBadges(acc.roles) + ' (you)</td>' +
+                '</tr>';
+        }
+
+        const isSuperadminLocked = acc.roles.indexOf('superadmin') !== -1 && !ACCESS_CONTROL_ACTOR_IS_SUPERADMIN;
+        if (isSuperadminLocked) {
+            return '<tr>' +
+                '<td class="px-4 py-3">' + acEscapeHtml(acc.name) + '</td>' +
+                '<td class="px-4 py-3">' + acEscapeHtml(acc.email || '—') + '</td>' +
+                '<td class="px-4 py-3">' + roleBadges(acc.roles) + '<div class="text-xs text-gray-400 italic mt-1">Only Super Admin can change a Super Admin account.</div></td>' +
+                '</tr>';
+        }
+
+        const selectable = Object.keys(roleOptions).filter(function (key) {
+            return key !== 'superadmin' || ACCESS_CONTROL_ACTOR_IS_SUPERADMIN;
+        });
+        const pills = selectable.map(function (key) {
+            const selected = acc.roles.indexOf(key) !== -1;
+            return '<button type="button" class="ac-role-pill px-3 py-1 rounded-full text-xs font-medium" data-role="' + acEscapeHtml(key) + '" data-selected="' + (selected ? '1' : '0') + '" style="background:' + (selected ? '#A891FC' : '#f3f4f6') + ';color:' + (selected ? '#fff' : '#374151') + ';">' + acEscapeHtml(roleOptions[key]) + '</button>';
+        }).join('');
+
+        return '<tr data-user-id="' + acc.user_id + '">' +
+            '<td class="px-4 py-3" style="vertical-align:top;">' + acEscapeHtml(acc.name) + '</td>' +
+            '<td class="px-4 py-3" style="vertical-align:top;">' + acEscapeHtml(acc.email || '—') + '</td>' +
+            '<td class="px-4 py-3" style="vertical-align:top;">' +
+                '<div class="flex flex-wrap gap-2 ac-role-checklist">' + pills + '</div>' +
+                '<button type="button" class="ac-save-btn mt-2 px-3 py-1 rounded-lg text-xs font-semibold text-white" style="display:none;background:#A891FC;" onmouseover="this.style.background=\'#9678f5\'" onmouseout="this.style.background=\'#A891FC\'">Save</button>' +
+            '</td>' +
+            '</tr>';
+    }).join('');
+
+    body.querySelectorAll('tr[data-user-id]').forEach(function (row) {
+        const userId = row.dataset.userId;
+        const acc = accounts.find(function (a) { return String(a.user_id) === String(userId); });
+        if (!acc) return;
+
+        const checklist = row.querySelector('.ac-role-checklist');
+        const saveBtn = row.querySelector('.ac-save-btn');
+        if (!checklist || !saveBtn) return;
+        const pills = Array.from(checklist.querySelectorAll('.ac-role-pill'));
+
+        function refreshSaveVisibility() {
+            saveBtn.style.display = sameRoles(currentSelection(checklist), acc.roles) ? 'none' : 'inline-block';
+        }
+
+        pills.forEach(function (pill) {
+            pill.addEventListener('click', function () {
+                const nowSelected = pill.dataset.selected !== '1';
+                if (pill.dataset.role === 'employee' && nowSelected) {
+                    pills.forEach(function (p) { setPillSelected(p, p === pill); });
+                } else {
+                    setPillSelected(pill, nowSelected);
+                    if (nowSelected) {
+                        const employeePill = pills.find(function (p) { return p.dataset.role === 'employee'; });
+                        if (employeePill) setPillSelected(employeePill, false);
+                    }
+                }
+                refreshSaveVisibility();
+            });
+        });
+
+        saveBtn.addEventListener('click', function () {
+            const checked = currentSelection(checklist);
+
+            if ((checked.indexOf('admin') !== -1 || checked.indexOf('superadmin') !== -1) &&
+                !confirm('Save this role change? The account will have Admin and/or Super Admin access.')) {
+                return;
+            }
+
+            saveBtn.disabled = true;
+            saveBtn.textContent = 'Saving…';
+
+            const params = new URLSearchParams({ user_id: userId });
+            checked.forEach(function (r) { params.append('roles[]', r); });
+
+            fetch('<?= site_url('client_portal/access-control/update-roles') ?>', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': CSRF_HASH,
+                },
+                body: params,
+            })
+                .then(function (res) { return res.json(); })
+                .then(function (data) {
+                    if (window.showToast) window.showToast(data.message || (data.success ? 'Roles updated.' : 'Something went wrong.'), data.success ? 'success' : 'error');
+                    if (data.success) {
+                        const wasTeamHead = acc.roles.indexOf('team_head') !== -1;
+                        const isTeamHead = checked.indexOf('team_head') !== -1;
+                        if (isTeamHead && !wasTeamHead) {
+                            acTeamHeadAccounts.push({ user_id: acc.user_id, name: acc.name });
+                        } else if (!isTeamHead && wasTeamHead) {
+                            acTeamHeadAccounts = acTeamHeadAccounts.filter(function (t) { return t.user_id !== acc.user_id; });
+                        }
+                        acc.roles = checked;
+                        saveBtn.style.display = 'none';
+                    }
+                })
+                .catch(function () {
+                    if (window.showToast) window.showToast('Something went wrong.', 'error');
+                })
+                .finally(function () {
+                    saveBtn.disabled = false;
+                    saveBtn.textContent = 'Save';
+                });
+        });
+    });
+})();
+
+// ================= DEPARTMENTS =================
+(function () {
+    const container = document.getElementById('departmentsList');
+    if (!container) return;
+
+    // Local, mutable copy so add/rename/deactivate can update the UI without a full reload.
+    let departments = ACCESS_CONTROL_DEPARTMENTS.slice();
+    const deptTeamHeads = Object.assign({}, ACCESS_CONTROL_DEPARTMENT_TEAM_HEADS);
+
+    function post(url, params) {
+        return fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-TOKEN': CSRF_HASH,
+            },
+            body: params,
+        }).then(function (res) { return res.json(); });
+    }
+
+    function render() {
+        if (!departments.length) {
+            container.innerHTML = '<p class="text-sm text-gray-400 text-center py-6">No departments yet — add one above.</p>';
+            return;
+        }
+
+        function teamHeadSummary(d) {
+            const assigned = deptTeamHeads[d.id] || [];
+            if (!assigned.length) return '<span style="color:#f87171;">No Team Head assigned</span>';
+            const names = assigned.map(function (uid) {
+                const th = acTeamHeadAccounts.find(function (t) { return t.user_id === uid; });
+                return th ? acEscapeHtml(th.name) : null;
+            }).filter(Boolean);
+            return 'Team Head: ' + names.join(', ');
+        }
+
+        // Each department is a compact one-line summary by default — the full
+        // rename / Team Head / deactivate controls only appear once you click
+        // Manage, so having several departments on screen doesn't mean several
+        // full edit forms all open at once.
+        container.innerHTML = departments.map(function (d) {
+            return '<div class="rounded-2xl border border-gray-200 p-4" data-department-id="' + d.id + '">' +
+                '<div class="flex items-center justify-between flex-wrap gap-2">' +
+                    '<div>' +
+                        '<span class="font-medium text-gray-800 dept-name-display">' + acEscapeHtml(d.name) + '</span> ' +
+                        '<button type="button" class="dept-toggle-employees-btn text-xs underline" style="color:#9ca3af;">' + d.employee_count + ' employee' + (d.employee_count === 1 ? '' : 's') + '</button>' +
+                        '<div class="text-xs text-gray-400 mt-0.5 dept-team-head-summary">' + teamHeadSummary(d) + '</div>' +
+                    '</div>' +
+                    '<button type="button" class="dept-manage-btn text-xs font-semibold" style="color:#9678f5;">Manage</button>' +
+                '</div>' +
+                '<div class="dept-employees-list text-xs text-gray-500 mt-2" style="display:none;">' +
+                    (d.employees.length ? d.employees.map(function (e) { return acEscapeHtml(e.name); }).join(', ') : 'No employees in this department yet.') +
+                '</div>' +
+                '<div class="dept-manage-panel mt-3 pt-3 border-t border-gray-100" style="display:none;"></div>' +
+                '</div>';
+        }).join('');
+
+        function renderManagePanel(d) {
+            const assigned = deptTeamHeads[d.id] || [];
+            const teamHeadChecks = acTeamHeadAccounts.length
+                ? acTeamHeadAccounts.map(function (th) {
+                    const checked = assigned.indexOf(th.user_id) !== -1 ? ' checked' : '';
+                    return '<label class="flex items-center gap-2 text-sm py-1">' +
+                        '<input type="checkbox" class="dth-box" value="' + th.user_id + '"' + checked + '>' +
+                        acEscapeHtml(th.name) +
+                        '</label>';
+                }).join('')
+                : '<p class="text-xs text-gray-400 col-span-2">No accounts hold the Team Head role yet.</p>';
+
+            return '<div class="flex items-center gap-2 mb-3">' +
+                    '<input type="text" class="dept-name-input border border-gray-300 rounded-lg px-2 py-1 text-sm" value="' + acEscapeHtml(d.name) + '" style="width:200px;">' +
+                    '<button type="button" class="dept-rename-btn text-xs font-semibold" style="color:#9678f5;">Save name</button>' +
+                    '<button type="button" class="dept-deactivate-btn text-xs ml-auto" style="color:#9ca3af;" onmouseover="this.style.color=\'#dc2626\'" onmouseout="this.style.color=\'#9ca3af\'">Deactivate department</button>' +
+                '</div>' +
+                '<div class="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-1">Team Head(s)</div>' +
+                '<div class="grid grid-cols-2 gap-1">' + teamHeadChecks + '</div>' +
+                '<div class="flex justify-end mt-2">' +
+                    '<button type="button" class="dth-save-btn px-3 py-1 rounded-lg text-xs font-semibold text-white" style="background:#A891FC;" onmouseover="this.style.background=\'#9678f5\'" onmouseout="this.style.background=\'#A891FC\'">Save Team Heads</button>' +
+                '</div>';
+        }
+
+        container.querySelectorAll('[data-department-id]').forEach(function (card) {
+            const id = card.dataset.departmentId;
+
+            card.querySelector('.dept-toggle-employees-btn').addEventListener('click', function () {
+                const list = card.querySelector('.dept-employees-list');
+                list.style.display = list.style.display === 'none' ? 'block' : 'none';
+            });
+
+            const panel = card.querySelector('.dept-manage-panel');
+            const manageBtn = card.querySelector('.dept-manage-btn');
+            manageBtn.addEventListener('click', function () {
+                const dep = departments.find(function (d) { return String(d.id) === String(id); });
+                const opening = panel.style.display === 'none';
+                panel.style.display = opening ? 'block' : 'none';
+                manageBtn.textContent = opening ? 'Close' : 'Manage';
+                if (opening) {
+                    panel.innerHTML = renderManagePanel(dep);
+                    wireManagePanel(card, panel, id);
+                }
+            });
+        });
+
+        function wireManagePanel(card, panel, id) {
+            panel.querySelector('.dept-rename-btn').addEventListener('click', function () {
+                const btn = this;
+                const newName = panel.querySelector('.dept-name-input').value.trim();
+                if (!newName) return;
+                btn.disabled = true;
+                post('<?= site_url('client_portal/access-control/departments/rename') ?>', new URLSearchParams({ id: id, name: newName }))
+                    .then(function (data) {
+                        if (window.showToast) window.showToast(data.message || (data.success ? 'Renamed.' : 'Something went wrong.'), data.success ? 'success' : 'error');
+                        if (data.success) {
+                            const dep = departments.find(function (d) { return String(d.id) === String(id); });
+                            if (dep) dep.name = newName;
+                            card.querySelector('.dept-name-display').textContent = newName;
+                        }
+                    })
+                    .catch(function () { if (window.showToast) window.showToast('Something went wrong.', 'error'); })
+                    .finally(function () { btn.disabled = false; });
+            });
+
+            panel.querySelector('.dept-deactivate-btn').addEventListener('click', function () {
+                const dep = departments.find(function (d) { return String(d.id) === String(id); });
+                if (!confirm('Deactivate "' + (dep ? dep.name : 'this department') + '"? Its Team Head assignments will be cleared. Employees already in it keep their record but the department will no longer be selectable.')) return;
+                post('<?= site_url('client_portal/access-control/departments/deactivate') ?>', new URLSearchParams({ id: id }))
+                    .then(function (data) {
+                        if (window.showToast) window.showToast(data.message || (data.success ? 'Deactivated.' : 'Something went wrong.'), data.success ? 'success' : 'error');
+                        if (data.success) {
+                            departments = departments.filter(function (d) { return String(d.id) !== String(id); });
+                            delete deptTeamHeads[id];
+                            render();
+                        }
+                    })
+                    .catch(function () { if (window.showToast) window.showToast('Something went wrong.', 'error'); });
+            });
+
+            panel.querySelector('.dth-save-btn').addEventListener('click', function () {
+                const btn = this;
+                const checked = Array.from(panel.querySelectorAll('.dth-box:checked')).map(function (cb) { return cb.value; });
+                btn.disabled = true;
+                btn.textContent = 'Saving…';
+
+                const params = new URLSearchParams({ department_id: id });
+                checked.forEach(function (uid) { params.append('team_head_user_ids[]', uid); });
+
+                post('<?= site_url('client_portal/access-control/departments/team-heads') ?>', params)
+                    .then(function (data) {
+                        if (window.showToast) window.showToast(data.message || (data.success ? 'Saved.' : 'Something went wrong.'), data.success ? 'success' : 'error');
+                        if (data.success) {
+                            deptTeamHeads[id] = checked.map(Number);
+                            card.querySelector('.dept-team-head-summary').innerHTML = teamHeadSummary({ id: id });
+                        }
+                    })
+                    .catch(function () { if (window.showToast) window.showToast('Something went wrong.', 'error'); })
+                    .finally(function () { btn.disabled = false; btn.textContent = 'Save Team Heads'; });
+            });
+        }
+    }
+
+    render();
+
+    const addBtn = document.getElementById('addDepartmentBtn');
+    const nameInput = document.getElementById('newDepartmentName');
+    if (addBtn && nameInput) {
+        addBtn.addEventListener('click', function () {
+            const name = nameInput.value.trim();
+            if (!name) return;
+            addBtn.disabled = true;
+            post('<?= site_url('client_portal/access-control/departments/create') ?>', new URLSearchParams({ name: name }))
+                .then(function (data) {
+                    if (window.showToast) window.showToast(data.message || (data.success ? 'Added.' : 'Something went wrong.'), data.success ? 'success' : 'error');
+                    if (data.success) {
+                        departments.push({ id: data.id, name: name, employee_count: 0, employees: [] });
+                        nameInput.value = '';
+                        render();
+                    }
+                })
+                .catch(function () { if (window.showToast) window.showToast('Something went wrong.', 'error'); })
+                .finally(function () { addBtn.disabled = false; });
+        });
+    }
+})();
+
+// ================= ROLE PERMISSIONS =================
+(function () {
+    const section = document.getElementById('rolePermissionsSection');
+    const tabsEl = document.getElementById('rolePermissionTabs');
+    const bodyEl = document.getElementById('rolePermissionBody');
+    if (!section || !tabsEl || !bodyEl) return;
+
+    const permissions = ACCESS_CONTROL_PERMISSIONS; // { role: { permKey: bool, ... }, ... }
+    const roles = Object.keys(permissions);
+    if (!roles.length) return;
+    section.style.display = 'block';
+
+    // Sensitive permissions — toggling these ON for a role gets a confirm() prompt.
+    const SENSITIVE_PERMISSIONS = ['roles', 'payroll', 'compensation'];
+
+    function escapeHtml(s) {
+        return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+        });
+    }
+
+    let activeRole = roles[0];
+
+    function renderTabs() {
+        tabsEl.innerHTML = roles.map(function (role) {
+            const active = role === activeRole;
+            const label = (ACCESS_CONTROL_ROLE_OPTIONS[role] || role);
+            return '<button type="button" data-role="' + escapeHtml(role) + '" class="px-3 py-2 rounded-lg text-sm font-medium"' +
+                (active ? ' style="background:#A891FC;color:#fff;"' : ' style="background:#f3f4f6;color:#374151;"') +
+                '>' + escapeHtml(label) + '</button>';
+        }).join('');
+
+        tabsEl.querySelectorAll('button').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                activeRole = btn.dataset.role;
+                renderTabs();
+                renderBody();
+            });
+        });
+    }
+
+    function renderBody() {
+        const rolePerms = permissions[activeRole] || {};
+        const permKeys = Object.keys(rolePerms);
+
+        bodyEl.innerHTML = '<div class="grid grid-cols-2 gap-2" id="rpChecklist">' +
+            permKeys.map(function (key) {
+                const label = ACCESS_CONTROL_PERMISSION_LABELS[key] || key;
+                const checked = rolePerms[key] ? ' checked' : '';
+                return '<label class="flex items-center gap-2 text-sm py-1">' +
+                    '<input type="checkbox" value="' + escapeHtml(key) + '"' + checked + '>' +
+                    escapeHtml(label) +
+                    '</label>';
+            }).join('') +
+            '</div>' +
+            '<div class="flex justify-end mt-4">' +
+                '<button type="button" id="rpSaveBtn" class="px-4 py-2 rounded-lg text-sm font-semibold text-white" style="background:#A891FC;" onmouseover="this.style.background=\'#9678f5\'" onmouseout="this.style.background=\'#A891FC\'">Save Permissions</button>' +
+            '</div>';
+
+        document.getElementById('rpSaveBtn').addEventListener('click', function () {
+            const saveBtn = this;
+            const checked = Array.from(bodyEl.querySelectorAll('#rpChecklist input:checked')).map(function (cb) { return cb.value; });
+
+            const newlySensitive = checked.filter(function (p) {
+                return SENSITIVE_PERMISSIONS.indexOf(p) !== -1 && !rolePerms[p];
+            });
+            if (newlySensitive.length && !confirm(
+                'Grant ' + newlySensitive.map(function (p) { return ACCESS_CONTROL_PERMISSION_LABELS[p] || p; }).join(', ') +
+                ' to every "' + (ACCESS_CONTROL_ROLE_OPTIONS[activeRole] || activeRole) + '" account? This affects everyone currently assigned that role.'
+            )) {
+                return;
+            }
+
+            saveBtn.disabled = true;
+            saveBtn.textContent = 'Saving…';
+
+            const params = new URLSearchParams({ role: activeRole });
+            checked.forEach(function (p) { params.append('permissions[]', p); });
+
+            fetch('<?= site_url('client_portal/access-control/update-role-permissions') ?>', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': CSRF_HASH,
+                },
+                body: params,
+            })
+                .then(function (res) { return res.json(); })
+                .then(function (data) {
+                    if (window.showToast) window.showToast(data.message || (data.success ? 'Saved.' : 'Something went wrong.'), data.success ? 'success' : 'error');
+                    if (data.success) {
+                        permKeys.forEach(function (key) { rolePerms[key] = checked.indexOf(key) !== -1; });
+                    }
+                })
+                .catch(function () {
+                    if (window.showToast) window.showToast('Something went wrong.', 'error');
+                })
+                .finally(function () {
+                    saveBtn.disabled = false;
+                    saveBtn.textContent = 'Save Permissions';
+                });
+        });
+    }
+
+    renderTabs();
+    renderBody();
+})();
+
+// ================= ACCESS CONTROL SUB-TABS =================
+// Accounts / Team Head Assignments / Role Permissions used to all sit
+// stacked in one scroll area, leaving almost no room to actually work with
+// the accounts table. Splitting them into sub-tabs (same pill style as the
+// Role Permissions tabs) lets whichever one is active use the full height
+// of the panel instead of competing for space with the other two.
+(function () {
+    const tabsWrap = document.getElementById('acSubTabs');
+    if (!tabsWrap) return;
+
+    const panels = {
+        accounts: document.querySelector('[data-ac-panel="accounts"]'),
+        departments: document.getElementById('departmentsSection'),
+        permissions: document.getElementById('rolePermissionsSection'),
+    };
+    const buttons = Array.from(tabsWrap.querySelectorAll('[data-ac-tab]'));
+
+    function isEligible(key) {
+        // Accounts, Departments and Role Permissions are all always available —
+        // unlike the old per-employee Team Head picker, Departments doesn't
+        // depend on any data already existing (you add the first one here).
+        return !!panels[key];
+    }
+
+    buttons.forEach(function (btn) {
+        if (!isEligible(btn.dataset.acTab)) {
+            btn.style.display = 'none';
+        }
+    });
+
+    function activate(key) {
+        buttons.forEach(function (btn) {
+            const active = btn.dataset.acTab === key;
+            btn.style.background = active ? '#A891FC' : '#f3f4f6';
+            btn.style.color = active ? '#fff' : '#374151';
+        });
+        Object.keys(panels).forEach(function (k) {
+            if (panels[k]) panels[k].style.display = k === key ? 'block' : 'none';
+        });
+    }
+
+    buttons.forEach(function (btn) {
+        btn.style.cssText += ';padding:8px 12px;border-radius:8px;font-size:13px;font-weight:500;';
+        btn.addEventListener('click', function () { activate(btn.dataset.acTab); });
+    });
+
+    const firstEligible = buttons.find(function (btn) { return isEligible(btn.dataset.acTab); });
+    activate(firstEligible ? firstEligible.dataset.acTab : 'accounts');
+})();
+
 const CURRENT_USER_ID = <?= (int) ($currentUserId ?? 0) ?>;
 const EDIT_ICON = "<?= base_url('icons/edit.png') ?>";
 const VIEW_ICON = "<?= base_url('icons/view.png') ?>";
@@ -245,6 +810,7 @@ function htmlEsc(val)
                         data-address="${htmlEsc(p.address)}"
 
                         data-department="${htmlEsc(p.department)}"
+                        data-department_id="${htmlEsc(p.department_id)}"
                         data-position="${htmlEsc(p.position)}"
                         data-employment_type="${htmlEsc(p.employment_type)}"
 
@@ -253,6 +819,9 @@ function htmlEsc(val)
                         data-start_time="${htmlEsc(p.start_time)}"
                         data-end_time="${htmlEsc(p.end_time)}"
                         data-break_schedule='${htmlEsc(p.break_schedule || "[]")}'
+                        data-break_windows='${htmlEsc(p.break_windows || "[]")}'
+                        data-tardiness_grace_minutes="${htmlEsc(p.tardiness_grace_minutes ?? 0)}"
+                        data-ot_grace_minutes="${htmlEsc(p.ot_grace_minutes ?? 0)}"
 
                         data-sss="${htmlEsc(p.sss)}"
                         data-tin="${htmlEsc(p.tin)}"
@@ -263,6 +832,8 @@ function htmlEsc(val)
                         data-monthly_salary="${htmlEsc(p.monthly_salary)}"
                         data-de_minimis_benefit="${htmlEsc(p.de_minimis_benefit)}"
                         data-de_minimis_breakdown='${htmlEsc(p.de_minimis_breakdown || "{}")}'
+                        data-additional_de_minimis_benefit="${htmlEsc(p.additional_de_minimis_benefit)}"
+                        data-additional_de_minimis_breakdown='${htmlEsc(p.additional_de_minimis_breakdown || "{}")}'
                         data-allowances="${htmlEsc(p.allowances)}"
 
                         data-vacation_leave="${htmlEsc(p.vacation_leave)}"
@@ -613,6 +1184,174 @@ function htmlEsc(val)
 
 /*
 |--------------------------------------------------------------------------
+| FACE RECOGNITION ROW
+|--------------------------------------------------------------------------
+*/
+
+const FACE_REQUIREMENT_LABELS = { default: 'System Default', required: 'Always Require', exempt: 'Exempt' };
+const FACE_REQUIREMENT_BADGE_CLASSES = {
+    default: 'bg-gray-200 text-gray-500',
+    required: 'bg-green-100 text-green-700',
+    exempt: 'bg-blue-100 text-blue-700',
+};
+
+function faceRecognitionRowTemplate(p) {
+    // Same "LastName, FirstName MI." format as employeeRowTemplate — but this
+    // table (unlike the main employee list) also includes admin/superadmin
+    // accounts with no employees row at all, so fall back to p.name (already
+    // resolved server-side to their username / "User #id") when there's no
+    // first/last name to format.
+    const hasEmployeeName = (p.first_name || '').trim() !== '' || (p.last_name || '').trim() !== '';
+    const middleName = (p.middle_name || '').trim();
+    const middleInitial = middleName ? htmlEsc(middleName.charAt(0).toUpperCase()) + '.' : '';
+    const displayName = hasEmployeeName
+        ? `${htmlEsc(p.last_name)}, ${htmlEsc(p.first_name)}${middleInitial ? ' ' + middleInitial : ''}`
+        : htmlEsc(p.name);
+
+    const photoUrl = p.photo_path ? p.photo_path : '';
+    const avatarSource = displayName.trim();
+    const avatarInitials = avatarSource ? avatarSource.substring(0, 2).toUpperCase() : 'U';
+
+    const avatarHtml = photoUrl
+        ? `<div class="w-10 h-10 rounded-full" style="background-image:url('${photoUrl}');background-size:cover;background-position:center;"></div>`
+        : `<div class="w-10 h-10 bg-gray-300 rounded-full flex items-center justify-center text-xs font-bold text-gray-700">${avatarInitials}</div>`;
+
+    const statusHtml = p.enrolled
+        ? `<span class="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-semibold">Registered (${p.enrollment_count})</span>`
+        : `<span class="bg-gray-200 text-gray-500 px-3 py-1 rounded-full text-xs font-semibold">Not Registered</span>`;
+
+    const requirement = p.face_requirement || 'default';
+    const requirementHtml = `
+        <div class="relative inline-block" data-face-requirement-cell data-user_id="${htmlEsc(p.user_id)}" data-value="${requirement}">
+            <button type="button" class="${FACE_REQUIREMENT_BADGE_CLASSES[requirement]} px-3 py-1 rounded-full text-xs font-semibold cursor-pointer inline-flex items-center gap-1"
+                data-face-requirement-badge onclick="toggleFaceRequirementMenu(this)">
+                ${FACE_REQUIREMENT_LABELS[requirement]}
+                <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <div class="hidden absolute left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-md text-xs z-10 overflow-hidden w-40" data-face-requirement-menu>
+                <button type="button" class="block w-full text-left px-3 py-2 hover:bg-gray-50" onclick="selectFaceRequirement(this, 'default')">System Default</button>
+                <button type="button" class="block w-full text-left px-3 py-2 hover:bg-gray-50" onclick="selectFaceRequirement(this, 'required')">Always Require</button>
+                <button type="button" class="block w-full text-left px-3 py-2 hover:bg-gray-50" onclick="selectFaceRequirement(this, 'exempt')">Exempt</button>
+            </div>
+        </div>`;
+
+    return `
+        <div class="grid items-center border-b hover:bg-gray-50" style="grid-template-columns: 2fr 1fr 1.1fr 1fr 1.1fr 1.3fr 0.8fr;">
+
+            <div class="p-4 flex items-center gap-3">
+                ${avatarHtml}
+                <span class="font-medium">
+                    ${displayName}
+                    ${Number(p.user_id) === CURRENT_USER_ID ? '<span class="ml-2 bg-blue-100 text-blue-700 px-2 py-1 rounded-full text-[10px] font-semibold align-middle">Me</span>' : ''}
+                </span>
+            </div>
+
+            <div class="p-4">${htmlEsc(p.position) || '---'}</div>
+            <div class="p-4">${htmlEsc(p.department) || '---'}</div>
+
+            <div class="p-4">${htmlEsc(p.employee_number) || '---'}</div>
+
+            <div class="p-4">${statusHtml}</div>
+
+            <div class="p-4">${requirementHtml}</div>
+
+            <div class="p-4 flex justify-center gap-4">
+                <div
+                    class="cursor-pointer w-7 h-7 hover:scale-110 transition"
+                    data-action="edit-face"
+                    data-user_id="${htmlEsc(p.user_id)}"
+                    data-name="${htmlEsc(p.name)}"
+                    data-enrolled="${p.enrolled ? '1' : '0'}"
+                    data-enrollment_count="${htmlEsc(p.enrollment_count)}"
+                    data-enrollment_latest_at="${htmlEsc(p.enrollment_latest_at)}">
+                    <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-label="Edit face enrollment">
+                        <path d="M4 8V6a2 2 0 0 1 2-2h2" />
+                        <path d="M16 4h2a2 2 0 0 1 2 2v2" />
+                        <path d="M20 16v2a2 2 0 0 1-2 2h-2" />
+                        <path d="M8 20H6a2 2 0 0 1-2-2v-2" />
+                        <circle cx="12" cy="10" r="2.2" />
+                        <path d="M8.5 17c0-2 1.5-3.2 3.5-3.2s3.5 1.2 3.5 3.2" />
+                    </svg>
+                </div>
+            </div>
+
+        </div>
+        `;
+}
+
+// Inline control on the Face Recognition table itself (not tucked inside
+// the enroll modal) — System Default follows the global FaceRecognition.enabled
+// switch, Always Require / Exempt override it for just this one account.
+// Rendered as a colored badge (same pill style as the Face Status column)
+// with a small click-to-open menu, rather than a plain <select>.
+function closeAllFaceRequirementMenus(except) {
+    document.querySelectorAll('[data-face-requirement-menu]').forEach(menu => {
+        if (menu !== except) menu.classList.add('hidden');
+    });
+}
+
+function toggleFaceRequirementMenu(badgeBtn) {
+    const menu = badgeBtn.closest('[data-face-requirement-cell]').querySelector('[data-face-requirement-menu]');
+    const willOpen = menu.classList.contains('hidden');
+    closeAllFaceRequirementMenus();
+    menu.classList.toggle('hidden', !willOpen);
+}
+
+document.addEventListener('click', function (e) {
+    if (!e.target.closest('[data-face-requirement-cell]')) closeAllFaceRequirementMenus();
+});
+
+function selectFaceRequirement(optionBtn, value) {
+    const cell = optionBtn.closest('[data-face-requirement-cell]');
+    const badge = cell.querySelector('[data-face-requirement-badge]');
+    const menu = cell.querySelector('[data-face-requirement-menu]');
+    const userId = cell.dataset.user_id;
+    const previous = cell.dataset.value || 'default';
+    menu.classList.add('hidden');
+
+    if (value === previous) return;
+
+    const applyBadge = (val) => {
+        badge.className = `${FACE_REQUIREMENT_BADGE_CLASSES[val]} px-3 py-1 rounded-full text-xs font-semibold cursor-pointer inline-flex items-center gap-1`;
+        badge.innerHTML = `${FACE_REQUIREMENT_LABELS[val]}
+            <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+    };
+
+    // Optimistic update — reverted below if the save fails.
+    applyBadge(value);
+    cell.dataset.value = value;
+
+    const params = new URLSearchParams({ requirement: value });
+
+    fetch(`<?= site_url('client_portal/face-recognition/requirement') ?>/${userId}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-CSRF-TOKEN': CSRF_HASH,
+        },
+        body: params,
+    })
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === 'success') {
+                if (window.showToast) window.showToast('Face verification requirement updated.', 'success');
+            } else {
+                cell.dataset.value = previous;
+                applyBadge(previous);
+                if (window.showToast) window.showToast(data.message || 'Unable to update this setting.', 'warning');
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            cell.dataset.value = previous;
+            applyBadge(previous);
+            if (window.showToast) window.showToast('Unable to reach the server right now.', 'warning');
+        });
+}
+
+/*
+|--------------------------------------------------------------------------
 | LOAN ROW
 |--------------------------------------------------------------------------
 */
@@ -620,7 +1359,13 @@ function htmlEsc(val)
 function loanRowTemplate(loan)
 {
     return `
-        <div class="grid grid-cols-[1.5fr_1.2fr_1.2fr_1.2fr_1fr_1fr_1.2fr_0.8fr_1fr] items-center border-b hover:bg-gray-50">
+        <!-- border-left/right: transparent — the header row above has a real
+             1px border on both sides (crud_table.php's "border" class), which
+             eats 2px from ITS content box that this row's box doesn't lose,
+             so each fr track came out ~1px narrower on the header than here.
+             Matching (invisible) border-width keeps both content boxes the
+             same size so the columns land exactly on top of each other. -->
+        <div class="grid items-center border-b hover:bg-gray-50" style="grid-template-columns: minmax(0,1.5fr) minmax(0,1.2fr) minmax(0,1.2fr) minmax(0,1.2fr) minmax(0,1fr) minmax(0,0.7fr) minmax(0,1.2fr) minmax(0,1.1fr) minmax(0,1fr); border-left: 1px solid transparent; border-right: 1px solid transparent;">
 
             <div class="p-4 font-medium truncate">
                 ${loan.employee_name || '—'}
@@ -630,34 +1375,41 @@ function loanRowTemplate(loan)
                 ${loan.loan_type || '—'}
             </div>
 
-             <div class="p-4">
+             <div class="p-4 truncate">
                 ₱${Number(loan.principal_amount || 0).toLocaleString()}
             </div>
 
-            <div class="p-4">
+            <div class="p-4 truncate">
                 ₱${Number(loan.remaining_balance || 0).toLocaleString()}
             </div>
 
-            <div class="p-4">
+            <div class="p-4 truncate">
                 ₱${Number(loan.deduction_per_payroll || 0).toLocaleString()}
             </div>
 
-            <div class="p-4 text-center">
+            <div class="p-4 text-center truncate">
                 ${loan.installment_count || 0}
             </div>
 
-            <div class="p-4">
+            <div class="p-4 truncate">
                 ${loan.start_date || '—'}
             </div>
 
-            <div class="p-4">
+            <!-- overflow-hidden (not truncate — this wraps a pill, not plain
+                 text) so a long status like "active ongoing" now clips
+                 inside its fixed-width column instead of visually bleeding
+                 into the next one, now that minmax(0,fr) above stops it
+                 from widening the column to fit. -->
+            <div class="p-4 overflow-hidden">
                 <span class="
-                    px-3 py-1 rounded-full text-xs font-semibold
+                    capitalize px-3 py-1 whitespace-nowrap rounded-full text-xs font-semibold
                     ${loan.loan_status === 'active'
                         ? 'bg-green-100 text-green-700'
-                        : 'bg-red-100 text-red-700'}
+                        : loan.loan_status === 'active_ongoing'
+                            ? 'bg-blue-100 text-blue-700'
+                            : 'bg-red-100 text-red-700'}
                 ">
-                    ${loan.loan_status || '—'}
+                    ${(loan.loan_status || '—').replace(/_/g, ' ')}
                 </span>
             </div>
 
@@ -862,6 +1614,22 @@ function viewLoanDetails(loanId) {
 
                     </div>
 
+                    <!-- PAYMENT SCHEDULE (uneven/custom amounts, editable
+                         while still pending) -->
+                    <div class="border rounded-xl overflow-hidden mb-6">
+
+                        <div class="bg-gray-50 px-4 py-3 border-b">
+                            <h3 class="font-semibold text-gray-700">
+                                Payment Schedule
+                            </h3>
+                        </div>
+
+                        <div id="loanScheduleSection" class="p-5">
+                            <p class="text-sm text-gray-400">Loading schedule...</p>
+                        </div>
+
+                    </div>
+
                 </div>
 
             </div>
@@ -871,6 +1639,139 @@ function viewLoanDetails(loanId) {
             html;
 
         openModalById('viewLoanModal');
+
+        loadLoanSchedule(loan.id);
+}
+
+/*
+|--------------------------------------------------------------------------
+| PAYMENT SCHEDULE — VIEW + INLINE EDIT (uneven/custom installments)
+|--------------------------------------------------------------------------
+|
+| The final pending installment is deliberately shown read-only (it always
+| auto-balances server-side to guarantee the loan resolves to exactly ₱0 —
+| see LoanService::updateInstallmentAmount()); every other pending row can
+| have its amount adjusted in place.
+*/
+
+async function loadLoanSchedule(loanId) {
+
+    const section = document.getElementById('loanScheduleSection');
+    if (!section) return;
+
+    try {
+        const res = await fetch(`<?= site_url('client_portal/loans/viewSchedule') ?>/${loanId}`);
+        if (!res.ok) throw new Error('Failed to load schedule: ' + res.status);
+
+        const data = await res.json();
+        renderLoanSchedule(loanId, data.schedule || []);
+    } catch (err) {
+        console.error('loadLoanSchedule error:', err);
+        section.innerHTML = '<p class="text-sm text-red-500">Unable to load payment schedule.</p>';
+    }
+}
+
+function renderLoanSchedule(loanId, schedule) {
+
+    const section = document.getElementById('loanScheduleSection');
+    if (!section) return;
+
+    if (!schedule.length) {
+        section.innerHTML = '<p class="text-sm text-gray-400">No schedule found for this loan.</p>';
+        return;
+    }
+
+    const pendingNos = schedule
+        .filter(row => row.schedule_status === 'pending')
+        .map(row => Number(row.installment_no));
+    const lastPendingNo = pendingNos.length ? Math.max(...pendingNos) : null;
+
+    section.innerHTML = `
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="text-left text-gray-400 text-xs uppercase">
+                    <th class="pb-2">#</th>
+                    <th class="pb-2">Due Date</th>
+                    <th class="pb-2 text-right">Amount</th>
+                    <th class="pb-2 pr-4 text-right">Balance After</th>
+                    <th class="pb-2 pl-3">Status</th>
+                    <th class="pb-2"></th>
+                </tr>
+            </thead>
+            <tbody>
+                ${schedule.map(row => {
+                    const no = Number(row.installment_no);
+                    const isPending = row.schedule_status === 'pending';
+                    const isLastPending = no === lastPendingNo;
+                    const editable = isPending && !isLastPending;
+
+                    return `
+                        <tr class="border-t" data-installment="${no}">
+                            <td class="py-2">${no}</td>
+                            <td class="py-2">${row.due_date}</td>
+                            <td class="py-2 text-right">
+                                ${editable
+                                    ? `<input type="number" step="0.01" min="0.01" class="w-28 border rounded px-2 py-1 text-right schedule-amount-input" value="${row.amount_due}">`
+                                    : `₱${Number(row.amount_due).toLocaleString()}`
+                                }
+                                ${isLastPending ? '<span class="block text-[10px] text-gray-400">auto-balances</span>' : ''}
+                            </td>
+                            <td class="py-2 pr-4 text-right">₱${Number(row.remaining_balance).toLocaleString()}</td>
+                            <td class="py-2 pl-3 capitalize">${row.schedule_status}</td>
+                            <td class="py-2 text-right">
+                                ${editable
+                                    ? `<button type="button" class="text-xs text-purple-600 hover:text-purple-700 font-semibold" onclick="saveInstallmentAmount(${loanId}, ${no}, this)">Save</button>`
+                                    : ''
+                                }
+                            </td>
+                        </tr>
+                    `;
+                }).join('')}
+            </tbody>
+        </table>
+    `;
+}
+
+async function saveInstallmentAmount(loanId, installmentNo, btn) {
+
+    const row = btn.closest('tr');
+    const input = row.querySelector('.schedule-amount-input');
+    const newAmount = parseFloat(input.value || 0);
+
+    if (!(newAmount > 0)) {
+        showToast('Enter an amount greater than 0.', 'warning');
+        return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Saving...';
+
+    try {
+        const res = await fetch(
+            `<?= site_url('client_portal/loans/schedule') ?>/${loanId}/${installmentNo}`,
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': CSRF_HASH,
+                },
+                body: new URLSearchParams({ amount_due: newAmount }),
+            }
+        );
+        const data = await res.json();
+
+        if (!data.success) {
+            throw new Error(data.message || 'Unable to update this installment.');
+        }
+
+        showToast('Installment updated.', 'success');
+        renderLoanSchedule(loanId, data.schedule);
+    } catch (err) {
+        showToast(err.message, 'error');
+        btn.disabled = false;
+        btn.textContent = 'Save';
+    }
 }
 
     function loanViewField(label, value = '') {
@@ -920,13 +1821,16 @@ window.addEventListener('click', function(e)
         setVal('edit_mobile_number',     button.dataset.mobile_number);
         setVal('edit_address',           button.dataset.address);
 
-        setVal('edit_department',        button.dataset.department);
+        setVal('edit_department_id',     button.dataset.department_id);
         setVal('edit_position',          button.dataset.position);
         setVal('edit_employment_type',   button.dataset.employment_type);
         setVal('edit_email',             button.dataset.email);
         setVal('edit_monthly_salary',    button.dataset.monthly_salary);
         setVal('edit_de_minimis_benefit',button.dataset.de_minimis_benefit);
-        loadEditBreakdown( button.dataset.de_minimis_breakdown || '{}' ); 
+        loadEditBreakdown( button.dataset.de_minimis_breakdown || '{}' );
+        if (typeof loadAdditionalDeMinimis === 'function') {
+            loadAdditionalDeMinimis(button.dataset.additional_de_minimis_breakdown || '{}');
+        }
 
         setVal('edit_allowances',        button.dataset.allowances);
         setVal('edit_vacation_leave',    button.dataset.vacation_leave);
@@ -946,15 +1850,20 @@ window.addEventListener('click', function(e)
         setVal('edit_status',            button.dataset.status);
 
         setVal('edit_working_day_type',  button.dataset.working_day_type);
+        if (typeof toggleEditScheduleTime === 'function') toggleEditScheduleTime(button.dataset.working_day_type);
         setVal('edit_start_time',        button.dataset.start_time);
         setVal('edit_end_time',          button.dataset.end_time);
+        setVal('edit_tardiness_grace_minutes', button.dataset.tardiness_grace_minutes || 0);
+        setVal('edit_ot_grace_minutes',        button.dataset.ot_grace_minutes || 0);
         if (typeof toggleEditScheduleTime === 'function') toggleEditScheduleTime(button.dataset.working_day_type);
 
         // Restore break schedule (falls back to a single 60-min break if unset)
         if (typeof rebuildBreakRows === 'function') {
             let breakMinutes = [];
             try { breakMinutes = JSON.parse(button.dataset.break_schedule || '[]'); } catch (e) { breakMinutes = []; }
-            rebuildBreakRows('edit', Array.isArray(breakMinutes) && breakMinutes.length ? breakMinutes : [60]);
+            let breakWindows = [];
+            try { breakWindows = JSON.parse(button.dataset.break_windows || '[]'); } catch (e) { breakWindows = []; }
+            rebuildBreakRows('edit', Array.isArray(breakMinutes) && breakMinutes.length ? breakMinutes : [60], breakWindows);
         }
 
         // Restore working day checkboxes
@@ -989,6 +1898,28 @@ window.addEventListener('click', function(e)
         form.action = `${UPDATE_URL}/${button.dataset.id}`;
 
         openModalById('editEmployeeModal');
+
+        return;
+    }
+
+    /*
+    |----------------------------------------------------------
+    | FACE RECOGNITION EDIT
+    |----------------------------------------------------------
+    */
+    const faceEditBtn = e.target.closest('[data-action="edit-face"]');
+
+    if (faceEditBtn)
+    {
+        if (typeof window.openFaceRecognitionModal === 'function') {
+            window.openFaceRecognitionModal({
+                user_id: Number(faceEditBtn.dataset.user_id),
+                name: faceEditBtn.dataset.name,
+                enrolled: faceEditBtn.dataset.enrolled === '1',
+                enrollment_count: Number(faceEditBtn.dataset.enrollment_count || 0),
+                enrollment_latest_at: faceEditBtn.dataset.enrollment_latest_at || null,
+            });
+        }
 
         return;
     }
@@ -1032,16 +1963,34 @@ window.addEventListener('click', function(e)
             document.getElementById('edit_loan_id').value = loan.id || '';
             document.getElementById('edit_loan_employee').value = loan.employee_name || '';
             document.getElementById('edit_loan_type').value = loan.loan_type || '';
-            document.getElementById('edit_start_date').value = loan.start_date || '';
             document.getElementById('edit_installment_count').value = loan.installment_count || '';
             document.getElementById('edit_deduction_per_payroll').value = loan.deduction_per_payroll || '';
-            
+            document.getElementById('edit_deduction_frequency_hidden').value = loan.deduction_frequency || 'Semi-Monthly';
+
+            // Effective date defaults to "Custom Date" prefilled with the
+            // loan's current start_date; switching modes/dates re-resolves
+            // it against payroll_settings via refreshEditEffectiveDate().
+            document.getElementById('edit_effective_mode_custom').checked = true;
+            document.getElementById('edit_effective_mode_next_cutoff').checked = false;
+            document.getElementById('editNextCutoffPreview').classList.add('hidden');
+            const customDateInput = document.getElementById('edit_custom_start_date');
+            customDateInput.classList.remove('hidden');
+            customDateInput.value = loan.start_date || '';
+            document.getElementById('edit_start_date').value = loan.start_date || '';
+            if (typeof refreshEditEffectiveDate === 'function') {
+                refreshEditEffectiveDate();
+            }
+
             // Fix: Use a select or hidden input for status
             const statusSelect = document.getElementById('edit_loan_status_display');
             if (statusSelect) {
                 statusSelect.value = loan.loan_status || 'active';
             }
-            
+
+            if (typeof applyLoanStatusRules === 'function') {
+                applyLoanStatusRules(loan.loan_status);
+            }
+
             document.getElementById('editLoanForm').action = `${LOAN_UPDATE_URL}/${loan.id}`;
             openModalById('editLoanModal');
         }
@@ -1081,6 +2030,14 @@ function activateTab(tabKey)
                 : 'none';
 
     });
+
+    // Reflect the active tab in the URL (?tab=...) so a refresh — or a
+    // shared link — lands back on this same tab instead of always
+    // resetting to Employee Management. replaceState (not pushState) so
+    // switching tabs doesn't spam the browser's back/forward history.
+    const tabUrl = new URL(window.location.href);
+    tabUrl.searchParams.set('tab', tabKey);
+    window.history.replaceState({}, '', tabUrl);
 }
 
 tabs.forEach(tab => {
@@ -1092,7 +2049,15 @@ tabs.forEach(tab => {
 
 });
 
-activateTab('employee-management');
+// Honor ?tab= from the URL on load, but only if it names a tab actually
+// rendered for this user's role — PHP already only renders the tab
+// buttons a user is allowed to see, so checking against the live DOM here
+// is sufficient (no separate allow-list to keep in sync). Falls back to
+// Employee Management for a missing/invalid/unauthorized value.
+const requestedTab = new URLSearchParams(window.location.search).get('tab');
+const hasRequestedTab = requestedTab && Array.from(tabs).some(tab => tab.dataset.tab === requestedTab);
+
+activateTab(hasRequestedTab ? requestedTab : 'employee-management');
 /*
 |--------------------------------------------------------------------------
 | CREATE EMPLOYEE TABLE
@@ -1113,7 +2078,94 @@ createCrudTable({
         ${item.employee_number}
         `
         .toLowerCase()
-        .includes(q)
+        .includes(q),
+    sort: ({ a, b, sortBy, sortOrder }) => {
+        let left, right;
+
+        if (sortBy === 'name') {
+            // Sort by family name to match the displayed "LastName, FirstName"
+            // order (crud-table.js's own default sorts first_name-first instead).
+            left = (a.last_name || '').toLowerCase();
+            right = (b.last_name || '').toLowerCase();
+        } else if (sortBy === 'status') {
+            left = String(a.status ?? 0);
+            right = String(b.status ?? 0);
+        } else {
+            left = String(a[sortBy] ?? '').toLowerCase();
+            right = String(b[sortBy] ?? '').toLowerCase();
+        }
+
+        if (left < right) return sortOrder === 'asc' ? -1 : 1;
+        if (left > right) return sortOrder === 'asc' ? 1 : -1;
+        return 0;
+    }
+});
+
+/*
+|--------------------------------------------------------------------------
+| CREATE FACE RECOGNITION TABLE
+|--------------------------------------------------------------------------
+*/
+
+createCrudTable({
+    tableId: "faceRecognitionTable",
+    data: FACE_RECOGNITION_EMPLOYEES,
+    renderRow: faceRecognitionRowTemplate,
+    search: (item, q) =>
+        `
+        ${item.name}
+        ${item.position}
+        ${item.department}
+        ${item.employee_number}
+        `
+        .toLowerCase()
+        .includes(q),
+    filters: ({ item, query, values } = {}) => {
+        item = item || {};
+        values = values || {};
+
+        const matchesSearch = !query || `
+            ${item.name}
+            ${item.department}
+            ${item.position}
+            ${item.employee_number}
+            `
+            .toLowerCase()
+            .includes(query);
+
+        const matchesStatus =
+            !values.face_status ||
+            (values.face_status === 'registered' ? item.enrolled : !item.enrolled);
+
+        const matchesDepartment =
+            !values.department ||
+            (item.department || '').toLowerCase() === values.department;
+
+        return matchesSearch && matchesStatus && matchesDepartment;
+    },
+    sort: ({ a, b, sortBy, sortOrder }) => {
+        let left, right;
+
+        if (sortBy === 'enrolled') {
+            left = a.enrolled ? 1 : 0;
+            right = b.enrolled ? 1 : 0;
+        } else if (sortBy === 'name') {
+            // Sort by family name to match the displayed "LastName, FirstName"
+            // order, not p.name (which reads "FirstName MI. LastName" and
+            // would sort by given name instead). Falls back to p.name for
+            // admin-only rows with no employee profile (no last_name at all).
+            const familyName = (row) => ((row.last_name || row.first_name || row.name || '')).toLowerCase();
+            left = familyName(a);
+            right = familyName(b);
+        } else {
+            left = String(a[sortBy] ?? '').toLowerCase();
+            right = String(b[sortBy] ?? '').toLowerCase();
+        }
+
+        if (left < right) return sortOrder === 'asc' ? -1 : 1;
+        if (left > right) return sortOrder === 'asc' ? 1 : -1;
+        return 0;
+    }
 });
 
 /*
@@ -1126,14 +2178,48 @@ createCrudTable({
     tableId: "loanTable",
     data: LOANS,
     renderRow: loanRowTemplate,
-    search: (item, q) =>
-        `
-        ${item.employee_name}
-        ${item.loan_type}
-        ${item.loan_status}
-        `
-        .toLowerCase()
-        .includes(q)
+    filters: ({ item, query, values } = {}) => {
+        item = item || {};
+        values = values || {};
+
+        const matchesSearch = !query || `
+            ${item.employee_name}
+            ${item.loan_type}
+            ${item.loan_status}
+            `
+            .toLowerCase()
+            .includes(query);
+
+        const matchesStatus =
+            !values.status ||
+            (item.loan_status || '').toLowerCase() === values.status;
+
+        const matchesCategory =
+            !values.loan_category ||
+            (item.loan_category || '').toLowerCase() === values.loan_category;
+
+        const matchesType =
+            !values.loan_type ||
+            (item.loan_type || '').toLowerCase() === values.loan_type;
+
+        return matchesSearch && matchesStatus && matchesCategory && matchesType;
+    },
+    sort: ({ a, b, sortBy, sortOrder }) => {
+
+        let left, right;
+
+        if (sortBy === 'remaining_balance') {
+            left = Number(a.remaining_balance || 0);
+            right = Number(b.remaining_balance || 0);
+        } else {
+            left = String(a[sortBy] ?? '').toLowerCase();
+            right = String(b[sortBy] ?? '').toLowerCase();
+        }
+
+        if (left < right) return sortOrder === 'asc' ? -1 : 1;
+        if (left > right) return sortOrder === 'asc' ? 1 : -1;
+        return 0;
+    }
 });
 
 // ========== EMPLOYEE IMPORT / EXPORT ==========
@@ -1150,9 +2236,14 @@ document.getElementById('employeeImportInput')?.addEventListener('change', async
     try {
         const res = await fetch('<?= site_url('client_portal/employees/import') ?>', {
             method: 'POST',
+            // Without this the CSRF filter rejects the upload ("The action you requested
+            // is not allowed") — same fix as the Attendance Corrections save. Don't set
+            // Content-Type here: the browser needs to add its own multipart boundary for FormData.
+            headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '' },
             body: formData,
         });
-        const result = await res.json();
+        let result;
+        try { result = await res.json(); } catch (e) { throw new Error(res.status === 403 ? 'Session expired or request blocked. Refresh the page and try again.' : 'Unexpected server response (' + res.status + ').'); }
         if (result.success) {
             showToast(result.message || 'Employees imported successfully.', 'success');
             // Temporary passwords are generated per row and shown only here —
@@ -1172,7 +2263,7 @@ document.getElementById('employeeImportInput')?.addEventListener('change', async
             showToast('Import failed: ' + (result.message || 'Unknown error'), 'error');
         }
     } catch (err) {
-        showToast('Network error during import.', 'error');
+        showToast(err?.message || 'Network error during import.', 'error');
         console.error(err);
     }
     this.value = '';

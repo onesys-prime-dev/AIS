@@ -3,13 +3,23 @@
 
     <h3>Audit Logging</h3>
 
+    <p>Viewable from Payroll &gt; Audit Log. What actually gets recorded:</p>
+
     <ul>
-        <li>User logins and account activities</li>
-        <li>Payroll modifications</li>
-        <li>Transaction approvals and overrides</li>
-        <li>Configuration changes</li>
-        <li>Document uploads and downloads</li>
+        <li>Attendance — clock in/out, breaks, manual edits, deletions</li>
+        <li>Requests — filed, status changes, approval codes generated/used, cancellations</li>
+        <li>Employee records — created/updated/deleted, contact and emergency contact changes, photo updates, government ID changes, position changes</li>
+        <li>Payroll — creation, rate changes, status changes, deletions, payroll settings changes</li>
+        <li>Payslips — generated, sent (and how — individually or in bulk), edited (with what changed)</li>
+        <li>SSS and withholding-tax brackets — yearly bracket sets saved/activated/created, individual bracket changes</li>
+        <li>User accounts — activated/deactivated, status changes, role assigned/removed</li>
+        <li>Announcements — published, updated</li>
     </ul>
+
+    <p>
+        Each entry records who did it and when, plus the before/after values
+        for anything that changed.
+    </p>
 
     <h3>Security Controls</h3>
 
@@ -31,12 +41,19 @@
         <li>Bureau of Internal Revenue (BIR)</li>
     </ul>
 
-    <h3>Record Retention Policy</h3>
+    <h3>Payslip Access</h3>
 
-    <ul>
-        <li>Payroll Reports - 10 Years</li>
-        <li>Financial Reports - 10 Years</li>
-        <li>Audit Logs - 10 Years</li>
-        <li>Uploaded Documents - Based on company policy.</li>
-    </ul>
+    <p>
+        Payslips can be protected by a separate payslip password (set and
+        reset from your Profile) — this is independent of your account login
+        password.
+    </p>
+
+    <h3>Record Retention</h3>
+
+    <p>
+        The system does not enforce a fixed automatic deletion schedule for
+        payroll data, audit logs, or uploaded documents — retention is
+        governed by your organization's own policy.
+    </p>
 </div>

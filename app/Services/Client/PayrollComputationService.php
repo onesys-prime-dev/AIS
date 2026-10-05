@@ -180,6 +180,23 @@ class PayrollComputationService
         $currentTaxable = $basicPay + $nightDiff + $overtime + $otherTaxable;
         $withholdingTax = $this->calculateSemiMonthlyWithholdingTax($currentTaxable);
 
+        // The payroll page already computes these per period (contributions on
+        // 2nd half only, tax on net taxable with the cumulative 2nd-half method,
+        // as in the Excel register). When it sends them, store those exact
+        // figures so this record matches the payslip shown; the formulas above
+        // are only a fallback for callers that don't send them. A negative
+        // withholding_tax is a refund: it is not stored as a deduction but is
+        // added back to net pay below.
+        $taxRefund = 0.0;
+        if (isset($adjustments['sss_ee'], $adjustments['phic_ee'], $adjustments['hdmf_ee'], $adjustments['withholding_tax'])) {
+            $sss  = max(0.0, (float) $adjustments['sss_ee']);
+            $phic = max(0.0, (float) $adjustments['phic_ee']);
+            $hdmf = max(0.0, (float) $adjustments['hdmf_ee']);
+            $sentTax        = (float) $adjustments['withholding_tax'];
+            $withholdingTax = max(0.0, $sentTax);
+            $taxRefund      = max(0.0, -$sentTax);
+        }
+
         // =========================================================
         // LOAN DEDUCTIONS
         // =========================================================
@@ -263,7 +280,8 @@ class PayrollComputationService
 
         $netPay =
             $totalEarnings -
-            $totalDeductions;
+            $totalDeductions +
+            $taxRefund;
 
         // =========================================================
         // RETURN PAYROLL DATA
@@ -384,9 +402,9 @@ class PayrollComputationService
 
     protected function calculatePagIbig(float $monthlySalary): float
     {
-        // 2% of salary, capped at ₱100 employee share — both configurable.
+        // 2% of salary, capped at ₱200 employee share (2024+ HDMF circular) — both configurable.
         $rate = (float)($this->settings->getSetting('hdmf_rate') ?? 0.02);
-        $max  = (float)($this->settings->getSetting('hdmf_max')  ?? 100);
+        $max  = (float)($this->settings->getSetting('hdmf_max')  ?? 200);
 
         return min(round($monthlySalary * $rate, 2), $max);
     }
@@ -424,7 +442,7 @@ class PayrollComputationService
         if ($semiMonthlyTaxable <= 33333)  return round(937.50  + ($semiMonthlyTaxable - 16667) * 0.20, 2);
         if ($semiMonthlyTaxable <= 83333)  return round(4270.70 + ($semiMonthlyTaxable - 33333) * 0.25, 2);
         if ($semiMonthlyTaxable <= 333333) return round(16770.70 + ($semiMonthlyTaxable - 83333) * 0.30, 2);
-        return round(91770.00 + ($semiMonthlyTaxable - 333333) * 0.35, 2);
+        return round(91770.70 + ($semiMonthlyTaxable - 333333) * 0.35, 2);
     }
 
     // ========== Helpers for previous cut‑off data ==========
@@ -443,26 +461,12 @@ class PayrollComputationService
      */
     private function resolvePreviousCutoff(string $currentStart): array
     {
-        $dt  = new \DateTime($currentStart);
-        $day = (int)$dt->format('d');
+        // Follows the cutoffs configured in Payroll Settings: the previous cut-off
+        // is the one containing the day right before the current one starts.
+        $before = (new \DateTime($currentStart))->modify('-1 day')->format('Y-m-d');
+        $prev   = \App\Libraries\PayrollCutoff::forDate($before);
 
-        if ($day <= 15) {
-            // Current period is 1st–15th → previous is 16th–EOM of last month
-            $prevMonth     = (clone $dt)->modify('first day of last month');
-            $lastDayOfPrev = (int)(clone $prevMonth)->modify('last day of this month')->format('d');
-            $y = $prevMonth->format('Y');
-            $m = $prevMonth->format('m');
-            $prevStart = "{$y}-{$m}-16";
-            $prevEnd   = "{$y}-{$m}-{$lastDayOfPrev}";
-        } else {
-            // Current period is 16th–EOM → previous is 1st–15th of same month
-            $y = $dt->format('Y');
-            $m = $dt->format('m');
-            $prevStart = "{$y}-{$m}-01";
-            $prevEnd   = "{$y}-{$m}-15";
-        }
-
-        return [$prevStart, $prevEnd];
+        return [$prev['start'], $prev['end']];
     }
 
     private function getPreviousCutoffTaxable(int $employeeId, string $currentStart): float
