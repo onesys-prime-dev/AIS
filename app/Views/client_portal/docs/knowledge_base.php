@@ -10,8 +10,8 @@
     <p><strong>Resolution:</strong> Check the request's status under Requests. If it's still Pending, follow up with whoever reviews requests for you (Payroll Staff, HR Admin, or your Team Head).</p>
 
     <h3>Why can't I see my payslip?</h3>
-    <p><strong>Cause:</strong> Payroll for that period hasn't been released yet.</p>
-    <p><strong>Resolution:</strong> Payslips become visible once Payroll Staff marks that payroll run as sent/released.</p>
+    <p><strong>Cause:</strong> Your payslip for that period hasn't been sent yet — payroll saves payslips as drafts first and sends them later.</p>
+    <p><strong>Resolution:</strong> It appears (and is emailed to you) once Payroll Staff sends it — right away, or automatically on the scheduled salary day. If the salary day has passed and it's still missing, contact Payroll Staff.</p>
 
     <h3>Why did my employee CSV import fail?</h3>
     <p><strong>Cause:</strong> Missing required columns, or an invalid/duplicate employee ID or email in the file.</p>

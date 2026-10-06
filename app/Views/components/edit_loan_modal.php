@@ -22,6 +22,17 @@
     width: 100%;
     max-width: 600px;
 
+    /* The form inside can run longer than the viewport (e.g. Edit Loan,
+       Edit Employee); without a cap the box just grows past the screen with
+       no way to scroll to its own Save/Cancel buttons at the bottom —
+       zooming out was the only way to reach them. Capping height here and
+       letting the box scroll keeps the ✕ (position:absolute, unaffected by
+       the scroll) pinned at the corner while the content and action buttons
+       scroll into view normally. */
+    max-height: 90vh;
+    overflow-y: auto;
+    scrollbar-gutter: stable;
+
     border-radius: 18px;
 
     padding: 24px;

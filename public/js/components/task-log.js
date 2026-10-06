@@ -316,6 +316,34 @@ function renderTimeline() {
 
     const baseDateStr = taskLogWindow.time_in.split(' ')[0];
 
+    // Break block — shown so an on-break stretch reads as "not actually free"
+    // at a glance, instead of looking like an empty clickable gap the same as
+    // any other unlogged time. Informational only: doesn't change what
+    // validateTaskWindow() allows a task to overlap.
+    let breakBlock = '';
+    if (taskLogWindow.break_start) {
+        const bStart = new Date(taskLogWindow.break_start.replace(' ', 'T'));
+        const bEnd = taskLogWindow.break_end ? new Date(taskLogWindow.break_end.replace(' ', 'T')) : new Date();
+        const bLeftPct = Math.max(0, Math.min(100, ((bStart - winStart) / totalMs) * 100));
+        const bWidthPct = Math.max(1.5, Math.min(100 - bLeftPct, ((bEnd - bStart) / totalMs) * 100));
+        const bStartLabel = fmtTime(taskLogWindow.break_start.split(' ')[1] || taskLogWindow.break_start);
+        const bEndLabel = taskLogWindow.break_end
+            ? fmtTime(taskLogWindow.break_end.split(' ')[1] || taskLogWindow.break_end)
+            : 'ongoing';
+        // Amber stripe (not gray-on-gray) so it actually stands out against
+        // the bar's own gray-100 background instead of blending into it, and
+        // inset/rounded to match the task blocks' styling. A centered label
+        // shows once the block is wide enough to hold text without
+        // overflowing into the neighboring blocks.
+        const showLabel = bWidthPct >= 9;
+        // Semi-transparent stripe, drawn AFTER the task blocks (see below) so
+        // a task logged over the break time — e.g. one task spanning the
+        // whole day — still shows the break hatch on top instead of the task
+        // color completely hiding it. The task's own color still shows
+        // through between the stripes.
+        breakBlock = `<div class="absolute flex items-center justify-center" style="left:calc(${bLeftPct}% + 1px);width:calc(${bWidthPct}% - 2px);top:3px;bottom:3px;border-radius:3px;background:repeating-linear-gradient(45deg,rgba(251,191,36,0.55),rgba(251,191,36,0.55) 5px,rgba(217,119,6,0.55) 5px,rgba(217,119,6,0.55) 10px);" title="On break (${bStartLabel} – ${bEndLabel})">${showLabel ? `<span style="font-size:9px;font-weight:700;color:#451a03;text-shadow:0 1px 2px rgba(255,255,255,0.7);white-space:nowrap;">☕ Break</span>` : ''}</div>`;
+    }
+
     // Logged-task blocks — inset top/bottom and rounded so back-to-back tasks
     // stay visually distinct instead of blending into one solid strip.
     // NOTE: sizing/spacing here is deliberately all inline `style` rather than
@@ -334,7 +362,7 @@ function renderTimeline() {
     // summary line above it) so the clocked-in span reads clearly at a glance.
     const badge = (text, side) => `<span class="absolute pointer-events-none" style="top:50%;transform:translateY(-50%);${side}:3px;font-size:10px;font-weight:700;color:#4b5563;background:rgba(255,255,255,0.9);padding:2px 6px;border-radius:4px;box-shadow:0 1px 2px rgba(0,0,0,0.1);">${text}</span>`;
 
-    el.innerHTML = blocks + badge(startLabel, 'left') + badge(endLabel, 'right');
+    el.innerHTML = blocks + breakBlock + badge(startLabel, 'left') + badge(endLabel, 'right');
 }
 
 function renderTaskListUI() {
@@ -348,10 +376,15 @@ function renderTaskListUI() {
     }
     emptyMsg.classList.add('hidden');
 
-    list.innerHTML = taskLogTasks.map(t => `
+    list.innerHTML = taskLogTasks.map(t => {
+        const start = timeOnlyDate(t.start_time);
+        let end = timeOnlyDate(t.end_time);
+        if (end <= start) end = new Date(end.getTime() + 86400000);
+        const duration = fmtDurationMs(end - start);
+        return `
         <div class="flex items-center gap-2 bg-gray-50 border border-gray-100 rounded-lg px-3 py-2" style="margin-bottom:6px;">
             <div class="flex-1 min-w-0">
-                <div class="text-xs font-semibold text-gray-600">${fmtTime(t.start_time)} – ${fmtTime(t.end_time)}${t.client ? ' · ' + escapeHtml(t.client) : ''}</div>
+                <div class="text-xs font-semibold text-gray-600">${fmtTime(t.start_time)} – ${fmtTime(t.end_time)} · <span class="text-purple-600">${duration}</span>${t.client ? ' · ' + escapeHtml(t.client) : ''}</div>
                 <div class="text-sm text-gray-700 truncate">${escapeHtml(t.task_performed)}</div>
             </div>
             <button type="button" onclick="startEditTask(${t.id})" class="text-gray-400 hover:text-purple-600 transition p-1" title="Edit">
@@ -360,7 +393,8 @@ function renderTaskListUI() {
             <button type="button" onclick="deleteTaskEntry(${t.id})" class="text-gray-400 hover:text-red-600 transition p-1" title="Delete">
                 <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6h14z"/></svg>
             </button>
-        </div>`).join('');
+        </div>`;
+    }).join('');
 }
 
 // Finds the first gap (>= 15 min) between the window start and the next
@@ -411,15 +445,18 @@ function computeCurrentDurationMs() {
     return end - start;
 }
 
+function fmtDurationMs(ms) {
+    const totalMin = Math.round(ms / 60000);
+    const h = Math.floor(totalMin / 60);
+    const m = totalMin % 60;
+    return (h ? h + 'h ' : '') + (m || !h ? m + 'm' : '');
+}
+
 function updateDurationLabel() {
     const label = document.getElementById('tl_duration_label');
     if (!label) return;
     const ms = computeCurrentDurationMs();
-    if (ms === null) { label.textContent = ''; return; }
-    const totalMin = Math.round(ms / 60000);
-    const h = Math.floor(totalMin / 60);
-    const m = totalMin % 60;
-    label.textContent = 'Duration: ' + (h ? h + 'h ' : '') + (m || !h ? m + 'm' : '');
+    label.textContent = ms === null ? '' : 'Duration: ' + fmtDurationMs(ms);
 }
 
 // Quick-pick chip handler — applies a fixed span starting from whatever's in

@@ -47,17 +47,21 @@ class ActivityLogger
         ?array  $newValues = null
     ): bool {
         $user = auth()->user();
+        $request = service('request');
 
+        // No logged-in user = a console job (e.g. payroll:send-scheduled-payslips,
+        // run by the OS scheduler) — recorded as "System" (user 0) instead of
+        // crashing on $user->id, and a CLI request has no client IP.
         return (bool) $this->model->insert([
-            'user_id'     => $user->id,
-            'username'    => $user->username,
+            'user_id'     => $user ? $user->id : 0,
+            'username'    => $user ? $user->username : 'System',
             'action'      => $action,
             'module'      => $module,
             'record_id'   => $recordId,
-            'description' => $description,
+            'description' => mb_substr($description, 0, 255),
             'old_values'  => $oldValues !== null ? json_encode($oldValues) : null,
             'new_values'  => $newValues !== null ? json_encode($newValues) : null,
-            'ip_address'  => service('request')->getIPAddress(),
+            'ip_address'  => method_exists($request, 'getIPAddress') ? $request->getIPAddress() : null,
             'created_at'  => date('Y-m-d H:i:s'),
         ]);
     }
@@ -431,13 +435,72 @@ class ActivityLogger
      */
     public function payslipSent(int $payslipId, string $employeeName, string $periodStart, string $periodEnd, string $emailAddress, string $sendMethod = 'individual'): bool
     {
-        $methodLabel = $sendMethod === 'bulk' ? 'bulk send' : 'individual send';
+        $methodLabel = match ($sendMethod) {
+            'bulk'      => 'bulk send',
+            'scheduled' => 'scheduled release',
+            'resend'    => 'resend',
+            default     => 'individual send',
+        };
 
         return $this->updated('employee_payslips',
             "Payslip sent to {$employeeName} ({$periodStart} – {$periodEnd}) via {$methodLabel}",
             $payslipId,
             ['sent_at' => null],
             ['sent_at' => date('Y-m-d H:i:s'), 'sent_to' => $emailAddress, 'send_method' => $sendMethod]
+        );
+    }
+
+    // ── Payslip sending (schedule / cancel / failures / paid / mode) ──
+
+    public function payslipScheduled(int $payslipId, string $employeeName, string $periodStart, string $periodEnd, ?string $oldDate, string $newDate, bool $automatic = false): bool
+    {
+        $how = $automatic ? 'automatically scheduled' : ($oldDate ? 'rescheduled' : 'scheduled');
+        return $this->updated('employee_payslips',
+            "Payslip for {$employeeName} ({$periodStart} – {$periodEnd}) {$how} to send on {$newDate}",
+            $payslipId,
+            ['scheduled_send_date' => $oldDate],
+            ['scheduled_send_date' => $newDate]
+        );
+    }
+
+    public function payslipScheduleCancelled(int $payslipId, string $employeeName, string $periodStart, string $periodEnd, ?string $oldDate): bool
+    {
+        return $this->updated('employee_payslips',
+            "Scheduled send cancelled for {$employeeName} ({$periodStart} – {$periodEnd}) — back to draft",
+            $payslipId,
+            ['scheduled_send_date' => $oldDate],
+            ['scheduled_send_date' => null, 'send_status' => 'draft']
+        );
+    }
+
+    public function payslipSendProblem(int $payslipId, string $employeeName, string $periodStart, string $periodEnd, string $status, string $reason): bool
+    {
+        $label = $status === 'needs_review' ? 'held for review' : 'failed to send';
+        return $this->updated('employee_payslips',
+            "Payslip for {$employeeName} ({$periodStart} – {$periodEnd}) {$label}: {$reason}",
+            $payslipId,
+            [],
+            ['send_status' => $status, 'reason' => $reason]
+        );
+    }
+
+    public function payslipMarkedPaid(int $payslipId, string $employeeName, string $periodStart, string $periodEnd, ?int $transactionId): bool
+    {
+        return $this->updated('employee_payslips',
+            "Payslip for {$employeeName} ({$periodStart} – {$periodEnd}) marked as paid",
+            $payslipId,
+            ['paid_at' => null],
+            ['paid_at' => date('Y-m-d H:i:s'), 'payroll_transaction_id' => $transactionId]
+        );
+    }
+
+    public function payslipReleaseModeChanged(string $oldMode, string $newMode): bool
+    {
+        return $this->updated('payroll',
+            "Payslip release mode changed from {$oldMode} to {$newMode}",
+            0,
+            ['payslip_release_mode' => $oldMode],
+            ['payslip_release_mode' => $newMode]
         );
     }
 

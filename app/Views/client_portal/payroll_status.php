@@ -2,8 +2,8 @@
 
     <div class="payroll-status-header flex justify-between items-center my-4 gap-3">
         <div class="p-1">
-            <h1 class="text-3xl font-bold text-gray-800 mb-1">Payroll Status</h1>
-            <p class="text-gray-500 text-sm">Track payroll per period. Mark as Paid once processed.</p>
+            <h1 class="text-3xl font-bold mb-1" style="color:var(--content-text,#1f2937);">Payroll Status</h1>
+            <p class="text-sm" style="color:var(--content-text-muted,#6b7280);">Track payroll per period. Mark as Paid once processed.</p>
         </div>
 
         <div class="flex items-center gap-3">
@@ -47,7 +47,9 @@
 ?>
             <button type="button" data-period="monthly"
                 class="period-tab px-4 py-2 rounded-lg text-sm font-medium transition-all <?= $selPeriod === 'monthly' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700' ?>">
-                Monthly
+                Monthly<?php if ($selPeriod === 'monthly' && $h1Start && $h1End): ?>
+                    <span class="text-xs text-gray-500 ml-1">(<?= esc($h1Start) ?>–<?= esc($h1End) ?>)</span>
+                <?php endif ?>
             </button>
             <button type="button" data-period="1st_half"
                 class="period-tab px-4 py-2 rounded-lg text-sm font-medium transition-all <?= $selPeriod === '1st_half' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700' ?>">
@@ -63,13 +65,23 @@
             </button>
         </div>
 
-        <!-- Search -->
-        <div class="payroll-status-search relative flex-shrink-0">
+        <!-- Search + filter -->
+        <div class="payroll-status-search relative flex-shrink-0 flex items-center gap-2">
+            <select id="statusFilter" class="text-sm border border-gray-200 rounded-lg bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400 transition" aria-label="Filter employees">
+                <option value="all">All</option>
+                <option value="unpaid">Not paid</option>
+                <option value="paid">Paid</option>
+                <option value="noslip">No payslip</option>
+                <option value="unsent">Payslip not sent</option>
+                <option value="attention">Needs attention</option>
+            </select>
+            <div class="relative flex-shrink-0">
             <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"/>
             </svg>
             <input type="text" id="employeeSearch" placeholder="Search employee…"
                 class="pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 w-52 transition">
+            </div>
         </div>
     </div>
 
@@ -192,9 +204,78 @@
         return '<span class="inline-flex items-center gap-1 bg-gray-100 text-gray-500 px-3 py-1 rounded-full text-xs font-semibold">— Not Set</span>';
     }
 
-    function payslipBadge(sentAt) {
-        if (sentAt) return '<span class="inline-flex items-center gap-1 bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-semibold">&#10003; Sent</span>';
-        return '<span class="inline-flex items-center gap-1 bg-gray-100 text-gray-400 px-3 py-1 rounded-full text-xs font-semibold">Not Sent</span>';
+    // Same release states the Payslip tab (Payroll Output) uses.
+    function slipState(p) {
+        if (!p.payslip_id) return 'none';
+        if (p.payslip_sent_at) return 'sent';
+        return p.payslip_status || 'draft';
+    }
+
+    function fmtShortDate(d) {
+        if (!d) return '';
+        const dt = new Date(d + 'T00:00:00');
+        return isNaN(dt) ? '' : dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    }
+
+    function payslipBadge(p) {
+        const state = slipState(p);
+        const pill = (cls, text, title) => `<span class="inline-flex items-center gap-1 ${cls} px-3 py-1 rounded-full text-xs font-semibold"${title ? ` title="${esc(title)}"` : ''}>${text}</span>`;
+        switch (state) {
+            case 'sent': {
+                const resend = Number(p.payslip_needs_resend) === 1;
+                return pill('bg-blue-100 text-blue-700', '&#10003; Sent') +
+                    (resend ? ' ' + pill('bg-amber-100 text-amber-700', 'Resend needed', 'Saved again after it was sent') : '');
+            }
+            case 'scheduled': {
+                const when = fmtShortDate(p.payslip_scheduled_date);
+                return pill('bg-indigo-100 text-indigo-700', 'Scheduled' + (when ? ' · ' + esc(when) : ''));
+            }
+            case 'sending':      return pill('bg-indigo-100 text-indigo-700', 'Sending…');
+            case 'needs_review': return pill('bg-amber-100 text-amber-700', 'Needs review');
+            case 'failed':       return pill('bg-red-100 text-red-700', 'Failed');
+            case 'draft':        return pill('bg-gray-100 text-gray-500', 'Draft');
+            default:             return pill('bg-gray-100 text-gray-400', 'No payslip');
+        }
+    }
+
+    // Quick-filter buckets, shared by the chips' counts and the row filter.
+    function matchesFilter(p, filter) {
+        const state = slipState(p);
+        switch (filter) {
+            case 'unpaid':    return p.payroll_status !== 'Paid';
+            case 'paid':      return p.payroll_status === 'Paid';
+            case 'noslip':    return state === 'none';
+            case 'unsent':    return state !== 'none' && state !== 'sent';
+            case 'attention': return state === 'needs_review' || state === 'failed' || (state === 'sent' && Number(p.payslip_needs_resend) === 1);
+            default:          return true;
+        }
+    }
+
+    let activeFilter = 'all';
+
+    // Filter dropdown options carry a live count, e.g. "Not paid (12)".
+    function updateSummary() {
+        const sel = document.getElementById('statusFilter');
+        if (!sel) return;
+        Array.from(sel.options).forEach(opt => {
+            if (!opt.dataset.label) opt.dataset.label = opt.textContent;
+            opt.textContent = opt.dataset.label + ' (' + PAYROLLS.filter(p => matchesFilter(p, opt.value)).length + ')';
+        });
+        sel.value = activeFilter;
+    }
+
+    function applyFilters() {
+        const q = (document.getElementById('employeeSearch')?.value || '').trim().toLowerCase();
+        const rows = document.querySelectorAll('.ps-row');
+        const noMatch = document.getElementById('payrollStatusNoMatch');
+        let visible = 0;
+        rows.forEach(row => {
+            const p = PAYROLLS.find(x => String(x.employee_id) === row.dataset.employeeId);
+            const match = (!q || row.dataset.search.includes(q)) && (!p || matchesFilter(p, activeFilter));
+            row.style.display = match ? '' : 'none';
+            if (match) visible++;
+        });
+        noMatch.classList.toggle('hidden', visible > 0 || rows.length === 0);
     }
 
     function renderRow(p) {
@@ -232,7 +313,7 @@
             </div>
             <div class="p-4">${salaryHtml}</div>
             <div class="p-4 status-cell">${statusBadge(currentStatus)}</div>
-            <div class="p-4">${payslipBadge(p.payslip_sent_at)}</div>
+            <div class="p-4 flex items-center gap-1 flex-wrap">${payslipBadge(p)}</div>
             <div class="p-4 flex justify-center gap-2 action-cell">
                 ${markPaidBtn}${markPendingBtn}
             </div>
@@ -249,9 +330,23 @@
         }
         empty.classList.add('hidden');
         container.innerHTML = data.map(renderRow).join('');
+        updateSummary();
+        applyFilters();
     }
 
     window.markStatus = async function(employeeId, status, btn) {
+        // Confirm first: Paid is not just a label — a Paid payroll blocks
+        // timesheet imports for that employee's whole month.
+        const person = PAYROLLS.find(x => String(x.employee_id) === String(employeeId));
+        const name   = person ? person.employee_name : 'this employee';
+        if (status === 'Paid') {
+            const state = person ? slipState(person) : 'sent';
+            const slipNote = state === 'sent' ? '' : '\n\nNote: no payslip has been sent for this period yet.';
+            if (!confirm(`Mark ${name} as Paid for this period?\n\nWhile it is Paid, timesheet imports for this employee in ${MONTH} are blocked.${slipNote}`)) return;
+        } else if (!confirm(`Set ${name} back to Pending?\n\nThis re-opens the period for timesheet imports.`)) {
+            return;
+        }
+
         btn.disabled = true;
         btn.textContent = '…';
         try {
@@ -282,6 +377,8 @@
             if (!resp.ok || !result.success) throw new Error(result.error || 'Server error');
 
             const row = btn.closest('[data-employee-id]');
+            if (person) person.payroll_status = status;
+            updateSummary();
             row.querySelector('.status-cell').innerHTML = statusBadge(status);
             const actionCell = row.querySelector('.action-cell');
             if (status === 'Paid') {
@@ -299,17 +396,12 @@
     render(PAYROLLS);
 
     // ── Search ────────────────────────────────────────────────────────────────
-    document.getElementById('employeeSearch')?.addEventListener('input', function () {
-        const q = this.value.trim().toLowerCase();
-        const rows = document.querySelectorAll('.ps-row');
-        const noMatch = document.getElementById('payrollStatusNoMatch');
-        let visible = 0;
-        rows.forEach(row => {
-            const match = !q || row.dataset.search.includes(q);
-            row.style.display = match ? '' : 'none';
-            if (match) visible++;
-        });
-        noMatch.classList.toggle('hidden', visible > 0 || rows.length === 0);
+    document.getElementById('employeeSearch')?.addEventListener('input', applyFilters);
+
+    // ── Filter ────────────────────────────────────────────────────────────────
+    document.getElementById('statusFilter')?.addEventListener('change', function () {
+        activeFilter = this.value || 'all';
+        applyFilters();
     });
 
     // ── Period Tabs ───────────────────────────────────────────────────────────

@@ -36,31 +36,35 @@ class ClientAuthController extends LoginController
      */
     public function loginAction(): RedirectResponse
     {
-        $throttler = service('throttler');
+        // Only FAILED attempts count toward the limit. A successful login never uses one up, so a
+        // whole office signing in at 8am from one shared IP can't lock itself out. Per account:
+        // 5 failures / 3 min. Per IP: 20 failures / 3 min (higher because many people share one
+        // office address, but still caps guessing across many accounts from one place).
+        $window = 180;
+        $ipKey  = 'login-fail-ip-' . hash('sha256', $this->request->getIPAddress());
+        $identifier = strtolower(trim((string) $this->request->getPost('email')));
+        $emailKey   = $identifier !== '' ? 'login-fail-email-' . hash('sha256', $identifier) : null;
 
-        $ipKey = 'login-ip-' . hash('sha256', $this->request->getIPAddress());
-        if (! $throttler->check($ipKey, 5, 180)) { // 5 attempts per 3mins
+        $tooMany = ((int) cache($ipKey) >= 20) || ($emailKey !== null && (int) cache($emailKey) >= 5);
+        if ($tooMany) {
             return redirect()->route('login')
                 ->withInput()
                 ->with('error', 'Too many login attempts. Please try again in a few minutes.');
         }
 
-        $identifier = strtolower(trim((string) $this->request->getPost('email')));
-
-        if ($identifier !== '') {
-            $emailKey = 'login-email-' . hash('sha256', $identifier);
-
-            if (! $throttler->check($emailKey, 5, 180)) { // 5 attempts per 3min.
-                return redirect()->route('login')
-                    ->withInput()
-                    ->with('error', 'Too many login attempts. Please try again in a few minutes.');
-            }
-        }
-
         $response = parent::loginAction();
 
         if (! auth()->loggedIn()) {
+            cache()->save($ipKey, (int) cache($ipKey) + 1, $window);
+            if ($emailKey !== null) {
+                cache()->save($emailKey, (int) cache($emailKey) + 1, $window);
+            }
             return $response;
+        }
+
+        // Success: forget this account's failures (the IP's count simply ages out).
+        if ($emailKey !== null) {
+            cache()->delete($emailKey);
         }
 
         $user = auth()->user();

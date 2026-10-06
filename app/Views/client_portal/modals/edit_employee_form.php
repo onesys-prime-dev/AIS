@@ -88,6 +88,72 @@
     color: #ffffff;
 }
 
+/* Work Location list — one row per currently-selected working day, with a
+   switch-style toggle between Onsite/WFH. Driven by JS (renderWfhList),
+   not CSS :has(), for two reasons: a day's WFH-eligibility depends on
+   another field's state (not just its own), and this keeps it working the
+   same way in any browser rather than depending on :has() support. */
+.edit-wfh-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    padding: 8px 12px;
+}
+
+.edit-wfh-row-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #374151;
+}
+
+.edit-wfh-switch {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    width: 76px;
+    height: 26px;
+    border-radius: 999px;
+    background: #e5e7eb;
+    cursor: pointer;
+    transition: background .15s ease;
+}
+
+.edit-wfh-switch.is-wfh {
+    background: #6650cc;
+}
+
+.edit-wfh-switch-knob {
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #ffffff;
+    box-shadow: 0 1px 2px rgba(0,0,0,.2);
+    transition: transform .15s ease;
+}
+
+.edit-wfh-switch.is-wfh .edit-wfh-switch-knob {
+    transform: translateX(50px);
+}
+
+.edit-wfh-switch-label {
+    position: absolute;
+    width: 100%;
+    text-align: center;
+    font-size: 10px;
+    font-weight: 700;
+    color: #6b7280;
+}
+
+.edit-wfh-switch.is-wfh .edit-wfh-switch-label {
+    color: #ffffff;
+}
+
 .edit-btn-primary {
     background: #A891FC;
     color: white;
@@ -294,7 +360,9 @@
                             type="checkbox"
                             name="working_days[]"
                             value="<?= $value ?>"
-                            class="sr-only edit-day-checkbox">
+                            data-day-label="<?= $label ?>"
+                            class="sr-only edit-day-checkbox"
+                            onchange="renderEditWfhList()">
 
                         <span class="edit-day-btn">
                             <?= $label ?>
@@ -305,6 +373,12 @@
                     <?php endforeach; ?>
 
                 </div>
+            </div>
+
+            <div id="edit_wfh_section" class="hidden">
+                <label class="edit-form-label mb-2">Work Location</label>
+                <p class="text-xs text-gray-500 mb-3">Mark which of the selected working days are work-from-home. Everything else defaults to onsite.</p>
+                <div id="edit_wfh_list" class="space-y-2"></div>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="edit_schedule_time_row">
@@ -704,6 +778,44 @@
 </form>
 
 <script>
+// Rebuilds the Work Location list to match whichever working days are
+// currently checked — keeps a value previously marked WFH checked if that
+// day is still selected, drops it otherwise (nothing to carry over for a
+// day that's no longer worked at all).
+function renderEditWfhList() {
+    const list = document.getElementById('edit_wfh_list');
+    const section = document.getElementById('edit_wfh_section');
+    if (!list || !section) return;
+
+    const previouslyWfh = new Set(
+        Array.from(list.querySelectorAll('.edit-wfh-checkbox:checked')).map(cb => cb.value)
+    );
+
+    const checkedDays = Array.from(
+        document.querySelectorAll('#editEmployeeForm .edit-day-checkbox:checked')
+    );
+
+    section.classList.toggle('hidden', checkedDays.length === 0);
+    list.innerHTML = checkedDays.map(cb => {
+        const value = cb.value;
+        const label = cb.dataset.dayLabel || value;
+        const isWfh = previouslyWfh.has(value);
+        return `
+            <div class="edit-wfh-row">
+                <span class="edit-wfh-row-label">${label}</span>
+                <label class="edit-wfh-switch${isWfh ? ' is-wfh' : ''}">
+                    <input type="checkbox" name="wfh_days[]" value="${value}" class="sr-only edit-wfh-checkbox"
+                        ${isWfh ? 'checked' : ''}
+                        onchange="this.closest('.edit-wfh-switch').classList.toggle('is-wfh', this.checked);
+                                  this.closest('.edit-wfh-switch').querySelector('.edit-wfh-switch-label').textContent = this.checked ? 'WFH' : 'Onsite';">
+                    <span class="edit-wfh-switch-knob"></span>
+                    <span class="edit-wfh-switch-label">${isWfh ? 'WFH' : 'Onsite'}</span>
+                </label>
+            </div>
+        `;
+    }).join('');
+}
+
 function toggleEditScheduleTime(type) {
     const row = document.getElementById('edit_schedule_time_row');
     if (row) row.style.display = (type === 'flexible') ? 'none' : '';

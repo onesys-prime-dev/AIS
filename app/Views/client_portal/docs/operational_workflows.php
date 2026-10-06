@@ -21,12 +21,12 @@
     <h3>Payroll Processing</h3>
     <p>All done from the Payroll section, which has 6 tabs:</p>
     <ol>
-        <li><strong>Payroll Output</strong> — Raw Sheet, Register, Payslip, History, and Bank File live here: the cutoff's attendance and approved requests are pulled together, reviewed, and turned into payslips and a bank disbursement file.</li>
         <li><strong>Payroll Status</strong> — Payroll Staff reviews the figures and updates the status as it moves toward release.</li>
-        <li><strong>Generate Payslip</strong> — payslips are produced from the finalized payroll and become visible to employees.</li>
+        <li><strong>Generate Payslip</strong> — payslips are previewed and <strong>saved</strong> (one employee or in bulk). A saved payslip is a draft: nothing is emailed and the employee can't see it yet.</li>
+        <li><strong>Payroll Output</strong> — Payslip, Raw Sheet, Register, and Bank File live here. The <strong>Payslip</strong> view (load a month and half) is the only place payslips are sent: <em>Send Now</em> per employee or <em>Send All</em>, or <em>Schedule</em> for a date (the salary day by default), plus Mark as Paid. Release mode <em>Automatic</em> schedules every newly saved payslip for the salary day. A scheduled payslip is sent by the daily <code>payroll:send-scheduled-payslips</code> job; if attendance, approved requests or loans changed after it was saved, it's held as <em>Needs review</em> until it's saved again.</li>
+        <li><strong>Payroll Settings</strong> — cutoff schedules, the salary day for each half (and what happens on weekends/holidays), rates, and related configuration live here.</li>
         <li><strong>13th Month &amp; Annualization</strong> — computed and processed separately when due, not part of a regular cutoff.</li>
-        <li><strong>Payroll Settings</strong> — cutoff schedules, rates, and related configuration live here.</li>
-        <li><strong>Audit Log</strong> — every payroll action above (creation, rate changes, status changes, payslip generation/edits/sending) is recorded here automatically.</li>
+        <li><strong>Audit Log</strong> — every payroll action above (creation, rate changes, status changes, payslip saves/edits/scheduling/sending/failures, marking paid, release mode changes) is recorded here automatically.</li>
     </ol>
 
     <h3>Employee Loans</h3>

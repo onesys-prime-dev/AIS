@@ -6,7 +6,7 @@
                 <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
             </span>
             <input type="text" id="etrEmployeeSearch" placeholder="Search employee…" autocomplete="off"
-                class="border border-gray-300 rounded-lg pl-10 pr-8 py-2 text-sm bg-white w-full focus:outline-none focus:ring-2 focus:ring-purple-400">
+                class="border border-gray-300 rounded-lg pl-10 pr-8 py-2 text-sm bg-white w-full focus:outline-none focus:ring-2 focus:ring-gray-400">
             <button type="button" id="etrEmployeeClearBtn" class="hidden absolute inset-y-0 right-2 items-center text-gray-400 hover:text-gray-600" title="Clear selection">
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
             </button>
@@ -24,10 +24,10 @@
     <!-- Custom range controls — hidden by default, an alternate way to pick an
          arbitrary window when the fixed cutoff periods below aren't enough. -->
     <div id="etrCustomRange" class="hidden flex items-center gap-3 flex-wrap bg-gray-50 border border-gray-200 rounded-lg p-3 etr-fade-in">
-        <input type="date" id="etrStart" class="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-purple-400">
+        <input type="date" id="etrStart" class="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-400">
         <span class="text-gray-400 text-sm">to</span>
-        <input type="date" id="etrEnd" class="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-purple-400">
-        <button type="button" onclick="etrLoad()" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition">
+        <input type="date" id="etrEnd" class="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-400">
+        <button type="button" onclick="etrLoad()" class="bg-gray-700 hover:bg-gray-800 text-white px-4 py-2 rounded-lg text-sm font-semibold transition">
             Load
         </button>
     </div>
@@ -57,7 +57,7 @@
 <style>
     /* Employee Timesheet review UI — Timesheet page modal only. */
     .etr-select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%236b7280' stroke-width='2' viewBox='0 0 24 24'%3E%3Cpath d='M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2'/%3E%3Ccircle cx='12' cy='7' r='4'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:10px center; }
-    .etr-toggle-btn.active { background:#f3e8ff; border-color:#c4b5fd; color:#6d28d9; }
+    .etr-toggle-btn.active { background:#f3f4f6; border-color:#d1d5db; color:#111827; }
     .etr-toggle-btn.active #etrCustomChevron { transform:rotate(180deg); }
 
     .etr-fade-in { animation: etrFadeIn .25s ease-out; }
@@ -66,18 +66,18 @@
     .etr-placeholder { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; padding:64px 24px; color:#9ca3af; font-size:13px; text-align:center; }
     .etr-placeholder.hidden { display:none; }
     .etr-placeholder.is-loading .etr-spinner { display:inline-block; }
-    .etr-spinner { display:none; width:22px; height:22px; border:2.5px solid #e5e7eb; border-top-color:#9333ea; border-radius:50%; animation: etrSpin .7s linear infinite; }
+    .etr-spinner { display:none; width:22px; height:22px; border:2.5px solid #e5e7eb; border-top-color:#6b7280; border-radius:50%; animation: etrSpin .7s linear infinite; }
     @keyframes etrSpin { to { transform:rotate(360deg); } }
 
     .etr-period-row { display:grid; grid-template-columns:2fr 1.5fr 1fr; align-items:center; border-bottom:1px solid #f3f4f6; font-size:13px; transition:background-color .12s; }
     .etr-period-row:last-child { border-bottom:none; }
-    .etr-period-row:hover { background:#faf5ff; }
-    .etr-period-row.is-current { background:#faf5ff; }
-    .etr-current-badge { display:inline-flex; align-items:center; gap:3px; background:#9333ea; color:#fff; font-size:9px; font-weight:700; letter-spacing:.05em; padding:2px 7px; border-radius:999px; margin-left:8px; vertical-align:middle; }
+    .etr-period-row:hover { background:#f9fafb; }
+    .etr-period-row.is-current { background:#f9fafb; }
+    .etr-current-badge { display:inline-flex; align-items:center; gap:3px; background:#4b5563; color:#fff; font-size:9px; font-weight:700; letter-spacing:.05em; padding:2px 7px; border-radius:999px; margin-left:8px; vertical-align:middle; }
     .etr-action-btn { display:inline-flex; align-items:center; gap:4px; padding:5px 10px; border-radius:7px; font-size:11px; font-weight:600; cursor:pointer; transition:background-color .12s, transform .1s; border:none; }
     .etr-action-btn:active { transform:scale(.96); }
-    .etr-btn-view   { background:#f3e8ff; color:#6d28d9; }
-    .etr-btn-view:hover   { background:#e9d5ff; }
+    .etr-btn-view   { background:#f1f5f9; color:#334155; }
+    .etr-btn-view:hover   { background:#e2e8f0; }
     .etr-btn-export { background:#ecfdf5; color:#047857; }
     .etr-btn-export:hover { background:#d1fae5; }
 
@@ -86,7 +86,7 @@
     .etr-scroll::-webkit-scrollbar-track { background:transparent; }
 
     .etr-emp-item { padding:8px 12px; font-size:13px; color:#374151; cursor:pointer; }
-    .etr-emp-item:hover, .etr-emp-item.active { background:#f5f3ff; color:#6d28d9; }
+    .etr-emp-item:hover, .etr-emp-item.active { background:#f3f4f6; color:#111827; }
     .etr-emp-empty { padding:14px 12px; font-size:12px; color:#9ca3af; text-align:center; }
 </style>
 
@@ -110,6 +110,15 @@
     const subtitle      = document.getElementById('etrSubtitle');
     const placeholder   = document.getElementById('etrPlaceholder');
     const tableWrap      = document.getElementById('etrTableWrap');
+
+    // Delegated on the stable wrapper (not the rows themselves, which get
+    // torn down and rebuilt on every renderTable() call) so this needs
+    // binding only once instead of re-attaching per row.
+    tableWrap.addEventListener('click', (event) => {
+        const row = event.target.closest('tr[data-task-row-id]');
+        if (!row) return;
+        toggleReviewTaskRow(row.dataset.taskRowId);
+    });
 
     let employeesLoaded = false;
     let employeeList    = [];
@@ -152,6 +161,38 @@
         const d = new Date(dateStr);
         if (Number.isNaN(d.getTime())) return dateStr;
         return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+    }
+
+    function fmtTaskTime(timeStr) {
+        const d = new Date(`2000-01-01T${String(timeStr).length === 5 ? timeStr + ':00' : timeStr}`);
+        return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    }
+
+    // Spans crossing midnight (end <= start) are treated as running into the
+    // next day, same convention as the Timesheet page's own task-duration math.
+    function taskDurationLabel(startStr, endStr) {
+        const start = new Date(`2000-01-01T${String(startStr).length === 5 ? startStr + ':00' : startStr}`);
+        let end = new Date(`2000-01-01T${String(endStr).length === 5 ? endStr + ':00' : endStr}`);
+        if (end <= start) end = new Date(end.getTime() + 86400000);
+        const totalMin = Math.round((end - start) / 60000);
+        const h = Math.floor(totalMin / 60);
+        const m = totalMin % 60;
+        if (h && m) return `${h}h ${m}m`;
+        if (h) return `${h}h`;
+        return `${m}m`;
+    }
+
+    // Named distinctly from the main Timesheet page's own toggleTaskRow() —
+    // both scripts run in the same global scope (this modal is inlined
+    // directly into timesheet.php), and that one takes a raw attendance_id
+    // rather than a full element id, so a shared name would silently clobber
+    // whichever definition loads second.
+    function toggleReviewTaskRow(rowId) {
+        const row = document.getElementById(rowId);
+        if (!row) return;
+        row.classList.toggle('hidden');
+        const chevron = document.getElementById(rowId + '-chevron');
+        if (chevron) chevron.style.transform = row.classList.contains('hidden') ? '' : 'rotate(180deg)';
     }
 
     function badge(value, formatted, type) {
@@ -391,21 +432,57 @@
                 : `${formatDate(day.date)}${dateCounts[day.date] > 1 ? `<span class="ml-1 text-[10px] font-normal text-gray-400">(${dateCounts[day.date]}×)</span>` : ''}`;
 
             const timeIn  = day.in  && day.in  !== '-' ? escapeHtml(day.in)  : '<span class="text-gray-400">—</span>';
-            const timeOut = day.out && day.out !== '-' ? escapeHtml(day.out) : '<span class="text-gray-400">—</span>';
+            const nextDay = day.out_date && day.out_date !== day.date ? ` <span class="text-[10px] font-semibold text-gray-400">${escapeHtml(formatDate(day.out_date))}</span>` : '';
+            const timeOut = day.out && day.out !== '-' ? escapeHtml(day.out) + nextDay : '<span class="text-gray-400">—</span>';
+            const breakDisplay = day.break_hours > 0 ? Number(day.break_hours).toFixed(2) : '<span class="text-gray-400">—</span>';
             const remarksTitle = escapeHtml(day.remarks || '');
             const clientTitle  = escapeHtml(day.client || '');
-            const taskTitle    = escapeHtml(day.task_performed || '');
             const clientCell = day.client ? `<span class="text-gray-700">${escapeHtml(day.client)}</span>` : '<span class="text-gray-300">—</span>';
             const dayTasks = day.tasks || [];
+            const taskTooltip = dayTasks.length
+                ? dayTasks.map(t => `${fmtTaskTime(t.start_time)}–${fmtTaskTime(t.end_time)} (${taskDurationLabel(t.start_time, t.end_time)}): ${t.task_performed}${t.client ? ' (' + t.client + ')' : ''}`).join('\n')
+                : (day.task_performed || '');
+            const taskTotalMs = dayTasks.reduce((sum, t) => {
+                const start = new Date(`2000-01-01T${String(t.start_time).length === 5 ? t.start_time + ':00' : t.start_time}`);
+                let end = new Date(`2000-01-01T${String(t.end_time).length === 5 ? t.end_time + ':00' : t.end_time}`);
+                if (end <= start) end = new Date(end.getTime() + 86400000);
+                return sum + (end - start);
+            }, 0);
+            const taskTotalLabel = (() => {
+                const totalMin = Math.round(taskTotalMs / 60000);
+                const h = Math.floor(totalMin / 60);
+                const m = totalMin % 60;
+                if (h && m) return `${h}h ${m}m`;
+                if (h) return `${h}h`;
+                return `${m}m`;
+            })();
+            const rowId = `task-expand-review-${i}`;
             const taskCell = dayTasks.length
-                ? `<span class="text-gray-700">${escapeHtml(dayTasks[0].task_performed)}</span>${dayTasks.length > 1 ? `<span class="ml-1 text-[10px] font-semibold text-purple-500">+${dayTasks.length - 1}</span>` : ''}`
+                ? (dayTasks.length > 1
+                    ? `<div class="flex items-center gap-2 min-w-0">
+                           <span class="text-gray-700 truncate" style="max-width:150px;" title="${escapeHtml(dayTasks[0].task_performed)}">${escapeHtml(dayTasks[0].task_performed)}</span>
+                           <span class="flex-shrink-0 inline-flex items-center gap-1 bg-purple-50 text-purple-700 px-2 py-0.5 rounded-full text-[11px] font-semibold" title="Click this row to show all ${dayTasks.length} tasks">
+                                    ${dayTasks.length} tasks · ${taskTotalLabel}
+                                    <svg id="${rowId}-chevron" class="transition-transform" style="width:10px;height:10px;" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                                </span>
+                       </div>`
+                    : `<span class="text-gray-700 truncate inline-block align-middle" style="max-width:150px;" title="${escapeHtml(dayTasks[0].task_performed)}">${escapeHtml(dayTasks[0].task_performed)}</span> <span class="text-gray-400 text-xs">· ${taskTotalLabel}</span>`)
                 : (day.task_performed ? `<span class="text-gray-700">${escapeHtml(day.task_performed)}</span>` : '<span class="text-gray-300">—</span>');
+            const taskBreakdownRows = dayTasks.length > 1 ? dayTasks.map(t => `
+                    <tr class="border-t border-gray-100">
+                        <td class="py-1.5 pr-3 whitespace-nowrap text-gray-600">${fmtTaskTime(t.start_time)} – ${fmtTaskTime(t.end_time)}</td>
+                        <td class="py-1.5 pr-3 whitespace-nowrap text-purple-600 font-semibold">${taskDurationLabel(t.start_time, t.end_time)}</td>
+                        <td class="py-1.5 pr-3 whitespace-nowrap text-gray-600">${t.client ? escapeHtml(t.client) : '<span class="text-gray-300">—</span>'}</td>
+                        <td class="py-1.5 text-gray-700">${escapeHtml(t.task_performed)}</td>
+                    </tr>`).join('') : '';
 
+            const reviewRowClickAttr = dayTasks.length > 1 ? ` data-task-row-id="${rowId}" style="cursor:pointer;"` : '';
             rowsHtml += `
-                <tr class="${border} ${rowBg}">
+                <tr class="${border} ${rowBg}"${reviewRowClickAttr}>
                     <td class="px-4 py-3 whitespace-nowrap font-medium text-gray-700">${dateCell}</td>
                     <td class="px-4 py-3 whitespace-nowrap text-gray-600">${timeIn}</td>
                     <td class="px-4 py-3 whitespace-nowrap text-gray-600">${timeOut}</td>
+                    <td class="px-4 py-3 text-right whitespace-nowrap text-gray-600" title="Unpaid break deducted from the day">${breakDisplay}</td>
                     <td class="px-4 py-3 text-right whitespace-nowrap">${badge(day.regular_hours, (day.regular_hours || 0).toFixed(2), 'reg')}</td>
                     <td class="px-4 py-3 text-right whitespace-nowrap">${badge(day.ot_hours, (day.ot_hours || 0).toFixed(2), 'ot')}</td>
                     <td class="px-4 py-3 text-right whitespace-nowrap" title="Worked but not approved">${badge(day.unapproved_ot_hours, (day.unapproved_ot_hours || 0).toFixed(2), 'unot')}</td>
@@ -416,8 +493,26 @@
                     <td class="px-4 py-3 text-right whitespace-nowrap">${badge(day.night_diff, (day.night_diff || 0).toFixed(2), 'nd')}</td>
                     <td class="px-4 py-3 text-sm text-gray-500 max-w-[180px] truncate" title="${remarksTitle}">${escapeHtml(day.remarks) || '<span class="text-gray-300">—</span>'}</td>
                     <td class="px-4 py-3 text-sm max-w-[120px] truncate" title="${clientTitle}">${clientCell}</td>
-                    <td class="px-4 py-3 text-sm max-w-[180px] truncate" title="${taskTitle}">${taskCell}</td>
-                </tr>`;
+                    <td class="px-4 py-3 text-sm" title="${escapeHtml(taskTooltip)}">${taskCell}</td>
+                </tr>
+                ${dayTasks.length > 1 ? `
+                <tr id="${rowId}" class="hidden bg-purple-50/20 ${border}">
+                    <td colspan="15" class="px-4 py-2.5">
+                        <div class="bg-white border border-purple-100 rounded-lg px-3 py-2" style="margin-left:40px;">
+                            <table class="w-full text-xs">
+                                <thead>
+                                    <tr>
+                                        <th class="text-left font-semibold text-gray-400 py-1 pr-3">Time</th>
+                                        <th class="text-left font-semibold text-gray-400 py-1 pr-3">Duration</th>
+                                        <th class="text-left font-semibold text-gray-400 py-1 pr-3">Client</th>
+                                        <th class="text-left font-semibold text-gray-400 py-1">Task</th>
+                                    </tr>
+                                </thead>
+                                <tbody>${taskBreakdownRows}</tbody>
+                            </table>
+                        </div>
+                    </td>
+                </tr>` : ''}`;
         });
 
         const t = Object.assign({
@@ -427,12 +522,13 @@
         }, totals);
 
         tableWrap.innerHTML = `
-            <table class="min-w-[1280px] w-full text-sm border-collapse">
+            <table class="min-w-[1330px] w-full text-sm border-collapse">
                 <thead>
                     <tr class="bg-[#DCDCDC] text-[#737373] border-y border-[#C5C5C5] h-[48px]">
                         <th class="px-4 text-left font-bold whitespace-nowrap">Date</th>
                         <th class="px-4 text-left font-bold whitespace-nowrap">Time In</th>
                         <th class="px-4 text-left font-bold whitespace-nowrap">Time Out</th>
+                        <th class="px-4 text-right font-bold whitespace-nowrap">Break</th>
                         <th class="px-4 text-right font-bold whitespace-nowrap">Regular Hrs</th>
                         <th class="px-4 text-right font-bold whitespace-nowrap">OT Hrs</th>
                         <th class="px-4 text-right font-bold whitespace-nowrap">Unapproved OT</th>
@@ -449,7 +545,7 @@
                 <tbody>${rowsHtml}</tbody>
                 <tfoot>
                     <tr class="bg-[#DCDCDC] text-[#666] border-t border-[#C5C5C5] h-[48px] font-semibold">
-                        <td colspan="3" class="px-4 text-center tracking-wide">TOTALS</td>
+                        <td colspan="4" class="px-4 text-center tracking-wide">TOTALS</td>
                         <td class="px-4 text-right">${t.regular_hours.toFixed(2)}</td>
                         <td class="px-4 text-right">${t.ot_hours.toFixed(2)}</td>
                         <td class="px-4 text-right">${t.unapproved_ot_hours.toFixed(2)}</td>

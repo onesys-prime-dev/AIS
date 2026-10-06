@@ -4,11 +4,11 @@
     <div class="flex justify-between items-center my-4">
 
         <div class="p-1">
-            <h1 class="text-3xl font-bold text-gray-800 mb-1">
+            <h1 class="text-3xl font-bold mb-1" style="color:var(--content-text,#1f2937);">
                 Face Recognition
             </h1>
 
-            <p class="text-gray-500 text-sm">
+            <p class="text-sm" style="color:var(--content-text-muted,#6b7280);">
                 Enroll or manage each employee's face for login verification.
             </p>
         </div>

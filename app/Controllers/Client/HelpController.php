@@ -79,7 +79,7 @@ class HelpController extends BaseController
             ],
             [
                 'question' => 'How do I view my payslip?',
-                'answer' => 'Go to the Timesheet page and click "View Payslip." Pick the pay period from the dropdown to view, print, or download it.',
+                'answer' => 'Go to the Timesheet page and click "View Payslip." Pick the pay period from the dropdown to view, print, or download it. A payslip shows up there (and in your email) once payroll sends it — usually on the salary day.',
             ],
             [
                 'question' => 'What is the payslip password, and is it the same as my login password?',
@@ -120,6 +120,18 @@ class HelpController extends BaseController
             [
                 'question' => 'I forgot my login password — how do I reset it?',
                 'answer' => 'Use "Forgot password?" on the login page to get a reset link by email. This is separate from your payslip password — resetting one doesn\'t change the other.',
+            ],
+            [
+                'question' => 'How do I update my profile photo?',
+                'answer' => 'Go to Profile and click your picture (or drag a photo onto it). You can zoom and reposition it in the editor before saving — nothing uploads until you click "Save photo".',
+            ],
+            [
+                'question' => 'What does "Apply" do on 13th Month & Annualization?',
+                'answer' => 'It pre-fills the computed amount into the Generate Payslip form for that employee — it doesn\'t save or send anything by itself. You\'ll be asked to confirm first, and an "Undo" button appears afterward to revert the pre-filled fields if needed.',
+            ],
+            [
+                'question' => 'I applied the wrong 13th month or annualization amount — can I undo it?',
+                'answer' => 'Yes. Right after clicking Apply, a banner appears on the Generate Payslip form with an "Undo" button that restores the fields to what they were before — as long as you haven\'t generated/saved the payslip yet.',
             ],
         ];
     }

@@ -47,6 +47,10 @@ $currentAttendance = $currentAttendance ?? null;
         font-size:clamp(20px, 2.5vw, 28px);
         font-weight:700;
         margin:0;
+        /* BL-041: sits directly on the page background, so it needs to follow
+           the Customization background color like the header/sidebar text
+           already do — a dark background otherwise left this unreadable. */
+        color: var(--content-text, #1f2937);
     }
 
     /* BUTTON */
@@ -1678,7 +1682,14 @@ document.addEventListener('DOMContentLoaded', function () {
                         <span id="tl_window_label" class="text-xs text-gray-400"></span>
                     </div>
                     <div id="tl_timeline" class="relative w-full bg-gray-100 rounded-lg overflow-hidden border border-gray-200" style="height:32px;cursor:pointer;"></div>
-                    <p class="text-[11px] text-gray-400 mt-1">Colored blocks are already-logged tasks — click a free (empty) spot to start a new one there.</p>
+                    <p class="text-[11px] text-gray-400 mt-1 flex items-center flex-wrap" style="gap:4px 10px;">
+                        <span>Colored blocks are already-logged tasks —</span>
+                        <span style="display:inline-flex;align-items:center;gap:4px;">
+                            <span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:repeating-linear-gradient(45deg,#fcd34d,#fcd34d 2px,#fbbf24 2px,#fbbf24 4px);flex:none;"></span>
+                            your break
+                        </span>
+                        <span>— click a free (empty) spot to start a new one there.</span>
+                    </p>
                 </div>
 
                 <!-- TASK LIST -->
@@ -3231,6 +3242,17 @@ document.addEventListener('DOMContentLoaded', function () {
     // Starting a break when every scheduled slot is already used always fails
     // server-side, so catch it here and skip the round trip (and the page's
     // loading overlay) entirely — just show the same modal immediately.
+    // Cross-tab signal only — this page itself always reloads on submit (a
+    // real form post), so it never needs to read this back. It's for other
+    // open tabs (e.g. the Timesheet page's Daily Time Log modal) to notice a
+    // break just started/ended and refresh themselves instead of showing
+    // stale data until manually reopened. localStorage's 'storage' event
+    // only fires in OTHER tabs, never the one that wrote it, so no loop risk.
+    function markAttendanceChanged()
+    {
+        try { localStorage.setItem('attendance_changed_at', String(Date.now())); } catch (e) {}
+    }
+
     function handleBreakSubmit(form)
     {
         if (!onBreak && BREAKS_TAKEN >= TOTAL_BREAK_SLOTS && TOTAL_BREAK_SLOTS > 0) {
@@ -3262,6 +3284,7 @@ document.addEventListener('DOMContentLoaded', function () {
             document.getElementById('startBreakConfirmModal').style.display = 'flex';
             return false;
         }
+        markAttendanceChanged();
         return true;
     }
 
@@ -3273,6 +3296,7 @@ document.addEventListener('DOMContentLoaded', function () {
     function confirmStartBreak()
     {
         closeStartBreakConfirmModal();
+        markAttendanceChanged();
         document.getElementById('breakForm').submit(); // bypasses onsubmit/handleBreakSubmit — already confirmed
     }
 

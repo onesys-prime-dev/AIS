@@ -22,8 +22,8 @@
     <!-- Page Header (unchanged) -->
     <div class="flex justify-between items-center my-4 flex-wrap gap-3">
         <div class="p-1">
-            <h1 class="text-3xl font-bold text-gray-800 mb-1">Timesheets</h1>
-            <p class="text-gray-500 text-sm">Manage timesheets here.</p>
+            <h1 class="text-3xl font-bold mb-1" style="color:var(--content-text,#1f2937);">Timesheets</h1>
+            <p class="text-sm" style="color:var(--content-text-muted,#6b7280);">Manage timesheets here.</p>
         </div>
         <div class="timesheet-header-actions flex items-center gap-4 flex-wrap">
             <button type="button"
@@ -35,19 +35,33 @@
 
             <button type="button"
                 data-modal-open="viewTimesheetHistoryModal"
+                aria-haspopup="dialog"
+                aria-controls="viewTimesheetHistoryModal"
                 onclick="openModalById('viewTimesheetHistoryModal')"
-                class="bg-[#FFFFFF] hover:bg-[#f3f4f6] px-3 py-3 rounded-lg shadow hover:shadow-[0_6px_12px_rgba(0,0,0,0.2)] flex items-center gap-2 transition hover:translate-y-[-2px] text-gray-700 text-sm font-medium">
-                <img src="<?= base_url('icons/alarms.png'); ?>" class="w-7 h-7" alt="History">
-                Past Timesheets
+                class="timesheet-nav-btn flex items-center gap-2 text-gray-700 text-sm font-medium">
+                <span class="timesheet-nav-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M3 12a9 9 0 1 0 3-6.7"/>
+                        <path d="M3 4v5h5"/>
+                        <path d="M12 7v5l3 2"/>
+                    </svg>
+                </span>
+                <span>Past Timesheets</span>
             </button>
 
             <?php if ($isPayrollAdmin): ?>
             <button type="button"
                 data-modal-open="viewEmployeeTimesheetModal"
+                aria-haspopup="dialog"
+                aria-controls="viewEmployeeTimesheetModal"
                 onclick="openModalById('viewEmployeeTimesheetModal')"
-                class="bg-[#FFFFFF] hover:bg-[#f3f4f6] px-3 py-3 rounded-lg shadow hover:shadow-[0_6px_12px_rgba(0,0,0,0.2)] flex items-center gap-2 transition hover:translate-y-[-2px] text-gray-700 text-sm font-medium">
-                <img src="<?= base_url('icons/activity.png'); ?>" class="w-7 h-7" alt="Review Employee Timesheets">
-                Review Employee Timesheets
+                class="timesheet-nav-btn flex items-center gap-2 text-gray-700 text-sm font-medium">
+                <span class="timesheet-nav-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M3 12h3l2.2-6 4.2 13 2.5-7H21"/>
+                    </svg>
+                </span>
+                <span>Review Employee Timesheets</span>
             </button>
 
             <button type="button" id="attendanceIssuesBtn" onclick="openAttendanceIssues()"
@@ -560,6 +574,51 @@
     </div>
 
     <style>
+        .timesheet-nav-btn{
+            min-height:52px;
+            padding:8px 13px;
+            border:1px solid #e5e7eb;
+            border-radius:10px;
+            background:#fff;
+            box-shadow:0 3px 10px rgba(15,23,42,0.07);
+            color:#374151;
+            cursor:pointer;
+            white-space:nowrap;
+            transition:background-color .15s ease,border-color .15s ease,color .15s ease,box-shadow .15s ease,transform .15s ease;
+        }
+
+        .timesheet-nav-btn:hover{
+            border-color:#d1d5db;
+            background:#f9fafb;
+            color:#111827;
+            box-shadow:0 6px 16px rgba(15,23,42,0.1);
+            transform:translateY(-1px);
+        }
+
+        .timesheet-nav-btn:active{ transform:translateY(0); }
+
+        .timesheet-nav-btn:focus-visible{
+            outline:3px solid rgba(55,65,81,0.22);
+            outline-offset:2px;
+        }
+
+        .timesheet-nav-icon{
+            display:inline-flex;
+            width:34px;
+            height:34px;
+            flex:0 0 34px;
+            align-items:center;
+            justify-content:center;
+            border-radius:9px;
+            background:#f3f4f6;
+            color:#111827;
+        }
+
+        .timesheet-nav-icon svg{
+            width:21px;
+            height:21px;
+        }
+
         @media (max-width: 900px){
             #timesheetPageRoot{
                 padding-left:12px;
@@ -584,6 +643,12 @@
                 text-align:center;
             }
 
+            .timesheet-header-actions > .timesheet-nav-btn{
+                justify-content:flex-start;
+                text-align:left;
+                white-space:normal;
+            }
+
             .timesheet-filter-bar{
                 align-items:stretch;
                 padding:12px;
@@ -598,6 +663,12 @@
             .timesheet-filter-controls > select{
                 flex:1 1 0;
                 min-width:0;
+            }
+        }
+
+        @media (max-width: 600px){
+            .timesheet-header-actions > .timesheet-nav-btn{
+                grid-column:1 / -1;
             }
         }
 
@@ -695,6 +766,29 @@ function formatDate(dateStr) {
 }
 
 
+// Local, load-order-independent formatter for the task tooltip — task-log.js's
+// own fmtTime() isn't available yet at initial render (it's loaded after this
+// inline script block runs).
+function fmtTaskTime(timeStr) {
+    const d = new Date(`2000-01-01T${String(timeStr).length === 5 ? timeStr + ':00' : timeStr}`);
+    return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+}
+
+// How long a task took, from its start/end time-of-day strings. Spans that
+// cross midnight (end <= start) are treated as running into the next day,
+// same convention as task-log.js's own duration math.
+function taskDurationLabel(startStr, endStr) {
+    const start = new Date(`2000-01-01T${String(startStr).length === 5 ? startStr + ':00' : startStr}`);
+    let end = new Date(`2000-01-01T${String(endStr).length === 5 ? endStr + ':00' : endStr}`);
+    if (end <= start) end = new Date(end.getTime() + 86400000);
+    const totalMin = Math.round((end - start) / 60000);
+    const h = Math.floor(totalMin / 60);
+    const m = totalMin % 60;
+    if (h && m) return `${h}h ${m}m`;
+    if (h) return `${h}h`;
+    return `${m}m`;
+}
+
 function badge(value, formatted, type) {
     if (!value || value === 0) return `<span class="text-gray-400">—</span>`;
     const styles = {
@@ -747,6 +841,16 @@ function remarksChips(remarks) {
     }).join('') + '</div>';
 }
 
+// Expands/collapses the inline per-task breakdown row under a multi-task
+// day, without opening the full edit modal.
+function toggleTaskRow(attendanceId) {
+    const row = document.getElementById('task-expand-' + attendanceId);
+    if (!row) return;
+    row.classList.toggle('hidden');
+    const chevron = document.getElementById('task-chevron-' + attendanceId);
+    if (chevron) chevron.style.transform = row.classList.contains('hidden') ? '' : 'rotate(180deg)';
+}
+
 function renderTable() {
     const tbody = document.getElementById('tableBody');
     if (!tbody) return;
@@ -775,17 +879,59 @@ function renderTable() {
         const clientCell = day.client
             ? `<span class="text-gray-700">${escapeHtml(day.client)}</span>`
             : `<span class="text-gray-300">—</span>`;
+        // Hovering the cell should show every logged task (time + text + client),
+        // not just the legacy single task_performed field — that's the only way
+        // to see the rest without opening the edit modal.
+        const taskTooltip = dayTasks.length
+            ? dayTasks.map(t => `${fmtTaskTime(t.start_time)}–${fmtTaskTime(t.end_time)} (${taskDurationLabel(t.start_time, t.end_time)}): ${t.task_performed}${t.client ? ' (' + t.client + ')' : ''}`).join('\n')
+            : (day.task_performed || '');
+        const taskTotalMs = dayTasks.reduce((sum, t) => {
+            const start = new Date(`2000-01-01T${String(t.start_time).length === 5 ? t.start_time + ':00' : t.start_time}`);
+            let end = new Date(`2000-01-01T${String(t.end_time).length === 5 ? t.end_time + ':00' : t.end_time}`);
+            if (end <= start) end = new Date(end.getTime() + 86400000);
+            return sum + (end - start);
+        }, 0);
+        const taskTotalLabel = (() => {
+            const totalMin = Math.round(taskTotalMs / 60000);
+            const h = Math.floor(totalMin / 60);
+            const m = totalMin % 60;
+            if (h && m) return `${h}h ${m}m`;
+            if (h) return `${h}h`;
+            return `${m}m`;
+        })();
+        // Keep the label to one line (truncated with an ellipsis) so a long
+        // task doesn't wrap the cell. Single-task days stay plain text —
+        // just the task plus a muted duration, no badge — so a pill only
+        // ever appears when it's actually doing something (multi-task days,
+        // where it's both the task count/duration summary and the click
+        // target for the inline per-task breakdown below).
         const taskCell = dayTasks.length
-            ? `<span class="text-gray-700">${escapeHtml(dayTasks[0].task_performed)}</span>${dayTasks.length > 1 ? `<span class="ml-1 text-[10px] font-semibold text-purple-500 cursor-pointer hover:underline" onclick="openTaskLogModal(${day.attendance_id}, '${day.date}')">+${dayTasks.length - 1} more</span>` : ''}`
+            ? (dayTasks.length > 1
+                ? `<div class="flex items-center gap-2 min-w-0">
+                       <span class="text-gray-700 truncate" style="max-width:180px;" title="${escapeHtml(dayTasks[0].task_performed)}">${escapeHtml(dayTasks[0].task_performed)}</span>
+                       <span class="flex-shrink-0 inline-flex items-center gap-1 bg-purple-50 text-purple-700 px-2 py-0.5 rounded-full text-[11px] font-semibold" title="Click this row to show all ${dayTasks.length} tasks">
+                                ${dayTasks.length} tasks · ${taskTotalLabel}
+                                <svg id="task-chevron-${day.attendance_id}" class="transition-transform" style="width:10px;height:10px;" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                            </span>
+                   </div>`
+                : `<span class="text-gray-700 truncate inline-block align-middle" style="max-width:180px;" title="${escapeHtml(dayTasks[0].task_performed)}">${escapeHtml(dayTasks[0].task_performed)}</span> <span class="text-gray-400 text-xs">· ${taskTotalLabel}</span>`)
             : `<span class="text-gray-300">—</span>`;
+        const taskBreakdownRows = dayTasks.length > 1 ? dayTasks.map(t => `
+                <tr class="border-t border-gray-100">
+                    <td class="py-1.5 pr-3 whitespace-nowrap text-gray-600">${fmtTaskTime(t.start_time)} – ${fmtTaskTime(t.end_time)}</td>
+                    <td class="py-1.5 pr-3 whitespace-nowrap text-purple-600 font-semibold">${taskDurationLabel(t.start_time, t.end_time)}</td>
+                    <td class="py-1.5 pr-3 whitespace-nowrap text-gray-600">${t.client ? escapeHtml(t.client) : '<span class="text-gray-300">—</span>'}</td>
+                    <td class="py-1.5 text-gray-700">${escapeHtml(t.task_performed)}</td>
+                </tr>`).join('') : '';
         const actionCell = day.attendance_id
             ? `<div class="cursor-pointer w-7 h-7 hover:scale-110 transition inline-block"
-                    onclick="openTaskLogModal(${day.attendance_id}, '${day.date}')">
+                    onclick="event.stopPropagation(); openTaskLogModal(${day.attendance_id}, '${day.date}')">
                    <img src="<?= base_url('icons/edit.png') ?>" class="w-7 h-7" alt="Edit">
                </div>`
             : '<span class="text-gray-300">—</span>';
+        const rowClickAttr = dayTasks.length > 1 ? ` onclick="toggleTaskRow(${day.attendance_id})" style="cursor:pointer;"` : '';
         html += `
-            <tr class="border-b border-gray-100 hover:bg-purple-50/40 transition-colors ${rowBg}">
+            <tr class="border-b border-gray-100 hover:bg-purple-50/40 transition-colors ${rowBg}"${rowClickAttr}>
                 <td class="px-4 py-3 whitespace-nowrap font-medium text-gray-700">${formatDate(day.date)}</td>
                 <td class="px-4 py-3 whitespace-nowrap text-gray-600">${timeInDisplay}</td>
                 <td class="px-4 py-3 whitespace-nowrap text-gray-600">${timeOutDisplay}</td>
@@ -800,9 +946,27 @@ function renderTable() {
                 <td class="px-4 py-3 text-right whitespace-nowrap">${badge(day.night_diff, day.night_diff.toFixed(2), 'nd')}</td>
                 <td class="px-4 py-3 text-sm" title="${escapeHtml(day.remarks)}">${remarksChips(day.remarks)}</td>
                 <td class="px-4 py-3 text-sm" title="${escapeHtml(day.client)}">${clientCell}</td>
-                <td class="px-4 py-3 text-sm" title="${escapeHtml(day.task_performed)}">${taskCell}</td>
+                <td class="px-4 py-3 text-sm" title="${escapeHtml(taskTooltip)}">${taskCell}</td>
                 <td class="px-4 py-3 text-center whitespace-nowrap">${actionCell}</td>
             </tr>
+            ${dayTasks.length > 1 ? `
+            <tr id="task-expand-${day.attendance_id}" class="hidden bg-purple-50/20 border-b border-gray-100">
+                <td colspan="16" class="px-4 py-2.5">
+                    <div class="bg-white border border-purple-100 rounded-lg px-3 py-2" style="margin-left:40px;">
+                        <table class="w-full text-xs">
+                            <thead>
+                                <tr>
+                                    <th class="text-left font-semibold text-gray-400 py-1 pr-3">Time</th>
+                                    <th class="text-left font-semibold text-gray-400 py-1 pr-3">Duration</th>
+                                    <th class="text-left font-semibold text-gray-400 py-1 pr-3">Client</th>
+                                    <th class="text-left font-semibold text-gray-400 py-1">Task</th>
+                                </tr>
+                            </thead>
+                            <tbody>${taskBreakdownRows}</tbody>
+                        </table>
+                    </div>
+                </td>
+            </tr>` : ''}
         `;
     });
     tbody.innerHTML = html;
@@ -911,7 +1075,8 @@ function attendanceRowHtml(r, kind) {
     const notes = [
         r.break_start ? `<div style="color:#b45309;">Left mid-break since ${esc(r.break_start)}. Saving closes it.</div>` : '',
         r.last_correction ? `<div style="color:#6b7280;">Last corrected by ${esc(r.last_correction.by)} on ${esc(r.last_correction.at)}</div>` : '',
-        r.payslip_issued ? `<div style="color:#b91c1c;">A payslip already covers this day. Correcting it will NOT change the payslip already generated.</div>` : '',
+        r.payslip_issued ? `<div style="color:#b91c1c;">A payslip already sent covers this day. Correcting it will NOT change the payslip the employee received.</div>`
+            : (r.payslip_unsent ? `<div style="color:#b45309;">An unsent payslip covers this day. After correcting, save that payslip again from Generate Payslip — it won't be sent until you do.</div>` : ''),
     ].join('');
     const nameLine = kind === 'record' ? '' : `
                         <strong>${esc(r.employee_name)}</strong>
@@ -1060,7 +1225,7 @@ async function submitAttendanceCorrection(event, attendanceId) {
     const form = event.target;
     const statusEl = form.querySelector('.correction-status');
     if (form.dataset.payslip === '1' &&
-        !confirm('A payslip already covers this day. Correcting the attendance will NOT change that payslip.\n\nSave the correction anyway?')) {
+        !confirm('A payslip already sent covers this day. Correcting the attendance will NOT change the payslip the employee received.\n\nSave the correction anyway?')) {
         return false;
     }
     // datetime-local gives "YYYY-MM-DDTHH:MM", or "...THH:MM:SS" when seconds are set.

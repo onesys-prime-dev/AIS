@@ -8,9 +8,9 @@
     <div class="tabs">
         <button type="button" class="tab active" data-tab="payroll-status">Payroll Status</button>
         <button type="button" class="tab" data-tab="generate-payslip">Generate Payslip</button>
+        <button type="button" class="tab" data-tab="payroll-register">Payroll Output</button>
         <button type="button" class="tab" data-tab="payroll-settings">Payroll Settings</button>
         <button type="button" class="tab" data-tab="year-end">13th Month &amp; Annualization</button>
-        <button type="button" class="tab" data-tab="payroll-register">Payroll Output</button>
         <button type="button" class="tab" data-tab="audit-log">Audit Log</button>
     </div>
 

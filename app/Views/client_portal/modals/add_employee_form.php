@@ -178,6 +178,71 @@
         color: #ffffff;
     }
 
+    /* Work Location list — one row per currently-selected working day, with
+       a switch-style toggle between Onsite/WFH. Driven by JS
+       (renderAddWfhList), not CSS, since a day's WFH-eligibility depends on
+       another field's state, not just its own. */
+    .wfh-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: #ffffff;
+        border: 1px solid #e5e7eb;
+        border-radius: 10px;
+        padding: 8px 12px;
+    }
+
+    .wfh-row-label {
+        font-size: 13px;
+        font-weight: 600;
+        color: #374151;
+    }
+
+    .wfh-switch {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        width: 76px;
+        height: 26px;
+        border-radius: 999px;
+        background: #e5e7eb;
+        cursor: pointer;
+        transition: background .15s ease;
+    }
+
+    .wfh-switch.is-wfh {
+        background: #6650cc;
+    }
+
+    .wfh-switch-knob {
+        position: absolute;
+        top: 3px;
+        left: 3px;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: #ffffff;
+        box-shadow: 0 1px 2px rgba(0,0,0,.2);
+        transition: transform .15s ease;
+    }
+
+    .wfh-switch.is-wfh .wfh-switch-knob {
+        transform: translateX(50px);
+    }
+
+    .wfh-switch-label {
+        position: absolute;
+        width: 100%;
+        text-align: center;
+        font-size: 10px;
+        font-weight: 700;
+        color: #6b7280;
+    }
+
+    .wfh-switch.is-wfh .wfh-switch-label {
+        color: #ffffff;
+    }
+
     /* teal-* Tailwind utilities aren't in the compiled main.css safelist,
        so this section's accent color is defined directly instead. */
     .teal-icon-link {
@@ -193,7 +258,8 @@
 <form id="employeeForm"
     action="<?= site_url('client_portal/employees/create') ?>"
     method="post"
-    class="flex flex-col h-full">
+    class="flex flex-col h-full"
+    novalidate>
 
     <?= csrf_field() ?>
 
@@ -476,7 +542,9 @@
                                 <input type="checkbox"
                                     name="working_days[]"
                                     value="<?= $value ?>"
+                                    data-day-label="<?= $label ?>"
                                     class="sr-only day-checkbox"
+                                    onchange="renderAddWfhList()"
                                     <?= $isChecked ? 'checked' : '' ?>>
 
                                 <span class="day-btn">
@@ -488,6 +556,12 @@
                             <?php endforeach; ?>
 
                         </div>
+                    </div>
+
+                    <div class="hidden" id="add_wfh_section">
+                        <label class="block text-sm text-gray-600 mb-2">Work Location</label>
+                        <p class="text-xs text-gray-500 mb-3">Mark which of the selected working days are work-from-home. Everything else defaults to onsite.</p>
+                        <div id="add_wfh_list" class="space-y-2"></div>
                     </div>
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="add_schedule_time_row">
@@ -1125,22 +1199,89 @@ function resetAddEmployeeForm() {
 }
 
 // Form validation
+// Rebuilds the Work Location list to match whichever working days are
+// currently checked — keeps a value previously marked WFH checked if that
+// day is still selected, drops it otherwise.
+function renderAddWfhList() {
+    const list = document.getElementById('add_wfh_list');
+    const section = document.getElementById('add_wfh_section');
+    if (!list || !section) return;
+
+    const previouslyWfh = new Set(
+        Array.from(list.querySelectorAll('.wfh-checkbox:checked')).map(cb => cb.value)
+    );
+
+    const checkedDays = Array.from(
+        document.querySelectorAll('#employeeForm .day-checkbox:checked')
+    );
+
+    section.classList.toggle('hidden', checkedDays.length === 0);
+    list.innerHTML = checkedDays.map(cb => {
+        const value = cb.value;
+        const label = cb.dataset.dayLabel || value;
+        const isWfh = previouslyWfh.has(value);
+        return `
+            <div class="wfh-row">
+                <span class="wfh-row-label">${label}</span>
+                <label class="wfh-switch${isWfh ? ' is-wfh' : ''}">
+                    <input type="checkbox" name="wfh_days[]" value="${value}" class="sr-only wfh-checkbox"
+                        ${isWfh ? 'checked' : ''}
+                        onchange="this.closest('.wfh-switch').classList.toggle('is-wfh', this.checked);
+                                  this.closest('.wfh-switch').querySelector('.wfh-switch-label').textContent = this.checked ? 'WFH' : 'Onsite';">
+                    <span class="wfh-switch-knob"></span>
+                    <span class="wfh-switch-label">${isWfh ? 'WFH' : 'Onsite'}</span>
+                </label>
+            </div>
+        `;
+    }).join('');
+}
+document.addEventListener('DOMContentLoaded', renderAddWfhList);
+
 document.getElementById('employeeForm').addEventListener('submit', function(e) {
     const email = document.querySelector('input[name="email"]').value.trim();
     const password = document.querySelector('input[name="password"]').value.trim();
     const firstName = document.querySelector('input[name="first_name"]').value.trim();
     const lastName = document.querySelector('input[name="last_name"]').value.trim();
 
-    if (!firstName || !lastName) { e.preventDefault(); showToast('First and Last Name are required.', 'warning'); return; }
-    if (!email) { e.preventDefault(); showToast('Email is required.', 'warning'); return; }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { e.preventDefault(); showToast('Please enter a valid email address.', 'warning'); return; }
-    if (!password) { e.preventDefault(); showToast('Password is required.', 'warning'); return; }
-    if (password.length < 8) { e.preventDefault(); showToast('Password must be at least 8 characters.', 'warning'); return; }
-    if (!document.querySelectorAll('input[name="working_days[]"]:checked').length) { e.preventDefault(); showToast('Please select at least one working day.', 'warning'); return; }
+    // The form is multi-step and has novalidate: the browser's own popup can't
+    // point at a field on a hidden step (it silently blocks the submit), so
+    // every problem is shown as a toast and the form jumps to the step that
+    // holds the field.
+    const fail = (selector, message) => {
+        e.preventDefault();
+        const field = document.querySelector(selector);
+        const stepEl = field ? field.closest('.form-step') : null;
+        if (stepEl && typeof nextStep === 'function') {
+            nextStep(parseInt(stepEl.id.replace('step', ''), 10));
+        }
+        if (field && typeof field.focus === 'function') field.focus();
+        showToast(message, 'warning');
+    };
+
+    if (!firstName) return fail('input[name="first_name"]', 'First Name is required.');
+    if (!lastName) return fail('input[name="last_name"]', 'Last Name is required.');
+    if (!email) return fail('input[name="email"]', 'Email is required.');
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return fail('input[name="email"]', 'Please enter a valid email address.');
+    if (!password) return fail('input[name="password"]', 'Password is required.');
+    if (password.length < 8) return fail('input[name="password"]', 'Password must be at least 8 characters.');
+    if (!document.querySelectorAll('input[name="working_days[]"]:checked').length) return fail('input[name="working_days[]"]', 'Please select at least one working day.');
 
     const s = document.querySelector('input[name="start_time"]').value;
     const en = document.querySelector('input[name="end_time"]').value;
-    if (s && en && s === en) { e.preventDefault(); showToast('Start and end must differ. An earlier end means the following day.', 'warning'); return; }
+    if (s && en && s === en) return fail('input[name="start_time"]', 'Start and end must differ. An earlier end means the following day.');
+
+    // Anything else the browser would have rejected (numbers below their
+    // minimum, etc.), reported the same way.
+    const invalid = this.querySelector(':invalid');
+    if (invalid) {
+        e.preventDefault();
+        const label = invalid.closest('div')?.querySelector('label')?.textContent.trim();
+        const stepEl = invalid.closest('.form-step');
+        if (stepEl && typeof nextStep === 'function') nextStep(parseInt(stepEl.id.replace('step', ''), 10));
+        if (typeof invalid.focus === 'function') invalid.focus();
+        showToast((label ? label + ': ' : '') + (invalid.validationMessage || 'Please check this field.'), 'warning');
+        return;
+    }
 
     // De Minimis: allocated sub-benefits cannot exceed the total amount given
     const deMinimisTotal = parseFloat(document.getElementById('de_minimis_total')?.value) || 0;

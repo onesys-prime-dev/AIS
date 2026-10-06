@@ -27,10 +27,106 @@ class PayrollController extends BaseController
      * respecting the cross-month Period Definition settings.
      * Returns [periodStart, periodEnd] strings (Y-m-d), or [null, null] for monthly.
      */
+    /**
+     * A payslip belongs to the cutoff it was actually processed for, not
+     * whichever calendar month its period_start happens to fall in — a
+     * 26th-to-10th cutoff (like this app's default) starts in the PREVIOUS
+     * calendar month, so "Full Month: September" grouping by
+     * DATE_FORMAT(period_start,'%Y-%m') wrongly caught (and Export CSV wrongly
+     * exported) a Sep 26 – Oct 10 payslip under September instead of October.
+     *
+     * For '1st_half'/'2nd_half' this returns an exact-date SQL filter (as
+     * before). For "Full Month" ('' / 'monthly'), it returns a WIDE SQL
+     * window (a cutoff can span at most ~2 weeks across a month boundary) —
+     * callers must still filter the fetched rows precisely in PHP with
+     * filterRowsBySalaryMonth(), since SQL alone can't apply the cross-month
+     * cutoff rule.
+     *
+     * @return array{0: string, 1: array<int, mixed>, 2: ?string} [$whereSql, $binds, $salaryMonthToFilterInPhp]
+     */
+    private function periodSqlFilter(string $month, string $period, string $column = 'ps.period_start', string $columnEnd = 'ps.period_end'): array
+    {
+        if ($period === '1st_half' || $period === '2nd_half') {
+            $psModel = new \App\Models\Client\PayrollSettingsModel();
+            [$pStart, $pEnd] = $this->computeStatusPeriodDates($month, $period, $psModel);
+            return ["{$column} = ? AND {$columnEnd} = ?", [$pStart, $pEnd], null];
+        }
+
+        [$y, $m] = array_map('intval', explode('-', $month));
+        $windowStart = sprintf('%04d-%02d-01', $m === 1 ? $y - 1 : $y, $m === 1 ? 12 : $m - 1);
+        $nm = $m === 12 ? 1 : $m + 1;
+        $ny = $m === 12 ? $y + 1 : $y;
+        $windowEnd = date('Y-m-t', mktime(0, 0, 0, $nm, 1, $ny));
+
+        return ["{$column} BETWEEN ? AND ?", [$windowStart, $windowEnd], $month];
+    }
+
+    /** Filters an array of rows (each with 'period_start'/'period_end' keys) down to the ones whose cutoff belongs to $salaryMonth. */
+    private function filterRowsBySalaryMonth(array $rows, ?string $salaryMonth): array
+    {
+        if ($salaryMonth === null) {
+            return $rows;
+        }
+        return array_values(array_filter($rows, static function ($row) use ($salaryMonth) {
+            $start = $row['period_start'] ?? null;
+            $end   = $row['period_end'] ?? null;
+            if (!$start) {
+                return false;
+            }
+            // A Monthly-type row's own cutoff can be configured independently
+            // of half1/half2 (see PayrollCutoff::monthlyRange()), so check it
+            // first — forDate() only knows about the two halves and would
+            // otherwise misattribute the salary month for it.
+            if ($end) {
+                $monthly = \App\Libraries\PayrollCutoff::matchMonthlyPeriod((string) $start, (string) $end);
+                if ($monthly !== null) {
+                    return $monthly['salary_month'] === $salaryMonth;
+                }
+            }
+            return \App\Libraries\PayrollCutoff::forDate((string) $start)['salary_month'] === $salaryMonth;
+        }));
+    }
+
+    /**
+     * Whether a (start,end) payslip period matches a real cutoff — either
+     * half of its salary month per current Payroll Settings, or the configured
+     * Monthly cutoff (full calendar month by default, or a custom range — see
+     * PayrollCutoff::monthlyRange()) — or is "non-standard" (doesn't match any
+     * configured cutoff shape, e.g. an ad-hoc final-pay period for someone who
+     * left mid-cutoff). end < start is always invalid; it's never something
+     * staff can confirm past, since it can't represent a real span of days
+     * worked.
+     *
+     * @return array{valid: bool, standard: bool, reason?: string}
+     */
+    private function classifyPayslipPeriod(string $start, string $end): array
+    {
+        if ($start > $end) {
+            return ['valid' => false, 'standard' => false, 'reason' => "The end date ({$end}) is before the start date ({$start})."];
+        }
+
+        $cutoff = \App\Libraries\PayrollCutoff::forDate($start);
+        if ($cutoff['start'] === $start && $cutoff['end'] === $end) {
+            return ['valid' => true, 'standard' => true];
+        }
+
+        if (\App\Libraries\PayrollCutoff::matchMonthlyPeriod($start, $end) !== null) {
+            return ['valid' => true, 'standard' => true];
+        }
+
+        return [
+            'valid'    => true,
+            'standard' => false,
+            'reason'   => "This period ({$start} to {$end}) doesn't match a configured cutoff (expected {$cutoff['start']} to {$cutoff['end']} for this start date, or the configured Monthly cutoff). "
+                . "If this is intentional — e.g. a final pay for someone who left mid-cutoff — confirm to save it anyway.",
+        ];
+    }
+
     private function computeStatusPeriodDates(string $month, string $periodType, \App\Models\Client\PayrollSettingsModel $psModel): array
     {
         if ($periodType === 'monthly') {
-            return [null, null];
+            $range = \App\Libraries\PayrollCutoff::monthlyPeriodForSalaryMonth($month);
+            return [$range['start'], $range['end']];
         }
 
         [$y, $m] = array_map('intval', explode('-', $month));
@@ -87,14 +183,13 @@ class PayrollController extends BaseController
 
         $db = \Config\Database::connect();
 
-        // Build payslip join condition — monthly uses month match, half-periods use exact dates
-        if ($periodType === 'monthly') {
-            $psJoinCond = "ps.employee_id = e.id AND DATE_FORMAT(ps.period_start,'%Y-%m') = ?";
-            $psBinds    = [$month, $periodType, $month];
-        } else {
-            $psJoinCond = "ps.employee_id = e.id AND ps.period_start = ? AND ps.period_end = ?";
-            $psBinds    = [$month, $periodType, $periodStart, $periodEnd];
-        }
+        // computeStatusPeriodDates() now resolves an exact [start, end] for
+        // 'monthly' too (via PayrollCutoff::monthlyPeriodForSalaryMonth()), so
+        // every period type can join on the exact dates — matching on just
+        // DATE_FORMAT(period_start,'%Y-%m') broke once the Monthly cutoff can
+        // start in the previous calendar month (a negative start offset).
+        $psJoinCond = "ps.employee_id = e.id AND ps.period_start = ? AND ps.period_end = ?";
+        $psBinds    = [$month, $periodType, $periodStart, $periodEnd];
 
         $rows = $db->query("
             SELECT
@@ -115,7 +210,12 @@ class PayrollController extends BaseController
                 p.phone,
                 p.dst,
                 p.currency,
-                MAX(ps.sent_at)                     AS payslip_sent_at
+                MAX(ps.sent_at)                     AS payslip_sent_at,
+                MAX(ps.id)                          AS payslip_id,
+                MAX(ps.send_status)                 AS payslip_status,
+                MAX(ps.scheduled_send_date)         AS payslip_scheduled_date,
+                MAX(ps.needs_resend)                AS payslip_needs_resend,
+                MAX(ps.paid_at)                     AS payslip_paid_at
             FROM employees e
             INNER JOIN users u ON u.id = e.user_id AND u.active = 1
             LEFT JOIN employee_accounts ea  ON ea.employee_id = e.id
@@ -137,16 +237,58 @@ class PayrollController extends BaseController
 
         $data['payrolls'] = $rows;
 
-        $payslipModel = new \App\Models\Client\EmployeePayslipModel();
-        $data['payslips'] = $payslipModel
-            ->select("employee_payslips.*, CONCAT(employees.first_name,' ',employees.last_name) AS employee_name,
-                ea.bank, ea.account_number, ea.swift_code, ea.bank_address", false)
-            ->join('employees', 'employees.id = employee_payslips.employee_id')
-            ->join('employee_accounts as ea', 'ea.employee_id = employees.id', 'left')
-            ->orderBy('employee_payslips.created_at', 'DESC')
-            ->findAll();
+        $data += $this->payslipReleasePageData();
 
         return view('client_portal/payroll_main', $data);
+    }
+
+    /**
+     * Everything the Payroll Output tab's Payslip tab (Payroll Output) (and the Bank
+     * File view, which shares $payslips) needs: every saved payslip with its
+     * release status, its default "send on" date (the configured salary day
+     * for its cutoff), and whether it's been paid — via the Release page's Mark
+     * as Paid or the older preview-modal Mark as Paid on its payroll_transactions
+     * row.
+     */
+    private function payslipReleasePageData(): array
+    {
+        $payslips = (new \App\Models\Client\EmployeePayslipModel())
+            ->select("employee_payslips.*, CONCAT(employees.first_name,' ',employees.last_name) AS employee_name,
+                ea.bank, ea.account_number, ea.swift_code, ea.bank_address,
+                (SELECT MAX(pt.paid_at) FROM payroll_transactions pt
+                  WHERE pt.employee_id = employee_payslips.employee_id
+                    AND pt.period_start = employee_payslips.period_start
+                    AND pt.period_end   = employee_payslips.period_end
+                    AND pt.status = 'paid') AS tx_paid_at", false)
+            ->join('employees', 'employees.id = employee_payslips.employee_id')
+            ->join('employee_accounts as ea', 'ea.employee_id = employees.id', 'left')
+            ->orderBy('employee_payslips.period_start', 'DESC')
+            ->orderBy('employee_name', 'ASC')
+            ->findAll();
+
+        $salaryDays = [];
+        foreach ($payslips as &$ps) {
+            $start = (string) $ps['period_start'];
+            $end   = (string) $ps['period_end'];
+            $key   = $start . '|' . $end;
+            $salaryDays[$key] ??= \App\Libraries\PayrollCutoff::salaryDayFor($end, $start);
+            $ps['salary_day'] = $salaryDays[$key];
+            $ps['is_paid']    = !empty($ps['paid_at']) || !empty($ps['tx_paid_at']);
+        }
+        unset($ps);
+
+        $settings = new PayrollSettingsModel();
+        $salarySetting = [];
+        foreach (['half1_salary_day', 'half1_salary_offset', 'half2_salary_day', 'half2_salary_offset', 'monthly_salary_day', 'monthly_salary_offset', 'salary_day_adjust'] as $key) {
+            $salarySetting[$key] = $settings->getSetting($key);
+        }
+
+        return [
+            'payslips'            => $payslips,
+            'releaseMode'         => $this->payslipReleaseMode(),
+            'releaseSalarySetting'=> $salarySetting,
+            'canRelease'          => \App\Libraries\PortalAccess::can('release'),
+        ];
     }
 
     // ================= QUICK STATUS MARK (AJAX) =================
@@ -175,6 +317,8 @@ class PayrollController extends BaseController
                               ->where('period_type', $periodType)
                               ->first();
 
+            $oldStatus = $existing['status'] ?? null;
+
             if ($existing) {
                 $model->update($existing['id'], ['status' => $status]);
                 $id = $existing['id'];
@@ -188,6 +332,24 @@ class PayrollController extends BaseController
                     'dst'         => 0,
                 ]);
                 $id = $model->getInsertID();
+            }
+
+            // Audit trail: who flipped this, and from what. Best-effort — a
+            // logging hiccup must not undo or fail the status change itself.
+            if ($oldStatus !== $status) {
+                try {
+                    $emp     = (new \App\Models\Client\EmployeeModel())->find($employeeId);
+                    $empName = trim(($emp['first_name'] ?? '') . ' ' . ($emp['last_name'] ?? '')) ?: ('Employee #' . $employeeId);
+                    service('activityLogger')->log(
+                        'updated', 'payroll',
+                        "Payroll status for {$empName} ({$monthYear}, {$periodType}) set to {$status}",
+                        (int) $id,
+                        ['status' => $oldStatus],
+                        ['status' => $status]
+                    );
+                } catch (\Throwable $logErr) {
+                    log_message('error', 'markPayrollStatus audit log failed: ' . $logErr->getMessage());
+                }
             }
 
             return $this->response->setJSON(['success' => true, 'id' => $id, 'status' => $status]);
@@ -865,8 +1027,8 @@ class PayrollController extends BaseController
             $txId = $txModel->getInsertID();
 
             // Loan installments are locked/marked paid only once the payslip is
-            // actually sent to the employee (see sendPdf()), not on this preview
-            // computation — this endpoint fires on every "Generate Payslip" click.
+            // actually sent to the employee (see deliverPayslip()), not on this
+            // computation — this endpoint fires on every "Save Payslip" click.
 
             return $this->response->setJSON([
 
@@ -921,16 +1083,11 @@ class PayrollController extends BaseController
 
         $db = \Config\Database::connect();
 
-        // Build period filter
-        if ($period === '1st_half' || $period === '2nd_half') {
-            $psModel = new \App\Models\Client\PayrollSettingsModel();
-            [$pStart, $pEnd] = $this->computeStatusPeriodDates($month, $period, $psModel);
-            $periodWhere = "ps.period_start = ? AND ps.period_end = ?";
-            $binds = [$pStart, $pEnd];
-        } else {
-            $periodWhere = "DATE_FORMAT(ps.period_start,'%Y-%m') = ?";
-            $binds = [$month];
-        }
+        // Build period filter — see periodSqlFilter()'s docblock: "Full Month"
+        // fetches a wide window here and is narrowed precisely in PHP below,
+        // since a cutoff crossing a month boundary can't be matched by SQL
+        // alone comparing period_start's own calendar month.
+        [$periodWhere, $binds, $salaryMonthFilter] = $this->periodSqlFilter($month, $period);
 
         $rows = $db->query("
             SELECT
@@ -939,7 +1096,13 @@ class PayrollController extends BaseController
                 COALESCE(ep.monthly_salary, 0)                      AS monthly_salary,
                 ps.period_start, ps.period_end,
                 ps.net_pay                                          AS db_net_pay,
-                ps.generated_data
+                ps.generated_data,
+                ps.send_status, ps.scheduled_send_date, ps.sent_at, ps.sent_by,
+                ps.needs_resend, ps.last_send_error, ps.review_reason, ps.send_attempts,
+                ps.paid_at,
+                (SELECT MAX(pt.paid_at) FROM payroll_transactions pt
+                  WHERE pt.employee_id = ps.employee_id AND pt.period_start = ps.period_start
+                    AND pt.period_end = ps.period_end AND pt.status = 'paid') AS tx_paid_at
             FROM employee_payslips ps
             INNER JOIN employees e   ON e.id = ps.employee_id
             LEFT  JOIN users u       ON u.id = e.user_id AND u.active = 1
@@ -948,7 +1111,10 @@ class PayrollController extends BaseController
             ORDER BY e.first_name, e.last_name
         ", $binds)->getResultArray();
 
+        $rows = $this->filterRowsBySalaryMonth($rows, $salaryMonthFilter);
+
         $result = [];
+        $salaryDays = [];
         $i = 1;
         foreach ($rows as $row) {
             $d  = json_decode((string)($row['generated_data'] ?? ''), true) ?? [];
@@ -1057,7 +1223,24 @@ class PayrollController extends BaseController
                 'calamity_loan'    => round($calamityLoan,  2),
                 'hdmf_loan'        => round($hdmfLoan,      2),
                 'advances'         => round($advances,      2),
+                // Loans-module installments already taken out of net_pay (listed
+                // separately on the payslip) — so the Payslip card's Deductions add up.
+                'loans_module'     => round(array_sum(array_column((array) ($d['loan_deductions'] ?? []), 'amount')), 2),
                 'net_pay'          => round($netPay,        2),
+
+                // Release state, for the Payslip view's cards (Send / Schedule / Paid).
+                'send_status'         => (string) ($row['send_status'] ?? 'draft'),
+                'scheduled_send_date' => $row['scheduled_send_date'],
+                'sent_at'             => $row['sent_at'],
+                'sent_by'             => $row['sent_by'],
+                'needs_resend'        => (bool) $row['needs_resend'],
+                'last_send_error'     => $row['last_send_error'],
+                'review_reason'       => $row['review_reason'],
+                'send_attempts'       => (int) $row['send_attempts'],
+                'is_paid'             => !empty($row['paid_at']) || !empty($row['tx_paid_at']),
+                'paid_at'             => $row['paid_at'] ?: $row['tx_paid_at'],
+                'salary_day'          => $salaryDays[$row['period_start'] . '|' . $row['period_end']]
+                    ??= \App\Libraries\PayrollCutoff::salaryDayFor((string) $row['period_end'], (string) $row['period_start']),
             ];
         }
 
@@ -1078,21 +1261,15 @@ class PayrollController extends BaseController
 
         $db = \Config\Database::connect();
 
-        if ($period === '1st_half' || $period === '2nd_half') {
-            $psModel = new \App\Models\Client\PayrollSettingsModel();
-            [$pStart, $pEnd] = $this->computeStatusPeriodDates($month, $period, $psModel);
-            $periodWhere = "ps.period_start = ? AND ps.period_end = ?";
-            $binds = [$pStart, $pEnd];
-        } else {
-            $periodWhere = "DATE_FORMAT(ps.period_start,'%Y-%m') = ?";
-            $binds = [$month];
-        }
+        [$periodWhere, $binds, $salaryMonthFilter] = $this->periodSqlFilter($month, $period);
 
         $rows = $db->query("
             SELECT
                 ps.id                                               AS payslip_id,
                 CONCAT(TRIM(e.first_name),' ',TRIM(e.last_name))   AS employee_name,
                 COALESCE(ep.monthly_salary, 0)                      AS monthly_salary,
+                ps.period_start,
+                ps.period_end,
                 ps.net_pay                                          AS db_net_pay,
                 ps.generated_data
             FROM employee_payslips ps
@@ -1101,6 +1278,8 @@ class PayrollController extends BaseController
             WHERE $periodWhere
             ORDER BY e.first_name, e.last_name
         ", $binds)->getResultArray();
+
+        $rows = $this->filterRowsBySalaryMonth($rows, $salaryMonthFilter);
 
         $result = [];
         foreach ($rows as $row) {
@@ -1333,9 +1512,30 @@ class PayrollController extends BaseController
                 2
             );
 
+            // $netPay above is the figure BEFORE the Loans-module deduction (this
+            // formula never included Loans-module installments). Store it as
+            // such, then take the installments out once — the same two-part
+            // shape savePayslipRecord() stores, so a later send never has to
+            // guess whether the stored net pay already had them removed.
+            // A sent payslip's installments were already locked when it went
+            // out, so its stored list is kept; a draft's is refreshed.
+            $alreadySent = !empty($row['sent_at']);
+            $loans = $alreadySent
+                ? (array) ($d['loan_deductions'] ?? [])
+                : $this->fetchLoanScheduleBreakdown((int) $row['employee_id'], (string) $row['period_end']);
+            $netPayBeforeLoans = round($netPay, 2);
+            $netPay = round($netPayBeforeLoans - array_sum(array_column($loans, 'amount')), 2);
+            $d['net_pay_before_loans'] = $netPayBeforeLoans;
+            $d['loan_deductions']      = $loans;
+            $d['net_pay']              = $netPay;
+
+            if (($row['send_status'] ?? '') === \App\Models\Client\EmployeePayslipModel::STATUS_SENDING) {
+                return $this->response->setStatusCode(409)->setJSON(['error' => 'This payslip is being sent right now. Wait a moment, then save again.']);
+            }
+
             $db->query(
-                "UPDATE employee_payslips SET generated_data = ?, net_pay = ? WHERE id = ?",
-                [json_encode($d), round($netPay, 2), $id]
+                "UPDATE employee_payslips SET generated_data = ?, net_pay = ?, net_pay_before_loans = ?, needs_resend = ? WHERE id = ?",
+                [json_encode($d), $netPay, $netPayBeforeLoans, $alreadySent ? 1 : (int) ($row['needs_resend'] ?? 0), $id]
             );
 
             $empName = $d['employee_name'] ?? trim((string) $db->query(
@@ -1351,6 +1551,7 @@ class PayrollController extends BaseController
                 'gross_pay'  => round($gross,  2),
                 'net_taxable'=> round($netTax, 2),
                 'net_pay'    => round($netPay, 2),
+                'needs_resend' => $alreadySent,
             ]);
         } catch (\Throwable $e) {
             return $this->jsonError($e, 'Unable to save payslip changes. Please try again.');
@@ -1360,15 +1561,25 @@ class PayrollController extends BaseController
     // ================= EXPORT / IMPORT =================
     public function exportRegister()
     {
-        $month = $this->request->getGet('month') ?? date('Y-m');
+        $month  = $this->request->getGet('month') ?? date('Y-m');
+        // Was never read — this export always dumped the whole calendar month
+        // regardless of which half (1st/2nd) was loaded on screen. Now it
+        // exports exactly what's loaded, same as getRegisterRows().
+        $period = $this->request->getGet('period') ?? '';
 
-        $payslipModel = new \App\Models\Client\EmployeePayslipModel();
-        $records = $payslipModel
-            ->select("employee_payslips.*, CONCAT(employees.first_name,' ',employees.last_name) as employee_name")
-            ->join('employees', 'employees.id = employee_payslips.employee_id')
-            ->where("DATE_FORMAT(employee_payslips.period_start, '%Y-%m')", $month)
-            ->orderBy('employee_name', 'ASC')
-            ->findAll();
+        [$periodWhere, $binds, $salaryMonthFilter] = $this->periodSqlFilter(
+            $month, $period, 'employee_payslips.period_start', 'employee_payslips.period_end'
+        );
+
+        $records = \Config\Database::connect()->query("
+            SELECT employee_payslips.*, CONCAT(employees.first_name,' ',employees.last_name) as employee_name
+            FROM employee_payslips
+            JOIN employees ON employees.id = employee_payslips.employee_id
+            WHERE $periodWhere
+            ORDER BY employee_name ASC
+        ", $binds)->getResultArray();
+
+        $records = $this->filterRowsBySalaryMonth($records, $salaryMonthFilter);
 
         $filename = "payroll_register_{$month}.csv";
         header('Content-Type: text/csv');
@@ -1459,6 +1670,21 @@ class PayrollController extends BaseController
             return $this->response->setStatusCode(404)->setJSON(['error' => 'Employee not found']);
         }
 
+        return $this->buildTimesheetWorkbook($employee, (string) $startDate, (string) $endDate);
+    }
+
+    /**
+     * The actual "system timesheet" XLSX — Timesheet + Timesheet Totals +
+     * Payroll Summary sheets. Shared by this controller's own exportTimesheet()
+     * AND by TimesheetController's "Past Timesheets" / "Review Employee
+     * Timesheets" export buttons, so every export of a cutoff's timesheet in
+     * the app produces the exact same file, not three near-identical ones
+     * that can quietly drift apart.
+     */
+    public function buildTimesheetWorkbook(array $employee, string $startDate, string $endDate)
+    {
+        $employeeId = (int) $employee['id'];
+
         foreach ([$startDate, $endDate] as $date) {
             $parsed=\DateTimeImmutable::createFromFormat('!Y-m-d',(string)$date);
             if(!$parsed||$parsed->format('Y-m-d')!==$date)return $this->response->setStatusCode(400)->setJSON(['error'=>'Invalid cutoff date']);
@@ -1474,21 +1700,88 @@ class PayrollController extends BaseController
         $book=new \PhpOffice\PhpSpreadsheet\Spreadsheet();
         try {
             $sheet=$book->getActiveSheet()->setTitle('Timesheet');
-            $headers=['employee_number','date','time_in','time_out','break_duration','Regular Hours','OT Hours','Unapproved OT Hours','RDOT Hours','Tardy Minutes','Undertime Hours','Night Diff','Remarks','Client','Task Performed'];
+            // Client and Task Performed are intentionally left off this sheet —
+            // they now live in the "Task Log" sheet below, one row per task
+            // instead of a single "; "-joined summary column.
+            $headers=['employee_number','date','time_in','time_out','break_duration','Regular Hours','OT Hours','Unapproved OT Hours','RDOT Hours','Tardy Minutes','Undertime Hours','Night Diff','Remarks','Edited'];
             $sheet->fromArray($headers,null,'A1');
-            $ids=array_column($detailed['daily'],'attendance_id');$breaks=[];
+            $ids=array_values(array_filter(array_column($detailed['daily'],'attendance_id')));$breaks=[];
             if($ids)foreach((new AttendanceModel())->select('id,break_duration')->whereIn('id',$ids)->findAll() as $row)$breaks[$row['id']]=(float)$row['break_duration'];
+
+            // Attendance rows a staff member has manually corrected (vs. the
+            // normal clock-in/clock-out/break flow) — TimesheetController::
+            // updateAttendance() logs these as action=updated, module=attendance,
+            // description="Attendance corrected by {username}" (not the unused
+            // ActivityLogger::attendanceManualEdit() wrapper), so match on that.
+            $editedIds=[];
+            if($ids)foreach((new \App\Models\ActivityLogModel())
+                ->select('record_id')
+                ->where('module','attendance')
+                ->where('action','updated')
+                ->like('description','Attendance corrected by ')
+                ->whereIn('record_id',$ids)
+                ->findAll() as $log)$editedIds[(int)$log['record_id']]=true;
+
+            $redFill=[
+                'fillType'=>\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
+                'startColor'=>['rgb'=>'FFC7CE'],
+            ];
+            $greenFill=[
+                'fillType'=>\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
+                'startColor'=>['rgb'=>'C6EFCE'],
+            ];
+            $editedFill=[
+                'fillType'=>\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
+                'startColor'=>['rgb'=>'FFD966'],
+            ];
+
             $line=2;
             foreach($detailed['daily'] as $row){
                 $cells=[$employee['employee_number'],$row['date'],$row['time_in_datetime']??'',$row['time_out_datetime']??'',$breaks[$row['attendance_id']]??0];
-                foreach(['regular_hours','ot_hours','unapproved_ot_hours','rdot_hours','tardy_minutes','undertime_hours','night_diff','remarks','client','task_performed'] as $key)$cells[]=$row[$key]??'';
+                foreach(['regular_hours','ot_hours','unapproved_ot_hours','rdot_hours','tardy_minutes','undertime_hours','night_diff','remarks'] as $key)$cells[]=$row[$key]??'';
+                $wasEdited=!empty($row['attendance_id'])&&isset($editedIds[(int)$row['attendance_id']]);
+                $cells[]=$wasEdited?'Yes':'';
                 foreach($cells as $index=>$value){
                     $type=is_int($value)||is_float($value)?\PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_NUMERIC:\PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING;
                     $sheet->setCellValueExplicit([$index+1,$line],$value,$type);
                 }
+                // Whole row: red if late, green if on time. The Edited cell
+                // (column N) gets its own orange fill on top so both signals
+                // stay visible — a row can't show two different fills at once,
+                // but a single cell within it can differ from the rest.
+                $isLate=(float)($row['tardy_minutes']??0)>0;
+                $sheet->getStyle('A'.$line.':N'.$line)->applyFromArray(['fill'=>$isLate?$redFill:$greenFill]);
+                if($wasEdited)$sheet->getStyle('N'.$line)->applyFromArray(['fill'=>$editedFill]);
                 $line++;
             }
-            $sheet->freezePane('A2');$sheet->setAutoFilter('A1:O'.max(1,$line-1));
+            $sheet->freezePane('A2');$sheet->setAutoFilter('A1:N'.max(1,$line-1));
+
+            // One row per logged task (not just the "; "-joined summary above)
+            // so the exported file carries the same per-task time/duration/client
+            // detail the Timesheet page and review modal show on screen.
+            $taskLog=$book->createSheet()->setTitle('Task Log');
+            $taskLog->fromArray(['Date','Time Start','Time End','Duration','Client','Task Performed'],null,'A1');
+            $taskLine=2;
+            foreach($detailed['daily'] as $row){
+                foreach(($row['tasks']??[]) as $task){
+                    $start=\DateTimeImmutable::createFromFormat('!H:i:s',substr((string)$task['start_time'],0,8))
+                        ?:\DateTimeImmutable::createFromFormat('!H:i',substr((string)$task['start_time'],0,5));
+                    $end=\DateTimeImmutable::createFromFormat('!H:i:s',substr((string)$task['end_time'],0,8))
+                        ?:\DateTimeImmutable::createFromFormat('!H:i',substr((string)$task['end_time'],0,5));
+                    $durationLabel='';
+                    if($start&&$end){
+                        if($end<=$start)$end=$end->modify('+1 day');
+                        $minutes=(int)round(($end->getTimestamp()-$start->getTimestamp())/60);
+                        $durationLabel=sprintf('%dh %02dm',intdiv($minutes,60),$minutes%60);
+                    }
+                    $taskCells=[$row['date'],$task['start_time']??'',$task['end_time']??'',$durationLabel,$task['client']??'',$task['task_performed']??''];
+                    foreach($taskCells as $index=>$value)$taskLog->setCellValueExplicit([$index+1,$taskLine],$value,\PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
+                    $taskLine++;
+                }
+            }
+            $taskLog->freezePane('A2');
+            if($taskLine>2)$taskLog->setAutoFilter('A1:F'.($taskLine-1));
+
             $totals=$book->createSheet()->setTitle('Timesheet Totals');
             $totals->fromArray([['System timesheet totals','Value'],['Employee',$employee['employee_number']],['Cutoff start',$startDate],['Cutoff end',$endDate]]);
             $line=5;foreach($detailed['totals'] as $key=>$value)$totals->fromArray([$key,$value],null,'A'.$line++,true);
@@ -1619,57 +1912,10 @@ class PayrollController extends BaseController
         }
     }
 
-    public function sendPayslip($transactionId)
-    {
-        try {
-            $txModel = new PayrollTransactionModel();
-            $payroll = $txModel->find($transactionId);
-            if (!$payroll) throw new \App\Exceptions\ValidationException('Transaction not found');
-
-            $employeeModel = new EmployeeModel();
-            $employee = $employeeModel->find($payroll['employee_id']);
-            $emailAddress = $this->getUserEmail($employee['user_id']);
-
-            if (!$emailAddress) {
-                throw new \App\Exceptions\ValidationException('Employee email not found');
-            }
-
-            $data = [
-                'payroll' => $payroll,
-                'employee' => $employee,
-                'company' => 'Your Company Name'
-            ];
-
-            $html = view('client_portal/payslip_pdf', $data);
-            $options = new Options();
-            $options->set('defaultFont', 'Courier');
-            $dompdf = new Dompdf($options);
-            $dompdf->loadHtml($html);
-            $dompdf->setPaper('A4', 'portrait');
-            $dompdf->render();
-            $pdfOutput = $dompdf->output();
-
-            $filename = "payslip_{$employee['employee_number']}_{$payroll['period_start']}.pdf";
-            $tempPath = WRITEPATH . 'uploads/payslips/';
-            if (!is_dir($tempPath)) mkdir($tempPath, 0777, true);
-            file_put_contents($tempPath . $filename, $pdfOutput);
-
-            $email = service('email');
-            $email->setTo($emailAddress);
-            $email->setSubject("Payslip for period {$payroll['period_start']} to {$payroll['period_end']}");
-            $email->setMessage("Dear {$employee['first_name']},<br><br>Please find attached your payslip.<br><br>Regards,<br>Payroll Team");
-            $email->attach($tempPath . $filename);
-
-            if ($email->send()) {
-                unlink($tempPath . $filename);
-                return $this->response->setJSON(['success' => true, 'message' => 'Payslip sent to ' . $emailAddress]);
-            } else {
-                throw new \App\Exceptions\ValidationException('Failed to send email');
-            }
-        } catch (\Exception $e) {
-            return $this->jsonError($e, 'Unable to send payslip email.');
-        }
-    }
+    // sendPayslip() (route payroll/send/{transactionId}) was removed: an old,
+    // unused send path that emailed an unencrypted placeholder PDF, never
+    // recorded sent_at, and never locked the loan installment — it bypassed the
+    // payslip release flow entirely. Payslips are sent only via deliverPayslip().
 
     // ================= OTHER METHODS =================
     public function getTimesheet($employeeId, $startDate, $endDate)
@@ -1744,6 +1990,34 @@ class PayrollController extends BaseController
         $contributionKeys = ['phic_rate', 'phic_cap', 'hdmf_rate', 'hdmf_max'];
         $changed = [];
 
+        // Reject a bad contribution value up front (nothing is saved) — e.g.
+        // typing 5 instead of 0.05 as a rate would multiply everyone's
+        // deduction by 100 on the next payslip. Rates are fractions (0-1),
+        // caps are non-negative amounts; other settings are untouched.
+        // The toast also rides on the redirect URL (toast.js reads and strips
+        // it) so it isn't lost to the one-shot flash-data race.
+        $rejectSettings = function (string $message) {
+            $target = (string) previous_url();
+            $target .= (str_contains($target, '?') ? '&' : '?') . 'toast_error=' . rawurlencode($message);
+            return redirect()->to($target)->with('error', $message);
+        };
+        foreach (['phic_rate', 'hdmf_rate'] as $rateKey) {
+            if (array_key_exists('setting_' . $rateKey, $data)) {
+                $v = trim((string) $data['setting_' . $rateKey]);
+                if (! is_numeric($v) || (float) $v < 0 || (float) $v > 1) {
+                    return $rejectSettings("Invalid value for {$rateKey}: enter a rate between 0 and 1 (e.g. 0.05 for 5%). Nothing was saved.");
+                }
+            }
+        }
+        foreach (['phic_cap', 'hdmf_max'] as $capKey) {
+            if (array_key_exists('setting_' . $capKey, $data)) {
+                $v = trim((string) $data['setting_' . $capKey]);
+                if (! is_numeric($v) || (float) $v < 0) {
+                    return $rejectSettings("Invalid value for {$capKey}: enter a non-negative amount. Nothing was saved.");
+                }
+            }
+        }
+
         foreach ($data as $key => $value) {
             if (strpos($key, 'setting_') === 0) {
                 $realKey = substr($key, 8);
@@ -1794,6 +2068,17 @@ class PayrollController extends BaseController
             // Cross-month period definition
             'half1_start_day', 'half1_start_offset', 'half1_end_day', 'half1_end_offset',
             'half2_start_day', 'half2_start_offset', 'half2_end_day', 'half2_end_offset',
+            // Monthly cutoff period (own start/end day, independent of half1/half2 —
+            // see PayrollCutoff::monthlyRange()). Defaults to the full calendar
+            // month when left blank.
+            'monthly_start_day', 'monthly_start_offset', 'monthly_end_day', 'monthly_end_offset',
+            // Salary day per half (day of the salary month + month offset,
+            // 0 = last day) and the weekend/holiday rule — the default date on
+            // the Payslip tab (Payroll Output)'s Schedule, and the date Automatic
+            // release mode schedules to (see PayrollCutoff::salaryDayFor()).
+            'half1_salary_day', 'half1_salary_offset', 'half2_salary_day', 'half2_salary_offset',
+            'monthly_salary_day', 'monthly_salary_offset',
+            'salary_day_adjust',
         ];
         $settings = [];
         foreach ($keys as $key) {
@@ -1814,66 +2099,140 @@ class PayrollController extends BaseController
         return $this->response->setJSON($settings);
     }
 
-    public function sendPdf()
+    // ================= PAYSLIP RELEASE (Payroll Output → Payslip) =================
+    //
+    // A saved payslip is a draft the employee can't see. It's delivered only
+    // from the Payslip tab (Payroll Output) (Send Now / Resend / Retry, one request per
+    // payslip so bulk sends show progress) or by the payroll:send-scheduled-payslips
+    // console command on its scheduled date. Both go through deliverPayslip().
+
+    /** POST client_portal/payroll/release/send  {id, force?, method?: 'individual'|'bulk'} */
+    public function releaseSend()
     {
+        $input = $this->request->getJSON(true) ?? [];
+        $id    = (int) ($input['id'] ?? 0);
+        if ($id < 1) {
+            return $this->response->setStatusCode(400)->setJSON(['success' => false, 'error' => 'Missing payslip id.']);
+        }
+
+        $user   = auth()->user();
+        $method = ($input['method'] ?? '') === 'bulk' ? 'bulk' : 'individual';
+        $result = $this->deliverPayslip($id, $user ? (string) ($user->username ?? 'Unknown') : 'System', $method, !empty($input['force']));
+        $http   = $result['http'] ?? ($result['success'] ? 200 : 422);
+        unset($result['http']);
+
+        return $this->response->setStatusCode($http)->setJSON($result);
+    }
+
+    /**
+     * The one place a payslip is actually delivered: builds the
+     * password-protected PDF from the SAVED figures, emails it, marks it sent,
+     * and (first send only) locks the Loans-module installment. Never
+     * recalculates money — the saved net_pay already has the loan taken out
+     * exactly once (see savePayslipRecord()).
+     *
+     * Not a route (auto-routing is off); called by releaseSend() and by the
+     * scheduled-send console command, so it never touches $this->request /
+     * $this->response.
+     *
+     * First send is refused (payslip held as Needs Review) when:
+     *  - it was saved before the release update (no before-loans figure),
+     *  - the Loans-module installments due now differ from the saved ones,
+     *  - attendance / approved requests changed since saving — unless $force
+     *    (a person deliberately chose to send the saved figures anyway).
+     *
+     * @return array{success:bool, status?:string, error?:string, warning?:string, needs_confirm?:bool, http?:int}
+     */
+    public function deliverPayslip(int $payslipId, string $actor, string $method = 'individual', bool $force = false): array
+    {
+        $P            = \App\Models\Client\EmployeePayslipModel::class;
+        $db           = \Config\Database::connect();
+        $payslipModel = new \App\Models\Client\EmployeePayslipModel();
+
+        $row = $payslipModel->find($payslipId);
+        if (!$row) {
+            return ['success' => false, 'error' => 'Payslip not found.', 'http' => 404];
+        }
+
+        $isResend  = !empty($row['sent_at']);
+        $claimable = $isResend
+            ? [$P::STATUS_SENT]
+            : [$P::STATUS_DRAFT, $P::STATUS_SCHEDULED, $P::STATUS_FAILED, $P::STATUS_NEEDS_REVIEW];
+        if (!in_array($row['send_status'], $claimable, true)) {
+            return [
+                'success' => false,
+                'error'   => $row['send_status'] === $P::STATUS_SENDING
+                    ? 'This payslip is already being sent.'
+                    : 'This payslip can\'t be sent in its current state (' . $row['send_status'] . ').',
+                'http'    => 409,
+            ];
+        }
+
+        $data     = json_decode((string) ($row['generated_data'] ?? ''), true);
+        $employee = (new \App\Models\Client\EmployeeModel())->find($row['employee_id']);
+        $empName  = (is_array($data) ? ($data['employee_name'] ?? '') : '')
+            ?: trim(($employee['first_name'] ?? '') . ' ' . ($employee['last_name'] ?? ''))
+            ?: ('Employee #' . $row['employee_id']);
+
+        if (!$isResend) {
+            if ($row['net_pay_before_loans'] === null || !is_array($data) || $data === []) {
+                return $this->holdPayslip($row, $empName, $P::STATUS_NEEDS_REVIEW,
+                    'Saved before the release update - open it in Generate Payslip and save it again before sending.', false);
+            }
+
+            $savedLoans   = $this->loanSignature((array) ($data['loan_deductions'] ?? []));
+            $currentLoans = $this->loanSignature($this->fetchLoanScheduleBreakdown((int) $row['employee_id'], (string) $row['period_end']));
+            if ($savedLoans !== $currentLoans) {
+                return $this->holdPayslip($row, $empName, $P::STATUS_NEEDS_REVIEW,
+                    'Loan installments due this cutoff changed since it was saved - save it again from Generate Payslip.', false);
+            }
+
+            if (!$force && $row['source_fingerprint'] !== $this->payslipSourceFingerprint((int) $row['employee_id'], (string) $row['period_start'], (string) $row['period_end'])) {
+                return $this->holdPayslip($row, $empName, $P::STATUS_NEEDS_REVIEW,
+                    'Attendance or approved requests changed since it was saved - save it again from Generate Payslip, or send the saved figures anyway.', true);
+            }
+        }
+
+        if (!$employee) {
+            return $this->holdPayslip($row, $empName, $P::STATUS_FAILED, 'Employee record not found.', false);
+        }
+        $account = $db->table('users')->select('active')->where('id', $employee['user_id'])->get()->getRowArray();
+        if ($account && !(bool) $account['active']) {
+            return $this->holdPayslip($row, $empName, $P::STATUS_FAILED, 'Employee account is inactive.', false);
+        }
+        $emailAddress = $this->getUserEmail($employee['user_id']);
+        if (!$emailAddress) {
+            return $this->holdPayslip($row, $empName, $P::STATUS_FAILED, 'No email address on file for this employee.', false);
+        }
+
+        // Claim it: only the request that flips it to 'sending' goes on, so a
+        // Send Now racing the scheduled job (or two job runs) can't both email it.
+        $db->table('employee_payslips')
+            ->where('id', $payslipId)
+            ->where('send_status', $row['send_status'])
+            ->update([
+                'send_status'     => $P::STATUS_SENDING,
+                'last_attempt_at' => date('Y-m-d H:i:s'),
+                'send_attempts'   => $isResend ? (int) $row['send_attempts'] : (int) $row['send_attempts'] + 1,
+            ]);
+        if ($db->affectedRows() < 1) {
+            return ['success' => false, 'error' => 'This payslip was just updated by someone else. Refresh and try again.', 'http' => 409];
+        }
+
+        // Re-read now that the row is ours: a Save that landed between the
+        // checks above and the claim must not leave us emailing stale figures.
+        // (Saves are blocked from here on - see savePayslipRecord().)
+        $row  = $payslipModel->find($payslipId) ?: $row;
+        $data = json_decode((string) ($row['generated_data'] ?? ''), true) ?: $data;
+
+        $employeeId      = (int) $row['employee_id'];
+        $payslipRecordId = (int) $payslipId;
+        $data['period_start'] = $row['period_start'];
+        $data['period_end']   = $row['period_end'];
+        $emailed  = false;
+        $tempFile = null;
+
         try {
-            $data       = $this->request->getJSON(true);
-            $employeeId = $data['employee_id'] ?? null;
-            if (!$employeeId) throw new \App\Exceptions\ValidationException('Missing employee_id');
-
-            $employeeModel = new \App\Models\Client\EmployeeModel();
-            $employee = $employeeModel->find($employeeId);
-            if (!$employee) throw new \App\Exceptions\ValidationException('Employee not found');
-
-            $emailAddress = $this->getUserEmail($employee['user_id']);
-            if (!$emailAddress) throw new \App\Exceptions\ValidationException('Employee email not found');
-
-            // Loans-module deductions are computed here server-side, never
-            // trusted from the client — the frontend doesn't send them today,
-            // so this is a no-op (adds 0) until an employee actually has a
-            // loan installment due on this cutoff date.
-            $loanBreakdown = $this->fetchLoanScheduleBreakdown((int) $employeeId, (string) $data['period_end']);
-            $loanDeductionTotal = array_sum(array_column($loanBreakdown, 'amount'));
-            $data['loan_deductions'] = $loanBreakdown;
-            $data['net_pay'] = round(((float) ($data['net_pay'] ?? 0)) - $loanDeductionTotal, 2);
-
-            $payslipModel = new \App\Models\Client\EmployeePayslipModel();
-
-            // --- Step 1: Upsert DB record with generated_data FIRST ---
-            // Match by employee + period only (no net_pay) so we don't create duplicates.
-            $existing = $payslipModel
-                ->where('employee_id', $employeeId)
-                ->where('period_start', $data['period_start'])
-                ->where('period_end',   $data['period_end'])
-                ->first();
-
-            if ($existing) {
-                $payslipModel->update($existing['id'], [
-                    'net_pay'        => round((float)($data['net_pay'] ?? 0), 2),
-                    'generated_data' => json_encode($data),
-                ]);
-                $payslipRecordId = $existing['id'];
-            } else {
-                $payslipModel->insert([
-                    'employee_id'    => $employeeId,
-                    'period_start'   => $data['period_start'],
-                    'period_end'     => $data['period_end'],
-                    'net_pay'        => round((float)($data['net_pay'] ?? 0), 2),
-                    'generated_data' => json_encode($data),
-                    'sent_at'        => null,
-                ]);
-                $inserted = $payslipModel
-                    ->where('employee_id', $employeeId)
-                    ->where('period_start', $data['period_start'])
-                    ->where('period_end',   $data['period_end'])
-                    ->first();
-                $payslipRecordId = $inserted['id'] ?? null;
-            }
-
-            if (!$payslipRecordId) {
-                throw new \App\Exceptions\ValidationException('Could not resolve payslip record ID after save.');
-            }
-
             // --- Step 2: Generate PDF ---
             ini_set('memory_limit', '1G');
             $html = $this->buildPayslipHtmlForPdf($data, $employee);
@@ -1884,8 +2243,7 @@ class PayrollController extends BaseController
             $dompdf->setPaper('A4', 'portrait');
             $dompdf->render();
 
-            $password = $this->resolvePayslipPassword($employee);
-            $dompdf->getCanvas()->get_cpdf()->setEncryption($password, 'owner-password', ['print']);
+            $this->encryptPayslipPdf($dompdf, $employee);
             $pdfOutput = $dompdf->output();
 
             $permanentDir = WRITEPATH . 'uploads/payslips/permanent/';
@@ -1904,11 +2262,14 @@ class PayrollController extends BaseController
             $empName = $data['employee_name'] ?? trim(($employee['first_name'] ?? '') . ' ' . ($employee['last_name'] ?? ''));
 
             $email = service('email');
+            // Shared instance: the scheduled job sends many payslips in one
+            // process, so clear the previous recipient/attachment first.
+            $email->clear(true);
             $email->setMailType('html');
             $email->setTo($emailAddress);
             $email->setSubject("Your Payslip for {$data['period_start']} to {$data['period_end']}");
             $email->setMessage("
-                Dear {$empName},<br><br>
+                Dear " . esc((string) $empName) . ",<br><br>
                 Please find your payslip attached as a PDF. The file is password-protected.<br><br>
                 <strong>PDF Password:</strong> Your payslip password as set in your account profile.
                 If you have not changed it, the default is your Employee Number followed by your Birthdate (YYYYMMDD).<br><br>
@@ -1917,20 +2278,27 @@ class PayrollController extends BaseController
             ");
             $email->attach($tempFile);
 
-            if ($email->send()) {
-                if (is_file($tempFile)) unlink($tempFile);
+            if (!$email->send()) {
+                log_message('error', 'deliverPayslip email failed for payslip {id}: {debug}', [
+                    'id' => $payslipRecordId, 'debug' => $email->printDebugger(['headers', 'subject']),
+                ]);
+                throw new \RuntimeException('Email delivery failed. Check the mail server (SMTP) settings, then retry.');
+            }
 
-                $sender     = auth()->user();
-                $senderName = $sender ? ($sender->username ?? 'Unknown') : 'System';
+            $emailed = true;
+            if (is_file($tempFile)) unlink($tempFile);
 
-                \Config\Database::connect()
-                    ->table('employee_payslips')
-                    ->where('id', $payslipRecordId)
-                    ->update([
-                        'sent_at' => date('Y-m-d H:i:s'),
-                        'sent_by' => $senderName,
-                    ]);
+            $payslipModel->update($payslipRecordId, [
+                'sent_at'         => date('Y-m-d H:i:s'),
+                'sent_by'         => mb_substr($actor, 0, 100),
+                'send_status'     => $P::STATUS_SENT,
+                'needs_resend'    => 0,
+                'last_send_error' => null,
+                'review_reason'   => null,
+            ]);
 
+            $loanWarning = null;
+            if (!$isResend) {
                 // Only now — the payslip has actually been emailed to the
                 // employee — do we lock the loan and consume the installment.
                 // Locking on Generate/Save instead would create a permanent
@@ -1947,8 +2315,6 @@ class PayrollController extends BaseController
                 // that already went out (can't recall it), so it's caught
                 // and logged rather than surfaced as a failed send; the
                 // payslip record itself still reflects sent_at/sent_by above.
-                $loanWarning = null;
-                $db = \Config\Database::connect();
                 $db->transBegin();
                 try {
                     $this->markLoansActiveOngoing((int) $employeeId, (string) $data['period_end']);
@@ -1962,35 +2328,247 @@ class PayrollController extends BaseController
                     $db->transCommit();
                 } catch (\Throwable $e) {
                     $db->transRollback();
-                    log_message('error', 'sendPdf: loan installment marking failed for employee {id}, payslip {payslip}: {message}', [
+                    log_message('error', 'deliverPayslip: loan installment marking failed for employee {id}, payslip {payslip}: {message}', [
                         'id' => $employeeId, 'payslip' => $payslipRecordId, 'message' => $e->getMessage(),
                     ]);
-                    $loanWarning = 'Payslip sent, but loan installment deduction could not be recorded — please review this employee\'s loans manually.';
+                    $loanWarning = 'Payslip sent, but the loan installment could not be recorded — please review this employee\'s loans manually.';
                 }
-
-                $sendMethod = ($data['send_method'] ?? 'individual') === 'bulk' ? 'bulk' : 'individual';
-                service('activityLogger')->payslipSent(
-                    $payslipRecordId,
-                    $empName,
-                    $data['period_start'],
-                    $data['period_end'],
-                    $emailAddress,
-                    $sendMethod
-                );
-
-                return $this->response->setJSON($loanWarning ? ['success' => true, 'warning' => $loanWarning] : ['success' => true]);
-            } else {
-                $debugInfo = $email->printDebugger(['headers', 'subject', 'body']);
-                log_message('error', 'sendPdf email failed: ' . $debugInfo);
-                // Record is already saved — return partial success so portal is updated.
-                return $this->response->setJSON([
-                    'success' => false,
-                    'error'   => 'Payslip saved to portal but email delivery failed. Check spam or SMTP settings.',
-                ])->setStatusCode(500);
             }
-        } catch (\Exception $e) {
-            return $this->jsonError($e, 'Unable to generate and send the payslip PDF.');
+
+            service('activityLogger')->payslipSent(
+                $payslipRecordId,
+                $empName,
+                (string) $data['period_start'],
+                (string) $data['period_end'],
+                $emailAddress,
+                $isResend ? 'resend' : $method
+            );
+
+            return ['success' => true, 'status' => $P::STATUS_SENT] + ($loanWarning ? ['warning' => $loanWarning] : []);
+        } catch (\Throwable $e) {
+            if ($tempFile && is_file($tempFile)) @unlink($tempFile);
+            log_message('error', 'deliverPayslip failed for payslip {id}: {message}', ['id' => $payslipRecordId, 'message' => $e->getMessage()]);
+
+            if ($emailed) {
+                // The email already went out and can't be recalled — keep it
+                // recorded as sent rather than inviting a duplicate send.
+                $db->table('employee_payslips')->where('id', $payslipRecordId)->update([
+                    'send_status' => $P::STATUS_SENT,
+                    'sent_at'     => $row['sent_at'] ?: date('Y-m-d H:i:s'),
+                ]);
+                return ['success' => true, 'status' => $P::STATUS_SENT, 'warning' => 'Payslip emailed, but a follow-up step failed: ' . $e->getMessage()];
+            }
+
+            $reason = $e instanceof \RuntimeException ? $e->getMessage() : ('Unexpected error while sending: ' . $e->getMessage());
+            $db->table('employee_payslips')->where('id', $payslipRecordId)->update([
+                'send_status'     => $isResend ? $P::STATUS_SENT : $P::STATUS_FAILED,
+                'last_send_error' => mb_substr($reason, 0, 500),
+            ]);
+            if (!$isResend) {
+                service('activityLogger')->payslipSendProblem($payslipRecordId, $empName, (string) $row['period_start'], (string) $row['period_end'], $P::STATUS_FAILED, $reason);
+            }
+
+            return ['success' => false, 'status' => $isResend ? $P::STATUS_SENT : $P::STATUS_FAILED, 'error' => $reason, 'http' => 500];
         }
+    }
+
+    /**
+     * Records why a payslip wasn't sent (before it was claimed) and returns the
+     * failure result. An already-sent payslip keeps its 'sent' status — only the
+     * error is noted.
+     */
+    private function holdPayslip(array $row, string $empName, string $status, string $reason, bool $canForce): array
+    {
+        $P  = \App\Models\Client\EmployeePayslipModel::class;
+        $db = \Config\Database::connect();
+
+        if (!empty($row['sent_at'])) {
+            $db->table('employee_payslips')->where('id', $row['id'])->update([
+                'last_send_error' => mb_substr($reason, 0, 500),
+                'last_attempt_at' => date('Y-m-d H:i:s'),
+            ]);
+            return ['success' => false, 'status' => $P::STATUS_SENT, 'error' => $reason, 'http' => 422];
+        }
+
+        $fields = $status === $P::STATUS_NEEDS_REVIEW
+            ? ['send_status' => $status, 'review_reason' => mb_substr($reason, 0, 255)]
+            : ['send_status' => $status, 'last_send_error' => mb_substr($reason, 0, 500),
+               'send_attempts' => (int) $row['send_attempts'] + 1, 'last_attempt_at' => date('Y-m-d H:i:s')];
+
+        $db->table('employee_payslips')->where('id', $row['id'])->where('send_status <>', $P::STATUS_SENDING)->update($fields);
+
+        if (($row['send_status'] ?? '') !== $status || ($status === $P::STATUS_NEEDS_REVIEW && ($row['review_reason'] ?? '') !== $reason)) {
+            service('activityLogger')->payslipSendProblem((int) $row['id'], $empName, (string) $row['period_start'], (string) $row['period_end'], $status, $reason);
+        }
+
+        return ['success' => false, 'status' => $status, 'error' => $reason, 'needs_confirm' => $canForce, 'http' => 422];
+    }
+
+    /** @return int[] positive unique payslip ids from a JSON {ids: [...]} body */
+    private function releaseIdsFromInput(array $input): array
+    {
+        $ids = array_map('intval', (array) ($input['ids'] ?? []));
+        return array_values(array_unique(array_filter($ids, static fn ($id) => $id > 0)));
+    }
+
+    private function releaseActorName(): string
+    {
+        $user = auth()->user();
+        return $user ? mb_substr((string) ($user->username ?? 'Unknown'), 0, 100) : 'System';
+    }
+
+    /**
+     * Schedule or reschedule payslips to send on a date.
+     * POST client_portal/payroll/release/schedule  {ids: [...], date: 'Y-m-d'}
+     * Sent / currently-sending payslips are skipped (reported back).
+     */
+    public function releaseSchedule()
+    {
+        $P     = \App\Models\Client\EmployeePayslipModel::class;
+        $input = $this->request->getJSON(true) ?? [];
+        $ids   = $this->releaseIdsFromInput($input);
+        $date  = (string) ($input['date'] ?? '');
+
+        $parsed = \DateTimeImmutable::createFromFormat('!Y-m-d', $date);
+        if (!$ids || !$parsed || $parsed->format('Y-m-d') !== $date) {
+            return $this->response->setStatusCode(400)->setJSON(['success' => false, 'error' => 'Choose at least one payslip and a valid date.']);
+        }
+        if ($date < date('Y-m-d')) {
+            return $this->response->setStatusCode(400)->setJSON(['success' => false, 'error' => 'The send date can\'t be in the past.']);
+        }
+
+        $model   = new \App\Models\Client\EmployeePayslipModel();
+        $actor   = $this->releaseActorName();
+        $done    = 0;
+        $skipped = [];
+
+        foreach ($model->whereIn('id', $ids)->findAll() as $row) {
+            if (!empty($row['sent_at']) || $row['send_status'] === $P::STATUS_SENDING) {
+                $skipped[] = (int) $row['id'];
+                continue;
+            }
+            $model->update($row['id'], [
+                'send_status'         => $P::STATUS_SCHEDULED,
+                'scheduled_send_date' => $date,
+                'scheduled_by'        => $actor,
+                'scheduled_at'        => date('Y-m-d H:i:s'),
+                'send_attempts'       => 0,
+                'last_send_error'     => null,
+            ]);
+            $d = json_decode((string) $row['generated_data'], true) ?: [];
+            service('activityLogger')->payslipScheduled((int) $row['id'], (string) ($d['employee_name'] ?? ('Employee #' . $row['employee_id'])),
+                (string) $row['period_start'], (string) $row['period_end'], $row['scheduled_send_date'], $date);
+            $done++;
+        }
+
+        return $this->response->setJSON(['success' => true, 'scheduled' => $done, 'skipped' => $skipped]);
+    }
+
+    /**
+     * Cancel scheduled sends — back to draft.
+     * POST client_portal/payroll/release/cancel  {ids: [...]}
+     */
+    public function releaseCancel()
+    {
+        $P     = \App\Models\Client\EmployeePayslipModel::class;
+        $ids   = $this->releaseIdsFromInput($this->request->getJSON(true) ?? []);
+        if (!$ids) {
+            return $this->response->setStatusCode(400)->setJSON(['success' => false, 'error' => 'Choose at least one payslip.']);
+        }
+
+        $model = new \App\Models\Client\EmployeePayslipModel();
+        $done  = 0;
+        foreach ($model->whereIn('id', $ids)->findAll() as $row) {
+            if (!empty($row['sent_at']) || !in_array($row['send_status'], [$P::STATUS_SCHEDULED, $P::STATUS_FAILED, $P::STATUS_NEEDS_REVIEW], true) || empty($row['scheduled_send_date'])) {
+                continue;
+            }
+            $model->update($row['id'], [
+                'send_status'         => $row['send_status'] === $P::STATUS_NEEDS_REVIEW ? $P::STATUS_NEEDS_REVIEW : $P::STATUS_DRAFT,
+                'scheduled_send_date' => null,
+                'scheduled_by'        => null,
+                'scheduled_at'        => null,
+                'send_attempts'       => 0,
+                'last_send_error'     => null,
+            ]);
+            $d = json_decode((string) $row['generated_data'], true) ?: [];
+            service('activityLogger')->payslipScheduleCancelled((int) $row['id'], (string) ($d['employee_name'] ?? ('Employee #' . $row['employee_id'])),
+                (string) $row['period_start'], (string) $row['period_end'], $row['scheduled_send_date']);
+            $done++;
+        }
+
+        return $this->response->setJSON(['success' => true, 'cancelled' => $done]);
+    }
+
+    /**
+     * Manual / Automatic release mode (toggle on the Payslip tab (Payroll Output)).
+     * POST client_portal/payroll/release/mode  {mode: 'manual'|'automatic'}
+     * Only affects payslips saved AFTER the switch.
+     */
+    public function releaseMode()
+    {
+        $mode = (string) (($this->request->getJSON(true) ?? [])['mode'] ?? '');
+        if (!in_array($mode, ['manual', 'automatic'], true)) {
+            return $this->response->setStatusCode(400)->setJSON(['success' => false, 'error' => 'Invalid release mode.']);
+        }
+
+        $old = $this->payslipReleaseMode();
+        if ($old !== $mode) {
+            (new PayrollSettingsModel())->setSetting('payslip_release_mode', $mode);
+            service('activityLogger')->payslipReleaseModeChanged($old, $mode);
+        }
+
+        return $this->response->setJSON(['success' => true, 'mode' => $mode]);
+    }
+
+    /**
+     * Mark payslips as paid (one-way). Also marks the matching computed
+     * payroll_transactions row paid when one exists — the Bulk panel never
+     * created one, so the payslip itself is the record of payment.
+     * POST client_portal/payroll/release/markPaid  {ids: [...]}
+     */
+    public function releaseMarkPaid()
+    {
+        $ids = $this->releaseIdsFromInput($this->request->getJSON(true) ?? []);
+        if (!$ids) {
+            return $this->response->setStatusCode(400)->setJSON(['success' => false, 'error' => 'Choose at least one payslip.']);
+        }
+
+        $db    = \Config\Database::connect();
+        $model = new \App\Models\Client\EmployeePayslipModel();
+        $user  = auth()->user();
+        $actor = $this->releaseActorName();
+        $done  = 0;
+
+        foreach ($model->whereIn('id', $ids)->findAll() as $row) {
+            if (!empty($row['paid_at'])) continue;
+
+            $db->transBegin();
+            $db->table('employee_payslips')->where('id', $row['id'])->where('paid_at', null)
+                ->update(['paid_at' => date('Y-m-d H:i:s'), 'paid_by' => $actor]);
+            if ($db->affectedRows() < 1) { $db->transRollback(); continue; }
+
+            $tx = $db->table('payroll_transactions')
+                ->where('employee_id', $row['employee_id'])
+                ->where('period_start', $row['period_start'])
+                ->where('period_end', $row['period_end'])
+                ->where('status', 'computed')
+                ->orderBy('id', 'DESC')->limit(1)
+                ->get()->getRowArray();
+            if ($tx) {
+                $db->table('payroll_transactions')->where('id', $tx['id'])->where('status', 'computed')
+                    ->update(['status' => 'paid', 'paid_by' => $user ? $user->id : null, 'paid_at' => date('Y-m-d H:i:s')]);
+            }
+
+            if (!$db->transStatus()) { $db->transRollback(); continue; }
+            $db->transCommit();
+
+            $d = json_decode((string) $row['generated_data'], true) ?: [];
+            service('activityLogger')->payslipMarkedPaid((int) $row['id'], (string) ($d['employee_name'] ?? ('Employee #' . $row['employee_id'])),
+                (string) $row['period_start'], (string) $row['period_end'], $tx ? (int) $tx['id'] : null);
+            $done++;
+        }
+
+        return $this->response->setJSON(['success' => true, 'marked' => $done]);
     }
 
     public function savePayslipRecord()
@@ -2006,44 +2584,88 @@ class PayrollController extends BaseController
                 throw new \App\Exceptions\ValidationException('Missing required fields.');
             }
 
+            // A payroll should fall inside its own cutoff, not wherever its
+            // start date happens to land — see classifyPayslipPeriod(). A
+            // malformed period (end before start) is always rejected; a
+            // well-formed but non-standard one (e.g. final pay for someone
+            // who left mid-cutoff) is allowed only once staff explicitly
+            // confirm it's intentional.
+            $periodCheck = $this->classifyPayslipPeriod((string) $periodStart, (string) $periodEnd);
+            if (!$periodCheck['valid']) {
+                throw new \App\Exceptions\ValidationException($periodCheck['reason']);
+            }
+            if (!$periodCheck['standard'] && empty($data['confirm_non_standard'])) {
+                return $this->response->setStatusCode(422)->setJSON([
+                    'success' => false,
+                    'needs_confirm' => true,
+                    'error' => $periodCheck['reason'],
+                ]);
+            }
+
             $employeeModel = new \App\Models\Client\EmployeeModel();
             $employee = $employeeModel->find($employeeId);
             if (!$employee) throw new \App\Exceptions\ValidationException('Employee not found');
 
-            // Loans-module deductions are computed here server-side, never
-            // trusted from the client — the frontend doesn't send them today,
-            // so this is a no-op (adds 0) until an employee actually has a
-            // loan installment due on this cutoff date.
+            // Net pay is stored in two unambiguous parts: the figure BEFORE the
+            // Loans-module deduction (what the Generate Payslip page computed —
+            // it never includes Loans-module installments), and the installments
+            // themselves. Final net pay = before − loans, worked out here, once.
+            // Sending later reuses these stored figures as-is and never
+            // subtracts a loan again (the old sendPdf() did, which took a due
+            // installment out twice whenever a stored payslip was sent).
+            $netPayBeforeLoans = round((float) ($data['net_pay_before_loans'] ?? $netPay), 2);
             $loanBreakdown = $this->fetchLoanScheduleBreakdown((int) $employeeId, (string) $periodEnd);
             $loanDeductionTotal = array_sum(array_column($loanBreakdown, 'amount'));
-            $data['loan_deductions'] = $loanBreakdown;
-            $netPay = round(((float) $netPay) - $loanDeductionTotal, 2);
-            $data['net_pay'] = $netPay;
+            $netPay = round($netPayBeforeLoans - $loanDeductionTotal, 2);
+            $data['net_pay_before_loans'] = $netPayBeforeLoans;
+            $data['loan_deductions']      = $loanBreakdown;
+            $data['net_pay']              = $netPay;
+            unset($data['send_method']);
 
             $payslipModel = new \App\Models\Client\EmployeePayslipModel();
 
-            // --- Step 1: Save/update the record with generated_data immediately ---
-            // This ensures the portal can display the payslip even if PDF generation fails.
             $existing = $payslipModel
                 ->where('employee_id', $employeeId)
                 ->where('period_start', $periodStart)
                 ->where('period_end',   $periodEnd)
                 ->first();
 
+            $db = \Config\Database::connect();
+            $db->transBegin();
             if ($existing) {
-                $payslipModel->update($existing['id'], [
-                    'net_pay'        => round((float)$netPay, 2),
-                    'generated_data' => json_encode($data),
-                ]);
+                // Lock the row for this save: a send claims it with a single
+                // UPDATE, which waits on this lock, so a send can't start
+                // between the "is it sending?" check and the write below.
+                $locked = $db->query('SELECT send_status FROM employee_payslips WHERE id = ? FOR UPDATE', [$existing['id']])->getRowArray();
+                if (($locked['send_status'] ?? '') === \App\Models\Client\EmployeePayslipModel::STATUS_SENDING) {
+                    $db->transRollback();
+                    return $this->response->setStatusCode(409)->setJSON([
+                        'success' => false,
+                        'error'   => 'This payslip is being sent right now. Wait a moment, then save again.',
+                    ]);
+                }
+                // Release state must come from the locked, current row.
+                $existing = $payslipModel->find($existing['id']) ?: $existing;
+            }
+
+            $fields = [
+                'net_pay'              => $netPay,
+                'net_pay_before_loans' => $netPayBeforeLoans,
+                'generated_data'       => json_encode($data),
+                'source_fingerprint'   => $this->payslipSourceFingerprint((int) $employeeId, (string) $periodStart, (string) $periodEnd),
+            ];
+            $release = $this->releaseStateForSave($existing, (string) $periodEnd, (string) $periodStart);
+            $fields += $release['fields'];
+
+            if ($existing) {
+                $payslipModel->update($existing['id'], $fields);
                 $recordId = $existing['id'];
             } else {
-                $payslipModel->insert([
-                    'employee_id'    => $employeeId,
-                    'period_start'   => $periodStart,
-                    'period_end'     => $periodEnd,
-                    'net_pay'        => round((float)$netPay, 2),
-                    'generated_data' => json_encode($data),
-                    'sent_at'        => null,
+                $payslipModel->insert($fields + [
+                    'employee_id'  => $employeeId,
+                    'period_start' => $periodStart,
+                    'period_end'   => $periodEnd,
+                    'sent_at'      => null,
                 ]);
                 $inserted = $payslipModel
                     ->where('employee_id', $employeeId)
@@ -2056,50 +2678,181 @@ class PayrollController extends BaseController
             if (!$recordId) {
                 throw new \App\Exceptions\ValidationException('Failed to resolve payslip record after save.');
             }
-
-            // --- Step 2: Generate PDF and update file_path (best-effort, non-fatal) ---
-            try {
-                ini_set('memory_limit', '1G');
-                $html = $this->buildPayslipHtmlForPdf($data, $employee);
-                $options = new Options();
-                $options->set('defaultFont', 'Courier');
-                $dompdf = new Dompdf($options);
-                $dompdf->loadHtml($html);
-                $dompdf->setPaper('A4', 'portrait');
-                $dompdf->render();
-                $pdfOutput = $dompdf->output();
-
-                $permanentDir = WRITEPATH . 'uploads/payslips/permanent/';
-                if (!is_dir($permanentDir)) mkdir($permanentDir, 0777, true);
-                $filename      = "payslip_{$employee['employee_number']}_{$periodStart}.pdf";
-                $permanentPath = $permanentDir . $filename;
-                file_put_contents($permanentPath, $pdfOutput);
-
-                $payslipModel->update($recordId, ['file_path' => $permanentPath]);
-            } catch (\Throwable $pdfErr) {
-                log_message('error', 'savePayslipRecord PDF generation failed: ' . $pdfErr->getMessage());
+            if (!$db->transCommit()) {
+                throw new \RuntimeException('Payslip could not be saved. Please try again.');
             }
+
+            // No PDF is written here on purpose: deliverPayslip() builds the
+            // encrypted PDF at send time and downloadPayslip() regenerates from
+            // the saved figures. A file written on save was unencrypted and
+            // overwrote the copy the employee had already been emailed.
 
             $empName = $data['employee_name'] ?? trim(($employee['first_name'] ?? '') . ' ' . ($employee['last_name'] ?? ''));
             service('activityLogger')->payslipGenerated(
-                $recordId,
+                (int) $recordId,
                 $empName,
                 $periodStart,
                 $periodEnd,
                 round((float)$netPay, 2)
             );
+            if ($release['auto_scheduled']) {
+                service('activityLogger')->payslipScheduled(
+                    (int) $recordId, $empName, $periodStart, $periodEnd, null,
+                    (string) $release['fields']['scheduled_send_date'], true
+                );
+            }
 
-            return $this->response->setJSON(['success' => true, 'payslip_id' => $recordId]);
+            return $this->response->setJSON([
+                'success'             => true,
+                'payslip_id'          => $recordId,
+                'send_status'         => $release['fields']['send_status'] ?? ($existing['send_status'] ?? 'draft'),
+                'scheduled_send_date' => $release['fields']['scheduled_send_date'] ?? ($existing['scheduled_send_date'] ?? null),
+                'message'             => $release['message'],
+            ]);
         } catch (\Exception $e) {
+            if (isset($db) && $db->transDepth > 0) $db->transRollback();
             return $this->jsonError($e, 'Unable to save payslip record.');
         }
     }
 
+    /**
+     * What a Save does to a payslip's release state (see Payroll Output →
+     * Payslip). Only the release columns are returned — money fields are set by
+     * the caller.
+     *  - already sent       → stays sent, flagged "resend needed" (the
+     *                          employee's copy is now out of date)
+     *  - already scheduled  → keeps its scheduled date, back to 'scheduled'
+     *  - anything else/new  → 'draft', or 'scheduled' for the salary day when
+     *                          release mode is Automatic and a salary day is set
+     *
+     * @return array{fields: array<string,mixed>, message: string, auto_scheduled: bool}
+     */
+    private function releaseStateForSave(?array $existing, string $periodEnd, ?string $periodStart = null): array
+    {
+        $P = \App\Models\Client\EmployeePayslipModel::class;
+        $clear = ['send_attempts' => 0, 'last_send_error' => null, 'review_reason' => null];
+
+        if ($existing && !empty($existing['sent_at'])) {
+            return [
+                'fields'  => ['needs_resend' => 1, 'review_reason' => null],
+                'message' => 'Saved. This payslip was already sent — resend it from Payroll Output → Payslip so the employee gets the updated copy.',
+                'auto_scheduled' => false,
+            ];
+        }
+
+        // A scheduled payslip keeps its date when re-saved — including one that
+        // failed or was held for review, since re-saving is how those get fixed.
+        $keptStatuses = [$P::STATUS_SCHEDULED, $P::STATUS_FAILED, $P::STATUS_NEEDS_REVIEW];
+        if ($existing && in_array($existing['send_status'] ?? '', $keptStatuses, true) && !empty($existing['scheduled_send_date'])) {
+            $sendOn = max((string) $existing['scheduled_send_date'], date('Y-m-d'));
+            return [
+                'fields'  => $clear + ['send_status' => $P::STATUS_SCHEDULED, 'scheduled_send_date' => $sendOn],
+                'message' => 'Saved. Scheduled to send on ' . date('M j, Y', strtotime($sendOn)) . '.',
+                'auto_scheduled' => false,
+            ];
+        }
+
+        if ($this->payslipReleaseMode() === 'automatic') {
+            $salaryDay = \App\Libraries\PayrollCutoff::salaryDayFor($periodEnd, $periodStart);
+            if ($salaryDay !== null) {
+                $sendOn = max($salaryDay, date('Y-m-d'));
+                return [
+                    'fields'  => $clear + [
+                        'send_status'         => $P::STATUS_SCHEDULED,
+                        'scheduled_send_date' => $sendOn,
+                        'scheduled_by'        => 'Automatic (salary day)',
+                        'scheduled_at'        => date('Y-m-d H:i:s'),
+                    ],
+                    'message' => 'Saved and scheduled to send on ' . date('M j, Y', strtotime($sendOn)) . ' (salary day).',
+                    'auto_scheduled' => true,
+                ];
+            }
+
+            return [
+                'fields'  => $clear + ['send_status' => $P::STATUS_DRAFT, 'scheduled_send_date' => null],
+                'message' => 'Saved as draft. Release mode is Automatic, but no salary day is set for this half in Payroll Settings — schedule or send it from Payroll Output → Payslip.',
+                'auto_scheduled' => false,
+            ];
+        }
+
+        return [
+            'fields'  => $clear + ['send_status' => $P::STATUS_DRAFT, 'scheduled_send_date' => null],
+            'message' => 'Saved as draft. Send or schedule it from Payroll Output → Payslip.',
+            'auto_scheduled' => false,
+        ];
+    }
+
+    private function payslipReleaseMode(): string
+    {
+        $mode = (new PayrollSettingsModel())->getSetting('payslip_release_mode');
+        return $mode === 'automatic' ? 'automatic' : 'manual';
+    }
+
+    /**
+     * Hash of everything a payslip's figures are built from that can change
+     * after it's saved: the employee's attendance rows for the period, their
+     * approved requests overlapping it, and the Loans-module installments due
+     * on its period end. A mismatch at send time means the saved figures may
+     * be out of date (see deliverPayslip()).
+     */
+    private function payslipSourceFingerprint(int $employeeId, string $periodStart, string $periodEnd): string
+    {
+        $db = \Config\Database::connect();
+        $employee = $db->table('employees')->select('user_id')->where('id', $employeeId)->get()->getRowArray();
+        $userId = (int) ($employee['user_id'] ?? 0);
+
+        $attendance = $db->table('attendance')
+            ->select('id, time_in, time_out, break_duration, shift_date, state_version, approved_ot_hours, unapproved_ot_hours, approved_ut_hours, unapproved_ut_hours, attendance_status')
+            ->where('user_id', $userId)
+            ->where('COALESCE(shift_date, DATE(time_in)) >=', $periodStart)
+            ->where('COALESCE(shift_date, DATE(time_in)) <=', $periodEnd)
+            ->orderBy('id', 'ASC')
+            ->get()->getResultArray();
+
+        $requests = $db->table('requests')
+            ->select('id, request_type, leave_category, start_date, end_date, duration, is_paid_leave, status')
+            ->where('requested_by', $userId)
+            ->where('status', 'approved')
+            ->where('start_date <=', $periodEnd)
+            ->groupStart()
+                ->where('end_date >=', $periodStart)
+                ->orWhere('end_date', null)
+            ->groupEnd()
+            ->orderBy('id', 'ASC')
+            ->get()->getResultArray();
+
+        return hash('sha256', json_encode([
+            'attendance' => $attendance,
+            'requests'   => $requests,
+            'loans'      => $this->loanSignature($this->fetchLoanScheduleBreakdown($employeeId, $periodEnd)),
+        ]));
+    }
+
+    /** Order-independent schedule_id → amount map, for comparing loan breakdowns. */
+    private function loanSignature(array $breakdown): array
+    {
+        $sig = [];
+        foreach ($breakdown as $loan) {
+            $sig[(int) ($loan['schedule_id'] ?? 0)] = round((float) ($loan['amount'] ?? 0), 2);
+        }
+        ksort($sig);
+        return $sig;
+    }
+
+    /**
+     * Self-service only (see getMyPayslips()). A saved payslip is a draft until
+     * it's sent from the Payslip tab (Payroll Output), so only sent ones are returned —
+     * before the release workflow every saved draft (including unfinished or
+     * wrong figures) was listed here. Only the fields the employee's payslip
+     * modal needs are returned.
+     */
     public function getEmployeePayslips($employeeId)
     {
         $payslipModel = new \App\Models\Client\EmployeePayslipModel();
         $payslips = $payslipModel
+            ->select('id, employee_id, period_start, period_end, net_pay, sent_at')
             ->where('employee_id', $employeeId)
+            ->where('sent_at IS NOT NULL', null, false)
             ->orderBy('period_start', 'DESC')
             ->findAll();
 
@@ -2107,6 +2860,16 @@ class PayrollController extends BaseController
             $ps['download_url'] = site_url('client_portal/payroll/downloadPayslip/' . $ps['id']);
         }
         return $this->response->setJSON($payslips);
+    }
+
+    /**
+     * An employee may only open their own payslip once it has been sent.
+     * Admins (payroll permission) can open any payslip, sent or not.
+     */
+    private function payslipVisibleToEmployee(array $payslip, bool $isOwner, bool $isAdmin): bool
+    {
+        if ($isAdmin) return true;
+        return $isOwner && !empty($payslip['sent_at']);
     }
 
     /**
@@ -2276,6 +3039,26 @@ class PayrollController extends BaseController
         if (!$isOwner && !$isAdmin) {
             return $this->response->setStatusCode(403)->setBody('Unauthorized');
         }
+        if (!$this->payslipVisibleToEmployee($payslip, $isOwner, $isAdmin)) {
+            return $this->response->setStatusCode(403)->setBody('This payslip has not been released yet.');
+        }
+
+        // A sent payslip that was re-saved afterwards (needs_resend) no longer
+        // matches what the employee was emailed. Until it's resent, the
+        // employee gets the copy they actually received. Only used when that
+        // file exists and is password-protected (older saves wrote unencrypted
+        // drafts there); staff always get the current saved figures.
+        if ($isOwner && !$isAdmin && !empty($payslip['sent_at']) && !empty($payslip['needs_resend'])) {
+            $storedPath = (string) ($payslip['file_path'] ?? '');
+            $storedPdf  = ($storedPath !== '' && is_file($storedPath)) ? (string) file_get_contents($storedPath) : '';
+            if ($storedPdf !== '' && str_contains($storedPdf, '/Encrypt')) {
+                $disposition = $this->request->getGet('mode') === 'inline' ? 'inline' : 'attachment';
+                return $this->response
+                    ->setHeader('Content-Type', 'application/pdf')
+                    ->setHeader('Content-Disposition', $disposition . '; filename="payslip_' . ($payslip['period_start'] ?? 'unknown') . '.pdf"')
+                    ->setBody($storedPdf);
+            }
+        }
 
         // Regenerate the PDF on-the-fly so it always reflects the current layout + logo.
         $data = json_decode((string)($payslip['generated_data'] ?? ''), true) ?? [];
@@ -2299,8 +3082,7 @@ class PayrollController extends BaseController
         $dompdf->setPaper('A4', 'portrait');
         $dompdf->render();
 
-        $password = $this->resolvePayslipPassword($employee);
-        $dompdf->getCanvas()->get_cpdf()->setEncryption($password, 'owner-password', ['print']);
+        $this->encryptPayslipPdf($dompdf, $employee);
         $pdfOutput = $dompdf->output();
 
         $filename = 'payslip_' . ($payslip['period_start'] ?? 'unknown') . '.pdf';
@@ -2332,16 +3114,7 @@ class PayrollController extends BaseController
 
     public function payslipHistory()
     {
-        $payslipModel = new \App\Models\Client\EmployeePayslipModel();
-        $payslips = $payslipModel
-            ->select("employee_payslips.*, CONCAT(employees.first_name, ' ', employees.last_name) as employee_name,
-                ea.bank, ea.account_number, ea.swift_code, ea.bank_address", false)
-            ->join('employees', 'employees.id = employee_payslips.employee_id')
-            ->join('employee_accounts as ea', 'ea.employee_id = employees.id', 'left')
-            ->orderBy('employee_payslips.created_at', 'DESC')
-            ->findAll();
-
-        return view('client_portal/payroll_payslip_history', ['payslips' => $payslips]);
+        return view('client_portal/payroll_payslip_history', $this->payslipReleasePageData());
     }
 
     /**
@@ -2504,7 +3277,10 @@ class PayrollController extends BaseController
         if (!$isOwner && !$isAdmin) {
             return $this->response->setStatusCode(403)->setJSON(['error' => 'Unauthorized']);
         }
-        
+        if (!$this->payslipVisibleToEmployee($payslip, $isOwner, $isAdmin)) {
+            return $this->response->setStatusCode(403)->setJSON(['error' => 'This payslip has not been released yet.']);
+        }
+
         $generatedData = json_decode((string) ($payslip['generated_data'] ?? ''), true);
         if (!$generatedData) {
             $generatedData = [];
@@ -2813,6 +3589,16 @@ class PayrollController extends BaseController
             ->get()
             ->getRowArray();
         return $row['secret'] ?? null;
+    }
+
+    /**
+     * Password-protects a rendered payslip PDF: the employee's payslip password
+     * opens it; the owner password is random per file (nobody needs it) so the
+     * print-only restriction can't be lifted with a well-known constant.
+     */
+    private function encryptPayslipPdf(Dompdf $dompdf, array $employee): void
+    {
+        $dompdf->getCanvas()->get_cpdf()->setEncryption($this->resolvePayslipPassword($employee), bin2hex(random_bytes(16)), ['print']);
     }
 
     private function resolvePayslipPassword(array $employee): string
@@ -3343,6 +4129,9 @@ class PayrollController extends BaseController
                     'total_net_basic'        => 0,  // net_basic_pay (includes night diff, for tax)
                     'total_overtime'         => 0,
                     'total_other_taxable'    => 0,
+                    'total_sss'              => 0,
+                    'total_phic'             => 0,
+                    'total_hdmf'             => 0,
                     'total_wtax'             => 0,
                     'periods_count'          => 0,
                 ];
@@ -3364,6 +4153,9 @@ class PayrollController extends BaseController
             $byEmployee[$empId]['total_net_basic']         += $netBasic;
             $byEmployee[$empId]['total_overtime']       += (float)($gd['overtime_pay']            ?? 0);
             $byEmployee[$empId]['total_other_taxable']  += (float)($gd['other_earnings_taxable']  ?? 0);
+            $byEmployee[$empId]['total_sss']            += (float)($gd['sss_ee']                  ?? 0);
+            $byEmployee[$empId]['total_phic']           += (float)($gd['phic_ee']                 ?? 0);
+            $byEmployee[$empId]['total_hdmf']            += (float)($gd['hdmf_ee']                ?? 0);
             $byEmployee[$empId]['total_wtax']           += (float)($gd['withholding_tax']         ?? 0);
             $byEmployee[$empId]['periods_count']++;
         }
@@ -3393,10 +4185,18 @@ class PayrollController extends BaseController
             $taxable13th    = round(max(0, $thirteenth - $exemptLimit), 2);
 
             // ── Annualization ─────────────────────────────────────────────────
-            // Taxable compensation = net_basic (includes ND) + OT + other taxable
-            $totalTaxable  = $agg['total_net_basic']
+            // Taxable compensation = net_basic (includes ND) + OT + other taxable,
+            // less SSS/PHIC/HDMF — the per-period withholding tax (total_wtax,
+            // see updateWithholdingTax() in payroll_management.php) is computed
+            // on gross minus those contributions, so the annual figure has to
+            // net them out too or this double-counts them and overstates both
+            // annual_taxable_income and the resulting year_end_adjustment.
+            $totalTaxable  = max(0, $agg['total_net_basic']
                            + $agg['total_overtime']
-                           + $agg['total_other_taxable'];
+                           + $agg['total_other_taxable']
+                           - $agg['total_sss']
+                           - $agg['total_phic']
+                           - $agg['total_hdmf']);
             $annualTaxable = round($totalTaxable + $taxable13th, 2);
             $annualTaxDue  = $service->calculateAnnualWithholdingTax($annualTaxable);
             $totalWtax     = round($agg['total_wtax'], 2);
@@ -3563,7 +4363,8 @@ class PayrollController extends BaseController
     /**
      * Pending Loans-module installments due on the exact cutoff date, for one
      * employee. Shared by the public getLoanBreakdown() endpoint below and by
-     * the payslip save paths (sendPdf/savePayslipRecord), which need the same
+     * the payslip save / release paths (savePayslipRecord, savePayslipEditData,
+     * deliverPayslip's loan check), which need the same
      * figure server-side to fold into net pay — the client never sends it.
      *
      * Matches due_date == $periodEnd exactly (not a range) so a payslip saved

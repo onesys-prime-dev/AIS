@@ -22,7 +22,16 @@
         return container;
     }
 
+    let lastToast = { key: '', at: 0 };
+
     window.showToast = function (message, type = 'info') {
+        // The same message twice in a moment (e.g. the global access-denied
+        // toast below plus a page's own error handler) shows once.
+        const key = type + '|' + message;
+        const now = Date.now();
+        if (lastToast.key === key && now - lastToast.at < 1500) return;
+        lastToast = { key, at: now };
+
         const container = getContainer();
         const t = type in ICONS ? type : 'info';
 
@@ -56,4 +65,59 @@
         el.querySelector('.toast-close').addEventListener('click', (e) => { e.stopPropagation(); clearTimeout(timer); dismiss(); });
         el.addEventListener('click', () => { clearTimeout(timer); dismiss(); });
     };
+
+    // Landing here with a recognized flag on the URL (see PortalAccessFilter
+    // and SettingsController::saveCustomization): show the matching toast,
+    // then drop the flag from the address bar so a refresh or a copied link
+    // doesn't repeat it. Used instead of relying on session flashdata alone
+    // for anything whose redirect already involves an extra hop — flashdata
+    // survives exactly one further request, and something else touching the
+    // session first (a notification poll, a presence heartbeat) racing that
+    // one request could use it up before the page ever reads it.
+    (function showFlagToast() {
+        let url;
+        try { url = new URL(window.location.href); } catch (e) { return; }
+
+        const flags = [
+            ['access_denied', (v) => v === 'action' ? "You don't have permission to do that." : "You don't have access to that page.", 'error'],
+            ['saved', () => 'Customization updated successfully.', 'success'],
+            // Arbitrary server-chosen text (RequestController's backWithError/
+            // backWithSuccess) rather than one fixed message per flag.
+            ['toast_error', (v) => v, 'error'],
+            ['toast_success', (v) => v, 'success'],
+        ];
+
+        let toShow = null;
+        flags.forEach(([param, toText, type]) => {
+            const value = url.searchParams.get(param);
+            if (value === null) return;
+            url.searchParams.delete(param);
+            toShow = toShow || { text: toText(value), type };
+        });
+        if (!toShow) return;
+
+        try { window.history.replaceState(null, '', url.pathname + url.search + url.hash); } catch (e) {}
+        const show = () => window.showToast(toShow.text, toShow.type);
+        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', show);
+        else show();
+    })();
+
+    // Any background request refused with 403 + a JSON message (the portal's
+    // "no permission" reply) gets a toast, even where the page's own code
+    // ignores failed responses. The response itself is passed through
+    // untouched (we only read a clone).
+    if (typeof window.fetch === 'function') {
+        const nativeFetch = window.fetch.bind(window);
+        window.fetch = function () {
+            return nativeFetch.apply(null, arguments).then(function (res) {
+                if (res.status === 403 && (res.headers.get('content-type') || '').includes('json')) {
+                    res.clone().json().then(function (body) {
+                        const msg = body && (body.message || body.error);
+                        if (msg && body.success === false) window.showToast(String(msg), 'error');
+                    }).catch(function () {});
+                }
+                return res;
+            });
+        };
+    }
 })();

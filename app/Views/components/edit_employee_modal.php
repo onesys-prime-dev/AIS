@@ -1,5 +1,11 @@
 <style>
-.edit-employee-overlay {
+/* Renamed from .edit-employee-* to .ee-modal-* — edit_loan_modal.php used
+   to define an identically-named .edit-employee-box with different needs
+   (its form has no inner scroll cap, so IT still needs the box itself to
+   scroll), and since both components render on the same page (Employee
+   Management), the two same-named rules silently fought over which one's
+   overflow/max-height won. Unique names per component, no more collision. */
+.ee-modal-overlay {
     position: fixed;
     inset: 0;
 
@@ -12,15 +18,26 @@
     z-index: 99999;
 }
 
-.edit-employee-overlay.show {
+.ee-modal-overlay.show {
     display: flex;
 }
 
-.edit-employee-box {
+.ee-modal-box {
     background: #fff;
 
     width: 100%;
     max-width: 600px;
+
+    /* The form inside (#editEmployeeForm) already caps itself at 75vh with
+       its own overflow-y:auto (scrollbar hidden via .hide-scroll-bar, but
+       still scrollable) so its own Save button stays reachable. This box
+       must NOT also scroll — two independent scroll containers nested
+       inside each other fought over wheel input and left a dead blank gap
+       below the form once it was tall enough to trigger both. max-height
+       stays only as a hard ceiling (title + capped form always fits under
+       it); overflow is visible, not auto — the form is the one true
+       scroll area. */
+    max-height: 90vh;
 
     border-radius: 18px;
 
@@ -34,7 +51,7 @@
     animation: modalPop .18s ease;
 }
 
-.edit-employee-close {
+.ee-modal-close {
     position: absolute;
 
     right: 16px;
@@ -48,7 +65,7 @@
     cursor: pointer;
 }
 
-.edit-employee-title {
+.ee-modal-title {
     font-size: 22px;
     font-weight: 700;
 
@@ -68,18 +85,18 @@
 }
 </style>
 
-<div id="<?= $id ?>" class="edit-employee-overlay modal-overlay">
+<div id="<?= $id ?>" class="ee-modal-overlay modal-overlay">
 
-    <div class="edit-employee-box">
+    <div class="ee-modal-box">
 
         <button
             type="button"
-            class="edit-employee-close modal-close">
+            class="ee-modal-close modal-close">
             ✕
         </button>
 
         <?php if(isset($title)): ?>
-            <h2 class="edit-employee-title">
+            <h2 class="ee-modal-title">
                 <?= esc($title) ?>
             </h2>
         <?php endif; ?>

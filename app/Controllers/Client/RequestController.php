@@ -23,6 +23,39 @@ class RequestController extends BaseController
         $this->requestNotificationService = new RequestNotificationService();
     }
 
+    /**
+     * Back-redirect + error, shown reliably even though this form is a plain
+     * (non-AJAX) POST whose only feedback channel is a page reload.
+     *
+     * BL-046: a stale "code accepted" hint (checked once on blur, not
+     * re-checked at submit) let an employee submit an already-used approval
+     * code; the server correctly rejected it via redirect()->back()->
+     * with('error', ...), but that relies on session flashdata, which
+     * survives exactly one further request — the Dashboard's own
+     * notification/presence polling can win that race and use it up first,
+     * so the reload could show no error at all. The toast is now also
+     * carried on the redirect URL itself (read and stripped by toast.js),
+     * independent of session timing; flashdata is kept too as a harmless
+     * fallback for anything still reading it directly.
+     */
+    private function backWithError(string $message)
+    {
+        return $this->backWithToast('error', $message)->withInput();
+    }
+
+    private function backWithSuccess(string $message)
+    {
+        return $this->backWithToast('success', $message);
+    }
+
+    private function backWithToast(string $type, string $message)
+    {
+        $target = (string) previous_url();
+        $target .= (str_contains($target, '?') ? '&' : '?') . 'toast_' . $type . '=' . rawurlencode($message);
+
+        return redirect()->to($target)->with($type, $message);
+    }
+
     public function index()
     {
         $user = auth()->user();
@@ -419,12 +452,12 @@ class RequestController extends BaseController
         // ── CODE MODE: validate the code, use preset if available, else accept user fields ──
         if ($codeMode) {
             if ($normalizedCode === '') {
-                return redirect()->back()->withInput()->with('error', 'Please enter an approval code.');
+                return $this->backWithError('Please enter an approval code.');
             }
 
             $codeRow = $this->approvalCodeModel->findActiveCode($normalizedCode);
             if ($codeRow === null) {
-                return redirect()->back()->withInput()->with('error', 'The approval code is invalid or has already been used.');
+                return $this->backWithError('The approval code is invalid or has already been used.');
             }
 
             // Decode preset data (may be empty / null)
@@ -447,24 +480,24 @@ class RequestController extends BaseController
 
             // Validate fields (whether they came from preset or user input)
             if (! in_array($requestType, $allowedTypes, true)) {
-                return redirect()->back()->withInput()->with('error', 'Invalid request type.');
+                return $this->backWithError('Invalid request type.');
             }
             if ($startDate === '' || ! preg_match('/^\d{4}-\d{2}-\d{2}$/', $startDate)) {
-                return redirect()->back()->withInput()->with('error', 'Start date is required.');
+                return $this->backWithError('Start date is required.');
             }
             $startDateObj = date_create($startDate);
             if (! $startDateObj) {
-                return redirect()->back()->withInput()->with('error', 'Invalid start date.');
+                return $this->backWithError('Invalid start date.');
             }
             $endDateObj = null;
             if ($endDate !== '') {
                 $endDateObj = date_create($endDate);
                 if ($endDateObj && $endDateObj < $startDateObj) {
-                    return redirect()->back()->withInput()->with('error', 'End date cannot be earlier than start date.');
+                    return $this->backWithError('End date cannot be earlier than start date.');
                 }
             }
             if ($reason === '') {
-                return redirect()->back()->withInput()->with('error', 'Message is required.');
+                return $this->backWithError('Message is required.');
             }
 
             if ($presetDuration !== null) {
@@ -498,7 +531,7 @@ class RequestController extends BaseController
                     // that category is deducted from like any other but isn't
                     // shown on the employee profile or Employee Management, so a
                     // request landing there would be invisible to reconcile.
-                    return redirect()->back()->withInput()->with('error', 'Please choose a leave type (Vacation, Sick, or Emergency).');
+                    return $this->backWithError('Please choose a leave type (Vacation, Sick, or Emergency).');
                 }
                 $leaveCategory = $lc;
             }
@@ -519,10 +552,10 @@ class RequestController extends BaseController
 
             $result = $this->redeemApprovalCode($codeRow, $insertData, $leaveCategory ?? 'leave', $userId);
             if (! $result['success']) {
-                return redirect()->back()->withInput()->with('error', $result['message']);
+                return $this->backWithError($result['message']);
             }
 
-            return redirect()->back()->with('success', 'Request submitted and automatically approved via approval code.');
+            return $this->backWithSuccess('Request submitted and automatically approved via approval code.');
         }
 
         // ── NORMAL MODE: full validation as before ────────────────────────────
@@ -534,36 +567,36 @@ class RequestController extends BaseController
 
         // Validate request type
         if (! in_array($requestType, $allowedTypes, true)) {
-            return redirect()->back()->withInput()->with('error', 'Invalid request type.');
+            return $this->backWithError('Invalid request type.');
         }
 
         // Validate start date
         if ($startDate === '' || ! preg_match('/^\d{4}-\d{2}-\d{2}$/', $startDate)) {
-            return redirect()->back()->withInput()->with('error', 'Start date is required and must use YYYY-MM-DD format.');
+            return $this->backWithError('Start date is required and must use YYYY-MM-DD format.');
         }
 
         $startDateObj = date_create($startDate);
         if (! $startDateObj) {
-            return redirect()->back()->withInput()->with('error', 'Invalid start date.');
+            return $this->backWithError('Invalid start date.');
         }
 
         // Validate end date
         $endDateObj = null;
         if ($endDate !== '') {
             if (! preg_match('/^\d{4}-\d{2}-\d{2}$/', $endDate)) {
-                return redirect()->back()->withInput()->with('error', 'End date must use YYYY-MM-DD format.');
+                return $this->backWithError('End date must use YYYY-MM-DD format.');
             }
             $endDateObj = date_create($endDate);
             if (! $endDateObj) {
-                return redirect()->back()->withInput()->with('error', 'Invalid end date.');
+                return $this->backWithError('Invalid end date.');
             }
             if ($endDateObj < $startDateObj) {
-                return redirect()->back()->withInput()->with('error', 'End date cannot be earlier than start date.');
+                return $this->backWithError('End date cannot be earlier than start date.');
             }
         }
 
         if ($reason === '') {
-            return redirect()->back()->withInput()->with('error', 'Message is required.');
+            return $this->backWithError('Message is required.');
         }
 
         // Optional approval code in normal mode (no preset required — just auto-approves)
@@ -574,7 +607,7 @@ class RequestController extends BaseController
         if ($normalizedCode !== '') {
             $codeRow = $this->approvalCodeModel->findActiveCode($normalizedCode);
             if ($codeRow === null) {
-                return redirect()->back()->withInput()->with('error', 'The approval code is invalid or has already been used.');
+                return $this->backWithError('The approval code is invalid or has already been used.');
             }
             $status = 'approved';
 
@@ -613,7 +646,7 @@ class RequestController extends BaseController
                 // than silently filing it under the generic 'leave' category,
                 // which is deducted from but never shown anywhere for anyone
                 // to reconcile against.
-                return redirect()->back()->withInput()->with('error', 'Please choose a leave type (Vacation, Sick, or Emergency).');
+                return $this->backWithError('Please choose a leave type (Vacation, Sick, or Emergency).');
             }
             $leaveCategory = $lc;
         }
@@ -639,9 +672,9 @@ class RequestController extends BaseController
             $insertData['processed_by'] = $codeRow['generated_by'];
             $result = $this->redeemApprovalCode($codeRow, $insertData, $leaveCategory ?? 'leave', $userId);
             if (! $result['success']) {
-                return redirect()->back()->withInput()->with('error', $result['message']);
+                return $this->backWithError($result['message']);
             }
-            return redirect()->back()->with('success', 'Request submitted and automatically approved via approval code.');
+            return $this->backWithSuccess('Request submitted and automatically approved via approval code.');
         }
 
         // No code — plain pending request, no balance touched yet.
@@ -649,7 +682,7 @@ class RequestController extends BaseController
         $newRequestId = (int) $this->requestModel->getInsertID();
         service('activityLogger')->requestFiled($newRequestId, $insertData);
 
-        return redirect()->back()->with('success', 'Request submitted successfully.');
+        return $this->backWithSuccess('Request submitted successfully.');
     }
 
 

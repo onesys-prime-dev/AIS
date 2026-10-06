@@ -22,7 +22,7 @@
     <?= view('components/table', [
         'title' => 'Daily Time Log',
         'tableId' => 'dailyTimeLogTable',
-        'grid' => 'grid-cols-[0.95fr_0.55fr_0.95fr_0.55fr_0.55fr_0.28fr]',
+        'gridStyle' => 'minmax(0,0.95fr) minmax(0,0.55fr) minmax(0,0.95fr) minmax(0,0.55fr) minmax(0,0.55fr) minmax(0,0.28fr)',
         'columns' => [
             'Time In',
             'Break',
@@ -151,7 +151,7 @@
         };
 
         return `
-            <div class="grid grid-cols-[0.95fr_0.55fr_0.95fr_0.55fr_0.55fr_0.28fr] items-center border-b hover:bg-gray-50 w-full">
+            <div class="grid items-center border-b hover:bg-gray-50 w-full" style="grid-template-columns: minmax(0,0.95fr) minmax(0,0.55fr) minmax(0,0.95fr) minmax(0,0.55fr) minmax(0,0.55fr) minmax(0,0.28fr);">
                 <div class="p-4">${formatTimeValue(item.time_in)}</div>
                 <div class="p-4">${formatBreakValue(item)}</div>
                 <div class="p-4">${formatTimeValue(item.time_out)}</div>
@@ -181,9 +181,7 @@
         `;
     }
 
-    (async () => {
-        let dailyTimeLog = Array.isArray(DAILY_TIME_LOG) ? DAILY_TIME_LOG : [];
-
+    async function fetchDailyTimeLog(fallback) {
         try {
             const response = await fetch(DAILY_TIME_LOG_URL, {
                 method: 'GET',
@@ -193,12 +191,19 @@
 
             if (response.ok) {
                 const data = await response.json();
-                dailyTimeLog = Array.isArray(data) ? data : dailyTimeLog;
+                return Array.isArray(data) ? data : fallback;
             }
         } catch (error) {
             console.error('Failed to load daily time log:', error);
         }
+        return fallback;
+    }
 
+    // createCrudTable() re-binds search/filter listeners on the table's
+    // existing container each time it's called, so calling it again with
+    // fresh data (rather than mutating some returned instance — it doesn't
+    // hand back one) is the supported way to refresh this table in place.
+    function renderDailyTimeLogTable(dailyTimeLog) {
         createCrudTable({
             tableId: 'dailyTimeLogTable',
             data: dailyTimeLog,
@@ -208,7 +213,25 @@
                     .toLowerCase()
                     .includes(q)
         });
+    }
+
+    (async () => {
+        renderDailyTimeLogTable(await fetchDailyTimeLog(Array.isArray(DAILY_TIME_LOG) ? DAILY_TIME_LOG : []));
     })();
+
+    // Starting/ending a break on the Dashboard (a different page — it does a
+    // full page reload on its own, so it can't push this update directly)
+    // signals other tabs via localStorage. If this modal happens to be open
+    // when that fires, refresh it instead of leaving it showing a stale
+    // "still on break"/"complete" status until the user closes and reopens it.
+    window.addEventListener('storage', async function (event) {
+        if (event.key !== 'attendance_changed_at') return;
+        const modal = document.getElementById('viewDailyTimeLog');
+        if (!modal || !modal.classList.contains('show')) return;
+
+        const fresh = await fetchDailyTimeLog(null);
+        if (fresh) renderDailyTimeLogTable(fresh);
+    });
 
     document.addEventListener('click', function (event) {
         const trigger = event.target.closest('[data-action="view-daily-time-log"]');

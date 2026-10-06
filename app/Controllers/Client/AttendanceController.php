@@ -19,11 +19,25 @@ class AttendanceController extends BaseController
         try {
             return $operation(new AttendanceSessionService(), (int) auth()->id());
         } catch (DomainException|\InvalidArgumentException $e) {
-            return redirect()->to(site_url('client_portal/dashboard'))->with('error', $e->getMessage());
+            return $this->backWithError($e->getMessage());
         } catch (Throwable $e) {
             log_message('error', 'Attendance transition failed: {message}', ['message' => $e->getMessage()]);
-            return redirect()->to(site_url('client_portal/dashboard'))->with('error', 'Attendance was not saved. Please reload and try again.');
+            return $this->backWithError('Attendance was not saved. Please reload and try again.');
         }
+    }
+
+    /**
+     * Error toast carried on the redirect URL (read and stripped by toast.js),
+     * not just session flashdata — the Dashboard's own notification/presence
+     * polling can use up a one-shot flash before the page reads it, which
+     * would make a blocked clock-in (e.g. outside the office network) fail
+     * silently. Flashdata is kept too as a fallback. Same approach as
+     * RequestController::backWithToast().
+     */
+    private function backWithError(string $message)
+    {
+        $target = site_url('client_portal/dashboard') . '?toast_error=' . rawurlencode($message);
+        return redirect()->to($target)->with('error', $message);
     }
 
     private function expectedVersion(): int
@@ -36,7 +50,7 @@ class AttendanceController extends BaseController
     public function timeIn()
     {
         return $this->perform(function($service, $userId) {
-            $service->clockIn($userId);
+            $service->clockIn($userId, $this->request->getIPAddress());
             return redirect()->to(site_url('client_portal/dashboard'))->with('success', 'Time in recorded!');
         });
     }
@@ -64,7 +78,7 @@ class AttendanceController extends BaseController
             // click, just flagged so the redirect can explain what happened.
             $autoEnded = $action === 'end' && $this->request->getPost('auto_ended') === '1';
             try {
-                $service->changeBreak($userId, (int) $id, $action, $this->expectedVersion());
+                $service->changeBreak($userId, (int) $id, $action, $this->expectedVersion(), $this->request->getIPAddress());
             } catch (DomainException $e) {
                 if ($e->getMessage() === 'All scheduled breaks have been used.') {
                     return redirect()->to(site_url('client_portal/dashboard'))->with('break_limit_reached', true);

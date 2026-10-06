@@ -51,6 +51,7 @@ $routes->group('client_portal', ['filter' => 'auth'], function($routes){
     $routes->post('access-control/departments/rename'         , 'Client\AccessControlController::renameDepartment');
     $routes->post('access-control/departments/deactivate'     , 'Client\AccessControlController::deactivateDepartment');
     $routes->post('access-control/departments/team-heads'     , 'Client\AccessControlController::updateDepartmentTeamHeads');
+    $routes->post('access-control/attendance-network'         , 'Client\AccessControlController::updateAttendanceNetworkSettings');
 
     // -- Loans --
     // Note: no standalone 'loans' index route — the Loans tab is rendered
@@ -81,6 +82,7 @@ $routes->group('client_portal', ['filter' => 'auth'], function($routes){
     $routes->get('timesheet/daily-log'     , 'Client\TimesheetController::dailyTimeLog');
     $routes->get('timesheet/flagged'        , 'Client\TimesheetController::flaggedAttendance');
     $routes->get('timesheet/records'        , 'Client\TimesheetController::attendanceRecords');
+    $routes->get('timesheet/history-list', 'Client\TimesheetController::historyList');
     $routes->get('timesheet/history-details', 'Client\TimesheetController::historyDetails');
     $routes->get('timesheet/export-history' , 'Client\TimesheetController::exportHistory');
 
@@ -151,14 +153,21 @@ $routes->group('client_portal', ['namespace' => 'App\Controllers\Client', 'filte
     $routes->get ('payroll/employee_details/(:num)', 'PayrollController::getEmployeeDetails/$1');
     $routes->post('payroll/create'                 , 'PayrollController::createPayroll');
     $routes->post('payroll/update/(:num)'          , 'PayrollController::updatePayroll/$1');
-    $routes->get ('payroll/delete/(:num)'          , 'PayrollController::deletePayroll/$1');
+    $routes->post('payroll/delete/(:num)'          , 'PayrollController::deletePayroll/$1');
     $routes->get ('payroll/get/(:num)'             , 'PayrollController::getPayroll/$1');
     $routes->post('payroll/markStatus'             , 'PayrollController::markPayrollStatus');
     $routes->post('payroll/markPaid/(:num)'        , 'PayrollController::markTransactionPaid/$1');
 
+    // Payslip sending (Payroll Output → Payslip view) — the only place
+    // payslips are sent. Gated by the 'release' permission in PortalAccess.
+    $routes->post('payroll/release/send'           , 'PayrollController::releaseSend');
+    $routes->post('payroll/release/schedule'       , 'PayrollController::releaseSchedule');
+    $routes->post('payroll/release/cancel'         , 'PayrollController::releaseCancel');
+    $routes->post('payroll/release/mode'           , 'PayrollController::releaseMode');
+    $routes->post('payroll/release/markPaid'       , 'PayrollController::releaseMarkPaid');
+
     $routes->post('payroll/compute'        , 'PayrollController::computeAndSave');
     $routes->get ('payroll/generate/(:num)', 'PayrollController::generatePayslip/$1');
-    $routes->post('payroll/send/(:num)'    , 'PayrollController::sendPayslip/$1');
     
     $routes->get('payroll/getMyPayslips'         , 'PayrollController::getMyPayslips');
     $routes->get('performance/my-summary'        , 'PerformanceController::mySummary');
@@ -192,7 +201,6 @@ $routes->group('client_portal/payroll', ['namespace' => 'App\Controllers\Client'
     // ========== Additional compute & export endpoints ==========
     $routes->post('compute'               , 'PayrollController::computeAndSave');
     $routes->post('savePayslipRecord'     , 'PayrollController::savePayslipRecord');
-    $routes->post('sendPdf'               , 'PayrollController::sendPdf');
     $routes->get ('exportRegister'        , 'PayrollController::exportRegister');
     $routes->get ('exportTimesheet'       , 'PayrollController::exportTimesheet');
     $routes->post('previewTimesheetImport', 'PayrollController::previewTimesheetImport');
@@ -240,13 +248,11 @@ $routes->group('client_portal', ['namespace' => 'App\Controllers\Client', 'filte
     $routes->get ('payroll/employee_details/(:num)', 'PayrollController::getEmployeeDetails/$1');
     $routes->post('payroll/create'                 , 'PayrollController::createPayroll');
     $routes->post('payroll/update/(:num)'          , 'PayrollController::updatePayroll/$1');
-    $routes->get ('payroll/delete/(:num)'          , 'PayrollController::deletePayroll/$1');
+    $routes->post('payroll/delete/(:num)'          , 'PayrollController::deletePayroll/$1');
     $routes->get ('payroll/get/(:num)'             , 'PayrollController::getPayroll/$1');
     $routes->get ('payroll/generate/(:num)'        , 'PayrollController::generatePayslip/$1');
-    $routes->post('payroll/send/(:num)'            , 'PayrollController::sendPayslip/$1');
 
     $routes->get ('payroll'                           , 'PayrollController::payrollView');
-    $routes->post('payroll/sendPdf'                   , 'PayrollController::sendPdf');
     $routes->post('payroll/savePayslipRecord'         , 'PayrollController::savePayslipRecord');
     $routes->get ('payroll/getAllPayslips'            , 'PayrollController::getAllPayslips');
     $routes->post('timesheet/update-attendance/(:num)', 'TimesheetController::updateAttendance/$1');

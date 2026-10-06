@@ -9,7 +9,14 @@ window.createCrudTable = function ({
 
     // Drop any null/undefined entry up front so every filters()/search()/sort()
     // callback below can safely assume it always receives a real row object.
-    const rowData = (Array.isArray(data) ? data : []).filter(Boolean);
+    // 'data' may also be a function returning the current rows, for callers whose list
+    // changes after creation (add/remove). A plain array is read once, exactly as before.
+    const liveRows = typeof data === 'function';
+    const readRows = () => {
+        const src = liveRows ? data() : data;
+        return (Array.isArray(src) ? src : []).filter(Boolean);
+    };
+    const rowData = readRows();
 
     const container = document.querySelector(`[data-crud-table="${tableId}"]`);
     if (!container) return;
@@ -112,7 +119,7 @@ window.createCrudTable = function ({
         const sortOrder = filterSortOrder?.value || 'asc';
 
 
-        const filtered = rowData.filter(e => {
+        const filtered = (liveRows ? readRows() : rowData).filter(e => {
 
             if (typeof filters === 'function') {
                 return filters({

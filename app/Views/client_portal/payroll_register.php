@@ -1,34 +1,37 @@
 <div class="bg-white rounded-2xl shadow-lg p-8 h-full border border-gray-300 flex flex-col min-h-0">
 
-    <!-- ── Sub-tabs: Raw Sheet | Register | Payslip | History | Bank File — same pill-toggle
-         style as the Individual/Bulk Send switch on the Generate Payslip tab ── -->
+    <!-- ── Sub-tabs: Payslip | Raw Sheet | Register | Bank File — same pill-toggle
+         style as the Individual/Bulk switch on the Generate Payslip tab. Payslip comes
+         first and is the default view: it's where saved payslips are sent (now or on a
+         schedule), the natural next step after the Generate Payslip tab. ── -->
     <div class="reg-mode-switch">
-        <button type="button" class="reg-subtab reg-subtab-active" data-regview="raw" onclick="switchRegView('raw', this)">Raw Sheet</button>
+        <button type="button" class="reg-subtab reg-subtab-active" data-regview="payslip" onclick="switchRegView('payslip', this)">Payslip</button>
+        <button type="button" class="reg-subtab" data-regview="raw" onclick="switchRegView('raw', this)">Raw Sheet</button>
         <button type="button" class="reg-subtab" data-regview="table" onclick="switchRegView('table', this)">Register</button>
-        <button type="button" class="reg-subtab" data-regview="payslip" onclick="switchRegView('payslip', this)">Payslip</button>
-        <button type="button" class="reg-subtab" data-regview="history" onclick="switchRegView('history', this)">History</button>
         <button type="button" class="reg-subtab" data-regview="bank" onclick="switchRegView('bank', this)">Bank File</button>
     </div>
     <style>
-        .reg-mode-switch{ background:#e5e5e5; width:520px; border-radius:20px; padding:3px; display:flex; margin-bottom:20px; }
+        .reg-mode-switch{ background:#e5e5e5; width:460px; max-width:100%; border-radius:20px; padding:3px; display:flex; margin-bottom:20px; }
         .reg-subtab{ flex:1; border:none; padding:6px; border-radius:20px; font-size:12px; cursor:pointer; background:transparent; font-weight:500; color:#374151; white-space:nowrap; }
         .reg-subtab-active{ background:#fff; box-shadow:0 1px 3px rgba(0,0,0,0.1); color:#111827; }
+
+        .reg-action-btn{ display:inline-flex; align-items:center; gap:7px; }
+        .reg-action-btn svg{ width:16px; height:16px; flex:none; }
     </style>
     <script>
         function switchRegView(view, btn) {
-            document.getElementById('regControls').style.display    = (view === 'history' || view === 'bank') ? 'none' : 'flex';
+            document.getElementById('regControls').style.display    = view === 'bank' ? 'none' : 'flex';
             document.getElementById('regViewRaw').style.display     = view === 'raw'     ? 'flex' : 'none';
             document.getElementById('regViewTable').style.display   = view === 'table'   ? 'flex' : 'none';
             document.getElementById('regViewPayslip').style.display = view === 'payslip' ? 'flex' : 'none';
-            document.getElementById('regViewHistory').style.display = view === 'history' ? 'flex' : 'none';
             document.getElementById('regViewBankFile').style.display= view === 'bank'    ? 'flex' : 'none';
             document.querySelectorAll('.reg-subtab').forEach(b => b.classList.remove('reg-subtab-active'));
             btn.classList.add('reg-subtab-active');
         }
     </script>
 
-    <!-- ── Shared header: title + period controls (hidden on History) ─── -->
-    <div id="regControls" class="flex items-center justify-between flex-wrap gap-3 mb-4">
+    <!-- ── Shared header: title + period controls (hidden on Bank File) ─── -->
+    <div id="regControls" class="flex items-center justify-between flex-wrap gap-3 mb-4" style="display:flex;">
         <div>
             <h3 class="font-semibold text-xl">Payroll Register</h3>
             <p class="text-gray-500 text-sm mt-0.5">Matches client Excel register format. SSS/PHIC/HDMF are 0 for 1st half per DOLE practice.</p>
@@ -47,14 +50,14 @@
                 Load
             </button>
 
-            <button onclick="exportRegisterCsv()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition">
+            <button onclick="exportRegisterCsv()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 px-4 py-2 rounded-lg text-sm font-semibold transition">
                 Export CSV
             </button>
         </div>
     </div>
 
-    <!-- ── Raw Sheet view: inline-editable, mirrors Bulk Send's Raw Sheet ── -->
-    <div id="regViewRaw" class="flex-1 min-h-0 flex flex-col gap-2">
+    <!-- ── Raw Sheet view: inline-editable, mirrors the Bulk mode's Raw Sheet ── -->
+    <div id="regViewRaw" class="flex-1 min-h-0 flex flex-col gap-2" style="display:none;">
         <div class="flex items-center justify-between gap-3 flex-wrap">
             <p class="text-xs text-gray-400">Editable — yellow cells only. Change a value and it's marked <span style="color:#b45309;font-weight:600;">unsaved</span> until you save it.</p>
             <button type="button" onclick="saveAllRawRows()" id="rawSaveAllBtn" style="display:none;"
@@ -107,22 +110,48 @@
     </div>
 
     <!-- ── Payslip view: per-employee cards for the loaded period ─────── -->
-    <div id="regViewPayslip" style="display:none;" class="flex-1 min-h-0 flex flex-col gap-2">
+    <?php $regCanRelease = (bool) ($canRelease ?? false); $regReleaseMode = ($releaseMode ?? 'manual') === 'automatic' ? 'automatic' : 'manual'; ?>
+    <div id="regViewPayslip" style="display:flex;" class="flex-1 min-h-0 flex flex-col gap-2">
         <div class="flex items-center justify-between flex-wrap gap-2">
-            <h3 class="font-semibold text-lg">Payslips — Loaded Period</h3>
-            <div style="display:flex;gap:8px;">
-                <button type="button" id="regSendAllBtn" onclick="sendAllRegisterPayslips(this)" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition" style="display:inline-flex;align-items:center;">
-                    <span id="regSendBtnSpinner" class="btn-spinner" style="display:none;width:18px;height:18px;border-width:3px;"></span>
-                    <span id="regSendBtnText">&#9993; Send All</span>
+            <div>
+                <h3 class="font-semibold text-lg">Payslips — Loaded Period</h3>
+                <div id="regPayslipSummary" class="text-xs text-gray-500"></div>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                <!-- Saved payslips are drafts the employee can't see until they're sent here. -->
+                <div style="display:flex;align-items:center;gap:6px;" title="Manual: saved payslips wait for you to send or schedule them. Automatic: saved payslips are scheduled for the salary day.">
+                    <span class="text-xs font-semibold text-gray-600">Release:</span>
+                    <div id="regReleaseModeSwitch" style="background:#e5e5e5;border-radius:20px;padding:3px;display:flex;">
+                        <?php foreach (['manual' => 'Manual', 'automatic' => 'Automatic'] as $mode => $label): ?>
+                            <button type="button" data-mode="<?= $mode ?>" onclick="setReleaseMode('<?= $mode ?>')" <?= $regCanRelease ? '' : 'disabled' ?>
+                                style="border:none;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;cursor:<?= $regCanRelease ? 'pointer' : 'not-allowed' ?>;<?= $regReleaseMode === $mode ? 'background:#fff;color:#111827;box-shadow:0 1px 3px rgba(0,0,0,.12);' : 'background:transparent;color:#6b7280;' ?>"><?= $label ?></button>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+                <?php if ($regCanRelease): ?>
+                    <button type="button" id="regSendAllBtn" onclick="regSendAll()" class="reg-action-btn bg-[#7b5cff] hover:bg-[#6a4de0] text-white px-4 py-2 rounded-lg text-sm font-semibold transition shadow">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4 20-7Z"/></svg>
+                        Send All
+                    </button>
+                    <button type="button" onclick="regScheduleAll()" class="reg-action-btn bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 px-4 py-2 rounded-lg text-sm font-semibold transition">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16" rx="2.2"/><path d="M3 9.5h18"/><path d="M8 2.5v4"/><path d="M16 2.5v4"/></svg>
+                        Schedule All…
+                    </button>
+                    <button type="button" onclick="regMarkAllPaid()" class="reg-action-btn bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 px-4 py-2 rounded-lg text-sm font-semibold transition">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12.5 10.8 15 16 9.5"/></svg>
+                        Mark All Paid
+                    </button>
+                <?php endif; ?>
+                <button type="button" onclick="exportRegisterCsv()" class="reg-action-btn bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 px-4 py-2 rounded-lg text-sm font-semibold transition">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M4 19.5h16"/></svg>
+                    Export CSV
                 </button>
-                <button type="button" onclick="exportRegisterCsv()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition">&#8681; Export CSV</button>
             </div>
         </div>
-        <div id="regSendProgressWrap" style="display:none;">
-            <div style="height:10px;background:#e5e7eb;border-radius:6px;overflow:hidden;">
-                <div id="regSendProgressFill" style="height:100%;width:0%;background:#16a34a;border-radius:6px;transition:width .2s ease;"></div>
-            </div>
-        </div>
+        <?php if (!$regCanRelease): ?>
+            <div class="text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">You can view payslips here. Sending, scheduling and marking paid need the <strong>Release</strong> permission.</div>
+        <?php endif; ?>
+        <div id="regSendProgress" class="text-xs text-gray-600" style="display:none;"></div>
         <div id="payslipViewLoading" class="py-16 text-center text-gray-400 text-sm">Select a month and period, then click Load.</div>
         <div id="regPayslipList" class="flex-1 min-h-0 overflow-auto grid gap-2 content-start"></div>
     </div>
@@ -182,9 +211,9 @@
     </div>
     </div><!-- /#regViewTable -->
 
-    <div id="regViewHistory" style="display:none;" class="flex-1 min-h-0 flex flex-col">
-        <?= view('client_portal/payroll_payslip_history') ?>
-    </div>
+    <!-- Payslip viewer / activity / schedule dialogs and the send-schedule-paid
+         actions used by the Payslip view's cards (no visible section of its own). -->
+    <?= view('client_portal/payroll_payslip_history') ?>
 
     <div id="regViewBankFile" style="display:none;" class="flex-1 min-h-0 flex flex-col">
         <?= view('client_portal/payroll_bank_file') ?>
@@ -552,7 +581,6 @@ tr.raw-row-dirty td:first-child { border-left: 3px solid #f59e0b; }
     const REG_URL_EXPORT = <?= json_encode(site_url('client_portal/payroll/exportRegister')) ?>;
     const REG_URL_EDIT   = <?= json_encode(site_url('client_portal/payroll/getPayslipEditData')) ?>;
     const REG_URL_SAVE   = <?= json_encode(site_url('client_portal/payroll/savePayslipEditData')) ?>;
-    const REG_URL_SENDPDF = <?= json_encode(site_url('client_portal/payroll/sendPdf')) ?>;
     let _lastRegisterRows = []; // cached getRegisterRows() output, reused by the Payslip card view
 
     /* ── Helpers ─────────────────────────────────────── */
@@ -611,7 +639,7 @@ tr.raw-row-dirty td:first-child { border-left: 3px solid #f59e0b; }
                             Edit
                         </button>
                     </td>
-                    <td class="left">${r.employee_name}</td>
+                    <td class="left">${escReg(r.employee_name)}</td>
                     <td>${fmt(r.monthly_salary)}</td>
                     <td>${fmt(r.semi_monthly)}</td>
                     <td>${zeroFmt(r.year_end_gifts)}</td>
@@ -729,7 +757,7 @@ tr.raw-row-dirty td:first-child { border-left: 3px solid #f59e0b; }
             const tbody = document.getElementById('regRawBody');
             tbody.innerHTML = rows.map(r => `
                 <tr id="rawrow-${r.payslip_id}" data-net-basic="${(parseFloat(r.net_basic_pay)||0) - (parseFloat(r.night_diff_pay)||0)}">
-                    <td class="left" style="font-size:12px;font-weight:600;padding:6px 8px;">${r.employee_name}<span class="raw-unsaved-badge" style="display:none;">unsaved</span></td>
+                    <td class="left" style="font-size:12px;font-weight:600;padding:6px 8px;">${escReg(r.employee_name)}<span class="raw-unsaved-badge" style="display:none;">unsaved</span></td>
                     <td style="text-align:right;font-size:12px;padding:6px 8px;">${fmt(r.monthly_salary)}</td>
                     ${rawInput(r.payslip_id,'year_end_gifts',r.year_end_gifts)}
                     ${rawInput(r.payslip_id,'rice_subsidy',r.rice_subsidy)}
@@ -835,11 +863,15 @@ tr.raw-row-dirty td:first-child { border-left: 3px solid #f59e0b; }
         rawEditableFields.forEach(f => { payload[f] = rawField(id, f); });
         try {
             const res  = await fetch(REG_URL_SAVE, {
-                method: 'POST', headers: {'Content-Type':'application/json'},
+                method: 'POST',
+                headers: {'Content-Type':'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''},
                 body: JSON.stringify(payload)
             });
             const json = await res.json();
             if (json.error) throw new Error(json.error);
+            if (json.needs_resend && !silent && typeof showToast === 'function') {
+                showToast('Saved. This payslip was already sent — resend it from this Payslip tab so the employee gets the updated copy.', 'warning');
+            }
             clearRawRowDirty(id);
             btn.disabled = false;
             btn.textContent = '✓ Saved';
@@ -873,93 +905,145 @@ tr.raw-row-dirty td:first-child { border-left: 3px solid #f59e0b; }
         }
     };
 
-    /* ── Payslip view: reuses the View/Send functions already loaded by the
-       embedded History section (openPayslipViewer / resendPayslipEmail) ── */
+    /* ── Payslip view: one card per employee for the loaded period, and the
+       only place payslips are sent (now or on a schedule). The actions
+       themselves (releaseSendOne, openScheduleDialog, markPaid, …) live in the
+       embedded payroll_payslip_history.php. ── */
+    const escReg = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const fmtShort = s => s ? new Date(String(s).slice(0, 10) + 'T00:00:00').toLocaleDateString('en-US', {month:'short', day:'numeric'}) : '';
+    const fmtLong  = s => s ? new Date(String(s).slice(0, 10) + 'T00:00:00').toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric', year:'numeric'}) : '';
+    const SENDABLE = ['draft', 'scheduled', 'failed', 'needs_review'];
+
+    // Hooks used by the shared release actions: card info, and refresh-in-place
+    // after an action (keeps the loaded month/period instead of reloading).
+    window.getPayslipCardInfo = id => _lastRegisterRows.find(r => Number(r.payslip_id) === Number(id)) || null;
+    window.onPayslipReleaseChanged = () => loadRegister();
+    window.onReleaseModeChanged = mode => {
+        document.querySelectorAll('#regReleaseModeSwitch [data-mode]').forEach(b => {
+            const on = b.dataset.mode === mode;
+            b.style.background = on ? '#fff' : 'transparent';
+            b.style.color = on ? '#111827' : '#6b7280';
+            b.style.boxShadow = on ? '0 1px 3px rgba(0,0,0,.12)' : 'none';
+        });
+    };
+
+    function payslipChip(bg, fg, text, title) {
+        return `<span style="display:inline-block;background:${bg};color:${fg};padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700;white-space:nowrap;"${title ? ` title="${escReg(title)}"` : ''}>${text}</span>`;
+    }
+
+    function payslipStatusHtml(r) {
+        let html;
+        switch (r.send_status) {
+            case 'sent':
+                html = payslipChip('#dcfce7', '#166534', '&#10003; Sent · ' + fmtShort(r.sent_at), 'Sent ' + (r.sent_at || '') + (r.sent_by ? ' by ' + r.sent_by : ''));
+                if (r.needs_resend) html += ' ' + payslipChip('#fef3c7', '#92400e', 'Resend needed', 'Changed after it was sent — resend so the employee gets the updated copy.');
+                break;
+            case 'scheduled':
+                html = payslipChip('#dbeafe', '#1e40af', 'Scheduled · ' + fmtShort(r.scheduled_send_date), 'Will be emailed automatically on ' + fmtLong(r.scheduled_send_date));
+                break;
+            case 'sending':
+                html = payslipChip('#fef3c7', '#92400e', 'Sending…');
+                break;
+            case 'failed':
+                html = payslipChip('#fee2e2', '#991b1b', 'Failed', r.last_send_error)
+                     + `<div style="font-size:11px;color:#991b1b;margin-top:3px;">${escReg(r.last_send_error)}${r.scheduled_send_date ? ` · attempt ${Number(r.send_attempts)}` : ''}</div>`;
+                break;
+            case 'needs_review':
+                html = payslipChip('#ffedd5', '#9a3412', 'Needs review', r.review_reason)
+                     + `<div style="font-size:11px;color:#9a3412;margin-top:3px;">${escReg(r.review_reason)}</div>`;
+                break;
+            default:
+                html = payslipChip('#f3f4f6', '#374151', 'Draft', "Saved — the employee can't see it until it's sent.");
+        }
+        if (r.is_paid) html += ' ' + payslipChip('#ecfdf5', '#047857', '&#10003; Paid · ' + fmtShort(r.paid_at), 'Marked paid');
+        return html;
+    }
+
+    function payslipButtonsHtml(r) {
+        const b = 'px-3 py-1.5 rounded-lg text-xs font-semibold transition';
+        const secondary = `${b} bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300`;
+        const primary = `${b} bg-[#7b5cff] hover:bg-[#6a4de0] text-white`;
+        const id = Number(r.payslip_id);
+        let html = `<button onclick="openPayslipViewer(${id})" class="${secondary}">View</button>`;
+        if (!window.CAN_RELEASE) return html;
+        if (SENDABLE.includes(r.send_status)) {
+            html += `<button onclick="releaseSendOne(${id}, this)" class="${primary}">${r.send_status === 'failed' ? 'Retry' : 'Send Now'}</button>`;
+            html += `<button onclick="openScheduleDialog([${id}])" class="${secondary}">${r.scheduled_send_date ? 'Reschedule' : 'Schedule'}</button>`;
+            if (r.scheduled_send_date) html += `<button onclick="releaseCancel([${id}])" class="${secondary}">Cancel</button>`;
+        } else if (r.send_status === 'sent') {
+            // "Resend needed" still gets its own amber emphasis — it's the one case
+            // where the secondary-looking action is actually the one that needs attention.
+            html += r.needs_resend
+                ? `<button onclick="releaseSendOne(${id}, this)" class="${b} text-white" style="background:#d97706;">Resend</button>`
+                : `<button onclick="releaseSendOne(${id}, this)" class="${secondary}">Resend</button>`;
+        }
+        if (!r.is_paid) html += `<button onclick="markPaid([${id}])" class="${secondary}">Paid</button>`;
+        return html;
+    }
+
     function renderRegisterPayslipCards(rows) {
-        const list  = document.getElementById('regPayslipList');
-        const empty = document.getElementById('payslipViewLoading');
+        const list    = document.getElementById('regPayslipList');
+        const empty   = document.getElementById('payslipViewLoading');
+        const summary = document.getElementById('regPayslipSummary');
         if (!rows || !rows.length) {
             list.innerHTML = '';
-            empty.textContent = 'No payroll records found for this period.';
+            if (summary) summary.textContent = '';
+            empty.textContent = 'No saved payslips for this period. Save them from Generate Payslip first.';
             empty.classList.remove('hidden');
             return;
         }
         empty.classList.add('hidden');
-        const fmtDate = s => s ? new Date(s + 'T00:00:00').toLocaleDateString('en-US', {month:'short', day:'2-digit', year:'numeric'}) : '';
-        list.innerHTML = rows.map(r => `
-            <div style="display:grid;grid-template-columns:2.5fr 1.2fr 1.2fr 1.2fr auto;align-items:center;border:1px solid #e5e7eb;border-radius:8px;padding:10px 14px;background:#fff;gap:10px;">
-                <div><div style="font-weight:600;font-size:13px;">${r.employee_name}</div><div style="font-size:11px;color:#9ca3af;">${fmtDate(r.period_start)} – ${fmtDate(r.period_end)}</div></div>
+
+        if (summary) {
+            const count = s => rows.filter(r => r.send_status === s).length;
+            const parts = [`${rows.length} payslip${rows.length === 1 ? '' : 's'}`];
+            [['draft', 'draft'], ['scheduled', 'scheduled'], ['sent', 'sent'], ['failed', 'failed'], ['needs_review', 'need review']]
+                .forEach(([s, label]) => { const n = count(s); if (n) parts.push(`${n} ${label}`); });
+            const salaryDays = [...new Set(rows.map(r => r.salary_day).filter(Boolean))];
+            parts.push(salaryDays.length === 1 ? `Salary day: ${fmtLong(salaryDays[0])}` : (salaryDays.length ? 'Salary days vary' : 'Salary day not set in Payroll Settings'));
+            summary.textContent = parts.join(' · ');
+        }
+
+        list.innerHTML = rows.map(r => {
+            const deductions = r.sss + r.phic + r.hdmf + r.wth + r.sss_loan + r.calamity_loan + r.hdmf_loan + r.advances + (r.loans_module || 0);
+            return `
+            <div style="display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,0.9fr) minmax(0,1fr) minmax(0,0.9fr) minmax(0,1.5fr) 390px;align-items:center;border:1px solid #e5e7eb;border-radius:8px;padding:10px 14px;background:#fff;gap:10px;">
+                <div><div style="font-weight:600;font-size:13px;">${escReg(r.employee_name)}</div><div style="font-size:11px;color:#9ca3af;">${fmtShort(r.period_start)} – ${fmtShort(r.period_end)}, ${String(r.period_end).slice(0, 4)}</div></div>
                 <div style="font-size:12px;color:#374151;">Gross: <strong>&#8369;${fmt(r.gross_comp)}</strong></div>
-                <div style="font-size:12px;color:#374151;">Deductions: <strong>&#8369;${fmt(r.sss + r.phic + r.hdmf + r.wth + r.sss_loan + r.calamity_loan + r.hdmf_loan + r.advances)}</strong></div>
+                <div style="font-size:12px;color:#374151;">Deductions: <strong>&#8369;${fmt(deductions)}</strong></div>
                 <div style="font-size:12px;color:#15803d;">Net: <strong>&#8369;${fmt(r.net_pay)}</strong></div>
-                <div style="display:flex;gap:6px;">
-                    <button onclick="openPayslipViewer(${r.payslip_id})" class="px-3 py-1.5 bg-[#7b5cff] hover:bg-[#6a4de0] text-white rounded-lg text-xs font-semibold transition">View</button>
-                    <button onclick="resendPayslipEmail(${r.payslip_id}, this)" class="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs font-semibold transition">Send</button>
-                </div>
-            </div>`).join('');
+                <div style="font-size:12px;">${payslipStatusHtml(r)}</div>
+                <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;">${payslipButtonsHtml(r)}</div>
+            </div>`;
+        }).join('');
     }
 
-    /* Send every payslip in the currently loaded period — same pattern as
-       Bulk Send's "Send All", one confirm up front instead of one per row. */
-    window.sendAllRegisterPayslips = async function (btn) {
+    // ── Whole-cutoff actions (the loaded period) ──
+    function regIds(filter) { return _lastRegisterRows.filter(filter).map(r => Number(r.payslip_id)); }
+
+    window.regSendAll = function () {
         if (!_lastRegisterRows.length) { if (typeof showToast === 'function') showToast('Load a period first.', 'warning'); return; }
-        if (!confirm(`Send payslips to ${_lastRegisterRows.length} employee(s)?`)) return;
-
-        const spinner = document.getElementById('regSendBtnSpinner');
-        const btnText = document.getElementById('regSendBtnText');
-        const progressWrap = document.getElementById('regSendProgressWrap');
-        const progressFill = document.getElementById('regSendProgressFill');
-        const origText = btnText ? btnText.textContent : '';
+        const btn = document.getElementById('regSendAllBtn');
+        const prog = document.getElementById('regSendProgress');
         if (btn) btn.disabled = true;
-        if (spinner) spinner.style.display = 'inline-block';
-        if (progressWrap) progressWrap.style.display = 'block';
-        if (progressFill) { progressFill.style.width = '0%'; progressFill.style.background = '#16a34a'; }
-
-        let sent = 0, failed = 0, noData = 0, processed = 0;
-        let firstErrMsg = '';
-        const total = _lastRegisterRows.length;
-        for (const r of _lastRegisterRows) {
-            processed++;
-            // Each one is a real PDF render + email send, not instant — show
-            // progress instead of leaving the button looking stuck for however
-            // long a large batch actually takes.
-            if (btnText) btnText.textContent = `Sending ${processed} of ${total}…`;
-            if (progressFill) progressFill.style.width = Math.round((processed - 1) / total * 100) + '%';
-
-            const data = window.PAYSLIP_DATA ? window.PAYSLIP_DATA[r.payslip_id] : null;
-            if (!data) { failed++; noData++; continue; }
-            try {
-                const res  = await fetch(REG_URL_SENDPDF, {
-                    method: 'POST', headers: {'Content-Type':'application/json'},
-                    body: JSON.stringify(data)
-                });
-                const json = await res.json();
-                if (!res.ok || !json.success) throw new Error(json.error || 'Send failed');
-                sent++;
-            } catch (e) {
-                failed++;
-                if (!firstErrMsg) firstErrMsg = String(e.message || e);
-            }
-        }
-
-        if (btn) btn.disabled = false;
-        if (spinner) spinner.style.display = 'none';
-        if (btnText) btnText.textContent = origText || '✉ Send All';
-        if (progressFill) { progressFill.style.width = '100%'; progressFill.style.background = failed ? (sent ? '#d97706' : '#dc2626') : '#16a34a'; }
-        if (progressWrap) setTimeout(() => { progressWrap.style.display = 'none'; }, 1500);
-
-        if (typeof showToast === 'function') {
-            if (!failed) {
-                showToast(`${sent} payslip(s) sent.`, 'success');
-            } else {
-                const reasonParts = [];
-                if (firstErrMsg) reasonParts.push(firstErrMsg);
-                if (noData) reasonParts.push(`${noData} had no stored payslip data to send`);
-                const reason = reasonParts.length ? ` (${reasonParts.join('; ')})` : '';
-                showToast(`${sent} sent, ${failed} failed${reason}.`, sent ? 'warning' : 'error');
-            }
-        }
+        releaseSendMany(regIds(r => SENDABLE.includes(r.send_status)), (done, total) => {
+            if (!prog) return;
+            prog.style.display = done < total ? 'block' : 'none';
+            prog.textContent = `Sending ${done + 1} of ${total}… please wait.`;
+        }).finally(() => { if (btn) btn.disabled = false; if (prog) prog.style.display = 'none'; });
     };
+    window.regScheduleAll = function () {
+        if (!_lastRegisterRows.length) { if (typeof showToast === 'function') showToast('Load a period first.', 'warning'); return; }
+        openScheduleDialog(regIds(r => SENDABLE.includes(r.send_status)));
+    };
+    window.regMarkAllPaid = function () {
+        if (!_lastRegisterRows.length) { if (typeof showToast === 'function') showToast('Load a period first.', 'warning'); return; }
+        markPaid(regIds(r => !r.is_paid));
+    };
+
+    // The old "Send All" here re-sent stored payslip data straight to sendPdf()
+    // without a CSRF token (every request was rejected). Sending now goes
+    // through regSendAll() above → the release endpoint.
 
     // Auto-load on first tab activation
     document.addEventListener('DOMContentLoaded', function () {
@@ -1217,12 +1301,16 @@ tr.raw-row-dirty td:first-child { border-left: 3px solid #f59e0b; }
         try {
             const res  = await fetch(REG_URL_SAVE, {
                 method:  'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '' },
                 body:    JSON.stringify(payload),
             });
             const data = await res.json();
             if (!data.success) throw new Error(data.error || 'Save failed');
-            if (typeof showToast === 'function') showToast('Payslip updated successfully.', 'success');
+            if (typeof showToast === 'function') {
+                showToast(data.needs_resend
+                    ? 'Payslip updated. It was already sent — resend it from this Payslip tab so the employee gets the updated copy.'
+                    : 'Payslip updated successfully.', data.needs_resend ? 'warning' : 'success');
+            }
             document.getElementById('regEditOverlay').style.display = 'none';
             loadRegister();
         } catch (e) {

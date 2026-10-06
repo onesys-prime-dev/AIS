@@ -23,32 +23,7 @@ class SettingsController extends BaseController
             return redirect()->to('/login');
         }
 
-        $companyId = $this->resolveActiveCompanyId();
-        $branding  = $this->getOrCreateBranding($companyId);
-
-        // Load this user's saved color preferences (may override company defaults in the view)
-        $userId       = (int) $user->id;
-        $userSettings = $this->userSettingsModel->getSettingsArray($userId);
-
-        // Merge: user prefs win over company branding for color/typography fields
-        $colorKeys = ['sidebar_color', 'header_color', 'background_color', 'sidebar_icon_mode', 'font_family', 'font_size'];
-        foreach ($colorKeys as $key) {
-            if (! empty($userSettings[$key])) {
-                $branding[$key] = $userSettings[$key];
-            }
-        }
-
-        $branding['font_family'] ??= 'default';
-        $branding['font_size']   ??= 'medium';
-
-        $data = [
-            'title'         => 'Customization',
-            'branding'      => $branding,
-            'logoUrl'       => ! empty($branding['logo_path']) ? base_url((string) $branding['logo_path']) : null,
-            'canManageLogo' => \App\Libraries\PortalAccess::can('branding'),
-        ];
-
-        return view('settings/customization', $data);
+        return redirect()->to(site_url('client_portal/profile') . '?tab=appearance');
     }
 
     public function saveCustomization()
@@ -194,30 +169,34 @@ class SettingsController extends BaseController
             && ! str_contains($redirectTo, "\r")
             && ! str_contains($redirectTo, "\n");
 
+        // $redirectTo comes from the browser's own window.location.pathname,
+        // which (without URL rewriting, e.g. this app's default XAMPP setup)
+        // already includes the base folder and index.php — the same thing
+        // RedirectResponse::to() would prepend via site_url() for any string
+        // not already starting with "http". Passing it to ->to() as-is used
+        // to double that prefix (…/AIS/public/AIS/public/index.php/…), which
+        // the router then couldn't match at all, 404ing the save. Building an
+        // absolute URL ourselves (scheme+host, unprefixed) makes ->to() use
+        // it as given instead of running it through site_url() again.
+        $target = $isSafeLocalRedirect
+            ? $this->request->getUri()->getScheme() . '://' . $this->request->getUri()->getAuthority() . $redirectTo
+            : site_url('settings/customization');
+
+        // Flagged on the URL (read and stripped by toast.js), not left to
+        // session flashdata alone: flashdata survives exactly one further
+        // request, and this save already involves its own redirect hop, so
+        // anything else touching the session first (a notification poll, a
+        // presence heartbeat) racing that one request could silently use up
+        // the flash before this page ever reads it.
+        $target .= (str_contains($target, '?') ? '&' : '?') . 'saved=1';
+
         return redirect()
-            ->to($isSafeLocalRedirect ? $redirectTo : site_url('settings/customization'))
+            ->to($target)
             ->with('success', 'Customization updated successfully.');
     }
 
     private function getOrCreateBranding(int $companyId): array
     {
-        $branding = $this->brandingModel->where('company_id', $companyId)->first();
-
-        if ($branding) {
-            return $branding;
-        }
-
-        return [
-            'id'                 => null,
-            'company_id'         => $companyId,
-            'logo_path'          => null,
-            'logo_original_name' => null,
-            'logo_mime_type'     => null,
-            'logo_size'          => null,
-            'sidebar_color'      => '#1e1e1e',
-            'header_color'       => '#ffffff',
-            'background_color'   => '#f5f6fa',
-            'sidebar_icon_mode'  => 'auto',
-        ];
+        return $this->brandingModel->getOrCreateDefault($companyId);
     }
 }

@@ -126,7 +126,9 @@ final class PortalAccess
         if (preg_match('~^client_portal/payroll/(?:getmypayslips)$~', $path)) return 'self';
         if ($path === 'client_portal/performance/my-summary') return 'self';
         if (preg_match('~^client_portal/payroll/(?:downloadpayslip|getpayslipdata)/[0-9]+$~', $path)) return 'self';
-        if (preg_match('~^client_portal/payroll/(?:markstatus|markpaid/[0-9]+|send(?:/.*)?|sendpdf|sendstatic)$~', $path)) return 'release';
+        // Sending, scheduling, release mode and marking paid are 'release'
+        // actions; saving a payslip draft is ordinary 'payroll' work below.
+        if (preg_match('~^client_portal/payroll/(?:markstatus|markpaid/[0-9]+|send(?:/.*)?|sendpdf|sendstatic|release/(?:send|schedule|cancel|mode|markpaid))$~', $path)) return 'release';
         if (preg_match('~^client_portal/payroll(?:/|$)~', $path)) return 'payroll';
         if (preg_match('~^client_portal/timesheet/employee(?:/|$)~', $path)) return 'review_attendance';
         // Correcting a clocked time is a review/oversight action, not
@@ -148,7 +150,7 @@ final class PortalAccess
         if (preg_match('~^client_portal/announcements/(?:store|delete/[0-9]+|edit/[0-9]+|update/[0-9]+|attachments/delete/[0-9]+)$~', $path)) return 'announcements';
         if (preg_match('~^client_portal/help/(?:update/[0-9]+)$~', $path)) return 'help';
         if (preg_match('~^settings/customization(?:/save)?$~', $path)) return 'self';
-        if (preg_match('~^client_portal/(?:dashboard|profile(?:/(?:photo|identity|contact|username|emergency|password|payslip-password(?:/reset)?))?|presence/(?:heartbeat|statuses)|help(?:/store|/search-index)?|company-logo|time-in|time-out/[0-9]+|toggle-break/[0-9]+|requests(?:/(?:new|store|lookup-code))?|request-notifications/(?:viewed|dismiss)|announcements/(?:viewed|dismiss|download/[0-9]+)|tasks/(?:submit|saved|saved-clients)|timesheets/daily-log|timesheet(?:/(?:history-details|export-history|tasks/[0-9]+(?:/create)?|tasks/(?:edit|delete)/[0-9]+))?)$~', $path)) return 'self';
+        if (preg_match('~^client_portal/(?:dashboard|profile(?:/(?:photo|identity|contact|username|emergency|password|payslip-password(?:/reset)?))?|presence/(?:heartbeat|statuses)|help(?:/store|/search-index)?|company-logo|time-in|time-out/[0-9]+|toggle-break/[0-9]+|requests(?:/(?:new|store|lookup-code))?|request-notifications/(?:viewed|dismiss)|announcements/(?:viewed|dismiss|download/[0-9]+)|tasks/(?:submit|saved|saved-clients)|timesheets/daily-log|timesheet(?:/(?:history-details|history-list|export-history|tasks/[0-9]+(?:/create)?|tasks/(?:edit|delete)/[0-9]+))?)$~', $path)) return 'self';
         return 'deny';
     }
 }

@@ -162,6 +162,45 @@
                         </div>
                     </div>
 
+                    <!-- Monthly -->
+                    <div class="mb-3">
+                        <p class="text-sm font-semibold text-indigo-700 mb-2">Monthly Cutoff Period</p>
+                        <p class="text-xs text-gray-500 mb-2">
+                            For employees paid on the <strong>Monthly</strong> period button. Leave both blank for the
+                            full calendar month (day&nbsp;1&ndash;last day). Give it a gap before the Monthly Salary Day below
+                            (e.g. cutoff ends the 20th, paid the 25th) so there's time to process payroll instead of
+                            releasing pay the same day the cutoff closes.
+                        </p>
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                            <div>
+                                <label class="text-xs font-medium text-gray-600">Start Day</label>
+                                <input type="number" min="1" max="31" name="setting_monthly_start_day" id="setting_monthly_start_day"
+                                       class="w-full border rounded p-2 mt-1" placeholder="e.g. 1">
+                            </div>
+                            <div>
+                                <label class="text-xs font-medium text-gray-600">Start Month</label>
+                                <select name="setting_monthly_start_offset" id="setting_monthly_start_offset" class="w-full border rounded p-2 mt-1">
+                                    <option value="-1">Previous month</option>
+                                    <option value="0" selected>Same (salary) month</option>
+                                    <option value="1">Next month</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="text-xs font-medium text-gray-600">End Day <span class="text-gray-400">(0&nbsp;=&nbsp;last day)</span></label>
+                                <input type="number" min="0" max="31" name="setting_monthly_end_day" id="setting_monthly_end_day"
+                                       class="w-full border rounded p-2 mt-1" placeholder="e.g. 20">
+                            </div>
+                            <div>
+                                <label class="text-xs font-medium text-gray-600">End Month</label>
+                                <select name="setting_monthly_end_offset" id="setting_monthly_end_offset" class="w-full border rounded p-2 mt-1">
+                                    <option value="-1">Previous month</option>
+                                    <option value="0" selected>Same (salary) month</option>
+                                    <option value="1">Next month</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Live preview -->
                     <div class="bg-white border border-indigo-200 rounded p-3 text-xs text-indigo-700" id="periodPreviewBox">
                         <strong>Preview</strong> — select a salary month to see resolved dates:<br>
@@ -174,6 +213,73 @@
                         1st&nbsp;Half Start = Day&nbsp;26, <em>Previous month</em> &mdash; End = Day&nbsp;10, <em>Same month</em><br>
                         2nd&nbsp;Half Start = Day&nbsp;11, <em>Same month</em> &mdash; End = Day&nbsp;25, <em>Same month</em>
                     </p>
+                </div>
+
+                <!-- Salary Day — default send date on Payroll Output → Payslip -->
+                <div class="bg-emerald-50 p-4 rounded shadow border border-emerald-200 md:col-span-2">
+                    <h4 class="font-semibold border-b border-emerald-200 pb-1 mb-1 text-emerald-800">Salary Day <span class="text-xs font-normal text-emerald-600">(when each half's payslips go out)</span></h4>
+                    <p class="text-xs text-gray-500 mb-3">
+                        The day of the salary month each half is paid. It's the default date when scheduling on
+                        <strong>Payroll Output &rarr; Payslip</strong>, and the date payslips are scheduled to automatically
+                        when Release mode is <strong>Automatic</strong>. Leave a half blank to always choose the date by hand.
+                        Works with both the simple cutoff day and the Period Definition above.
+                    </p>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <div>
+                            <label class="text-xs font-medium text-gray-600">1st Half Salary Day <span class="text-gray-400">(0&nbsp;=&nbsp;last day)</span></label>
+                            <input type="number" min="0" max="31" name="setting_half1_salary_day" id="setting_half1_salary_day"
+                                   class="w-full border rounded p-2 mt-1" placeholder="e.g. 15">
+                        </div>
+                        <div>
+                            <label class="text-xs font-medium text-gray-600">1st Half Month</label>
+                            <select name="setting_half1_salary_offset" id="setting_half1_salary_offset" class="w-full border rounded p-2 mt-1">
+                                <option value="-1">Previous month</option>
+                                <option value="0" selected>Same (salary) month</option>
+                                <option value="1">Next month</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-xs font-medium text-gray-600">2nd Half Salary Day <span class="text-gray-400">(0&nbsp;=&nbsp;last day)</span></label>
+                            <input type="number" min="0" max="31" name="setting_half2_salary_day" id="setting_half2_salary_day"
+                                   class="w-full border rounded p-2 mt-1" placeholder="e.g. 0">
+                        </div>
+                        <div>
+                            <label class="text-xs font-medium text-gray-600">2nd Half Month</label>
+                            <select name="setting_half2_salary_offset" id="setting_half2_salary_offset" class="w-full border rounded p-2 mt-1">
+                                <option value="-1">Previous month</option>
+                                <option value="0" selected>Same (salary) month</option>
+                                <option value="1">Next month</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-xs font-medium text-gray-600">Monthly Salary Day <span class="text-gray-400">(0&nbsp;=&nbsp;last day)</span></label>
+                            <input type="number" min="0" max="31" name="setting_monthly_salary_day" id="setting_monthly_salary_day"
+                                   class="w-full border rounded p-2 mt-1" placeholder="e.g. 0">
+                        </div>
+                        <div>
+                            <label class="text-xs font-medium text-gray-600">Monthly Month</label>
+                            <select name="setting_monthly_salary_offset" id="setting_monthly_salary_offset" class="w-full border rounded p-2 mt-1">
+                                <option value="-1">Previous month</option>
+                                <option value="0" selected>Same (salary) month</option>
+                                <option value="1">Next month</option>
+                            </select>
+                        </div>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-2">
+                        Used for employees on a full-Month cutoff (<strong>Monthly</strong> period button), instead of the
+                        1st/2nd Half settings above &mdash; independent so it still works correctly when the Period Definition
+                        above spans across months.
+                    </p>
+                    <div class="mt-3">
+                        <label class="text-xs font-medium text-gray-600">If the salary day is a weekend or holiday</label>
+                        <select name="setting_salary_day_adjust" id="setting_salary_day_adjust" class="w-full md:w-1/2 border rounded p-2 mt-1">
+                            <option value="before" selected>Move to the working day before</option>
+                            <option value="after">Move to the working day after</option>
+                            <option value="keep">Keep the date as is</option>
+                        </select>
+                        <p class="text-xs text-gray-400 mt-1">Holidays come from the Holidays tab (recurring holidays count every year).</p>
+                    </div>
+                    <p class="text-xs text-emerald-700 mt-2" id="salaryDayPreview"></p>
                 </div>
             </div>
             <div class="mt-6 flex justify-end">
@@ -325,6 +431,20 @@
         if (s.half2_start_offset !== undefined) document.getElementById('setting_half2_start_offset').value = s.half2_start_offset;
         if (s.half2_end_day   !== undefined) document.getElementById('setting_half2_end_day').value     = s.half2_end_day;
         if (s.half2_end_offset   !== undefined) document.getElementById('setting_half2_end_offset').value   = s.half2_end_offset;
+        if (s.monthly_start_day) document.getElementById('setting_monthly_start_day').value = s.monthly_start_day;
+        if (s.monthly_start_offset !== undefined) document.getElementById('setting_monthly_start_offset').value = s.monthly_start_offset;
+        if (s.monthly_end_day   !== undefined) document.getElementById('setting_monthly_end_day').value   = s.monthly_end_day;
+        if (s.monthly_end_offset !== undefined) document.getElementById('setting_monthly_end_offset').value = s.monthly_end_offset;
+
+        // Salary day (Payslip tab's schedule default / Automatic mode date)
+        const setIf = (id, v) => { const el = document.getElementById(id); if (el && v !== undefined && v !== null) el.value = v; };
+        setIf('setting_half1_salary_day',    s.half1_salary_day);
+        setIf('setting_half1_salary_offset', s.half1_salary_offset ?? '0');
+        setIf('setting_half2_salary_day',    s.half2_salary_day);
+        setIf('setting_half2_salary_offset', s.half2_salary_offset ?? '0');
+        setIf('setting_monthly_salary_day',    s.monthly_salary_day);
+        setIf('setting_monthly_salary_offset', s.monthly_salary_offset ?? '0');
+        setIf('setting_salary_day_adjust',   s.salary_day_adjust || 'before');
 
         updatePeriodPreview();
     }
@@ -349,8 +469,26 @@
         const h2sd = document.getElementById('setting_half2_start_day')?.value;
         const h2ed = document.getElementById('setting_half2_end_day')?.value;
 
+        const fmt = d => new Date(d + 'T00:00:00').toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
+
+        // Monthly preview — independent of the 1st/2nd Half fields, defaults
+        // to the full calendar month when its own fields are left blank.
+        let monthlyHtml = '';
+        if (previewEl.value) {
+            const [my, mm] = previewEl.value.split('-').map(Number);
+            const msd = document.getElementById('setting_monthly_start_day')?.value || 1;
+            const med = document.getElementById('setting_monthly_end_day')?.value ?? 0;
+            const mso = document.getElementById('setting_monthly_start_offset')?.value || 0;
+            const meo = document.getElementById('setting_monthly_end_offset')?.value || 0;
+            const ms = settingsBuildDate(my, mm, msd, mso);
+            const me = settingsBuildDate(my, mm, med, meo);
+            monthlyHtml = '<strong>Monthly:</strong> ' + fmt(ms) + ' – ' + fmt(me);
+        }
+
         if (!h1sd || !h2sd || !previewEl.value) {
-            resultEl.textContent = '— fill in all four day fields above —';
+            resultEl.innerHTML = (monthlyHtml || '— select a salary month above —')
+                + (monthlyHtml ? ' &nbsp;|&nbsp; 1st/2nd Half: fill in all four day fields above' : '');
+            updateSalaryDayPreview();
             return;
         }
 
@@ -360,8 +498,6 @@
         const h2so = document.getElementById('setting_half2_start_offset')?.value || 0;
         const h2eo = document.getElementById('setting_half2_end_offset')?.value   || 0;
 
-        const fmt = d => new Date(d + 'T00:00:00').toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
-
         const h1s = settingsBuildDate(py, pm, h1sd, h1so);
         const h1e = settingsBuildDate(py, pm, h1ed, h1eo);
         const h2s = settingsBuildDate(py, pm, h2sd, h2so);
@@ -369,8 +505,33 @@
 
         resultEl.innerHTML =
             '<strong>1st Half:</strong> ' + fmt(h1s) + ' – ' + fmt(h1e) +
-            ' &nbsp;|&nbsp; <strong>2nd Half:</strong> ' + fmt(h2s) + ' – ' + fmt(h2e);
+            ' &nbsp;|&nbsp; <strong>2nd Half:</strong> ' + fmt(h2s) + ' – ' + fmt(h2e) +
+            ' &nbsp;|&nbsp; ' + monthlyHtml;
+        updateSalaryDayPreview();
     }
+
+    // Salary days for the preview month (before any weekend/holiday move —
+    // that's applied against the Holidays list when a payslip is scheduled).
+    function updateSalaryDayPreview() {
+        const el = document.getElementById('salaryDayPreview');
+        const month = document.getElementById('previewMonth')?.value;
+        if (!el) return;
+        const d1 = document.getElementById('setting_half1_salary_day')?.value;
+        const d2 = document.getElementById('setting_half2_salary_day')?.value;
+        const dm = document.getElementById('setting_monthly_salary_day')?.value;
+        if (!month || (d1 === '' && d2 === '' && dm === '')) { el.textContent = ''; return; }
+        const [py, pm] = month.split('-').map(Number);
+        const fmt = d => new Date(d + 'T00:00:00').toLocaleDateString('en-PH', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+        const part = (label, day, off) => day === '' ? `${label}: not set` : `${label}: ${fmt(settingsBuildDate(py, pm, day, off))}`;
+        el.textContent = 'Salary days for the preview month — ' +
+            part('1st half', d1, document.getElementById('setting_half1_salary_offset')?.value || 0) + ', ' +
+            part('2nd half', d2, document.getElementById('setting_half2_salary_offset')?.value || 0) + ', ' +
+            part('monthly', dm, document.getElementById('setting_monthly_salary_offset')?.value || 0) +
+            ' (a weekend/holiday is moved when scheduling).';
+    }
+    ['setting_half1_salary_day', 'setting_half1_salary_offset', 'setting_half2_salary_day', 'setting_half2_salary_offset',
+     'setting_monthly_salary_day', 'setting_monthly_salary_offset']
+        .forEach(id => document.getElementById(id)?.addEventListener('input', updateSalaryDayPreview));
 
     // ===== HOLIDAY MANAGEMENT =====
     const HOL_LIST_URL   = '<?= site_url('client_portal/payroll/holidays/list') ?>';
@@ -498,7 +659,8 @@
 
         // Live preview on any period field change
         ['half1_start_day','half1_start_offset','half1_end_day','half1_end_offset',
-         'half2_start_day','half2_start_offset','half2_end_day','half2_end_offset'].forEach(function(id) {
+         'half2_start_day','half2_start_offset','half2_end_day','half2_end_offset',
+         'monthly_start_day','monthly_start_offset','monthly_end_day','monthly_end_offset'].forEach(function(id) {
             const el = document.getElementById('setting_' + id);
             if (el) el.addEventListener('change', updatePeriodPreview);
         });

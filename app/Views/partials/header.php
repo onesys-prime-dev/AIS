@@ -33,7 +33,10 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
         <!-- BELL -->
         <div class="header-notif-wrapper">
             <button class="header-notif-btn" onclick="toggleNotif()">
-                <img src="<?=base_url('icons/notifications-bell.png')?>">
+                <svg class="header-notif-bell-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/>
+                    <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+                </svg>
                 <?php
                     $unreadNotifCount = 0;
                     foreach ($notifications ?? [] as $n) {
@@ -148,15 +151,26 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
                 $displayEmail = (string) ($headerIdentity['display_email'] ?? ($user->email ?? ''));
                 $avatarSource = trim((string) ($displayName !== '' ? $displayName : $displayEmail));
                 $avatarInitials = strtoupper(substr($avatarSource !== '' ? $avatarSource : 'U', 0, 2));
+
+                $headerAccountActive  = ($headerIdentity['status'] ?? '') === 'Active';
+                $headerOnlineStatus   = $headerIdentity['online_status'] ?? 'Offline';
+                $headerPresenceBadges = ['Online' => 'bg-green-200 text-green-700', 'Away' => 'bg-yellow-200 text-yellow-700', 'Offline' => 'bg-gray-200 text-gray-500'];
+                $headerBadgeClass     = $headerAccountActive ? ($headerPresenceBadges[$headerOnlineStatus] ?? $headerPresenceBadges['Offline']) : 'bg-red-200 text-red-600';
+                $headerBadgeText      = $headerAccountActive ? $headerOnlineStatus : 'Inactive';
+                $headerEmployeeId     = $headerIdentity['employee_id'] ?? '';
+                $headerPresenceAttrs  = $headerAccountActive ? "data-presence-badge=\"{$headerEmployeeId}\" data-current-status=\"{$headerOnlineStatus}\"" : '';
             ?>
             <div class="user-profile" onclick="toggleUserMenu()">
-                <?php if ($photoUrl !== ''): ?>
-                    <div class="avatar avatar-photo" style="background-image:url('<?= esc($photoUrl) ?>');" aria-label="Profile photo"></div>
-                <?php else: ?>
-                    <div class="avatar">
-                        <?= esc($avatarInitials) ?>
-                    </div>
-                <?php endif; ?>
+                <div class="header-avatar-wrap">
+                    <?php if ($photoUrl !== ''): ?>
+                        <div class="avatar avatar-photo" style="background-image:url('<?= esc($photoUrl) ?>');" aria-label="Profile photo"></div>
+                    <?php else: ?>
+                        <div class="avatar">
+                            <?= esc($avatarInitials) ?>
+                        </div>
+                    <?php endif; ?>
+                    <span class="header-avatar-status-dot" data-status="<?= $headerAccountActive ? esc($headerOnlineStatus) : 'Inactive' ?>" data-presence-dot <?= $headerPresenceAttrs ?> title="<?= esc($headerBadgeText) ?>"></span>
+                </div>
                 <div class="user-info">
                     <div class="user-name"><?= esc($displayName !== '' ? $displayName : 'User') ?></div>
                     <div class="user-email"><?= esc($displayEmail) ?></div>
@@ -170,8 +184,7 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
                     <div class="user-dropdown-name"><?= esc($displayName !== '' ? $displayName : 'User') ?></div>
                     <div class="user-dropdown-email"><?= esc($displayEmail) ?></div>
                 </div>
-                <a href="<?= site_url('client_portal/profile') ?>">Profile</a>
-                <a href="<?= site_url('settings/customization') ?>">Settings</a>
+                <a href="<?= site_url('client_portal/profile') ?>">Account &amp; settings</a>
                 <a href="<?= site_url('logout') ?>">Logout</a>
             </div>
         </div>
@@ -542,11 +555,14 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
         color: var(--header-text);
     }
 
-    .header-notif-btn img{
+    .header-notif-bell-icon{
+        width: 1.6em;
+        height: 1.6em;
+        color: var(--header-text);
         transition: transform 0.2s ease;
     }
 
-    .header-notif-btn img:hover{
+    .header-notif-btn:hover .header-notif-bell-icon{
         transform: scale(1.08);
     }
 
@@ -970,6 +986,34 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
         background-repeat:no-repeat;
     }
 
+    .header-avatar-wrap{
+        position:relative;
+        flex:0 0 auto;
+    }
+
+    /* Self-contained: color comes from data-status, not Tailwind classes,
+       and text is never written into the dot (font-size:0 + overflow hidden). */
+    .header-avatar-status-dot{
+        position:absolute;
+        right:0;
+        bottom:0;
+        width:14px;
+        height:14px;
+        box-sizing:border-box;
+        border:2px solid #fff;
+        border-radius:50%;
+        background:#9ca3af !important;
+        font-size:0;
+        line-height:0;
+        color:transparent;
+        overflow:hidden;
+    }
+    .header-avatar-status-dot[data-current-status="Online"],
+    .header-avatar-status-dot[data-status="Online"]:not([data-current-status]){ background:#22c55e !important; }
+    .header-avatar-status-dot[data-current-status="Away"],
+    .header-avatar-status-dot[data-status="Away"]:not([data-current-status]){ background:#eab308 !important; }
+    .header-avatar-status-dot[data-status="Inactive"]{ background:#ef4444 !important; }
+
     /* =========================================================
     USER INFO
     ========================================================= */
@@ -1006,7 +1050,8 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
         position:absolute;
 
         right:0;
-        top:55px;
+        top:100%;
+        margin-top:8px;
 
         width:200px;
 
@@ -1932,6 +1977,7 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
         "Why can't I see my payslip?",
         'How do I edit an announcement?',
         'What can Payroll Staff do?',
+        'How do I update my profile photo?',
     ];
 
     function loadHistory() {

@@ -15,13 +15,25 @@ final class PortalAccessFilter implements FilterInterface
         $user = auth()->user();
         $required = PortalAccess::requirement($path);
         if ($required === 'register') {
+            // Creating accounts is an admin tool, never public sign-up: a visitor who is not
+            // logged in is sent to the login page, and a logged-in user needs a permission that
+            // already lets them manage people (employee records or roles).
+            if (!$user) return redirect()->to(site_url('login'));
+            if (!PortalAccess::can('employees', $user) && !PortalAccess::can('roles', $user)) return $this->denied($request);
             if (strtolower($request->getMethod()) !== 'post') return null;
             $role = (string) ($request->getPost('role') ?? 'employee');
-            if ($role === 'employee' || ($user && PortalAccess::can('roles', $user))) return null;
+            if ($role === 'employee' || PortalAccess::can('roles', $user)) return null;
             return $this->denied($request);
         }
         // Authentication still runs for every protected request, including unknown routes.
         if (!$user) return redirect()->to(site_url('login'));
+        // The login form already blocks inactive accounts, but a session or
+        // remember-me cookie created before deactivation would otherwise keep
+        // working until it expires — same `active` flag loginAction() checks.
+        if (! (bool) $user->active) {
+            auth()->logout();
+            return redirect()->to(site_url('login'))->with('error', 'Your account has been deactivated.');
+        }
         $allowed = match ($required) {
             'self' => true,
             'edit_employee' => PortalAccess::canEditEmployee((int) basename($path)),
@@ -38,9 +50,42 @@ final class PortalAccessFilter implements FilterInterface
 
     private function denied(RequestInterface $request): ResponseInterface
     {
+        $message  = 'You do not have permission to access this resource.';
         $response = service('response')->setStatusCode(403)->noCache();
-        if ($request->isAJAX() || str_contains(strtolower($request->getHeaderLine('Accept')), 'json') || strtolower($request->getMethod()) !== 'get') {
-            return $response->setJSON(['success'=>false, 'error'=>'You do not have permission to access this resource.']);
+        $accept = strtolower($request->getHeaderLine('Accept'));
+        $isGet  = strtolower($request->getMethod()) === 'get';
+        // A real browser navigation (link, typed URL, or a plain <form> post —
+        // not a fetch/XHR call, which never asks for text/html first).
+        $isNavigation = !$request->isAJAX() && !str_contains($accept, 'json') && str_contains($accept, 'text/html');
+
+        if (!$isNavigation) {
+            // Background call: 'message' as well as 'error', since most pages
+            // toast data.message (and toast.js toasts any 403 JSON itself).
+            return $response->setJSON(['success'=>false, 'error'=>$message, 'message'=>$message]);
+        }
+
+        // Browser navigation: send the person back to where they were, or
+        // their dashboard, with a toast — instead of dropping them on a
+        // dead-end page or raw JSON. Never redirect to the denied page itself.
+        if ($isNavigation) {
+            $current = trim($request->getUri()->getRoutePath(), '/');
+            $target  = site_url('client_portal/dashboard');
+            $referer = $request->getHeaderLine('Referer');
+            if ($referer !== '' && parse_url($referer, PHP_URL_HOST) === $request->getUri()->getHost()) {
+                $refPath = trim((string) parse_url($referer, PHP_URL_PATH), '/');
+                if ($refPath !== '' && !str_ends_with($refPath, $current)) $target = $referer;
+            }
+            if (!str_ends_with(trim((string) parse_url($target, PHP_URL_PATH), '/'), $current)) {
+                // The toast is triggered by a URL flag that toast.js shows and strips,
+                // not by session flash data: flash is dropped if any other request
+                // (a background poll) touches the session before the page loads.
+                $flag   = $isGet ? 'page' : 'action';
+                $target = preg_replace('/([?&])access_denied=[^&#]*&?/', '$1', $target);
+                $target = rtrim($target, '?&');
+                $hash   = '';
+                if (str_contains($target, '#')) [$target, $hash] = explode('#', $target, 2) + [1 => ''];
+                return redirect()->to($target . (str_contains($target, '?') ? '&' : '?') . 'access_denied=' . $flag . ($hash !== '' ? '#' . $hash : ''));
+            }
         }
         return $response->setBody(view('errors/permission_denied'));
     }

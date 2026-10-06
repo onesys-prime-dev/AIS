@@ -240,6 +240,15 @@ document.addEventListener("DOMContentLoaded", function () {
 
     if (bgColor) {
         document.documentElement.style.setProperty('--bg-color', bgColor);
+        // Only unstyled text (headings/labels with no color class of their own)
+        // actually uses this — anything with its own Tailwind text-color class
+        // or inline color keeps that, regardless of the page background.
+        const contentText = getContrastColor(bgColor);
+        document.documentElement.style.setProperty('--content-text', contentText);
+        // Matches today's gray-500 on the default light background exactly;
+        // only switches to a lighter gray once the background is dark enough
+        // to need it.
+        document.documentElement.style.setProperty('--content-text-muted', contentText === '#000000' ? '#6b7280' : '#cbd5e1');
     }
 
     const FONT_FAMILY_STACKS = {

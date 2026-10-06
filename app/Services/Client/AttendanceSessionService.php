@@ -52,7 +52,7 @@ final class AttendanceSessionService
         $employee = $this->db->table('employees')->where('user_id', $userId)->get()->getRowArray();
         if (!$employee) throw new DomainException('Your account needs an employee profile before you can clock in.');
         $row = $this->db->table('employee_positions')->where('employee_id', $employee['id'])->get()->getRowArray() ?? [];
-        return array_intersect_key($row, array_flip(['start_time', 'end_time', 'break_schedule', 'break_windows', 'working_days', 'working_day_type', 'tardiness_grace_minutes', 'ot_grace_minutes']));
+        return array_intersect_key($row, array_flip(['start_time', 'end_time', 'break_schedule', 'break_windows', 'working_days', 'working_day_type', 'wfh_days', 'tardiness_grace_minutes', 'ot_grace_minutes']));
     }
 
     private function owned(int $userId, int $id): array
@@ -75,13 +75,76 @@ final class AttendanceSessionService
         return array_replace($before, $changes);
     }
 
-    public function clockIn(int $userId): array
+    /** Same check for an already-open shift (clock-out / breaks): judged from
+     *  that shift's own saved schedule snapshot and shift date, not today's. */
+    private function enforceOnsiteNetworkForRow(int $userId, array $row, ?string $ipAddress, string $what): void
     {
-        return $this->write($userId, function() use ($userId) {
+        $date = $row['shift_date'] ?? substr((string) $row['time_in'], 0, 10);
+        $schedule = AttendanceWindow::schedule($row);
+        // Snapshots written before wfh_days existed (older open shifts, CSV
+        // imports) have no such key — fall back to the employee's current WFH
+        // days instead of treating a WFH day as Onsite and blocking the break.
+        if (!array_key_exists('wfh_days', $schedule)) {
+            $schedule['wfh_days'] = $this->currentSchedule($userId)['wfh_days'] ?? null;
+        }
+        $this->enforceOnsiteNetwork($userId, $schedule, $date, $ipAddress, $what);
+    }
+
+    /**
+     * Onsite days require acting from the office network (admin-configured
+     * IP/CIDR allowlist); WFH days and exempt employees bypass this entirely.
+     * Fail-open: an empty/unset allowlist enforces nothing, so turning this
+     * feature on is opt-in and can never lock out every onsite employee by
+     * default before an admin deliberately configures it.
+     */
+    private function enforceOnsiteNetwork(int $userId, array $schedule, string $date, ?string $ipAddress, string $what = 'Clock-in'): void
+    {
+        $settings = new \App\Models\Client\PayrollSettingsModel();
+
+        // Admin switch (Access Control > Attendance Network). Unset means on, so nothing changes
+        // until an admin deliberately switches it off; the saved list and exempt accounts are kept.
+        if ((string) ($settings->getSetting('attendance_network_enabled') ?? '1') === '0') {
+            return;
+        }
+
+        // Exempt list is keyed by user_id (not employee_id) — the account IDs
+        // already shown/picked from in Access Control's accounts list.
+        $exemptIds = json_decode((string) ($settings->getSetting('attendance_network_exempt_ids') ?? ''), true);
+        if (is_array($exemptIds) && in_array($userId, array_map('intval', $exemptIds), true)) {
+            return;
+        }
+
+        $wfhDays = json_decode((string) ($schedule['wfh_days'] ?? ''), true);
+        $isWfhDay = is_array($wfhDays) && in_array(strtolower(date('D', strtotime($date))), $wfhDays, true);
+        if ($isWfhDay) {
+            return;
+        }
+
+        $allowedRaw = (string) ($settings->getSetting('attendance_allowed_ips') ?? '');
+        $ranges = \App\Libraries\IpAllowlist::parse($allowedRaw);
+        if ($ranges === []) {
+            return;
+        }
+
+        if (!$ipAddress || !\App\Libraries\IpAllowlist::matches($ipAddress, $ranges)) {
+            // log_message, not the activity logger: this runs inside the clock-in
+            // transaction, which the throw below rolls back, so a DB audit row
+            // would vanish with it.
+            log_message('warning', 'Onsite {what} blocked: user {user} from IP {ip} (allowed: {allowed})', [
+                'what' => strtolower($what), 'user' => $userId, 'ip' => $ipAddress ?: 'unknown', 'allowed' => implode(', ', $ranges),
+            ]);
+            throw new DomainException($what . ' blocked: this is an onsite day, and this network isn\'t recognized as the office network (detected address: ' . ($ipAddress ?: 'unknown') . '). Connect to the office WiFi and try again, or ask an admin to check the allowed list.');
+        }
+    }
+
+    public function clockIn(int $userId, ?string $ipAddress = null): array
+    {
+        return $this->write($userId, function() use ($userId, $ipAddress) {
             if ($this->db->table('attendance')->where('user_id', $userId)->where('time_out', null)->countAllResults()) throw new DomainException('Already clocked in. Clock out of your open attendance first.');
             $now = $this->now(); $schedule = $this->currentSchedule($userId);
             $schedule['break_schedule'] = AttendanceWindow::breaks($schedule);
             $date = AttendanceWindow::shiftDate($now, $schedule);
+            $this->enforceOnsiteNetwork($userId, $schedule, $date, $ipAddress);
             if ($this->db->table('attendance')->where('user_id', $userId)->where('COALESCE(shift_date, DATE(time_in))', $date)->countAllResults()) throw new DomainException('Attendance has already been recorded for this shift date.');
             $row = ['user_id' => $userId, 'time_in' => $now, 'time_in_dt' => $now, 'shift_date' => $date,
                 'schedule_snapshot' => json_encode($schedule, JSON_THROW_ON_ERROR), 'break_log' => '[]', 'breaks_taken' => 0,
@@ -162,11 +225,17 @@ final class AttendanceSessionService
         });
     }
 
-    public function changeBreak(int $userId, int $id, string $action, int $expected): array
+    public function changeBreak(int $userId, int $id, string $action, int $expected, ?string $ipAddress = null): array
     {
-        return $this->write($userId, function() use ($userId, $id, $action, $expected) {
+        return $this->write($userId, function() use ($userId, $id, $action, $expected, $ipAddress) {
             $row = $this->owned($userId, $id); $this->version($row, $expected);
             if ($row['time_out'] !== null) throw new DomainException('This attendance is already clocked out.');
+            // Only starting a break is network-gated. Ending one is always allowed
+            // so someone who stepped out (lunch, mobile data) can't be stranded
+            // on an open break.
+            if ($action === 'start') {
+                $this->enforceOnsiteNetworkForRow($userId, $row, $ipAddress, 'Break start');
+            }
             $now = $this->now(); AttendanceWindow::elapsedHours($row['time_in'], $now);
             if ($action === 'start' && empty($row['break_start'])) {
                 $current = $this->currentSchedule($userId);
@@ -212,6 +281,9 @@ final class AttendanceSessionService
                 $row['missed_clockout'] = substr($row['time_out'], 0, 10) > $shiftEndDate;
                 return $row;
             }
+            // Not network-gated: clock-out must always be possible, otherwise a
+            // shift started at the office could never be closed from anywhere
+            // else (left early, IP changed mid-shift) and would keep running.
             $this->version($row, $expected); $now = $this->now();
             $changes = !empty($row['break_start']) ? $this->endBreak($row, $now) : [];
             $effective = array_replace($row, $changes);

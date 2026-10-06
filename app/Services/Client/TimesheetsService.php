@@ -38,11 +38,29 @@ class TimesheetsService
 
     public function listDailyTimeLogByUserId(int $userId): array
     {
-        return $this->attendanceModel
-            ->select('id, user_id, time_in, break_start, break_end, break_duration, time_out, total_hours')
+        $rows = $this->attendanceModel
+            ->select('id, user_id, time_in, break_start, break_end, break_duration, break_log, time_out, total_hours')
             ->where('user_id', $userId)
             ->orderBy('time_in', 'DESC')
             ->findAll();
+
+        // break_start/break_end double as a live "currently on break?" flag:
+        // endBreak() (AttendanceSessionService) clears break_start back to
+        // null the moment a break ends, while break_end keeps that break's
+        // end time — so once a break is over, break_start always reads blank
+        // here even though one was taken (BL-042). The actual start/end pair
+        // for each break is in break_log; backfill break_start for display
+        // from there whenever the live flag is empty but a break happened.
+        foreach ($rows as &$row) {
+            if (!empty($row['break_start'])) continue; // currently on break — already correct as-is
+            $log = json_decode((string) ($row['break_log'] ?? '[]'), true);
+            if (is_array($log) && $log !== []) {
+                $row['break_start'] = end($log)['start'] ?? null;
+            }
+        }
+        unset($row);
+
+        return $rows;
     }
 
     public function listCurrentCutoffByUserId(int $userId): array
@@ -58,9 +76,24 @@ class TimesheetsService
             ->findAll();
     }
 
+    /**
+     * Previously grouped by the TASKS a user logged (joining through
+     * baseListByUserIdBuilder(), a tasks-table query) and summed task
+     * start/end durations as "Total Hours". That's a completely different
+     * number from hours actually worked — a day with attendance but no
+     * logged task didn't even appear, and a day with a task logged for only
+     * part of the shift showed a fraction of the real hours. Now sourced
+     * directly from attendance.total_hours (the same per-day worked-hours
+     * figure shown elsewhere, e.g. Attendance Corrections), so every past
+     * cutoff with attendance shows up, with its actual worked hours.
+     */
     public function listCutoffHistoryByUserId(int $userId): array
     {
-        $rows = $this->listByUserId($userId);
+        $rows = $this->attendanceModel
+            ->select('COALESCE(shift_date, DATE(time_in)) AS date, total_hours')
+            ->where('user_id', $userId)
+            ->findAll();
+
         $currentKey = $this->cutoffKeyByDate(date('Y-m-d'));
         $groups = [];
 
@@ -76,16 +109,13 @@ class TimesheetsService
                 $groups[$key] = [
                     'period_start' => $period['start'],
                     'period_end'   => $period['end'],
-                    'total_minutes' => 0,
+                    'total_hours'  => 0.0,
                     'entries_count' => 0,
                     'days' => [],
                 ];
             }
 
-            $groups[$key]['total_minutes'] += $this->durationMinutes(
-                (string) ($row['start_time'] ?? ''),
-                (string) ($row['end_time'] ?? '')
-            );
+            $groups[$key]['total_hours'] += (float) ($row['total_hours'] ?? 0);
             $groups[$key]['entries_count']++;
             $groups[$key]['days'][$date] = true;
         }
@@ -93,12 +123,10 @@ class TimesheetsService
         krsort($groups);
         $result = [];
         foreach ($groups as $group) {
-            $totalMinutes = (int) $group['total_minutes'];
             $result[] = [
                 'period_start'  => $group['period_start'],
                 'period_end'    => $group['period_end'],
-                'total_minutes' => $totalMinutes,
-                'total_hours'   => number_format($totalMinutes / 60, 2, '.', ''),
+                'total_hours'   => number_format($group['total_hours'], 2, '.', ''),
                 'entries_count' => (int) $group['entries_count'],
                 'days_covered'  => count($group['days']),
             ];
@@ -175,8 +203,14 @@ class TimesheetsService
             'success' => true,
             'tasks'   => $tasks,
             'window'  => [
-                'time_in'  => $attendance['time_in'],
-                'time_out' => $attendance['time_out'],
+                'time_in'     => $attendance['time_in'],
+                'time_out'    => $attendance['time_out'],
+                // Purely informational — lets the Task Log timeline mark the
+                // break period so it's obvious that stretch isn't "free" to
+                // log a task in, without changing what's actually allowed
+                // (validateTaskWindow() doesn't check this; unchanged here).
+                'break_start' => $attendance['break_start'] ?? null,
+                'break_end'   => $attendance['break_end'] ?? null,
             ],
         ];
     }
@@ -567,6 +601,15 @@ class TimesheetsService
                 $unapprovedOtHours,
                 $unapprovedUndertimeHours
             );
+
+            // WFH label — from this row's own resolved schedule (snapshot-first,
+            // same as scheduledStart/scheduledEnd above), so a later change to
+            // the employee's WFH days doesn't retroactively relabel a past day.
+            $wfhDays = json_decode((string) ($recordSchedule['wfh_days'] ?? ''), true);
+            $isWfhDay = is_array($wfhDays) && in_array(strtolower(date('D', strtotime($date))), $wfhDays, true);
+            if ($isWfhDay) {
+                $remarks = trim('(WFH) ' . $remarks);
+            }
 
             // All tasks logged against this exact attendance session (scoped by
             // attendance_id, not by calendar date — an employee with two clock

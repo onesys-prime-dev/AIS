@@ -33,7 +33,7 @@ $_defaultYearMonth = $_current['salary_month'];
 <style>
     body{ font-family: 'Segoe UI', Arial, sans-serif; background: #f0f2f5; }
 
-    /* Inline button spinner (e.g. Send Payslip while waiting on the server) */
+    /* Inline button spinner (e.g. Save Payslip while waiting on the server) */
     .btn-spinner{
         display:inline-block;
         width:14px;
@@ -739,7 +739,7 @@ $_defaultYearMonth = $_current['salary_month'];
     <!-- GLOBAL MODE SWITCH -->
     <div class="mode-switch" style="margin-bottom:10px;">
         <button type="button" class="mode-btn active" onclick="switchMode('individual', event)">Individual</button>
-        <button type="button" class="mode-btn" onclick="switchMode('bulk', event)">Bulk Send</button>
+        <button type="button" class="mode-btn" onclick="switchMode('bulk', event)">Bulk</button>
     </div>
 
     <!-- BULK PANEL — shown above all tabs when in Bulk mode -->
@@ -796,10 +796,10 @@ $_defaultYearMonth = $_current['salary_month'];
                             <span id="bulkBtnText">Generate Payslips</span>
                             <span id="bulkBtnSpinner" style="display:none;">⏳</span>
                         </button>
-                        <button type="button" id="bulkSendAllBtn" onclick="sendBulkAll()" style="display:none;
+                        <button type="button" id="bulkSendAllBtn" onclick="saveBulkAll()" title="Saves every payslip as a draft. Send or schedule them from Payroll Output → Payslip." style="display:none;
                             background:#16a34a;color:#fff;border:none;border-radius:8px;padding:9px 20px;font-size:13px;font-weight:600;cursor:pointer;align-items:center;">
                             <span id="bulkSendBtnSpinner" class="btn-spinner" style="display:none;width:18px;height:18px;border-width:3px;"></span>
-                            <span id="bulkSendBtnText">✉ Send All</span>
+                            <span id="bulkSendBtnText">💾 Save All</span>
                         </button>
                         <button type="button" id="bulkExportBtn" onclick="exportBulkCSV()" style="display:none;
                             background:#374151;color:#fff;border:none;border-radius:8px;padding:9px 20px;font-size:13px;font-weight:600;cursor:pointer;">
@@ -847,8 +847,11 @@ $_defaultYearMonth = $_current['salary_month'];
          display:none;align-items:center;gap:12px;">
         <span style="font-size:16px;">&#8594;</span>
         <span id="yearEndBannerMsg"></span>
+        <button onclick="window.undoYearEndApply && window.undoYearEndApply()"
+                style="margin-left:auto;background:none;border:1px solid #93c5fd;border-radius:6px;
+                       padding:3px 10px;font-size:12px;font-weight:600;cursor:pointer;color:#1e40af;">Undo</button>
         <button onclick="document.getElementById('yearEndPrefillBanner').style.display='none'"
-                style="margin-left:auto;background:none;border:none;font-size:18px;
+                style="background:none;border:none;font-size:18px;
                        cursor:pointer;color:#60a5fa;line-height:1;">&times;</button>
     </div>
 
@@ -1370,7 +1373,7 @@ $_defaultYearMonth = $_current['salary_month'];
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
                     <h3 class="font-semibold text-lg">Payslips — All Employees</h3>
                     <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                        <button type="button" onclick="sendBulkAll()" style="background:#16a34a;color:#fff;border:none;border-radius:8px;padding:7px 16px;font-size:13px;font-weight:600;cursor:pointer;">&#9993; Send All</button>
+                        <button type="button" onclick="saveBulkAll()" title="Saves every payslip as a draft. Send or schedule them from Payroll Output → Payslip." style="background:#16a34a;color:#fff;border:none;border-radius:8px;padding:7px 16px;font-size:13px;font-weight:600;cursor:pointer;">&#128190; Save All</button>
                         <button type="button" onclick="exportBulkCSV('register')" style="background:#28a745;color:#fff;border:none;border-radius:8px;padding:7px 16px;font-size:13px;font-weight:600;cursor:pointer;">&#8681; Export CSV</button>
                         <button type="button" onclick="toggleBulkFullscreen('bulk-payslip-view')" style="background:#7b5cff;color:#fff;border:none;border-radius:8px;padding:7px 16px;font-size:13px;font-weight:600;cursor:pointer;">&#10021; Full Screen</button>
                     </div>
@@ -1514,9 +1517,12 @@ $_defaultYearMonth = $_current['salary_month'];
             <button class="close-modal" aria-label="Close">&times;</button>
         </div>
         <div id="staticPayslipContent"></div>
-        <div class="modal-footer">
-            <button class="send-pdf-btn" id="sendPdfBtn"><span id="sendPdfBtnSpinner" class="btn-spinner" style="display:none;"></span><span id="sendPdfBtnText">Send Payslip to Employee</span></button>
-            <button class="mark-paid-btn" id="markPaidBtn" title="Marks this payroll transaction as paid. This cannot be undone."><span id="markPaidBtnText">Mark as Paid</span></button>
+        <div class="modal-footer" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+            <!-- Saving stores the payslip as a draft the employee can't see yet.
+                 Sending (now or scheduled) and Mark as Paid happen on
+                 Payroll Output → Payslip. -->
+            <span id="savePayslipHint" style="font-size:12px;color:#6b7280;margin-right:auto;">Saved payslips are sent from Payroll Output → Payslip.</span>
+            <button class="send-pdf-btn" id="savePayslipBtn"><span id="savePayslipBtnSpinner" class="btn-spinner" style="display:none;"></span><span id="savePayslipBtnText">Save Payslip</span></button>
         </div>
     </div>
 </div>
@@ -1865,6 +1871,17 @@ function updateSelectedEmployeeDisplay() {
 
 // ── Bulk period sync ──────────────────────────────────────────────────────
 
+// The Monthly cutoff has its own start/end day (independent of half1/half2 —
+// see PayrollCutoff::monthlyRange() server-side), defaulting to the full
+// calendar month (day 1 → last day) when left unset in Payroll Settings.
+function monthlyPeriodRange(y, m, s) {
+    const msd = s.monthly_start_day || 1;
+    const mso = s.monthly_start_offset || 0;
+    const med = (s.monthly_end_day !== undefined && s.monthly_end_day !== null && s.monthly_end_day !== '') ? s.monthly_end_day : 0;
+    const meo = s.monthly_end_offset || 0;
+    return { start: buildPeriodDate(y, m, msd, mso), end: buildPeriodDate(y, m, med, meo) };
+}
+
 function syncBulkPeriod() {
     const monthEl = document.getElementById('bulkPeriodMonth');
     if (!monthEl || !monthEl.value) return;
@@ -1877,7 +1894,7 @@ function syncBulkPeriod() {
         ranges = {
             first_half:  { start: buildPeriodDate(y,m,s.half1_start_day,s.half1_start_offset||0), end: buildPeriodDate(y,m,s.half1_end_day,s.half1_end_offset||0) },
             second_half: { start: buildPeriodDate(y,m,s.half2_start_day,s.half2_start_offset||0), end: buildPeriodDate(y,m,s.half2_end_day,s.half2_end_offset||0) },
-            monthly:     { start: buildPeriodDate(y,m,1,0), end: buildPeriodDate(y,m,0,0) },
+            monthly:     monthlyPeriodRange(y, m, s),
         };
     } else {
         const cutoff = parseInt(s.first_half_cutoff)||15;
@@ -1886,7 +1903,7 @@ function syncBulkPeriod() {
         ranges = {
             first_half:  { start:ym+'-01', end:ym+'-'+pad(cutoff) },
             second_half: { start:ym+'-'+pad(cutoff+1), end:ym+'-'+pad(lastDay) },
-            monthly:     { start:ym+'-01', end:ym+'-'+pad(lastDay) },
+            monthly:     monthlyPeriodRange(y, m, s),
         };
     }
     const activeBtn = document.querySelector('.bulk-period-btn.active');
@@ -2136,7 +2153,9 @@ async function viewBulkPayslip(idx) {
     if (btn) { btn.disabled = false; btn.textContent = 'View'; }
 }
 
-async function sendBulkAll() {
+// Saves every generated payslip as a draft. Nothing is emailed here — they're
+// sent (now or on a schedule) from Payroll Output → Payslip.
+async function saveBulkAll() {
     if (!bulkGeneratedPayloads.length) { showToast('Generate payslips first.', 'warning'); return; }
     const sendBtn = document.getElementById('bulkSendAllBtn');
     const spinner = document.getElementById('bulkSendBtnSpinner');
@@ -2152,44 +2171,37 @@ async function sendBulkAll() {
     // batch that takes a while. Target the spans instead so the spinner
     // actually spins.
     if (spinner) spinner.style.display = 'inline-block';
-    if (btnText) btnText.textContent = 'Sending…';
+    if (btnText) btnText.textContent = 'Saving…';
     if (progressWrap) progressWrap.style.display = 'block';
     if (progressFill) { progressFill.style.width = '0%'; progressFill.style.background = '#16a34a'; }
 
     let sent = 0, failed = 0, processed = 0;
     let firstErrMsg = '';
+    let lastMessage = '';
     const total = bulkGeneratedPayloads.length;
     for (const { empId, empName, payload } of bulkGeneratedPayloads) {
         processed++;
-        // Visible progress — without this, a batch of 20+ (each one a real
-        // PDF render + email send, not instant) just sits on "Sending…" with
-        // no sign of life for however long that actually takes.
-        if (btnText) btnText.textContent = `Sending ${processed} of ${total}…`;
-        reviewSumm.innerHTML = `<span class="btn-spinner" style="border-color:rgba(55,65,81,.25);border-top-color:#374151;"></span> <strong>Sending ${processed} of ${total}</strong> — please wait, this can take a while for a large batch…`;
+        if (btnText) btnText.textContent = `Saving ${processed} of ${total}…`;
+        reviewSumm.innerHTML = `<span class="btn-spinner" style="border-color:rgba(55,65,81,.25);border-top-color:#374151;"></span> <strong>Saving ${processed} of ${total}</strong> — please wait…`;
         reviewSumm.style.color = '#6b7280';
         if (progressFill) progressFill.style.width = Math.round((processed - 1) / total * 100) + '%';
 
         const statusEl = document.getElementById('bcell-status-'+empId);
         try {
-            // Save record
-            await fetch('<?= site_url('client_portal/payroll/savePayslipRecord') ?>', {
-                method:'POST', headers:{'Content-Type':'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''},
-                body: JSON.stringify(payload)
-            }).then(r => r.json());
+            const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+            const { response: resp, result: res } = await postSavePayslip('<?= site_url('client_portal/payroll/savePayslipRecord') ?>', payload, csrf);
+            if (!resp.ok || !res.success) {
+                if (res.needs_confirm) { if (statusEl) statusEl.innerHTML = '<span style="color:#9ca3af;font-size:11px;">Skipped (not confirmed)</span>'; continue; }
+                throw new Error(res.error||'Save failed');
+            }
+            lastMessage = res.message || lastMessage;
 
-            // Send PDF
-            const resp = await fetch('<?= site_url('client_portal/payroll/sendPdf') ?>', {
-                method:'POST', headers:{'Content-Type':'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''},
-                body: JSON.stringify({ ...payload, send_method: 'bulk' })
-            });
-            const res = await resp.json();
-            if (!resp.ok || !res.success) throw new Error(res.error||'Send failed');
-
-            if (statusEl) statusEl.innerHTML = '<span style="color:#16a34a;font-size:11px;font-weight:700;">✓ Sent</span>';
+            const label = res.send_status === 'scheduled' ? '✓ Saved · scheduled' : (res.send_status === 'sent' ? '✓ Saved · resend needed' : '✓ Saved');
+            if (statusEl) statusEl.innerHTML = `<span style="color:#16a34a;font-size:11px;font-weight:700;" title="${String(res.message||'').replace(/"/g,'&quot;')}">${label}</span>`;
             sent++;
         } catch(err) {
             if (statusEl) statusEl.innerHTML = `<span style="color:#dc2626;font-size:11px;cursor:help;" title="${String(err.message||err).replace(/"/g,'&quot;')}">✗ Error ⓘ</span>`;
-            console.error('Send error for '+empName+':', err);
+            console.error('Save error for '+empName+':', err);
             if (!firstErrMsg) firstErrMsg = String(err.message || err);
             failed++;
         }
@@ -2197,24 +2209,22 @@ async function sendBulkAll() {
 
     sendBtn.disabled = false;
     if (spinner) spinner.style.display = 'none';
-    if (btnText) btnText.textContent = sent > 0 ? '✉ Send All Payslips' : '✉ Retry';
+    if (btnText) btnText.textContent = sent > 0 ? '💾 Save All' : '💾 Retry';
     if (progressFill) { progressFill.style.width = '100%'; progressFill.style.background = failed ? (sent ? '#d97706' : '#dc2626') : '#16a34a'; }
     if (progressWrap) setTimeout(() => { progressWrap.style.display = 'none'; }, 1500);
-    reviewSumm.textContent = sent + ' sent' + (failed ? ', ' + failed + ' failed' : '') + '.';
+    reviewSumm.textContent = sent + ' saved' + (failed ? ', ' + failed + ' failed' : '') + '. Send or schedule them from Payroll Output → Payslip.';
     reviewSumm.style.color = failed ? '#dc2626' : '#16a34a';
     msgEl.textContent = '';
     if (sent > 0 && !failed) sendBtn.style.display = 'none';
 
     if (typeof showToast === 'function') {
         if (!sent && !failed) {
-            // Shouldn't happen (bulkGeneratedPayloads was non-empty going in), but
-            // covers it rather than silently showing nothing either way.
-            showToast('Nothing was sent.', 'warning');
+            showToast('Nothing was saved.', 'warning');
         } else if (failed) {
             const reason = firstErrMsg ? ` (${firstErrMsg})` : '';
-            showToast(`${sent} payslip(s) sent, ${failed} failed${reason} — hover the status column for each one's reason.`, sent ? 'warning' : 'error');
+            showToast(`${sent} payslip(s) saved, ${failed} failed${reason} — hover the status column for each one's reason.`, sent ? 'warning' : 'error');
         } else {
-            showToast(`${sent} payslip(s) sent successfully.`, 'success');
+            showToast(`${sent} payslip(s) saved. ${lastMessage.includes('scheduled') ? 'They are scheduled for the salary day.' : 'Send or schedule them from Payroll Output → Payslip.'}`, 'success');
         }
     }
 }
@@ -2432,7 +2442,7 @@ function renderBulkTabViews() {
                 <div style="font-size:12px;color:#15803d;">Net: <strong id="bpnet-${empId}">&#8369;${_bfmt(d.netPay)}</strong></div>
                 <div style="display:flex;gap:6px;">
                     <button onclick="viewBulkPayslip(${i})" style="background:#7b5cff;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:12px;cursor:pointer;font-weight:600;">View</button>
-                    <button id="bpsend-${empId}" onclick="sendSingleBulk(${i},this)" style="background:#16a34a;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:12px;cursor:pointer;font-weight:600;">Send</button>
+                    <button id="bpsend-${empId}" onclick="saveSingleBulk(${i},this)" style="background:#16a34a;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:12px;cursor:pointer;font-weight:600;">Save</button>
                 </div>
             </div>`;
         }).join('');
@@ -2529,29 +2539,25 @@ function recomputeBulkRow(empId, trigger) {
     if (bcNet) bcNet.innerHTML = '<strong>₱'+_bfmt(c.netPay)+'</strong>';
 }
 
-async function sendSingleBulk(idx, btn) {
+// Saves one bulk-generated payslip as a draft (sent later from Payroll Output → Payslip).
+async function saveSingleBulk(idx, btn) {
     const item = bulkGeneratedPayloads[idx];
     if (!item) return;
     btn.disabled = true; btn.textContent = '…';
     try {
-        await fetch('<?= site_url('client_portal/payroll/savePayslipRecord') ?>', {
-            method:'POST', headers:{'Content-Type':'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''},
-            body: JSON.stringify(item.payload)
-        });
-        const resp = await fetch('<?= site_url('client_portal/payroll/sendPdf') ?>', {
-            method:'POST', headers:{'Content-Type':'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''},
-            body: JSON.stringify({ ...item.payload, send_method: 'bulk' })
-        });
-        const res = await resp.json();
-        if (!resp.ok || !res.success) throw new Error(res.error||'Send failed');
-        btn.textContent = '✓ Sent'; btn.style.background = '#6b7280';
-        // Also update bulk panel review row status
+        const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+        const { response: resp, result: res } = await postSavePayslip('<?= site_url('client_portal/payroll/savePayslipRecord') ?>', item.payload, csrf);
+        if (!resp.ok || !res.success) {
+            if (res.needs_confirm) { btn.disabled = false; btn.textContent = 'Save'; return; }
+            throw new Error(res.error||'Save failed');
+        }
+        btn.textContent = '✓ Saved'; btn.style.background = '#6b7280';
         const statusEl = document.getElementById('bcell-status-'+item.empId);
-        if (statusEl) statusEl.innerHTML = '<span style="color:#16a34a;font-size:11px;font-weight:700;">✓ Sent</span>';
-        if (typeof showToast === 'function') showToast(`Payslip sent to ${item.empName}.`, 'success');
+        if (statusEl) statusEl.innerHTML = '<span style="color:#16a34a;font-size:11px;font-weight:700;">✓ Saved</span>';
+        if (typeof showToast === 'function') showToast(`${item.empName}: ${res.message || 'Payslip saved.'}`, 'success');
     } catch(err) {
         btn.disabled = false; btn.textContent = 'Retry';
-        if (typeof showToast === 'function') showToast('Send failed: ' + err.message, 'error');
+        if (typeof showToast === 'function') showToast('Save failed: ' + err.message, 'error');
     }
 }
 
@@ -2638,9 +2644,10 @@ function importBulkCSV(type, input) {
             // Re-derive every total this row's edits could have touched —
             // _bRowCalc() is the same single source of truth the on-screen
             // tables and the CSV export both already use, so this keeps the
-            // payload that Send actually transmits consistent with whatever
-            // the table shows after this import (savePayslipRecord/sendPdf
-            // trust net_pay etc. as given, they don't recompute server-side).
+            // payload that Save actually stores consistent with whatever
+            // the table shows after this import (savePayslipRecord trusts
+            // net_pay etc. as given — it only takes the Loans-module
+            // installments out — and sending reuses the saved figures).
             const c = _bRowCalc(p, d);
             d.netBasicPay = c.netBasicPay;
             d.totalOvertime = c.totalOT;
@@ -3142,10 +3149,7 @@ function resolvePeriodDates() {
                 start: buildPeriodDate(y, m, s.half2_start_day, s.half2_start_offset || 0),
                 end:   buildPeriodDate(y, m, s.half2_end_day,   s.half2_end_offset   || 0),
             },
-            monthly: {
-                start: buildPeriodDate(y, m, 1,        0),
-                end:   buildPeriodDate(y, m, 0,        0), // 0 = last day
-            },
+            monthly: monthlyPeriodRange(y, m, s),
         };
     } else {
         // Simple same-month cutoff (legacy / default)
@@ -3156,7 +3160,7 @@ function resolvePeriodDates() {
         ranges = {
             first_half:  { start: ym + '-01',               end: ym + '-' + pad(cutoff)        },
             second_half: { start: ym + '-' + pad(cutoff+1), end: ym + '-' + pad(lastDay)       },
-            monthly:     { start: ym + '-01',               end: ym + '-' + pad(lastDay)       },
+            monthly:     monthlyPeriodRange(y, m, s),
         };
     }
 
@@ -3588,7 +3592,7 @@ async function syncToRegister() {
             else if (taxable <= 33333)  { lo =  16667; fixedTax =     937.50; rate = 0.20; }
             else if (taxable <= 83333)  { lo =  33333; fixedTax =    4270.70; rate = 0.25; }
             else if (taxable <= 333333) { lo =  83333; fixedTax =   16770.70; rate = 0.30; }
-            else                        { lo = 333333; fixedTax =   91770.00; rate = 0.35; }
+            else                        { lo = 333333; fixedTax =   91770.70; rate = 0.35; }
         } else {
             if      (taxable <= 20833)  { lo =      0; fixedTax =          0; rate = 0;    }
             else if (taxable <= 33333)  { lo =  20833; fixedTax =          0; rate = 0.15; }
@@ -4079,7 +4083,7 @@ function semiMonthlyBracket(t) {
     else if (t <= 33333)  return   937.50 + (t -  16667) * 0.20;
     else if (t <= 83333)  return  4270.70 + (t -  33333) * 0.25;
     else if (t <= 333333) return 16770.70 + (t -  83333) * 0.30;
-    else                  return 91770.00 + (t - 333333) * 0.35;
+    else                  return 91770.70 + (t - 333333) * 0.35;
 }
 
 // Called whenever the period type or period start changes.
@@ -4833,23 +4837,17 @@ function generateStaticPayslip() {
         other_deductions: 0
     };
 
-    fetch('<?= site_url('client_portal/payroll/compute') ?>?employee_id=' + employeeIdToSubmit + '&start_date=' + startDate + '&end_date=' + endDate, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '' },
-        body: JSON.stringify(payload)
-    }).then(response => response.ok ? response.json() : Promise.reject())
-      .then(result => {
-          if (result.transaction_id) {
-              d.transactionId = result.transaction_id;
-              updateMarkPaidButtonState();
-          }
-      }).catch(() => {});
+    // Generate is a preview only. Nothing is written until the preview's
+    // "Save Payslip" button (savePayslipFromPreview) — previously every
+    // Generate click inserted a payroll_transactions row AND saved a draft.
+    window.currentComputePayload = payload;
 
     const html = generatePayslipHTML(d);
     document.getElementById('staticPayslipContent').innerHTML = html;
     document.getElementById('staticPayslipModal').style.display = 'block';
     window.currentPayslipData = d;
-    updateMarkPaidButtonState();
+    window.currentSavePayload = null;
+    resetSavePayslipButton();
 
     let employeeIdToPersist = document.getElementById('selectedEmployeeId').value;
     if (!employeeIdToPersist && selectedEmployeeIds.size > 0) {
@@ -4921,13 +4919,106 @@ function generateStaticPayslip() {
             other_deductions: 0,
             net_pay: d.netPay,
         };
-        fetch('<?= site_url('client_portal/payroll/savePayslipRecord') ?>', {
+        // Built from exactly what the preview shows — this is what gets
+        // stored, and later sent, when the user clicks "Save Payslip".
+        window.currentSavePayload = savePayload;
+    }
+}
+
+function resetSavePayslipButton() {
+    const btn = document.getElementById('savePayslipBtn');
+    const spin = document.getElementById('savePayslipBtnSpinner');
+    const text = document.getElementById('savePayslipBtnText');
+    const hint = document.getElementById('savePayslipHint');
+    if (btn) btn.disabled = false;
+    if (spin) spin.style.display = 'none';
+    if (text) text.textContent = 'Save Payslip';
+    if (hint) { hint.textContent = 'Saved payslips are sent from Payroll Output → Payslip.'; hint.style.color = '#6b7280'; }
+}
+
+// ================= SAVE PAYSLIP (draft) =================
+// Stores the previewed payslip. Nothing is emailed and the employee can't see
+// it until it's sent (now or on a schedule) from Payroll Output → Payslip
+// Release. In Automatic release mode the server schedules it for the salary day.
+// A payroll should fall inside its own cutoff. If the server sees a period
+// that doesn't match a configured cutoff (e.g. someone's final pay for a
+// partial cutoff), it holds the save and asks for confirmation instead of
+// silently filing it under the wrong month. This resends the same payload
+// once with confirm_non_standard: true if the user says it's intentional —
+// a genuinely malformed period (end before start) can never be confirmed
+// past; the server rejects that outright regardless of this flag.
+async function postSavePayslip(url, payload, csrf) {
+    let response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf },
+        body: JSON.stringify(payload)
+    });
+    let result = await response.json();
+    if (!response.ok && result && result.needs_confirm) {
+        if (!confirm(result.error + '\n\nSave it anyway?')) {
+            return { response, result };
+        }
+        response = await fetch(url, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '' },
-            body: JSON.stringify(savePayload)
-        }).then(r => r.json()).then(result => {
-            if (result.success) window.currentPayslipId = result.payslip_id;
-        }).catch(err => console.error('Payslip save error:', err));
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf },
+            body: JSON.stringify({ ...payload, confirm_non_standard: true })
+        });
+        result = await response.json();
+    }
+    return { response, result };
+}
+
+async function savePayslipFromPreview() {
+    const payload = window.currentSavePayload;
+    if (!payload) {
+        showToast('Please generate the payslip first (click "Generate Payslip").', 'warning');
+        return;
+    }
+    const btn  = document.getElementById('savePayslipBtn');
+    const spin = document.getElementById('savePayslipBtnSpinner');
+    const text = document.getElementById('savePayslipBtnText');
+    const hint = document.getElementById('savePayslipHint');
+    if (btn.disabled) return;
+    btn.disabled = true;
+    spin.style.display = 'inline-block';
+    text.textContent = 'Saving…';
+
+    const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+    try {
+        // Payroll transaction record (the payroll ledger) — written on Save
+        // now, not on every Generate. Its failure doesn't block the payslip.
+        const c = window.currentComputePayload;
+        if (c) {
+            fetch('<?= site_url('client_portal/payroll/compute') ?>?employee_id=' + encodeURIComponent(c.employee_id)
+                + '&start_date=' + encodeURIComponent(c.period_start) + '&end_date=' + encodeURIComponent(c.period_end), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf },
+                body: JSON.stringify(c)
+            }).catch(() => {});
+        }
+
+        const { response, result } = await postSavePayslip('<?= site_url('client_portal/payroll/savePayslipRecord') ?>', payload, csrf);
+        if (!response.ok || !result.success) {
+            if (!result.needs_confirm) {
+                showToast('Could not save the payslip: ' + (result.error || `Server error ${response.status}`), 'error');
+            }
+            btn.disabled = false;
+            text.textContent = 'Save Payslip';
+            return;
+        }
+        window.currentPayslipId = result.payslip_id;
+        text.textContent = 'Saved ✓';
+        if (hint) { hint.textContent = result.message || 'Saved.'; hint.style.color = '#15803d'; }
+        showToast(result.message || 'Payslip saved.', 'success');
+        // Button stays "Saved ✓" (disabled) until the next Generate, so the
+        // same preview isn't saved twice by accident; re-generate to re-save.
+    } catch (error) {
+        console.error('Save payslip error:', error);
+        showToast('Network error — could not reach the server. Nothing was saved.', 'error');
+        btn.disabled = false;
+        text.textContent = 'Save Payslip';
+    } finally {
+        spin.style.display = 'none';
     }
 }
 
@@ -4936,189 +5027,13 @@ function escapeHtml(str) {
     return str.replace(/[&<>]/g, m => m === '&' ? '&amp;' : (m === '<' ? '&lt;' : '&gt;'));
 }
 
-// ================= SEND PDF =================
-async function sendPdfToEmployee() {
-    if (!window.currentPayslipData) {
-        showToast('Please generate the payslip first (click "Generate Payslip").', 'warning');
-        return;
-    }
-    const employeeId = document.getElementById('selectedEmployeeId').value;
-    if (!employeeId) {
-        showToast('Please select an employee first.', 'warning');
-        return;
-    }
-    // sendPdf() isn't guarded against a retried request sending a second
-    // email — the other two send buttons on this page already disable
-    // themselves for the duration of the request; this one didn't. A
-    // deliberate resend is still possible afterward (button re-enables), this
-    // only blocks an accidental double-click/slow-network double-submit.
-    const sendBtn = document.getElementById('sendPdfBtn');
-    if (sendBtn) { if (sendBtn.disabled) return; sendBtn.disabled = true; }
-    const payload = {
-        employee_id: employeeId,
-        period_start: window.currentPayslipData.periodStart,
-        period_end: window.currentPayslipData.periodEnd,
-        employee_name: window.currentPayslipData.empName,
-        position: window.currentPayslipData.position,
-        basic_pay: window.currentPayslipData.basicPay,
-        rate_per_hour: window.currentPayslipData.ratePerHour,
-        hours_worked: window.currentPayslipData.hoursWorked,
-        night_diff_pay: window.currentPayslipData.nightPremium,
-        absent_amt: window.currentPayslipData.absentAmt,
-        undertime_amt: window.currentPayslipData.undertimeAmt,
-        net_basic_pay: window.currentPayslipData.netBasicPay,
-        reg_ot:         window.currentPayslipData.regOt || 0,
-        reg_ot_gt10:    window.currentPayslipData.regOtGt10 || 0,
-        reg_ot_night:   window.currentPayslipData.regOtNightPrem || 0,
-        sat_ot:         window.currentPayslipData.satOt || 0,
-        sat_ot_gt10:    window.currentPayslipData.satOtGt10 || 0,
-        sat_night_prem: window.currentPayslipData.satNightPrem || 0,
-        sun_ot:         window.currentPayslipData.sunOt || 0,
-        sun_ot_gt10:    window.currentPayslipData.sunOtGt10 || 0,
-        sun_night_prem: window.currentPayslipData.sunNightPrem || 0,
-        hol_ot:         window.currentPayslipData.holOt || 0,
-        hol_ot_gt10:    window.currentPayslipData.holOtGt10 || 0,
-        hol_night_prem: window.currentPayslipData.holNightPrem || 0,
-        total_overtime: window.currentPayslipData.totalOvertime || 0,
-        overtime_pay: window.currentPayslipData.totalOvertime || 0,
-        salary_adjustment: safeParseFloat(document.getElementById('salaryAdjustment')?.value),
-        override_amount: safeParseFloat(document.getElementById('overrideAmount')?.value),
-        ned_amount: safeParseFloat(document.getElementById('nedAmount')?.value),
-        holiday_pay: safeParseFloat(document.getElementById('holidayPay')?.value),
-        other_earnings_taxable: window.currentPayslipData.taxableOther,
-        year_end_gifts: safeParseFloat(document.getElementById('yearEndGifts')?.value),
-        rice_subsidy: safeParseFloat(document.getElementById('riceSubsidy')?.value),
-        uniform_allowance: safeParseFloat(document.getElementById('uniformAllowance')?.value),
-        laundry_allowance: safeParseFloat(document.getElementById('laundryAllowance')?.value),
-        medical_allowance: safeParseFloat(document.getElementById('medicalAllowance')?.value) + safeParseFloat(document.getElementById('medicalAllowanceAdd')?.value),
-        additional_de_minimis_nontax: safeParseFloat(document.getElementById('additionalDeMinimisNonTaxable')?.value),
-        additional_de_minimis_tax: safeParseFloat(document.getElementById('additionalDeMinimisTaxable')?.value),
-        additional_de_minimis_breakdown: document.getElementById('additionalDeMinimisBreakdown')?.value || '{}',
-        de_minimis: window.currentPayslipData.nonTaxable,
-        vl_cash_conversion: window.currentPayslipData.vlCashConversion || 0,
-        other_earnings_non_taxable: window.currentPayslipData.vlCashConversion || 0,
-        gross_pay: window.currentPayslipData.grossPay,
-        sss_ee: window.currentPayslipData.sssDed,
-        phic_ee: window.currentPayslipData.phicDed,
-        hdmf_ee: window.currentPayslipData.hdmfDed,
-        withholding_tax: window.currentPayslipData.withholdingTax,
-        sss_loan: safeParseFloat(document.getElementById('sssSalaryLoan')?.value),
-        calamity_loan: safeParseFloat(document.getElementById('sssCalamityLoan')?.value),
-        hdmf_loan: safeParseFloat(document.getElementById('hdmfLoan')?.value),
-        hdmf_mpl_loan: safeParseFloat(document.getElementById('hdmfMplLoan')?.value),
-        hdmf_calamity_loan: safeParseFloat(document.getElementById('hdmfCalamityLoan')?.value),
-        salary_advance: safeParseFloat(document.getElementById('advSalary')?.value),
-        cash_advance: safeParseFloat(document.getElementById('advCash')?.value),
-        emergency_advance: safeParseFloat(document.getElementById('advEmergency')?.value),
-        other_deductions: 0,
-        net_pay: window.currentPayslipData.netPay,
-    };
-
-    const sendSpinner = document.getElementById('sendPdfBtnSpinner');
-    const sendBtnText = document.getElementById('sendPdfBtnText');
-
-    sendBtn.disabled = true;
-    sendSpinner.style.display = 'inline-block';
-    sendBtnText.textContent = 'Sending...';
-
-    // showToast() just renders the toast and returns immediately — it used
-    // to be followed straight away by window.location.reload(), which wiped
-    // the whole page (toast included) before it had a chance to actually
-    // appear on screen. This flag keeps the button in its post-send state
-    // and skips the normal reset in `finally` while the confirmation is
-    // shown, so the reload only happens once the user has actually seen it.
-    let reloading = false;
-
-    try {
-        const response = await fetch('<?= site_url('client_portal/payroll/sendPdf') ?>', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '' },
-            body: JSON.stringify({ ...payload, send_method: 'individual' })
-        });
-        const result = await response.json();
-        if (!response.ok || !result.success) {
-            showToast('Error sending PDF: ' + (result.error || `Server error ${response.status}`), 'error');
-            return;
-        }
-        if (result.warning) {
-            showToast(result.warning, 'warning');
-        } else {
-            showToast('PDF payslip sent successfully to employee email.', 'success');
-        }
-        reloading = true;
-        sendSpinner.style.display = 'none';
-        sendBtnText.textContent = 'Sent ✓';
-        setTimeout(() => window.location.reload(), 1800);
-    } catch (error) {
-        console.error('Send PDF error:', error);
-        showToast('Network error — could not reach server. Check console for details.', 'error');
-    } finally {
-        if (!reloading) {
-            sendBtn.disabled = false;
-            sendSpinner.style.display = 'none';
-            sendBtnText.textContent = 'Send Payslip to Employee';
-        }
-    }
-}
-
-// ================= MARK AS PAID =================
-// Reflects whether the currently-previewed payslip's transaction is known
-// and not already paid. transactionId only exists once the compute/generate
-// call above has round-tripped, so this stays disabled until then.
-function updateMarkPaidButtonState() {
-    const btn     = document.getElementById('markPaidBtn');
-    const btnText = document.getElementById('markPaidBtnText');
-    if (!btn || !btnText) return;
-
-    const alreadyPaid = window.currentPayslipData?.alreadyPaid === true;
-    const hasTxId     = !!window.currentPayslipData?.transactionId;
-
-    btn.disabled = alreadyPaid || !hasTxId;
-    btnText.textContent = alreadyPaid ? 'Already Paid' : 'Mark as Paid';
-}
-
-async function markPayrollTransactionPaid() {
-    const txId = window.currentPayslipData?.transactionId;
-    if (!txId) {
-        showToast('Generate the payslip first so a payroll transaction exists to mark.', 'warning');
-        return;
-    }
-    if (window.currentPayslipData?.alreadyPaid) return;
-
-    if (!confirm('Mark this payroll transaction as paid? This cannot be undone.')) return;
-
-    const btn     = document.getElementById('markPaidBtn');
-    const btnText = document.getElementById('markPaidBtnText');
-    btn.disabled = true;
-    btnText.textContent = 'Marking...';
-
-    try {
-        const response = await fetch('<?= site_url('client_portal/payroll/markPaid') ?>/' + txId, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '' }
-        });
-        const result = await response.json();
-        if (!response.ok || !result.success) {
-            showToast('Error: ' + (result.error || `Server error ${response.status}`), 'error');
-            btn.disabled = false;
-            btnText.textContent = 'Mark as Paid';
-            return;
-        }
-        window.currentPayslipData.alreadyPaid = true;
-        updateMarkPaidButtonState();
-        showToast('Payroll transaction marked as paid.', 'success');
-    } catch (error) {
-        console.error('Mark paid error:', error);
-        showToast('Network error — could not reach server. Check console for details.', 'error');
-        btn.disabled = false;
-        btnText.textContent = 'Mark as Paid';
-    }
-}
+// Mark as Paid moved to Payroll Output → Payslip (per payslip, works
+// for Bulk-saved payslips too, which never had a payroll transaction id here).
 
 // ================= EXPORT RAW SHEET (CSV) =================
 function exportRawSheet() {
     // Bulk mode: export all generated payslips as multi-row CSV
-    if (document.querySelector('.mode-btn.active')?.textContent === 'Bulk Send') {
+    if (document.querySelector('.mode-btn.active')?.textContent === 'Bulk') {
         if (!bulkGeneratedPayloads.length) { showToast('Generate payslips first, then export.', 'warning'); return; }
         exportBulkCSV('raw');
         return;
@@ -5193,7 +5108,7 @@ function exportRawSheet() {
 
 // ================= EXPORT REGISTER (CSV) =================
 function exportRegister() {
-    if (document.querySelector('.mode-btn.active')?.textContent === 'Bulk Send') {
+    if (document.querySelector('.mode-btn.active')?.textContent === 'Bulk') {
         if (!bulkGeneratedPayloads.length) { showToast('Generate payslips first, then export.', 'warning'); return; }
         exportBulkCSV('register');
         return;
@@ -5278,8 +5193,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Auto-detect period type and update contributions/prior fields when date or type changes
     document.getElementById('payslipPeriodStart')?.addEventListener('change', () => { autoDetectPeriodType(); fetchAndSetPriorHalfWT(); });
     document.getElementById('payslipPeriodType')?.addEventListener('change', fetchAndSetPriorHalfWT);
-    document.getElementById('sendPdfBtn')?.addEventListener('click', sendPdfToEmployee);
-    document.getElementById('markPaidBtn')?.addEventListener('click', markPayrollTransactionPaid);
+    document.getElementById('savePayslipBtn')?.addEventListener('click', savePayslipFromPreview);
     document.getElementById('exportRawSheetBtn')?.addEventListener('click', exportRawSheet);
     document.getElementById('exportRegisterBtn')?.addEventListener('click', exportRegister);
     
@@ -5481,6 +5395,22 @@ document.addEventListener('DOMContentLoaded', function() {
 // Called by payroll_13th_month.php when the user clicks "Apply to Payroll".
 // type: '13th' | 'annualization'
 // payload: { empId, empName, year, amount, isRefund (annualization only) }
+let yearEndUndoSnapshot = null;
+
+window.undoYearEndApply = function () {
+    if (yearEndUndoSnapshot) {
+        Object.entries(yearEndUndoSnapshot).forEach(([id, value]) => {
+            const el = document.getElementById(id);
+            if (el) el.value = value;
+        });
+        yearEndUndoSnapshot = null;
+        if (typeof syncToRegister === 'function') syncToRegister();
+    }
+    const banner = document.getElementById('yearEndPrefillBanner');
+    if (banner) banner.style.display = 'none';
+    if (window.showToast) window.showToast('Year-end pre-fill undone.', 'success');
+};
+
 window.applyYearEndToPayroll = async function (type, payload) {
     const { empId, empName, year, amount } = payload;
 
@@ -5517,6 +5447,19 @@ window.applyYearEndToPayroll = async function (type, payload) {
 
     // 5. Pre-fill the relevant field and show banner
     let bannerMsg = '';
+
+    // Snapshot the fields this call is about to touch — AFTER fillEmployeeData
+    // has loaded this employee (so Undo never writes the previous employee's
+    // values onto this one) but BEFORE the pre-fill below. Includes the
+    // additive Salary Adjustment field, which can't be reverse-derived.
+    const touchedIds = type === '13th'
+        ? ['yearEndGifts', 'deMinYearEnd', 'salaryAdjustment']
+        : (payload.isRefund ? ['salNonTaxAdj'] : ['advSalary']);
+    yearEndUndoSnapshot = {};
+    touchedIds.forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) yearEndUndoSnapshot[id] = el.value;
+    });
 
     if (type === '13th') {
         // BIR: 13th month + other benefits ≤ ₱90,000 is non-taxable; excess is taxable.

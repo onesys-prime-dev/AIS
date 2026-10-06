@@ -3,7 +3,9 @@
 namespace App\Controllers\Client;
 
 use App\Controllers\BaseController;
+use App\Models\Client\CompanyBrandingModel;
 use App\Models\Client\LeaveBalanceModel;
+use App\Models\Client\UserSettingsModel;
 use App\Services\Client\AccountService;
 
 class EmployeeAccountController extends BaseController
@@ -32,16 +34,31 @@ class EmployeeAccountController extends BaseController
         if ($employeeId > 0) {
             $leaveBalanceModel             = new LeaveBalanceModel();
             $year                          = (int) date('Y');
-            $viewData['leaveBalance']      = $leaveBalanceModel->getBalance($employeeId, 'leave', $year);
-            $viewData['vacationBalance']   = $leaveBalanceModel->getBalance($employeeId, 'vacation',  $year);
-            $viewData['sickBalance']       = $leaveBalanceModel->getBalance($employeeId, 'sick',      $year);
-            $viewData['emergencyBalance']  = $leaveBalanceModel->getBalance($employeeId, 'emergency', $year);
+            $viewData['leaveBalance']      = $leaveBalanceModel->getBalanceOrCarry($employeeId, 'leave', $year);
+            $viewData['vacationBalance']   = $leaveBalanceModel->getBalanceOrCarry($employeeId, 'vacation',  $year);
+            $viewData['sickBalance']       = $leaveBalanceModel->getBalanceOrCarry($employeeId, 'sick',      $year);
+            $viewData['emergencyBalance']  = $leaveBalanceModel->getBalanceOrCarry($employeeId, 'emergency', $year);
         } else {
             $viewData['leaveBalance']     = null;
             $viewData['vacationBalance']  = null;
             $viewData['sickBalance']      = null;
             $viewData['emergencyBalance'] = null;
         }
+
+        // Appearance settings now live in the account page alongside profile
+        // and security settings, so load the same data used by the former
+        // standalone customization screen.
+        $companyId = $this->resolveActiveCompanyId();
+        $branding  = (new CompanyBrandingModel())->getOrCreateDefault($companyId);
+
+        $userSettings = (new UserSettingsModel())->getSettingsArray((int) $user->id);
+        $branding     = CompanyBrandingModel::applyUserOverrides($branding, $userSettings);
+
+        $viewData['appearanceBranding'] = $branding;
+        $viewData['appearanceLogoUrl'] = ! empty($branding['logo_path'])
+            ? base_url((string) $branding['logo_path'])
+            : null;
+        $viewData['canManageAppearanceLogo'] = \App\Libraries\PortalAccess::can('branding');
 
         return view('client_portal/employee_account', $viewData);
     }
@@ -219,7 +236,7 @@ class EmployeeAccountController extends BaseController
         ];
 
         if (! $this->validateData($this->request->getPost(), $rules)) {
-            return redirect()->back()->withInput()->with('error', implode(' ', $this->validator->getErrors()));
+            return $this->respond(false, implode(' ', $this->validator->getErrors()));
         }
 
         $result = $this->accountService->updatePassword(
@@ -229,10 +246,10 @@ class EmployeeAccountController extends BaseController
         );
 
         if (! $result['ok']) {
-            return redirect()->back()->with('error', $result['message']);
+            return $this->respond(false, $result['message']);
         }
 
-        return redirect()->back()->with('success', 'Password updated successfully.');
+        return $this->respond(true, 'Password updated successfully.');
     }
 
     public function updatePayslipPassword()
@@ -379,10 +396,10 @@ class EmployeeAccountController extends BaseController
     }
 
     /**
-     * Send a success/error confirmation for a payslip-password action.
-     * AJAX requests (used by the payslip password forms) get an explicit
-     * JSON payload so the UI can show a toast immediately instead of relying
-     * on a full-page reload picking up flash data. Non-AJAX submissions
+     * Send a success/error confirmation for a password/payslip-password action.
+     * AJAX requests (used by the account forms) get an explicit JSON payload
+     * so the UI can show a toast immediately instead of relying on a
+     * full-page reload picking up flash data. Non-AJAX submissions
      * (e.g. JS disabled) fall back to the usual redirect + flash message.
      */
     private function respond(bool $ok, string $message)
