@@ -341,6 +341,7 @@ class EmployeeController extends BaseController
         $accessControlAttendanceDetectedIp = '';
         $accessControlAttendanceProxyWarning = false;
         $accessControlAttendanceNetworkExemptIds = [];
+        $accessControlAttendanceEnforcementEnabled = true;
         if (\App\Libraries\PortalAccess::canManageAccessControl()) {
             $accessControlData = \App\Controllers\Client\AccessControlController::getAccountsData();
             $accessControlAccounts = $accessControlData['accounts'];
@@ -356,6 +357,7 @@ class EmployeeController extends BaseController
             $accessControlAttendanceDetectedIp = $accessControlData['attendanceDetectedIp'];
             $accessControlAttendanceProxyWarning = (bool) $accessControlData['attendanceProxyWarning'];
             $accessControlAttendanceNetworkExemptIds = $accessControlData['attendanceNetworkExemptIds'];
+            $accessControlAttendanceEnforcementEnabled = (bool) $accessControlData['attendanceEnforcementEnabled'];
         }
 
         if (!\App\Libraries\PortalAccess::can('loans')) {
@@ -380,6 +382,7 @@ class EmployeeController extends BaseController
                 'accessControlAttendanceDetectedIp' => $accessControlAttendanceDetectedIp,
                 'accessControlAttendanceProxyWarning' => $accessControlAttendanceProxyWarning,
                 'accessControlAttendanceNetworkExemptIds' => $accessControlAttendanceNetworkExemptIds,
+                'accessControlAttendanceEnforcementEnabled' => $accessControlAttendanceEnforcementEnabled,
             ]);
         }
         $loanModel = new LoanModel();
@@ -516,6 +519,7 @@ class EmployeeController extends BaseController
         $data['accessControlAttendanceDetectedIp'] = $accessControlAttendanceDetectedIp;
         $data['accessControlAttendanceProxyWarning'] = $accessControlAttendanceProxyWarning;
         $data['accessControlAttendanceNetworkExemptIds'] = $accessControlAttendanceNetworkExemptIds;
+        $data['accessControlAttendanceEnforcementEnabled'] = $accessControlAttendanceEnforcementEnabled;
 
         /*
         |--------------------------------------------------------------------------

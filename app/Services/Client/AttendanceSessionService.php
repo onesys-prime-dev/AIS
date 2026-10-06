@@ -101,6 +101,12 @@ final class AttendanceSessionService
     {
         $settings = new \App\Models\Client\PayrollSettingsModel();
 
+        // Admin switch (Access Control > Attendance Network). Unset means on, so nothing changes
+        // until an admin deliberately switches it off; the saved list and exempt accounts are kept.
+        if ((string) ($settings->getSetting('attendance_network_enabled') ?? '1') === '0') {
+            return;
+        }
+
         // Exempt list is keyed by user_id (not employee_id) — the account IDs
         // already shown/picked from in Access Control's accounts list.
         $exemptIds = json_decode((string) ($settings->getSetting('attendance_network_exempt_ids') ?? ''), true);

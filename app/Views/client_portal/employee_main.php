@@ -180,6 +180,7 @@ const ACCESS_CONTROL_ATTENDANCE_ALLOWED_IPS = <?= json_encode($accessControlAtte
 const ACCESS_CONTROL_ATTENDANCE_DETECTED_IP = <?= json_encode($accessControlAttendanceDetectedIp ?? '') ?>;
 const ACCESS_CONTROL_ATTENDANCE_PROXY_WARNING = <?= json_encode((bool) ($accessControlAttendanceProxyWarning ?? false)) ?>;
 const ACCESS_CONTROL_ATTENDANCE_NETWORK_EXEMPT_IDS = <?= json_encode($accessControlAttendanceNetworkExemptIds ?? []) ?>;
+const ACCESS_CONTROL_ATTENDANCE_ENFORCEMENT_ENABLED = <?= json_encode((bool) ($accessControlAttendanceEnforcementEnabled ?? true)) ?>;
 const CSRF_HASH = "<?= csrf_hash() ?>";
 
 function acEscapeHtml(s) {
@@ -1076,6 +1077,12 @@ const AC_ICONS = (function () {
 
     let ranges = IPAllowlist_parse(ACCESS_CONTROL_ATTENDANCE_ALLOWED_IPS);
 
+    // Master switch: when off, nothing is enforced but the list and exempt accounts are kept.
+    const enforceToggle = document.getElementById('attendanceEnforcementToggle');
+    const enforceHint = document.getElementById('attendanceEnforcementHint');
+    const networkGrid = document.getElementById('attendanceNetworkGrid');
+    let enforcementEnabled = ACCESS_CONTROL_ATTENDANCE_ENFORCEMENT_ENABLED !== false;
+
     function IPAllowlist_parse(raw) {
         return (raw || '').split(/[,\r\n]+/).map(s => s.trim()).filter(Boolean);
     }
@@ -1090,10 +1097,25 @@ const AC_ICONS = (function () {
     function updateEnforcementBadge() {
         const badge = document.getElementById('attendanceEnforcementBadge');
         if (!badge) return;
-        const on = ranges.length > 0;
-        badge.textContent = on ? `Enforcement ON · ${ranges.length} address${ranges.length === 1 ? '' : 'es'}` : 'Enforcement OFF · list is empty';
-        badge.style.background = on ? '#dcfce7' : '#fee2e2';
-        badge.style.color = on ? '#166534' : '#991b1b';
+        const on = enforcementEnabled && ranges.length > 0;
+        if (!enforcementEnabled) {
+            badge.textContent = 'Enforcement OFF · switched off';
+            badge.style.background = '#e5e7eb';
+            badge.style.color = '#374151';
+        } else {
+            badge.textContent = on ? `Enforcement ON · ${ranges.length} address${ranges.length === 1 ? '' : 'es'}` : 'Enforcement OFF · list is empty';
+            badge.style.background = on ? '#dcfce7' : '#fee2e2';
+            badge.style.color = on ? '#166534' : '#991b1b';
+        }
+        if (enforceToggle) enforceToggle.checked = enforcementEnabled;
+        if (networkGrid) networkGrid.classList.toggle('ann-off', !enforcementEnabled);
+        if (enforceHint) {
+            enforceHint.textContent = !enforcementEnabled
+                ? 'Switched off: anyone can clock in from any network. Your allowed list and exempt accounts are kept for when you switch it back on.'
+                : (ranges.length
+                    ? 'On: Onsite clock-ins and break starts must come from the allowed addresses below.'
+                    : 'On, but the allowed list is empty, so nothing is enforced yet. Add the office address below.');
+        }
     }
 
     function renderChips() {
@@ -1174,6 +1196,14 @@ const AC_ICONS = (function () {
         });
     }
 
+    if (enforceToggle) {
+        enforceToggle.addEventListener('change', function () {
+            enforcementEnabled = this.checked;
+            updateEnforcementBadge();
+            if (statusEl) statusEl.textContent = 'Switch changed — press Save to apply.';
+        });
+    }
+
     renderChips();
 
     // Exempt accounts — searchable checklist with a live selected count.
@@ -1219,10 +1249,11 @@ const AC_ICONS = (function () {
         // Don't save past an invalid entry the admin is still looking at.
         if (!addFromInput()) return;
 
-        if (ranges.length === 0 && !confirm('The allowed list is empty, so clock-ins will NOT be restricted to the office network. Save anyway?')) return;
+        if (enforcementEnabled && ranges.length === 0 && !confirm('The allowed list is empty, so clock-ins will NOT be restricted to the office network. Save anyway?')) return;
 
         const fd = new FormData();
         fd.set('allowed_ips', ranges.join('\n'));
+        fd.set('enforcement_enabled', enforcementEnabled ? '1' : '0');
         Array.from(exemptIds).forEach(id => fd.append('exempt_user_ids[]', id));
 
         saveBtn.disabled = true;
