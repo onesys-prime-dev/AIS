@@ -141,6 +141,7 @@ class EmployeeController extends BaseController
             MAX(employee_positions.employment_type) as employment_type,
             MAX(employee_positions.working_day_type) as working_day_type,
             MAX(employee_positions.working_days) as working_days,
+            MAX(employee_positions.wfh_days) as wfh_days,
             MAX(employee_positions.start_time) as start_time,
             MAX(employee_positions.end_time) as end_time,
             MAX(employee_positions.break_schedule) as break_schedule,
@@ -329,22 +330,34 @@ class EmployeeController extends BaseController
 
         $accessControlAccounts = [];
         $accessControlRoleOptions = [];
+        $accessControlRoleDescriptions = [];
         $accessControlDepartments = [];
         $accessControlTeamHeadAccounts = [];
         $accessControlDepartmentTeamHeads = [];
         $accessControlPermissions = [];
         $accessControlPermissionLabels = [];
         $accessControlActorIsSuperadmin = false;
+        $accessControlAttendanceAllowedIps = '';
+        $accessControlAttendanceDetectedIp = '';
+        $accessControlAttendanceProxyWarning = false;
+        $accessControlAttendanceNetworkExemptIds = [];
+        $accessControlAttendanceEnforcementEnabled = true;
         if (\App\Libraries\PortalAccess::canManageAccessControl()) {
             $accessControlData = \App\Controllers\Client\AccessControlController::getAccountsData();
             $accessControlAccounts = $accessControlData['accounts'];
             $accessControlRoleOptions = $accessControlData['roleOptions'];
+            $accessControlRoleDescriptions = $accessControlData['roleDescriptions'];
             $accessControlDepartments = $accessControlData['departments'];
             $accessControlTeamHeadAccounts = $accessControlData['teamHeadAccounts'];
             $accessControlDepartmentTeamHeads = $accessControlData['departmentTeamHeads'];
             $accessControlPermissions = $accessControlData['permissions'];
             $accessControlPermissionLabels = $accessControlData['permissionLabels'];
             $accessControlActorIsSuperadmin = auth()->user()->inGroup('superadmin');
+            $accessControlAttendanceAllowedIps = $accessControlData['attendanceAllowedIps'];
+            $accessControlAttendanceDetectedIp = $accessControlData['attendanceDetectedIp'];
+            $accessControlAttendanceProxyWarning = (bool) $accessControlData['attendanceProxyWarning'];
+            $accessControlAttendanceNetworkExemptIds = $accessControlData['attendanceNetworkExemptIds'];
+            $accessControlAttendanceEnforcementEnabled = (bool) $accessControlData['attendanceEnforcementEnabled'];
         }
 
         if (!\App\Libraries\PortalAccess::can('loans')) {
@@ -358,12 +371,18 @@ class EmployeeController extends BaseController
                 'faceRecognitionEmployees' => $faceRecognitionEmployees,
                 'accessControlAccounts' => $accessControlAccounts,
                 'accessControlRoleOptions' => $accessControlRoleOptions,
+                'accessControlRoleDescriptions' => $accessControlRoleDescriptions,
                 'accessControlDepartments' => $accessControlDepartments,
                 'accessControlTeamHeadAccounts' => $accessControlTeamHeadAccounts,
                 'accessControlDepartmentTeamHeads' => $accessControlDepartmentTeamHeads,
                 'accessControlPermissions' => $accessControlPermissions,
                 'accessControlPermissionLabels' => $accessControlPermissionLabels,
                 'accessControlActorIsSuperadmin' => $accessControlActorIsSuperadmin,
+                'accessControlAttendanceAllowedIps' => $accessControlAttendanceAllowedIps,
+                'accessControlAttendanceDetectedIp' => $accessControlAttendanceDetectedIp,
+                'accessControlAttendanceProxyWarning' => $accessControlAttendanceProxyWarning,
+                'accessControlAttendanceNetworkExemptIds' => $accessControlAttendanceNetworkExemptIds,
+                'accessControlAttendanceEnforcementEnabled' => $accessControlAttendanceEnforcementEnabled,
             ]);
         }
         $loanModel = new LoanModel();
@@ -489,12 +508,18 @@ class EmployeeController extends BaseController
         $data['faceRecognitionEmployees'] = $faceRecognitionEmployees;
         $data['accessControlAccounts'] = $accessControlAccounts;
         $data['accessControlRoleOptions'] = $accessControlRoleOptions;
+        $data['accessControlRoleDescriptions'] = $accessControlRoleDescriptions;
         $data['accessControlDepartments'] = $accessControlDepartments;
         $data['accessControlTeamHeadAccounts'] = $accessControlTeamHeadAccounts;
         $data['accessControlDepartmentTeamHeads'] = $accessControlDepartmentTeamHeads;
         $data['accessControlPermissions'] = $accessControlPermissions;
         $data['accessControlPermissionLabels'] = $accessControlPermissionLabels;
         $data['accessControlActorIsSuperadmin'] = $accessControlActorIsSuperadmin;
+        $data['accessControlAttendanceAllowedIps'] = $accessControlAttendanceAllowedIps;
+        $data['accessControlAttendanceDetectedIp'] = $accessControlAttendanceDetectedIp;
+        $data['accessControlAttendanceProxyWarning'] = $accessControlAttendanceProxyWarning;
+        $data['accessControlAttendanceNetworkExemptIds'] = $accessControlAttendanceNetworkExemptIds;
+        $data['accessControlAttendanceEnforcementEnabled'] = $accessControlAttendanceEnforcementEnabled;
 
         /*
         |--------------------------------------------------------------------------
@@ -579,7 +604,7 @@ class EmployeeController extends BaseController
                 MAX(employees.gender) as gender, MAX(employees.civil_status) as civil_status,
                 MAX(employee_positions.department) as department, MAX(employee_positions.department_id) as department_id, MAX(employee_positions.position) as position,
                 MAX(employee_positions.employment_type) as employment_type, MAX(employee_positions.working_day_type) as working_day_type,
-                MAX(employee_positions.working_days) as working_days, MAX(employee_positions.start_time) as start_time, MAX(employee_positions.end_time) as end_time,
+                MAX(employee_positions.working_days) as working_days, MAX(employee_positions.wfh_days) as wfh_days, MAX(employee_positions.start_time) as start_time, MAX(employee_positions.end_time) as end_time,
                 MAX(employee_positions.monthly_salary) as monthly_salary, MAX(employee_positions.de_minimis_benefit) as de_minimis_benefit, MAX(employee_positions.de_minimis_breakdown) as de_minimis_breakdown, MAX(employee_positions.allowances) as allowances,
                 MAX(employee_positions.additional_de_minimis_benefit) as additional_de_minimis_benefit, MAX(employee_positions.additional_de_minimis_breakdown) as additional_de_minimis_breakdown,
                 MAX(employee_government_ids.sss) as sss, MAX(employee_government_ids.tin) as tin,
@@ -1006,17 +1031,17 @@ class EmployeeController extends BaseController
 
             fputcsv($output, [
                 $employee['employee_number'],
-                $employee['first_name'],
-                $employee['middle_name'],
-                $employee['last_name'],
+                self::csvText($employee['first_name']),
+                self::csvText($employee['middle_name']),
+                self::csvText($employee['last_name']),
                 $employee['gender'],
                 $employee['civil_status'],
                 $employee['birthdate'],
                 $employee['email'],
                 $employee['mobile_number'],
-                $employee['address'],
-                $employee['department'],
-                $employee['position'],
+                self::csvText($employee['address']),
+                self::csvText($employee['department']),
+                self::csvText($employee['position']),
                 $employee['employment_type'],
                 $employee['working_day_type'],
                 implode(', ', $workingDays),
@@ -1026,8 +1051,8 @@ class EmployeeController extends BaseController
                 $employee['tin'],
                 $employee['pagibig'],
                 $employee['philhealth'],
-                $employee['bank'],
-                $employee['bank_address'],
+                self::csvText($employee['bank']),
+                self::csvText($employee['bank_address']),
                 $employee['account_number'],
                 $employee['swift_code'],
                 $employee['monthly_salary'] ?? '',
@@ -1037,7 +1062,7 @@ class EmployeeController extends BaseController
                 $allocations['laundry_allowance'] ?? '',
                 $allocations['medical_allowance'] ?? '',
                 $otherCompTotal,
-                $otherCompSummary,
+                self::csvText($otherCompSummary),
                 $employee['allowances'] ?? '',
                 $leaveBalanceModel->getTypeEntitlement((int) $employee['id'], 'vacation',  $currentYear),
                 $leaveBalanceModel->getTypeEntitlement((int) $employee['id'], 'sick',      $currentYear),
@@ -1049,5 +1074,20 @@ class EmployeeController extends BaseController
         fclose($output);
 
         exit;
+    }
+
+    /**
+     * Free-text export cells (names, address, department, position, bank) that
+     * start with = + - @ would run as a formula when the CSV is opened in
+     * Excel; a leading apostrophe makes them plain text. Deliberately NOT used
+     * for phone/account/number columns — a real mobile like "+639…" starts
+     * with "+" and must export unchanged.
+     */
+    private static function csvText($value)
+    {
+        if (is_string($value) && $value !== '' && preg_match('/^[=+\-@\t\r]/', $value)) {
+            return "'" . $value;
+        }
+        return $value;
     }
 }

@@ -178,6 +178,71 @@
         color: #ffffff;
     }
 
+    /* Work Location list — one row per currently-selected working day, with
+       a switch-style toggle between Onsite/WFH. Driven by JS
+       (renderAddWfhList), not CSS, since a day's WFH-eligibility depends on
+       another field's state, not just its own. */
+    .wfh-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: #ffffff;
+        border: 1px solid #e5e7eb;
+        border-radius: 10px;
+        padding: 8px 12px;
+    }
+
+    .wfh-row-label {
+        font-size: 13px;
+        font-weight: 600;
+        color: #374151;
+    }
+
+    .wfh-switch {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        width: 76px;
+        height: 26px;
+        border-radius: 999px;
+        background: #e5e7eb;
+        cursor: pointer;
+        transition: background .15s ease;
+    }
+
+    .wfh-switch.is-wfh {
+        background: #6650cc;
+    }
+
+    .wfh-switch-knob {
+        position: absolute;
+        top: 3px;
+        left: 3px;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: #ffffff;
+        box-shadow: 0 1px 2px rgba(0,0,0,.2);
+        transition: transform .15s ease;
+    }
+
+    .wfh-switch.is-wfh .wfh-switch-knob {
+        transform: translateX(50px);
+    }
+
+    .wfh-switch-label {
+        position: absolute;
+        width: 100%;
+        text-align: center;
+        font-size: 10px;
+        font-weight: 700;
+        color: #6b7280;
+    }
+
+    .wfh-switch.is-wfh .wfh-switch-label {
+        color: #ffffff;
+    }
+
     /* teal-* Tailwind utilities aren't in the compiled main.css safelist,
        so this section's accent color is defined directly instead. */
     .teal-icon-link {
@@ -477,7 +542,9 @@
                                 <input type="checkbox"
                                     name="working_days[]"
                                     value="<?= $value ?>"
+                                    data-day-label="<?= $label ?>"
                                     class="sr-only day-checkbox"
+                                    onchange="renderAddWfhList()"
                                     <?= $isChecked ? 'checked' : '' ?>>
 
                                 <span class="day-btn">
@@ -489,6 +556,12 @@
                             <?php endforeach; ?>
 
                         </div>
+                    </div>
+
+                    <div class="hidden" id="add_wfh_section">
+                        <label class="block text-sm text-gray-600 mb-2">Work Location</label>
+                        <p class="text-xs text-gray-500 mb-3">Mark which of the selected working days are work-from-home. Everything else defaults to onsite.</p>
+                        <div id="add_wfh_list" class="space-y-2"></div>
                     </div>
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="add_schedule_time_row">
@@ -1126,6 +1199,44 @@ function resetAddEmployeeForm() {
 }
 
 // Form validation
+// Rebuilds the Work Location list to match whichever working days are
+// currently checked — keeps a value previously marked WFH checked if that
+// day is still selected, drops it otherwise.
+function renderAddWfhList() {
+    const list = document.getElementById('add_wfh_list');
+    const section = document.getElementById('add_wfh_section');
+    if (!list || !section) return;
+
+    const previouslyWfh = new Set(
+        Array.from(list.querySelectorAll('.wfh-checkbox:checked')).map(cb => cb.value)
+    );
+
+    const checkedDays = Array.from(
+        document.querySelectorAll('#employeeForm .day-checkbox:checked')
+    );
+
+    section.classList.toggle('hidden', checkedDays.length === 0);
+    list.innerHTML = checkedDays.map(cb => {
+        const value = cb.value;
+        const label = cb.dataset.dayLabel || value;
+        const isWfh = previouslyWfh.has(value);
+        return `
+            <div class="wfh-row">
+                <span class="wfh-row-label">${label}</span>
+                <label class="wfh-switch${isWfh ? ' is-wfh' : ''}">
+                    <input type="checkbox" name="wfh_days[]" value="${value}" class="sr-only wfh-checkbox"
+                        ${isWfh ? 'checked' : ''}
+                        onchange="this.closest('.wfh-switch').classList.toggle('is-wfh', this.checked);
+                                  this.closest('.wfh-switch').querySelector('.wfh-switch-label').textContent = this.checked ? 'WFH' : 'Onsite';">
+                    <span class="wfh-switch-knob"></span>
+                    <span class="wfh-switch-label">${isWfh ? 'WFH' : 'Onsite'}</span>
+                </label>
+            </div>
+        `;
+    }).join('');
+}
+document.addEventListener('DOMContentLoaded', renderAddWfhList);
+
 document.getElementById('employeeForm').addEventListener('submit', function(e) {
     const email = document.querySelector('input[name="email"]').value.trim();
     const password = document.querySelector('input[name="password"]').value.trim();

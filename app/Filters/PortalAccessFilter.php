@@ -15,13 +15,25 @@ final class PortalAccessFilter implements FilterInterface
         $user = auth()->user();
         $required = PortalAccess::requirement($path);
         if ($required === 'register') {
+            // Creating accounts is an admin tool, never public sign-up: a visitor who is not
+            // logged in is sent to the login page, and a logged-in user needs a permission that
+            // already lets them manage people (employee records or roles).
+            if (!$user) return redirect()->to(site_url('login'));
+            if (!PortalAccess::can('employees', $user) && !PortalAccess::can('roles', $user)) return $this->denied($request);
             if (strtolower($request->getMethod()) !== 'post') return null;
             $role = (string) ($request->getPost('role') ?? 'employee');
-            if ($role === 'employee' || ($user && PortalAccess::can('roles', $user))) return null;
+            if ($role === 'employee' || PortalAccess::can('roles', $user)) return null;
             return $this->denied($request);
         }
         // Authentication still runs for every protected request, including unknown routes.
         if (!$user) return redirect()->to(site_url('login'));
+        // The login form already blocks inactive accounts, but a session or
+        // remember-me cookie created before deactivation would otherwise keep
+        // working until it expires — same `active` flag loginAction() checks.
+        if (! (bool) $user->active) {
+            auth()->logout();
+            return redirect()->to(site_url('login'))->with('error', 'Your account has been deactivated.');
+        }
         $allowed = match ($required) {
             'self' => true,
             'edit_employee' => PortalAccess::canEditEmployee((int) basename($path)),

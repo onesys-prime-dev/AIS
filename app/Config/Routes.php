@@ -51,6 +51,7 @@ $routes->group('client_portal', ['filter' => 'auth'], function($routes){
     $routes->post('access-control/departments/rename'         , 'Client\AccessControlController::renameDepartment');
     $routes->post('access-control/departments/deactivate'     , 'Client\AccessControlController::deactivateDepartment');
     $routes->post('access-control/departments/team-heads'     , 'Client\AccessControlController::updateDepartmentTeamHeads');
+    $routes->post('access-control/attendance-network'         , 'Client\AccessControlController::updateAttendanceNetworkSettings');
 
     // -- Loans --
     // Note: no standalone 'loans' index route — the Loans tab is rendered
@@ -78,7 +79,7 @@ $routes->group('client_portal', ['filter' => 'auth'], function($routes){
     $routes->post('face-recognition/clear/(:num)'       , 'Client\FaceRecognitionController::clear/$1');
     $routes->post('face-recognition/requirement/(:num)' , 'Client\FaceRecognitionController::setRequirement/$1');
 
-    $routes->get('timesheets/daily-log'     , 'Client\TimesheetController::dailyTimeLog');
+    $routes->get('timesheet/daily-log'     , 'Client\TimesheetController::dailyTimeLog');
     $routes->get('timesheet/flagged'        , 'Client\TimesheetController::flaggedAttendance');
     $routes->get('timesheet/records'        , 'Client\TimesheetController::attendanceRecords');
     $routes->get('timesheet/history-list', 'Client\TimesheetController::historyList');
@@ -152,7 +153,7 @@ $routes->group('client_portal', ['namespace' => 'App\Controllers\Client', 'filte
     $routes->get ('payroll/employee_details/(:num)', 'PayrollController::getEmployeeDetails/$1');
     $routes->post('payroll/create'                 , 'PayrollController::createPayroll');
     $routes->post('payroll/update/(:num)'          , 'PayrollController::updatePayroll/$1');
-    $routes->get ('payroll/delete/(:num)'          , 'PayrollController::deletePayroll/$1');
+    $routes->post('payroll/delete/(:num)'          , 'PayrollController::deletePayroll/$1');
     $routes->get ('payroll/get/(:num)'             , 'PayrollController::getPayroll/$1');
     $routes->post('payroll/markStatus'             , 'PayrollController::markPayrollStatus');
     $routes->post('payroll/markPaid/(:num)'        , 'PayrollController::markTransactionPaid/$1');
@@ -247,7 +248,7 @@ $routes->group('client_portal', ['namespace' => 'App\Controllers\Client', 'filte
     $routes->get ('payroll/employee_details/(:num)', 'PayrollController::getEmployeeDetails/$1');
     $routes->post('payroll/create'                 , 'PayrollController::createPayroll');
     $routes->post('payroll/update/(:num)'          , 'PayrollController::updatePayroll/$1');
-    $routes->get ('payroll/delete/(:num)'          , 'PayrollController::deletePayroll/$1');
+    $routes->post('payroll/delete/(:num)'          , 'PayrollController::deletePayroll/$1');
     $routes->get ('payroll/get/(:num)'             , 'PayrollController::getPayroll/$1');
     $routes->get ('payroll/generate/(:num)'        , 'PayrollController::generatePayslip/$1');
 

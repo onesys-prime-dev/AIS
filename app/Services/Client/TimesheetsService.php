@@ -602,6 +602,15 @@ class TimesheetsService
                 $unapprovedUndertimeHours
             );
 
+            // WFH label — from this row's own resolved schedule (snapshot-first,
+            // same as scheduledStart/scheduledEnd above), so a later change to
+            // the employee's WFH days doesn't retroactively relabel a past day.
+            $wfhDays = json_decode((string) ($recordSchedule['wfh_days'] ?? ''), true);
+            $isWfhDay = is_array($wfhDays) && in_array(strtolower(date('D', strtotime($date))), $wfhDays, true);
+            if ($isWfhDay) {
+                $remarks = trim('(WFH) ' . $remarks);
+            }
+
             // All tasks logged against this exact attendance session (scoped by
             // attendance_id, not by calendar date — an employee with two clock
             // sessions on the same day gets two independent task lists).

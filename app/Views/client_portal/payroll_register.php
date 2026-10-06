@@ -639,7 +639,7 @@ tr.raw-row-dirty td:first-child { border-left: 3px solid #f59e0b; }
                             Edit
                         </button>
                     </td>
-                    <td class="left">${r.employee_name}</td>
+                    <td class="left">${escReg(r.employee_name)}</td>
                     <td>${fmt(r.monthly_salary)}</td>
                     <td>${fmt(r.semi_monthly)}</td>
                     <td>${zeroFmt(r.year_end_gifts)}</td>
@@ -757,7 +757,7 @@ tr.raw-row-dirty td:first-child { border-left: 3px solid #f59e0b; }
             const tbody = document.getElementById('regRawBody');
             tbody.innerHTML = rows.map(r => `
                 <tr id="rawrow-${r.payslip_id}" data-net-basic="${(parseFloat(r.net_basic_pay)||0) - (parseFloat(r.night_diff_pay)||0)}">
-                    <td class="left" style="font-size:12px;font-weight:600;padding:6px 8px;">${r.employee_name}<span class="raw-unsaved-badge" style="display:none;">unsaved</span></td>
+                    <td class="left" style="font-size:12px;font-weight:600;padding:6px 8px;">${escReg(r.employee_name)}<span class="raw-unsaved-badge" style="display:none;">unsaved</span></td>
                     <td style="text-align:right;font-size:12px;padding:6px 8px;">${fmt(r.monthly_salary)}</td>
                     ${rawInput(r.payslip_id,'year_end_gifts',r.year_end_gifts)}
                     ${rawInput(r.payslip_id,'rice_subsidy',r.rice_subsidy)}

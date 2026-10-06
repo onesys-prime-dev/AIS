@@ -59,13 +59,13 @@ class RequestController extends BaseController
     public function index()
     {
         $user = auth()->user();
- 
+
         if (! $user) {
             return redirect()->to('/login');
         }
- 
+
         if (\App\Libraries\PortalAccess::reviewsRequests($user)) {
- 
+
             $data['requests'] = \App\Libraries\PortalAccess::scopeRequests($this->requestModel)
                 ->select("requests.*, employees.employee_number, ea.photo_path,
                     COALESCE(NULLIF(CONCAT(employees.last_name, ', ', employees.first_name, CASE WHEN employees.middle_name IS NOT NULL AND TRIM(employees.middle_name) != '' THEN CONCAT(' ', UPPER(LEFT(TRIM(employees.middle_name), 1)), '.') ELSE '' END), ''), users.username) as requested_by_name")
@@ -74,7 +74,7 @@ class RequestController extends BaseController
                 ->join('employee_accounts as ea', 'ea.employee_id = employees.id', 'left')
                 ->orderBy('requests.created_at', 'DESC')
                 ->findAll();
- 
+
             // Approval codes with generator + consumer names
             $data['approvalCodes'] = \App\Libraries\PortalAccess::can('request_codes') ? $this->approvalCodeModel
                 ->select("
@@ -88,9 +88,8 @@ class RequestController extends BaseController
                 ->join('employees  AS ue', 'ue.user_id = approval_codes.used_by',      'left')
                 ->orderBy('approval_codes.created_at', 'DESC')
                 ->findAll() : [];
- 
         } else {
- 
+
             $data['requests'] = \App\Libraries\PortalAccess::scopeRequests($this->requestModel)
                 ->select("requests.*, employees.employee_number,
                     COALESCE(NULLIF(CONCAT(employees.last_name, ', ', employees.first_name, CASE WHEN employees.middle_name IS NOT NULL AND TRIM(employees.middle_name) != '' THEN CONCAT(' ', UPPER(LEFT(TRIM(employees.middle_name), 1)), '.') ELSE '' END), ''), users.username) as requested_by_name")
@@ -100,17 +99,17 @@ class RequestController extends BaseController
                 ->where('requested_by', $user->id)
                 ->orderBy('requests.created_at', 'DESC')
                 ->findAll();
- 
+
             $data['approvalCodes'] = [];
         }
- 
+
         foreach ($data['requests'] as &$request) {
             if (! empty($request['photo_path'])) {
                 $request['photo_path'] = base_url((string) $request['photo_path']);
             }
         }
         unset($request);
- 
+
         return view('client_portal/requests', $data);
     }
 
@@ -711,8 +710,10 @@ class RequestController extends BaseController
             $code = implode('-', $segments); // e.g. "A3KM-PQ72-XYRS-84NV"
 
             // ensure no collision in db
-            if ($this->approvalCodeModel->findActiveCode($code) === null &&
-                $this->approvalCodeModel->where('code', $code)->first() === null) {
+            if (
+                $this->approvalCodeModel->findActiveCode($code) === null &&
+                $this->approvalCodeModel->where('code', $code)->first() === null
+            ) {
                 return $code;
             }
         }

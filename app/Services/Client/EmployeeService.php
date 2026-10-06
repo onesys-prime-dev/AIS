@@ -109,6 +109,13 @@ class EmployeeService
                 static fn ($day) => strtolower(trim((string) $day)),
                 (array) ($data['working_days'] ?? [])
             )));
+            // A day can't be WFH without also being a working day — intersect
+            // rather than trust the submitted set, in case the client-side
+            // disable/clear of an unchecked day's WFH box was bypassed.
+            $wfhDays = array_values(array_intersect(array_map(
+                static fn ($day) => strtolower(trim((string) $day)),
+                (array) ($data['wfh_days'] ?? [])
+            ), $workingDays));
             $breakSchedule = $this->parseBreakSchedule($data['break_schedule'] ?? null);
             $breakWindows = $this->parseBreakWindows($data['break_windows'] ?? null, count($breakSchedule));
             $tardinessGraceMinutes = $this->parseGraceMinutes($data['tardiness_grace_minutes'] ?? null);
@@ -218,6 +225,7 @@ class EmployeeService
                 'start_time' => $startTime,
                 'end_time' => $endTime,
                 'working_days' => json_encode($workingDays),
+                'wfh_days' => json_encode($wfhDays),
                 'break_schedule' => json_encode($breakSchedule),
                 'break_windows' => json_encode($breakWindows),
                 'tardiness_grace_minutes' => $tardinessGraceMinutes,
@@ -537,6 +545,15 @@ class EmployeeService
 
                 if ($workingDays !== []) {
                     $scheduleData['working_days'] = json_encode($workingDays);
+
+                    // A day can't be WFH without also being a working day —
+                    // intersect against the working_days submitted in this
+                    // same request, not whatever was previously saved.
+                    $wfhDays = array_values(array_intersect(array_map(
+                        static fn ($day) => strtolower(trim((string) $day)),
+                        (array) ($data['wfh_days'] ?? [])
+                    ), $workingDays));
+                    $scheduleData['wfh_days'] = json_encode($wfhDays);
                 }
             }
 

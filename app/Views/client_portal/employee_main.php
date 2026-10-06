@@ -24,7 +24,7 @@
     </div>
 
     <div class="employee-tab-panel tab-panel h-full min-h-0 overflow-visible px-8 pb-8 min-w-0" data-panel="access-control" style="display:none;">
-        <?php if (\App\Libraries\PortalAccess::canManageAccessControl()): ?><?= view('client_portal/employee_access_control') ?><?php endif; ?>
+        <?php if (\App\Libraries\PortalAccess::canManageAccessControl()): ?><?= view('client_portal/employee_access_control', ['roleOptions' => $accessControlRoleOptions ?? []]) ?><?php endif; ?>
     </div>
 
     <div class="employee-tab-panel tab-panel h-full min-h-0 overflow-visible px-8 pb-8 min-w-0" data-panel="face-recognition" style="display:none;">
@@ -168,6 +168,7 @@ const LOANS = <?= json_encode($loans ?? []) ?>;
 const FACE_RECOGNITION_EMPLOYEES = <?= json_encode($faceRecognitionEmployees ?? []) ?>;
 const ACCESS_CONTROL_ACCOUNTS = <?= json_encode($accessControlAccounts ?? []) ?>;
 const ACCESS_CONTROL_ROLE_OPTIONS = <?= json_encode($accessControlRoleOptions ?? []) ?>;
+const ACCESS_CONTROL_ROLE_DESCRIPTIONS = <?= json_encode($accessControlRoleDescriptions ?? []) ?>;
 const ACCESS_CONTROL_CURRENT_USER_ID = <?= json_encode((int) $currentUserId) ?>;
 const ACCESS_CONTROL_DEPARTMENTS = <?= json_encode($accessControlDepartments ?? []) ?>;
 const ACCESS_CONTROL_TEAM_HEAD_ACCOUNTS = <?= json_encode($accessControlTeamHeadAccounts ?? []) ?>;
@@ -175,6 +176,11 @@ const ACCESS_CONTROL_DEPARTMENT_TEAM_HEADS = <?= json_encode($accessControlDepar
 const ACCESS_CONTROL_PERMISSIONS = <?= json_encode($accessControlPermissions ?? []) ?>;
 const ACCESS_CONTROL_PERMISSION_LABELS = <?= json_encode($accessControlPermissionLabels ?? []) ?>;
 const ACCESS_CONTROL_ACTOR_IS_SUPERADMIN = <?= json_encode((bool) ($accessControlActorIsSuperadmin ?? false)) ?>;
+const ACCESS_CONTROL_ATTENDANCE_ALLOWED_IPS = <?= json_encode($accessControlAttendanceAllowedIps ?? '') ?>;
+const ACCESS_CONTROL_ATTENDANCE_DETECTED_IP = <?= json_encode($accessControlAttendanceDetectedIp ?? '') ?>;
+const ACCESS_CONTROL_ATTENDANCE_PROXY_WARNING = <?= json_encode((bool) ($accessControlAttendanceProxyWarning ?? false)) ?>;
+const ACCESS_CONTROL_ATTENDANCE_NETWORK_EXEMPT_IDS = <?= json_encode($accessControlAttendanceNetworkExemptIds ?? []) ?>;
+const ACCESS_CONTROL_ATTENDANCE_ENFORCEMENT_ENABLED = <?= json_encode((bool) ($accessControlAttendanceEnforcementEnabled ?? true)) ?>;
 const CSRF_HASH = "<?= csrf_hash() ?>";
 
 function acEscapeHtml(s) {
@@ -188,168 +194,335 @@ function acEscapeHtml(s) {
 // in the Departments section's Team Head list — no page refresh needed.
 let acTeamHeadAccounts = ACCESS_CONTROL_TEAM_HEAD_ACCOUNTS.slice();
 
-// ================= ACCOUNTS (multi-role) =================
+// Line icons used only inside Access Control (same stroke style as the role-card icons).
+const AC_ICONS = (function () {
+    const s = function (inner) {
+        return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + inner + '</svg>';
+    };
+    return {
+        key: s('<circle cx="8" cy="15" r="4"/><path d="m11 12 8.5-8.5"/><path d="m16.5 6.5 2.5 2.5"/>'),
+        manage: s('<path d="M4 7h9"/><path d="M17 7h3"/><circle cx="15" cy="7" r="2"/><path d="M4 17h3"/><path d="M11 17h9"/><circle cx="9" cy="17" r="2"/>'),
+        building: s('<path d="M4 21V5a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v16"/><path d="M14 10h5a1 1 0 0 1 1 1v10"/><path d="M3 21h18"/><path d="M8 8h2M8 12h2M8 16h2"/>'),
+        trash: s('<path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="m6 7 1 13h10l1-13"/><path d="M10 11v6M14 11v6"/>'),
+    };
+})();
+
+// ================= ACCOUNTS (multi-role, role cards) =================
+// Roles are picked in an "Edit access" modal of role cards (icon, description,
+// what the role can access) instead of tiny inline pills. Rules and the save
+// request are unchanged: same exclusivity (Employee vs staff roles), same
+// locked rows, and the POST still sends only user_id + roles[].
 (function () {
-    const body = document.getElementById('accessControlBody');
-    if (!body) return; // panel not rendered (PortalAccess::canManageAccessControl() was false)
+    const tableCard = document.querySelector('[data-crud-table="accessControlTable"]');
+    if (!tableCard) return; // panel not rendered (PortalAccess::canManageAccessControl() was false)
+    const body = tableCard.querySelector('.crud-body');
 
     const accounts = ACCESS_CONTROL_ACCOUNTS;
     const roleOptions = ACCESS_CONTROL_ROLE_OPTIONS;
+    const roleDescriptions = ACCESS_CONTROL_ROLE_DESCRIPTIONS;
 
-    if (!accounts.length) {
-        body.innerHTML = '<tr><td colspan="3" class="px-4 py-6 text-center text-gray-400">No accounts found.</td></tr>';
-        return;
-    }
+    const svg = function (inner) {
+        return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + inner + '</svg>';
+    };
+    const ROLE_ICONS = {
+        employee: svg('<circle cx="12" cy="8" r="3.6"/><path d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6"/>'),
+        client_payroll_staff: svg('<rect x="3" y="6" width="18" height="12" rx="2.2"/><circle cx="12" cy="12" r="2.6"/>'),
+        hr_admin: svg('<circle cx="9" cy="8.5" r="3"/><path d="M3.5 19c0-3 2.4-5 5.5-5s5.5 2 5.5 5"/><circle cx="17" cy="9.5" r="2.4"/><path d="M16.5 14.2c2.6.2 4.5 1.9 4.5 4.3"/>'),
+        team_head: svg('<path d="M5 21V4"/><path d="M5 4h11l-2 4 2 4H5"/>'),
+        admin: svg('<path d="M12 3 5 6v5c0 4.6 3 8.3 7 10 4-1.7 7-5.4 7-10V6l-7-3Z"/>'),
+        superadmin: svg('<path d="M13 2 4 14h7l-1 8 9-12h-7l1-8Z"/>'),
+    };
+    const CHECK_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>';
 
     function roleBadges(roles) {
         if (!roles.length) return '<span class="text-xs text-red-500">No role assigned</span>';
         return roles.map(function (r) {
-            return '<span class="inline-flex items-center rounded-full bg-gray-100 text-gray-700 px-2 py-1 text-xs font-medium mr-2 mb-1">' + acEscapeHtml(roleOptions[r] || r) + '</span>';
+            return '<span class="inline-block px-3 py-1 mr-2 mb-1 rounded-full text-xs font-semibold bg-gray-200 text-gray-700">' + acEscapeHtml(roleOptions[r] || r) + '</span>';
         }).join('');
-    }
-
-    function setPillSelected(pill, selected) {
-        pill.dataset.selected = selected ? '1' : '0';
-        pill.style.background = selected ? '#A891FC' : '#f3f4f6';
-        pill.style.color = selected ? '#fff' : '#374151';
-    }
-
-    function currentSelection(container) {
-        return Array.from(container.querySelectorAll('.ac-role-pill[data-selected="1"]')).map(function (p) { return p.dataset.role; });
     }
 
     function sameRoles(a, b) {
-        const sa = a.slice().sort().join(',');
-        const sb = b.slice().sort().join(',');
-        return sa === sb;
+        return a.slice().sort().join(',') === b.slice().sort().join(',');
     }
 
-    // Roles are always shown as clickable pills — no separate "Edit" step to
-    // find first. Save only appears once the selection actually differs from
-    // what's saved, same as the original single-role dropdown used to work.
-    body.innerHTML = accounts.map(function (acc) {
-        if (acc.user_id === ACCESS_CONTROL_CURRENT_USER_ID) {
-            return '<tr>' +
-                '<td class="px-4 py-3">' + acEscapeHtml(acc.name) + '</td>' +
-                '<td class="px-4 py-3">' + acEscapeHtml(acc.email || '—') + '</td>' +
-                '<td class="px-4 py-3 text-gray-400 italic">' + roleBadges(acc.roles) + ' (you)</td>' +
-                '</tr>';
-        }
+    function initials(name) {
+        const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+        return ((parts[0] || '?').charAt(0) + (parts.length > 1 ? parts[parts.length - 1].charAt(0) : '')).toUpperCase();
+    }
 
+    const WARN_ICON = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none;margin-top:1px;" aria-hidden="true"><path d="M12 3 5 6v5c0 4.6 3 8.3 7 10 4-1.7 7-5.4 7-10V6l-7-3Z"/><path d="M12 9v4"/><path d="M12 16.5v.01"/></svg>';
+
+    // "What this role can access" as small chips, from the live Role Permissions matrix.
+    function accessChips(role) {
+        if (role === 'superadmin') return '<div class="acr-chips"><span class="acr-chip">Everything</span></div>';
+        const perms = ACCESS_CONTROL_PERMISSIONS[role] || {};
+        const labels = Object.keys(perms).filter(function (k) { return perms[k]; })
+            .map(function (k) { return ACCESS_CONTROL_PERMISSION_LABELS[k] || k; });
+        if (!labels.length) return '<div class="acr-chips"><span class="acr-chip acr-chip-muted">No extra permissions</span></div>';
+        const chips = labels.slice(0, 3).map(function (l) { return '<span class="acr-chip">' + acEscapeHtml(l) + '</span>'; }).join('');
+        const more = labels.length > 3 ? '<span class="acr-chip acr-chip-muted">+' + (labels.length - 3) + ' more</span>' : '';
+        return '<div class="acr-chips">' + chips + more + '</div>';
+    }
+
+    // ---- table: the shared component (search, Filters, sort, grid look) used by Employee Management ----
+    const ROW_GRID = 'minmax(0,1.5fr) minmax(0,1.6fr) minmax(0,2.2fr) minmax(0,0.7fr)';
+
+    function rowTemplate(acc) {
+        const isSelf = acc.user_id === ACCESS_CONTROL_CURRENT_USER_ID;
         const isSuperadminLocked = acc.roles.indexOf('superadmin') !== -1 && !ACCESS_CONTROL_ACTOR_IS_SUPERADMIN;
-        if (isSuperadminLocked) {
-            return '<tr>' +
-                '<td class="px-4 py-3">' + acEscapeHtml(acc.name) + '</td>' +
-                '<td class="px-4 py-3">' + acEscapeHtml(acc.email || '—') + '</td>' +
-                '<td class="px-4 py-3">' + roleBadges(acc.roles) + '<div class="text-xs text-gray-400 italic mt-1">Only Super Admin can change a Super Admin account.</div></td>' +
-                '</tr>';
+
+        let roleCell = roleBadges(acc.roles);
+        if (isSelf) {
+            roleCell += '<span class="text-xs text-gray-400 italic">(you)</span>';
+        } else if (isSuperadminLocked) {
+            roleCell += '<div class="text-xs text-gray-400 italic mt-1">Only Super Admin can change a Super Admin account.</div>';
         }
 
-        const selectable = Object.keys(roleOptions).filter(function (key) {
+        const action = (isSelf || isSuperadminLocked)
+            ? '<span class="text-gray-300">—</span>'
+            : '<button type="button" class="ac-icon-btn" title="Edit access" aria-label="Edit access" data-edit-user="' + acc.user_id + '">' + AC_ICONS.key + '</button>';
+
+        // Same row markup/classes as employeeRowTemplate() / loanRowTemplate().
+        return '<div class="grid items-center border-b hover:bg-gray-50" style="grid-template-columns:' + ROW_GRID + ';border-left:1px solid transparent;border-right:1px solid transparent;">' +
+            '<div class="p-4 flex items-center gap-3">' +
+                '<div class="w-10 h-10 bg-gray-300 rounded-full flex items-center justify-center text-xs font-bold text-gray-700 shrink-0">' + acEscapeHtml(initials(acc.name)) + '</div>' +
+                '<span class="font-medium truncate">' + acEscapeHtml(acc.name) + '</span>' +
+            '</div>' +
+            '<div class="p-4 truncate">' + acEscapeHtml(acc.email || '—') + '</div>' +
+            '<div class="p-4">' + roleCell + '</div>' +
+            '<div class="p-4 flex justify-center">' + action + '</div>' +
+        '</div>';
+    }
+
+    createCrudTable({
+        tableId: 'accessControlTable',
+        data: accounts,
+        renderRow: rowTemplate,
+        filters: function (ctx) {
+            const item = (ctx && ctx.item) || {};
+            const query = (ctx && ctx.query) || '';
+            const values = (ctx && ctx.values) || {};
+            const roles = item.roles || [];
+            const roleTitles = roles.map(function (r) { return roleOptions[r] || r; }).join(' ');
+            const matchesSearch = !query || (String(item.name || '') + ' ' + String(item.email || '') + ' ' + roleTitles).toLowerCase().includes(query);
+            const matchesRole = !values.role || roles.indexOf(values.role) !== -1;
+            return matchesSearch && matchesRole;
+        },
+        sort: function (ctx) {
+            const key = ctx.sortBy === 'email' ? 'email' : 'name';
+            const left = String(ctx.a[key] || '').toLowerCase();
+            const right = String(ctx.b[key] || '').toLowerCase();
+            if (left < right) return ctx.sortOrder === 'asc' ? -1 : 1;
+            if (left > right) return ctx.sortOrder === 'asc' ? 1 : -1;
+            return 0;
+        },
+    });
+
+    // The component has no refresh call; a search "input" event makes it re-run its own
+    // filter/sort/render, which is what picks up a role change after saving.
+    function refreshTable() {
+        const search = tableCard.querySelector('.crud-search');
+        if (search) search.dispatchEvent(new Event('input'));
+    }
+
+    body.addEventListener('keydown', function (e) {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        const btn = e.target.closest('[data-edit-user]');
+        if (btn) { e.preventDefault(); btn.click(); }
+    });
+    body.addEventListener('click', function (e) {
+        const btn = e.target.closest('[data-edit-user]');
+        if (!btn) return;
+        const acc = accounts.find(function (a) { return String(a.user_id) === btn.dataset.editUser; });
+        if (acc) openModal(acc);
+    });
+
+    // ---- modal ----
+    const modal = document.getElementById('acRoleModal');
+    if (!modal) return;
+    // Direct child of <body> so no ancestor's overflow/stacking context can clip or cover it.
+    if (modal.parentElement !== document.body) document.body.appendChild(modal);
+
+    const cardsEl = document.getElementById('acrCards');
+    const subtitleEl = document.getElementById('acrSubtitle');
+    const avatarEl = document.getElementById('acrAvatar');
+    const warnEl = document.getElementById('acrWarn');
+    const noteEl = document.getElementById('acrNote');
+    const saveBtn = document.getElementById('acrSave');
+    const cancelBtn = document.getElementById('acrCancel');
+    const backBtn = document.getElementById('acrBack');
+    const closeBtn = document.getElementById('acrClose');
+
+    let editing = null;       // the account being edited
+    let selection = [];       // role keys currently chosen in the modal
+    let confirming = false;   // second step before granting Admin / Super Admin
+
+    function grantsAdmin() {
+        return selection.indexOf('admin') !== -1 || selection.indexOf('superadmin') !== -1;
+    }
+
+    function selectableRoles() {
+        return Object.keys(roleOptions).filter(function (key) {
             return key !== 'superadmin' || ACCESS_CONTROL_ACTOR_IS_SUPERADMIN;
         });
-        const pills = selectable.map(function (key) {
-            const selected = acc.roles.indexOf(key) !== -1;
-            return '<button type="button" class="ac-role-pill px-3 py-1 rounded-full text-xs font-medium" data-role="' + acEscapeHtml(key) + '" data-selected="' + (selected ? '1' : '0') + '" style="background:' + (selected ? '#A891FC' : '#f3f4f6') + ';color:' + (selected ? '#fff' : '#374151') + ';">' + acEscapeHtml(roleOptions[key]) + '</button>';
+    }
+
+    function renderCards() {
+        cardsEl.innerHTML = selectableRoles().map(function (key) {
+            const selected = selection.indexOf(key) !== -1;
+            const isCurrent = editing.roles.indexOf(key) !== -1;
+            return '<button type="button" class="acr-card' + (selected ? ' is-selected' : '') + '" role="checkbox" aria-checked="' + (selected ? 'true' : 'false') + '" data-role="' + acEscapeHtml(key) + '">' +
+                '<div class="acr-card-top"><span class="acr-icon">' + (ROLE_ICONS[key] || ROLE_ICONS.employee) + '</span><span class="acr-check">' + CHECK_ICON + '</span></div>' +
+                '<div class="acr-title">' + acEscapeHtml(roleOptions[key] || key) + (isCurrent ? '<span class="acr-current">Current</span>' : '') + '</div>' +
+                '<div class="acr-desc">' + acEscapeHtml(roleDescriptions[key] || '') + '</div>' +
+                '<div class="acr-access"><span class="acr-access-label">Access</span>' + accessChips(key) + '</div>' +
+            '</button>';
         }).join('');
+    }
 
-        return '<tr data-user-id="' + acc.user_id + '">' +
-            '<td class="px-4 py-3" style="vertical-align:top;">' + acEscapeHtml(acc.name) + '</td>' +
-            '<td class="px-4 py-3" style="vertical-align:top;">' + acEscapeHtml(acc.email || '—') + '</td>' +
-            '<td class="px-4 py-3" style="vertical-align:top;">' +
-                '<div class="flex flex-wrap gap-2 ac-role-checklist">' + pills + '</div>' +
-                '<button type="button" class="ac-save-btn mt-2 px-3 py-1 rounded-lg text-xs font-semibold text-white" style="display:none;background:#A891FC;" onmouseover="this.style.background=\'#9678f5\'" onmouseout="this.style.background=\'#A891FC\'">Save</button>' +
-            '</td>' +
-            '</tr>';
-    }).join('');
+    function setWarn(text) {
+        warnEl.innerHTML = WARN_ICON + '<span>' + acEscapeHtml(text) + '</span>';
+    }
 
-    body.querySelectorAll('tr[data-user-id]').forEach(function (row) {
-        const userId = row.dataset.userId;
-        const acc = accounts.find(function (a) { return String(a.user_id) === String(userId); });
-        if (!acc) return;
+    function renderFooter() {
+        const changed = !sameRoles(selection, editing.roles);
+        if (confirming) {
+            warnEl.style.display = 'flex';
+            setWarn('You are about to give ' + editing.name + ' Admin and/or Super Admin access. They will be able to manage accounts, payroll and settings. Continue?');
+            noteEl.textContent = '';
+            cancelBtn.style.display = 'none';
+            backBtn.style.display = '';
+            saveBtn.textContent = 'Yes, grant access';
+            saveBtn.disabled = false;
+            return;
+        }
+        warnEl.style.display = grantsAdmin() ? 'flex' : 'none';
+        if (grantsAdmin()) setWarn('This gives Admin and/or Super Admin access — you will be asked to confirm before it is saved.');
+        noteEl.innerHTML = (changed ? '<span class="acr-dirty"></span>' : '') + selection.length + ' role' + (selection.length === 1 ? '' : 's') + ' selected' + (changed ? ' · unsaved changes' : '');
+        cancelBtn.style.display = '';
+        backBtn.style.display = 'none';
+        saveBtn.textContent = 'Save changes';
+        saveBtn.disabled = !changed;
+    }
 
-        const checklist = row.querySelector('.ac-role-checklist');
-        const saveBtn = row.querySelector('.ac-save-btn');
-        if (!checklist || !saveBtn) return;
-        const pills = Array.from(checklist.querySelectorAll('.ac-role-pill'));
+    function refresh() {
+        renderCards();
+        renderFooter();
+    }
 
-        function refreshSaveVisibility() {
-            saveBtn.style.display = sameRoles(currentSelection(checklist), acc.roles) ? 'none' : 'inline-block';
+    function openModal(acc) {
+        editing = acc;
+        selection = acc.roles.slice();
+        confirming = false;
+        subtitleEl.textContent = acc.name + (acc.email ? ' · ' + acc.email : '');
+        if (avatarEl) avatarEl.textContent = initials(acc.name);
+        refresh();
+        modal.classList.add('is-open');
+        modal.setAttribute('aria-hidden', 'false');
+        const first = cardsEl.querySelector('.acr-card');
+        if (first) first.focus();
+    }
+
+    function closeModal() {
+        modal.classList.remove('is-open');
+        modal.setAttribute('aria-hidden', 'true');
+        editing = null;
+        confirming = false;
+    }
+
+    cardsEl.addEventListener('click', function (e) {
+        const card = e.target.closest('.acr-card');
+        if (!card || !editing) return;
+        const role = card.dataset.role;
+        const nowSelected = selection.indexOf(role) === -1;
+        if (role === 'employee' && nowSelected) {
+            selection = ['employee'];
+        } else if (nowSelected) {
+            selection = selection.filter(function (r) { return r !== 'employee'; }).concat(role);
+        } else {
+            selection = selection.filter(function (r) { return r !== role; });
+        }
+        confirming = false;
+        refresh();
+        const again = cardsEl.querySelector('.acr-card[data-role="' + role + '"]');
+        if (again) again.focus();
+    });
+
+    closeBtn.addEventListener('click', closeModal);
+    cancelBtn.addEventListener('click', closeModal);
+    modal.addEventListener('click', function (e) { if (e.target === modal) closeModal(); });
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && modal.classList.contains('is-open')) closeModal();
+    });
+    backBtn.addEventListener('click', function () { confirming = false; renderFooter(); });
+
+    saveBtn.addEventListener('click', function () {
+        if (!editing || saveBtn.disabled) return;
+
+        if (grantsAdmin() && !confirming) {
+            confirming = true;
+            renderFooter();
+            return;
         }
 
-        pills.forEach(function (pill) {
-            pill.addEventListener('click', function () {
-                const nowSelected = pill.dataset.selected !== '1';
-                if (pill.dataset.role === 'employee' && nowSelected) {
-                    pills.forEach(function (p) { setPillSelected(p, p === pill); });
+        const acc = editing;
+        const checked = selection.slice();
+
+        saveBtn.disabled = true;
+        saveBtn.textContent = 'Saving…';
+
+        const params = new URLSearchParams({ user_id: acc.user_id });
+        checked.forEach(function (r) { params.append('roles[]', r); });
+
+        fetch('<?= site_url('client_portal/access-control/update-roles') ?>', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-TOKEN': CSRF_HASH,
+            },
+            body: params,
+        })
+            .then(function (res) { return res.json(); })
+            .then(function (data) {
+                if (window.showToast) window.showToast(data.message || (data.success ? 'Roles updated.' : 'Something went wrong.'), data.success ? 'success' : 'error');
+                if (data.success) {
+                    const wasTeamHead = acc.roles.indexOf('team_head') !== -1;
+                    const isTeamHead = checked.indexOf('team_head') !== -1;
+                    if (isTeamHead && !wasTeamHead) {
+                        acTeamHeadAccounts.push({ user_id: acc.user_id, name: acc.name });
+                    } else if (!isTeamHead && wasTeamHead) {
+                        acTeamHeadAccounts = acTeamHeadAccounts.filter(function (t) { return t.user_id !== acc.user_id; });
+                    }
+                    acc.roles = checked;
+                    refreshTable();
+                    closeModal();
                 } else {
-                    setPillSelected(pill, nowSelected);
-                    if (nowSelected) {
-                        const employeePill = pills.find(function (p) { return p.dataset.role === 'employee'; });
-                        if (employeePill) setPillSelected(employeePill, false);
-                    }
+                    confirming = false;
+                    renderFooter();
                 }
-                refreshSaveVisibility();
-            });
-        });
-
-        saveBtn.addEventListener('click', function () {
-            const checked = currentSelection(checklist);
-
-            if ((checked.indexOf('admin') !== -1 || checked.indexOf('superadmin') !== -1) &&
-                !confirm('Save this role change? The account will have Admin and/or Super Admin access.')) {
-                return;
-            }
-
-            saveBtn.disabled = true;
-            saveBtn.textContent = 'Saving…';
-
-            const params = new URLSearchParams({ user_id: userId });
-            checked.forEach(function (r) { params.append('roles[]', r); });
-
-            fetch('<?= site_url('client_portal/access-control/update-roles') ?>', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'X-CSRF-TOKEN': CSRF_HASH,
-                },
-                body: params,
             })
-                .then(function (res) { return res.json(); })
-                .then(function (data) {
-                    if (window.showToast) window.showToast(data.message || (data.success ? 'Roles updated.' : 'Something went wrong.'), data.success ? 'success' : 'error');
-                    if (data.success) {
-                        const wasTeamHead = acc.roles.indexOf('team_head') !== -1;
-                        const isTeamHead = checked.indexOf('team_head') !== -1;
-                        if (isTeamHead && !wasTeamHead) {
-                            acTeamHeadAccounts.push({ user_id: acc.user_id, name: acc.name });
-                        } else if (!isTeamHead && wasTeamHead) {
-                            acTeamHeadAccounts = acTeamHeadAccounts.filter(function (t) { return t.user_id !== acc.user_id; });
-                        }
-                        acc.roles = checked;
-                        saveBtn.style.display = 'none';
-                    }
-                })
-                .catch(function () {
-                    if (window.showToast) window.showToast('Something went wrong.', 'error');
-                })
-                .finally(function () {
-                    saveBtn.disabled = false;
-                    saveBtn.textContent = 'Save';
-                });
-        });
+            .catch(function () {
+                if (window.showToast) window.showToast('Something went wrong.', 'error');
+                confirming = false;
+                renderFooter();
+            });
     });
 })();
 
 // ================= DEPARTMENTS =================
+// A table (the shared component Employee Management uses) plus a "Manage department" modal.
+// Endpoints, payloads and the Team Head sync with Accounts are unchanged from the old card list.
 (function () {
-    const container = document.getElementById('departmentsList');
-    if (!container) return;
+    const tableCard = document.querySelector('[data-crud-table="departmentsTable"]');
+    if (!tableCard) return;
 
     // Local, mutable copy so add/rename/deactivate can update the UI without a full reload.
     let departments = ACCESS_CONTROL_DEPARTMENTS.slice();
     const deptTeamHeads = Object.assign({}, ACCESS_CONTROL_DEPARTMENT_TEAM_HEADS);
+
+    // Must match the 'gridStyle' passed to the crud_table in employee_access_control.php.
+    const ROW_GRID = 'minmax(0,2fr) minmax(0,0.9fr) minmax(0,2.4fr) minmax(0,0.7fr)';
 
     function post(url, params) {
         return fetch(url, {
@@ -363,171 +536,320 @@ let acTeamHeadAccounts = ACCESS_CONTROL_TEAM_HEAD_ACCOUNTS.slice();
         }).then(function (res) { return res.json(); });
     }
 
-    function render() {
-        if (!departments.length) {
-            container.innerHTML = '<p class="text-sm text-gray-400 text-center py-6">No departments yet — add one above.</p>';
-            return;
-        }
-
-        function teamHeadSummary(d) {
-            const assigned = deptTeamHeads[d.id] || [];
-            if (!assigned.length) return '<span style="color:#f87171;">No Team Head assigned</span>';
-            const names = assigned.map(function (uid) {
-                const th = acTeamHeadAccounts.find(function (t) { return t.user_id === uid; });
-                return th ? acEscapeHtml(th.name) : null;
-            }).filter(Boolean);
-            return 'Team Head: ' + names.join(', ');
-        }
-
-        // Each department is a compact one-line summary by default — the full
-        // rename / Team Head / deactivate controls only appear once you click
-        // Manage, so having several departments on screen doesn't mean several
-        // full edit forms all open at once.
-        container.innerHTML = departments.map(function (d) {
-            return '<div class="rounded-2xl border border-gray-200 p-4" data-department-id="' + d.id + '">' +
-                '<div class="flex items-center justify-between flex-wrap gap-2">' +
-                    '<div>' +
-                        '<span class="font-medium text-gray-800 dept-name-display">' + acEscapeHtml(d.name) + '</span> ' +
-                        '<button type="button" class="dept-toggle-employees-btn text-xs underline" style="color:#9ca3af;">' + d.employee_count + ' employee' + (d.employee_count === 1 ? '' : 's') + '</button>' +
-                        '<div class="text-xs text-gray-400 mt-0.5 dept-team-head-summary">' + teamHeadSummary(d) + '</div>' +
-                    '</div>' +
-                    '<button type="button" class="dept-manage-btn text-xs font-semibold" style="color:#9678f5;">Manage</button>' +
-                '</div>' +
-                '<div class="dept-employees-list text-xs text-gray-500 mt-2" style="display:none;">' +
-                    (d.employees.length ? d.employees.map(function (e) { return acEscapeHtml(e.name); }).join(', ') : 'No employees in this department yet.') +
-                '</div>' +
-                '<div class="dept-manage-panel mt-3 pt-3 border-t border-gray-100" style="display:none;"></div>' +
-                '</div>';
-        }).join('');
-
-        function renderManagePanel(d) {
-            const assigned = deptTeamHeads[d.id] || [];
-            const teamHeadChecks = acTeamHeadAccounts.length
-                ? acTeamHeadAccounts.map(function (th) {
-                    const checked = assigned.indexOf(th.user_id) !== -1 ? ' checked' : '';
-                    return '<label class="flex items-center gap-2 text-sm py-1">' +
-                        '<input type="checkbox" class="dth-box" value="' + th.user_id + '"' + checked + '>' +
-                        acEscapeHtml(th.name) +
-                        '</label>';
-                }).join('')
-                : '<p class="text-xs text-gray-400 col-span-2">No accounts hold the Team Head role yet.</p>';
-
-            return '<div class="flex items-center gap-2 mb-3">' +
-                    '<input type="text" class="dept-name-input border border-gray-300 rounded-lg px-2 py-1 text-sm" value="' + acEscapeHtml(d.name) + '" style="width:200px;">' +
-                    '<button type="button" class="dept-rename-btn text-xs font-semibold" style="color:#9678f5;">Save name</button>' +
-                    '<button type="button" class="dept-deactivate-btn text-xs ml-auto" style="color:#9ca3af;" onmouseover="this.style.color=\'#dc2626\'" onmouseout="this.style.color=\'#9ca3af\'">Deactivate department</button>' +
-                '</div>' +
-                '<div class="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-1">Team Head(s)</div>' +
-                '<div class="grid grid-cols-2 gap-1">' + teamHeadChecks + '</div>' +
-                '<div class="flex justify-end mt-2">' +
-                    '<button type="button" class="dth-save-btn px-3 py-1 rounded-lg text-xs font-semibold text-white" style="background:#A891FC;" onmouseover="this.style.background=\'#9678f5\'" onmouseout="this.style.background=\'#A891FC\'">Save Team Heads</button>' +
-                '</div>';
-        }
-
-        container.querySelectorAll('[data-department-id]').forEach(function (card) {
-            const id = card.dataset.departmentId;
-
-            card.querySelector('.dept-toggle-employees-btn').addEventListener('click', function () {
-                const list = card.querySelector('.dept-employees-list');
-                list.style.display = list.style.display === 'none' ? 'block' : 'none';
-            });
-
-            const panel = card.querySelector('.dept-manage-panel');
-            const manageBtn = card.querySelector('.dept-manage-btn');
-            manageBtn.addEventListener('click', function () {
-                const dep = departments.find(function (d) { return String(d.id) === String(id); });
-                const opening = panel.style.display === 'none';
-                panel.style.display = opening ? 'block' : 'none';
-                manageBtn.textContent = opening ? 'Close' : 'Manage';
-                if (opening) {
-                    panel.innerHTML = renderManagePanel(dep);
-                    wireManagePanel(card, panel, id);
-                }
-            });
-        });
-
-        function wireManagePanel(card, panel, id) {
-            panel.querySelector('.dept-rename-btn').addEventListener('click', function () {
-                const btn = this;
-                const newName = panel.querySelector('.dept-name-input').value.trim();
-                if (!newName) return;
-                btn.disabled = true;
-                post('<?= site_url('client_portal/access-control/departments/rename') ?>', new URLSearchParams({ id: id, name: newName }))
-                    .then(function (data) {
-                        if (window.showToast) window.showToast(data.message || (data.success ? 'Renamed.' : 'Something went wrong.'), data.success ? 'success' : 'error');
-                        if (data.success) {
-                            const dep = departments.find(function (d) { return String(d.id) === String(id); });
-                            if (dep) dep.name = newName;
-                            card.querySelector('.dept-name-display').textContent = newName;
-                        }
-                    })
-                    .catch(function () { if (window.showToast) window.showToast('Something went wrong.', 'error'); })
-                    .finally(function () { btn.disabled = false; });
-            });
-
-            panel.querySelector('.dept-deactivate-btn').addEventListener('click', function () {
-                const dep = departments.find(function (d) { return String(d.id) === String(id); });
-                if (!confirm('Deactivate "' + (dep ? dep.name : 'this department') + '"? Its Team Head assignments will be cleared. Employees already in it keep their record but the department will no longer be selectable.')) return;
-                post('<?= site_url('client_portal/access-control/departments/deactivate') ?>', new URLSearchParams({ id: id }))
-                    .then(function (data) {
-                        if (window.showToast) window.showToast(data.message || (data.success ? 'Deactivated.' : 'Something went wrong.'), data.success ? 'success' : 'error');
-                        if (data.success) {
-                            departments = departments.filter(function (d) { return String(d.id) !== String(id); });
-                            delete deptTeamHeads[id];
-                            render();
-                        }
-                    })
-                    .catch(function () { if (window.showToast) window.showToast('Something went wrong.', 'error'); });
-            });
-
-            panel.querySelector('.dth-save-btn').addEventListener('click', function () {
-                const btn = this;
-                const checked = Array.from(panel.querySelectorAll('.dth-box:checked')).map(function (cb) { return cb.value; });
-                btn.disabled = true;
-                btn.textContent = 'Saving…';
-
-                const params = new URLSearchParams({ department_id: id });
-                checked.forEach(function (uid) { params.append('team_head_user_ids[]', uid); });
-
-                post('<?= site_url('client_portal/access-control/departments/team-heads') ?>', params)
-                    .then(function (data) {
-                        if (window.showToast) window.showToast(data.message || (data.success ? 'Saved.' : 'Something went wrong.'), data.success ? 'success' : 'error');
-                        if (data.success) {
-                            deptTeamHeads[id] = checked.map(Number);
-                            card.querySelector('.dept-team-head-summary').innerHTML = teamHeadSummary({ id: id });
-                        }
-                    })
-                    .catch(function () { if (window.showToast) window.showToast('Something went wrong.', 'error'); })
-                    .finally(function () { btn.disabled = false; btn.textContent = 'Save Team Heads'; });
-            });
-        }
+    function toast(message, ok) {
+        if (window.showToast) window.showToast(message, ok ? 'success' : 'error');
     }
 
-    render();
+    function initials(name) {
+        const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+        return ((parts[0] || '?').charAt(0) + (parts.length > 1 ? parts[parts.length - 1].charAt(0) : '')).toUpperCase();
+    }
 
+    function findDepartment(id) {
+        return departments.find(function (d) { return String(d.id) === String(id); });
+    }
+
+    // Names of the Team Heads assigned to a department (only accounts that still hold the role).
+    function teamHeadNames(d) {
+        return (deptTeamHeads[d.id] || []).map(function (uid) {
+            const th = acTeamHeadAccounts.find(function (t) { return t.user_id === uid; });
+            return th ? th.name : null;
+        }).filter(Boolean);
+    }
+
+    // ---- table ----
+    function rowTemplate(d) {
+        const names = teamHeadNames(d);
+        const heads = names.length
+            ? names.map(function (n) {
+                return '<span class="inline-block px-3 py-1 mr-2 mb-1 rounded-full text-xs font-semibold bg-gray-200 text-gray-700">' + acEscapeHtml(n) + '</span>';
+            }).join('')
+            : '<span class="text-xs text-red-500">No Team Head assigned</span>';
+        const count = Number(d.employee_count) || 0;
+
+        return '<div class="grid items-center border-b hover:bg-gray-50" style="grid-template-columns:' + ROW_GRID + ';border-left:1px solid transparent;border-right:1px solid transparent;">' +
+            '<div class="p-4 flex items-center gap-3">' +
+                '<div class="w-10 h-10 bg-gray-300 rounded-full flex items-center justify-center text-gray-700 shrink-0 ac-ico">' + AC_ICONS.building + '</div>' +
+                '<span class="font-medium truncate">' + acEscapeHtml(d.name) + '</span>' +
+            '</div>' +
+            '<div class="p-4">' + count + ' employee' + (count === 1 ? '' : 's') + '</div>' +
+            '<div class="p-4">' + heads + '</div>' +
+            '<div class="p-4 flex justify-center">' +
+                '<button type="button" class="ac-icon-btn" data-manage-dept="' + acEscapeHtml(d.id) + '" title="Manage department" aria-label="Manage department">' + AC_ICONS.manage + '</button>' +
+            '</div>' +
+        '</div>';
+    }
+
+    createCrudTable({
+        tableId: 'departmentsTable',
+        data: function () { return departments; },   // live: add / deactivate replace the array
+        renderRow: rowTemplate,
+        filters: function (ctx) {
+            const item = (ctx && ctx.item) || {};
+            const query = (ctx && ctx.query) || '';
+            const values = (ctx && ctx.values) || {};
+            const names = teamHeadNames(item);
+            const matchesSearch = !query || (String(item.name || '') + ' ' + names.join(' ')).toLowerCase().includes(query);
+            const matchesHead = values.team_head === 'assigned' ? names.length > 0
+                : values.team_head === 'unassigned' ? names.length === 0
+                : true;
+            return matchesSearch && matchesHead;
+        },
+        sort: function (ctx) {
+            let left, right;
+            if (ctx.sortBy === 'employees') {
+                left = Number(ctx.a.employee_count) || 0;
+                right = Number(ctx.b.employee_count) || 0;
+            } else {
+                left = String(ctx.a.name || '').toLowerCase();
+                right = String(ctx.b.name || '').toLowerCase();
+            }
+            if (left < right) return ctx.sortOrder === 'asc' ? -1 : 1;
+            if (left > right) return ctx.sortOrder === 'asc' ? 1 : -1;
+            return 0;
+        },
+    });
+
+    // The component has no refresh call; a search "input" event makes it re-run its own filter/sort/render.
+    function refreshTable() {
+        const search = tableCard.querySelector('.crud-search');
+        if (search) search.dispatchEvent(new Event('input'));
+    }
+
+    // Team Head accounts can change in the Accounts tab; re-read them whenever this tab is shown.
+    document.addEventListener('ac:tab', function (e) {
+        if (e.detail === 'departments') refreshTable();
+    });
+
+    // ---- modals (moved to <body> so no ancestor's overflow can clip them) ----
+    const manageModal = document.getElementById('acDeptModal');
+    const addModal = document.getElementById('acDeptAddModal');
+    if (!manageModal || !addModal) return;
+    [manageModal, addModal].forEach(function (m) { if (m.parentElement !== document.body) document.body.appendChild(m); });
+
+    function openOverlay(m) { m.classList.add('is-open'); m.setAttribute('aria-hidden', 'false'); }
+    function closeOverlay(m) { m.classList.remove('is-open'); m.setAttribute('aria-hidden', 'true'); }
+
+    // ---- add department ----
     const addBtn = document.getElementById('addDepartmentBtn');
-    const nameInput = document.getElementById('newDepartmentName');
-    if (addBtn && nameInput) {
+    const addInput = document.getElementById('newDepartmentName');
+    const addSubmit = document.getElementById('adAddSubmit');
+
+    function closeAdd() { closeOverlay(addModal); }
+
+    function submitAdd() {
+        const name = addInput.value.trim();
+        if (!name || addSubmit.disabled) return;
+        addSubmit.disabled = true;
+        post('<?= site_url('client_portal/access-control/departments/create') ?>', new URLSearchParams({ name: name }))
+            .then(function (data) {
+                toast(data.message || (data.success ? 'Added.' : 'Something went wrong.'), data.success);
+                if (data.success) {
+                    departments.push({ id: data.id, name: name, employee_count: 0, employees: [] });
+                    addInput.value = '';
+                    closeAdd();
+                    refreshTable();
+                }
+            })
+            .catch(function () { toast('Something went wrong.', false); })
+            .finally(function () { addSubmit.disabled = false; });
+    }
+
+    if (addBtn) {
         addBtn.addEventListener('click', function () {
-            const name = nameInput.value.trim();
-            if (!name) return;
-            addBtn.disabled = true;
-            post('<?= site_url('client_portal/access-control/departments/create') ?>', new URLSearchParams({ name: name }))
-                .then(function (data) {
-                    if (window.showToast) window.showToast(data.message || (data.success ? 'Added.' : 'Something went wrong.'), data.success ? 'success' : 'error');
-                    if (data.success) {
-                        departments.push({ id: data.id, name: name, employee_count: 0, employees: [] });
-                        nameInput.value = '';
-                        render();
-                    }
-                })
-                .catch(function () { if (window.showToast) window.showToast('Something went wrong.', 'error'); })
-                .finally(function () { addBtn.disabled = false; });
+            addInput.value = '';
+            openOverlay(addModal);
+            addInput.focus();
         });
     }
+    document.getElementById('adAddClose').addEventListener('click', closeAdd);
+    document.getElementById('adAddCancel').addEventListener('click', closeAdd);
+    addSubmit.addEventListener('click', submitAdd);
+    addInput.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); submitAdd(); } });
+    addModal.addEventListener('click', function (e) { if (e.target === addModal) closeAdd(); });
+
+    // ---- manage department ----
+    const subtitleEl = document.getElementById('adSubtitle');
+    const nameInput = document.getElementById('adName');
+    const renameBtn = document.getElementById('adRename');
+    const headsEl = document.getElementById('adTeamHeads');
+    const employeesEl = document.getElementById('adEmployees');
+    const dangerEl = document.getElementById('adDanger');
+    const noteEl = document.getElementById('adNote');
+    const saveBtn = document.getElementById('adSave');
+
+    let current = null;        // the department being managed
+    let savedHeads = [];       // checked Team Head ids as last saved (strings), to detect changes
+    let confirmingDelete = false;
+
+    function checkedHeads() {
+        return Array.from(headsEl.querySelectorAll('.dth-box:checked')).map(function (cb) { return cb.value; });
+    }
+
+    function renderHeads() {
+        const assigned = (deptTeamHeads[current.id] || []).map(String);
+        headsEl.innerHTML = acTeamHeadAccounts.length
+            ? acTeamHeadAccounts.map(function (th) {
+                const checked = assigned.indexOf(String(th.user_id)) !== -1 ? ' checked' : '';
+                return '<label class="ac-pick">' +
+                    '<span class="acr-avatar">' + acEscapeHtml(initials(th.name)) + '</span>' +
+                    '<span class="ac-pick-name">' + acEscapeHtml(th.name) + '</span>' +
+                    '<input type="checkbox" class="dth-box" value="' + th.user_id + '"' + checked + '>' +
+                '</label>';
+            }).join('')
+            : '<p class="text-xs text-gray-400">No accounts hold the Team Head role yet.</p>';
+        savedHeads = checkedHeads();
+    }
+
+    function renderEmployees() {
+        const list = current.employees || [];
+        employeesEl.innerHTML = list.length
+            ? list.map(function (e) { return '<span class="acr-chip">' + acEscapeHtml(e.name) + '</span>'; }).join('')
+            : '<span class="text-xs text-gray-400">No employees in this department yet.</span>';
+    }
+
+    function renderDanger() {
+        if (confirmingDelete) {
+            dangerEl.innerHTML = '<div class="acr-warn" style="margin-top:0;">' + WARN +
+                '<span>Deactivate "' + acEscapeHtml(current.name) + '"? Its Team Head assignments will be cleared. Employees already in it keep their record but the department will no longer be selectable.</span></div>' +
+                '<div class="ac-danger-actions">' +
+                    '<button type="button" id="adDeactivateYes" class="acr-btn ac-btn-danger">Yes, deactivate</button>' +
+                    '<button type="button" id="adDeactivateNo" class="acr-btn acr-cancel">Keep it</button>' +
+                '</div>';
+            document.getElementById('adDeactivateYes').addEventListener('click', deactivate);
+            document.getElementById('adDeactivateNo').addEventListener('click', function () { confirmingDelete = false; renderDanger(); });
+        } else {
+            dangerEl.innerHTML = '<button type="button" id="adDeactivate" class="ac-link-danger">' + AC_ICONS.trash + 'Deactivate department</button>';
+            document.getElementById('adDeactivate').addEventListener('click', function () { confirmingDelete = true; renderDanger(); });
+        }
+    }
+
+    const WARN = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none;margin-top:1px;" aria-hidden="true"><path d="M12 3 5 6v5c0 4.6 3 8.3 7 10 4-1.7 7-5.4 7-10V6l-7-3Z"/><path d="M12 9v4"/><path d="M12 16.5v.01"/></svg>';
+
+    function updateFooter() {
+        const changed = checkedHeads().slice().sort().join(',') !== savedHeads.slice().sort().join(',');
+        noteEl.innerHTML = changed ? '<span class="acr-dirty"></span>Team Head changes not saved yet' : '';
+        saveBtn.disabled = !changed;
+    }
+
+    function syncHeader() {
+        const count = Number(current.employee_count) || 0;
+        subtitleEl.textContent = current.name + ' · ' + count + ' employee' + (count === 1 ? '' : 's');
+    }
+
+    function openManage(dep) {
+        current = dep;
+        confirmingDelete = false;
+        syncHeader();
+        nameInput.value = dep.name;
+        renderHeads();
+        renderEmployees();
+        renderDanger();
+        updateFooter();
+        openOverlay(manageModal);
+        nameInput.focus();
+    }
+
+    function closeManage() {
+        closeOverlay(manageModal);
+        current = null;
+        confirmingDelete = false;
+    }
+
+    function deactivate() {
+        if (!current) return;
+        const id = current.id;
+        post('<?= site_url('client_portal/access-control/departments/deactivate') ?>', new URLSearchParams({ id: id }))
+            .then(function (data) {
+                toast(data.message || (data.success ? 'Deactivated.' : 'Something went wrong.'), data.success);
+                if (data.success) {
+                    departments = departments.filter(function (d) { return String(d.id) !== String(id); });
+                    delete deptTeamHeads[id];
+                    closeManage();
+                    refreshTable();
+                } else {
+                    confirmingDelete = false;
+                    renderDanger();
+                }
+            })
+            .catch(function () {
+                toast('Something went wrong.', false);
+                confirmingDelete = false;
+                renderDanger();
+            });
+    }
+
+    renameBtn.addEventListener('click', function () {
+        if (!current) return;
+        const dep = current;
+        const newName = nameInput.value.trim();
+        if (!newName) return;
+        renameBtn.disabled = true;
+        post('<?= site_url('client_portal/access-control/departments/rename') ?>', new URLSearchParams({ id: dep.id, name: newName }))
+            .then(function (data) {
+                toast(data.message || (data.success ? 'Renamed.' : 'Something went wrong.'), data.success);
+                if (data.success) {
+                    dep.name = newName;
+                    if (current === dep) syncHeader();
+                    refreshTable();
+                }
+            })
+            .catch(function () { toast('Something went wrong.', false); })
+            .finally(function () { renameBtn.disabled = false; });
+    });
+    nameInput.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); renameBtn.click(); } });
+
+    headsEl.addEventListener('change', updateFooter);
+
+    saveBtn.addEventListener('click', function () {
+        if (!current || saveBtn.disabled) return;
+        const dep = current;
+        const checked = checkedHeads();
+
+        saveBtn.disabled = true;
+        saveBtn.textContent = 'Saving…';
+
+        const params = new URLSearchParams({ department_id: dep.id });
+        checked.forEach(function (uid) { params.append('team_head_user_ids[]', uid); });
+
+        post('<?= site_url('client_portal/access-control/departments/team-heads') ?>', params)
+            .then(function (data) {
+                toast(data.message || (data.success ? 'Saved.' : 'Something went wrong.'), data.success);
+                if (data.success) {
+                    deptTeamHeads[dep.id] = checked.map(Number);
+                    savedHeads = checked;
+                    refreshTable();
+                }
+            })
+            .catch(function () { toast('Something went wrong.', false); })
+            .finally(function () {
+                saveBtn.textContent = 'Save Team Heads';
+                if (current) updateFooter();
+            });
+    });
+
+    document.getElementById('adClose').addEventListener('click', closeManage);
+    document.getElementById('adCancel').addEventListener('click', closeManage);
+    manageModal.addEventListener('click', function (e) { if (e.target === manageModal) closeManage(); });
+    document.addEventListener('keydown', function (e) {
+        if (e.key !== 'Escape') return;
+        if (manageModal.classList.contains('is-open')) closeManage();
+        if (addModal.classList.contains('is-open')) closeAdd();
+    });
+
+    // ---- open from the table ----
+    const body = tableCard.querySelector('.crud-body');
+    body.addEventListener('click', function (e) {
+        const btn = e.target.closest('[data-manage-dept]');
+        if (!btn) return;
+        const dep = findDepartment(btn.dataset.manageDept);
+        if (dep) openManage(dep);
+    });
 })();
 
 // ================= ROLE PERMISSIONS =================
+// Neutral segmented role picker + a toggle row per permission. Same endpoint and payload as before
+// (role + permissions[]); the sensitive-permission confirm is now an in-card step instead of confirm().
 (function () {
     const section = document.getElementById('rolePermissionsSection');
     const tabsEl = document.getElementById('rolePermissionTabs');
@@ -539,24 +861,16 @@ let acTeamHeadAccounts = ACCESS_CONTROL_TEAM_HEAD_ACCOUNTS.slice();
     if (!roles.length) return;
     section.style.display = 'block';
 
-    // Sensitive permissions — toggling these ON for a role gets a confirm() prompt.
+    // Sensitive permissions — newly turning these ON for a role needs an extra confirmation.
     const SENSITIVE_PERMISSIONS = ['roles', 'payroll', 'compensation'];
 
-    function escapeHtml(s) {
-        return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
-            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
-        });
-    }
-
+    const escapeHtml = acEscapeHtml;
     let activeRole = roles[0];
 
     function renderTabs() {
         tabsEl.innerHTML = roles.map(function (role) {
-            const active = role === activeRole;
             const label = (ACCESS_CONTROL_ROLE_OPTIONS[role] || role);
-            return '<button type="button" data-role="' + escapeHtml(role) + '" class="px-3 py-2 rounded-lg text-sm font-medium"' +
-                (active ? ' style="background:#A891FC;color:#fff;"' : ' style="background:#f3f4f6;color:#374151;"') +
-                '>' + escapeHtml(label) + '</button>';
+            return '<button type="button" data-role="' + escapeHtml(role) + '" class="' + (role === activeRole ? 'is-active' : '') + '">' + escapeHtml(label) + '</button>';
         }).join('');
 
         tabsEl.querySelectorAll('button').forEach(function (btn) {
@@ -571,36 +885,91 @@ let acTeamHeadAccounts = ACCESS_CONTROL_TEAM_HEAD_ACCOUNTS.slice();
     function renderBody() {
         const rolePerms = permissions[activeRole] || {};
         const permKeys = Object.keys(rolePerms);
+        const roleTitle = ACCESS_CONTROL_ROLE_OPTIONS[activeRole] || activeRole;
+        let confirming = false;
 
-        bodyEl.innerHTML = '<div class="grid grid-cols-2 gap-2" id="rpChecklist">' +
+        bodyEl.innerHTML = '<div id="rpChecklist" class="acp-list">' +
             permKeys.map(function (key) {
                 const label = ACCESS_CONTROL_PERMISSION_LABELS[key] || key;
-                const checked = rolePerms[key] ? ' checked' : '';
-                return '<label class="flex items-center gap-2 text-sm py-1">' +
-                    '<input type="checkbox" value="' + escapeHtml(key) + '"' + checked + '>' +
-                    escapeHtml(label) +
-                    '</label>';
+                const sensitive = SENSITIVE_PERMISSIONS.indexOf(key) !== -1;
+                return '<label class="acp-perm" data-perm="' + escapeHtml(key) + '">' +
+                    '<span class="acp-perm-main">' +
+                        '<span class="acp-perm-name">' + escapeHtml(label) + '</span>' +
+                        (sensitive ? '<span class="acp-sensitive">Sensitive</span>' : '') +
+                    '</span>' +
+                    '<span class="acp-perm-state"></span>' +
+                    '<span class="ac-switch"><input type="checkbox" value="' + escapeHtml(key) + '"' + (rolePerms[key] ? ' checked' : '') + '><span class="ac-switch-track"></span></span>' +
+                '</label>';
             }).join('') +
             '</div>' +
-            '<div class="flex justify-end mt-4">' +
-                '<button type="button" id="rpSaveBtn" class="px-4 py-2 rounded-lg text-sm font-semibold text-white" style="background:#A891FC;" onmouseover="this.style.background=\'#9678f5\'" onmouseout="this.style.background=\'#A891FC\'">Save Permissions</button>' +
+            '<div id="rpConfirm" class="acr-warn" style="display:none;"></div>' +
+            '<div class="acp-footer">' +
+                '<span id="rpNote" class="acr-note"></span>' +
+                '<button type="button" id="rpBack" class="acr-btn acr-cancel" style="display:none;">Back</button>' +
+                '<button type="button" id="rpSaveBtn" class="acr-btn acr-save" disabled>Save permissions</button>' +
             '</div>';
 
-        document.getElementById('rpSaveBtn').addEventListener('click', function () {
-            const saveBtn = this;
-            const checked = Array.from(bodyEl.querySelectorAll('#rpChecklist input:checked')).map(function (cb) { return cb.value; });
+        const noteEl = document.getElementById('rpNote');
+        const saveBtn = document.getElementById('rpSaveBtn');
+        const backBtn = document.getElementById('rpBack');
+        const confirmEl = document.getElementById('rpConfirm');
 
-            const newlySensitive = checked.filter(function (p) {
-                return SENSITIVE_PERMISSIONS.indexOf(p) !== -1 && !rolePerms[p];
+        function checkedKeys() {
+            return Array.from(bodyEl.querySelectorAll('#rpChecklist input:checked')).map(function (cb) { return cb.value; });
+        }
+
+        function newlySensitive(checked) {
+            return checked.filter(function (p) { return SENSITIVE_PERMISSIONS.indexOf(p) !== -1 && !rolePerms[p]; });
+        }
+
+        function changeCount(checked) {
+            return permKeys.filter(function (k) { return (checked.indexOf(k) !== -1) !== !!rolePerms[k]; }).length;
+        }
+
+        function update() {
+            const checked = checkedKeys();
+            const changes = changeCount(checked);
+
+            bodyEl.querySelectorAll('.acp-perm').forEach(function (row) {
+                const on = checked.indexOf(row.dataset.perm) !== -1;
+                row.classList.toggle('is-on', on);
+                row.querySelector('.acp-perm-state').textContent = on ? 'Allowed' : 'Not allowed';
             });
-            if (newlySensitive.length && !confirm(
-                'Grant ' + newlySensitive.map(function (p) { return ACCESS_CONTROL_PERMISSION_LABELS[p] || p; }).join(', ') +
-                ' to every "' + (ACCESS_CONTROL_ROLE_OPTIONS[activeRole] || activeRole) + '" account? This affects everyone currently assigned that role.'
-            )) {
+
+            if (confirming) {
+                const names = newlySensitive(checked).map(function (p) { return ACCESS_CONTROL_PERMISSION_LABELS[p] || p; });
+                confirmEl.style.display = 'flex';
+                confirmEl.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none;margin-top:1px;" aria-hidden="true"><path d="M12 3 5 6v5c0 4.6 3 8.3 7 10 4-1.7 7-5.4 7-10V6l-7-3Z"/><path d="M12 9v4"/><path d="M12 16.5v.01"/></svg>' +
+                    '<span>Grant ' + escapeHtml(names.join(', ')) + ' to every "' + escapeHtml(roleTitle) + '" account? This affects everyone currently assigned that role.</span>';
+                noteEl.textContent = '';
+                backBtn.style.display = '';
+                saveBtn.textContent = 'Yes, grant access';
+                saveBtn.disabled = false;
+                return;
+            }
+
+            confirmEl.style.display = 'none';
+            backBtn.style.display = 'none';
+            saveBtn.textContent = 'Save permissions';
+            saveBtn.disabled = changes === 0;
+            noteEl.innerHTML = changes ? '<span class="acr-dirty"></span>' + changes + ' unsaved change' + (changes === 1 ? '' : 's') : 'No changes';
+        }
+
+        bodyEl.querySelector('#rpChecklist').addEventListener('change', function () { confirming = false; update(); });
+        backBtn.addEventListener('click', function () { confirming = false; update(); });
+
+        saveBtn.addEventListener('click', function () {
+            if (saveBtn.disabled) return;
+            const checked = checkedKeys();
+
+            if (newlySensitive(checked).length && !confirming) {
+                confirming = true;
+                update();
                 return;
             }
 
             saveBtn.disabled = true;
+            backBtn.style.display = 'none';
             saveBtn.textContent = 'Saving…';
 
             const params = new URLSearchParams({ role: activeRole });
@@ -626,10 +995,12 @@ let acTeamHeadAccounts = ACCESS_CONTROL_TEAM_HEAD_ACCOUNTS.slice();
                     if (window.showToast) window.showToast('Something went wrong.', 'error');
                 })
                 .finally(function () {
-                    saveBtn.disabled = false;
-                    saveBtn.textContent = 'Save Permissions';
+                    confirming = false;
+                    update();
                 });
         });
+
+        update();
     }
 
     renderTabs();
@@ -639,8 +1010,8 @@ let acTeamHeadAccounts = ACCESS_CONTROL_TEAM_HEAD_ACCOUNTS.slice();
 // ================= ACCESS CONTROL SUB-TABS =================
 // Accounts / Team Head Assignments / Role Permissions used to all sit
 // stacked in one scroll area, leaving almost no room to actually work with
-// the accounts table. Splitting them into sub-tabs (same pill style as the
-// Role Permissions tabs) lets whichever one is active use the full height
+// the accounts table. Splitting them into sub-tabs (the same segmented control
+// the Payroll Register uses) lets whichever one is active use the full height
 // of the panel instead of competing for space with the other two.
 (function () {
     const tabsWrap = document.getElementById('acSubTabs');
@@ -650,6 +1021,7 @@ let acTeamHeadAccounts = ACCESS_CONTROL_TEAM_HEAD_ACCOUNTS.slice();
         accounts: document.querySelector('[data-ac-panel="accounts"]'),
         departments: document.getElementById('departmentsSection'),
         permissions: document.getElementById('rolePermissionsSection'),
+        network: document.getElementById('attendanceNetworkSection'),
     };
     const buttons = Array.from(tabsWrap.querySelectorAll('[data-ac-tab]'));
 
@@ -668,17 +1040,15 @@ let acTeamHeadAccounts = ACCESS_CONTROL_TEAM_HEAD_ACCOUNTS.slice();
 
     function activate(key) {
         buttons.forEach(function (btn) {
-            const active = btn.dataset.acTab === key;
-            btn.style.background = active ? '#A891FC' : '#f3f4f6';
-            btn.style.color = active ? '#fff' : '#374151';
+            btn.classList.toggle('is-active', btn.dataset.acTab === key);
         });
         Object.keys(panels).forEach(function (k) {
             if (panels[k]) panels[k].style.display = k === key ? 'block' : 'none';
         });
+        document.dispatchEvent(new CustomEvent('ac:tab', { detail: key }));
     }
 
     buttons.forEach(function (btn) {
-        btn.style.cssText += ';padding:8px 12px;border-radius:8px;font-size:13px;font-weight:500;';
         btn.addEventListener('click', function () { activate(btn.dataset.acTab); });
     });
 
@@ -686,9 +1056,241 @@ let acTeamHeadAccounts = ACCESS_CONTROL_TEAM_HEAD_ACCOUNTS.slice();
     activate(firstEligible ? firstEligible.dataset.acTab : 'accounts');
 })();
 
+// ================= ATTENDANCE NETWORK RESTRICTION =================
+(function () {
+    const chipsWrap = document.getElementById('attendanceIpChips');
+    const ipInput = document.getElementById('attendanceIpInput');
+    const ipError = document.getElementById('attendanceIpError');
+    const exemptList = document.getElementById('attendanceExemptAccountsList');
+    const exemptSearch = document.getElementById('attendanceExemptSearch');
+    const exemptCount = document.getElementById('attendanceExemptCount');
+    const saveBtn = document.getElementById('saveAttendanceNetworkBtn');
+    const statusEl = document.getElementById('attendanceNetworkStatus');
+    if (!chipsWrap || !ipInput || !exemptList || !saveBtn) return;
+
+    // Quick client-side shape check for IPv4 / IPv6, optionally with a /prefix.
+    // The server does the authoritative validation (IpAllowlist::isValid) on save.
+    const IPV4_PATTERN = /^(\d{1,3}\.){3}\d{1,3}(\/\d{1,2})?$/;
+    const IPV6_PATTERN = /^[0-9a-fA-F:.]+(\/\d{1,3})?$/; // '.' allows ::ffff:1.2.3.4
+    const IP_PATTERN = { test: (v) => v.includes(':') ? IPV6_PATTERN.test(v) && (v.match(/:/g) || []).length >= 2 : IPV4_PATTERN.test(v) };
+    const octetsValid = (ip) => ip.includes(':') ? true : ip.split('/')[0].split('.').every(n => Number(n) <= 255);
+
+    let ranges = IPAllowlist_parse(ACCESS_CONTROL_ATTENDANCE_ALLOWED_IPS);
+
+    // Master switch: when off, nothing is enforced but the list and exempt accounts are kept.
+    const enforceToggle = document.getElementById('attendanceEnforcementToggle');
+    const enforceHint = document.getElementById('attendanceEnforcementHint');
+    const networkGrid = document.getElementById('attendanceNetworkGrid');
+    let enforcementEnabled = ACCESS_CONTROL_ATTENDANCE_ENFORCEMENT_ENABLED !== false;
+
+    function IPAllowlist_parse(raw) {
+        return (raw || '').split(/[,\r\n]+/).map(s => s.trim()).filter(Boolean);
+    }
+
+    function showIpError(message) {
+        ipError.textContent = message;
+        ipError.classList.toggle('hidden', !message);
+    }
+
+    // An empty list means nothing is enforced (fail-open by design) — make
+    // that state obvious instead of looking like a working-but-silent setup.
+    function updateEnforcementBadge() {
+        const badge = document.getElementById('attendanceEnforcementBadge');
+        if (!badge) return;
+        const on = enforcementEnabled && ranges.length > 0;
+        if (!enforcementEnabled) {
+            badge.textContent = 'Enforcement OFF · switched off';
+            badge.style.background = '#e5e7eb';
+            badge.style.color = '#374151';
+        } else {
+            badge.textContent = on ? `Enforcement ON · ${ranges.length} address${ranges.length === 1 ? '' : 'es'}` : 'Enforcement OFF · list is empty';
+            badge.style.background = on ? '#dcfce7' : '#fee2e2';
+            badge.style.color = on ? '#166534' : '#991b1b';
+        }
+        if (enforceToggle) enforceToggle.checked = enforcementEnabled;
+        if (networkGrid) networkGrid.classList.toggle('ann-off', !enforcementEnabled);
+        if (enforceHint) {
+            enforceHint.textContent = !enforcementEnabled
+                ? 'Switched off: anyone can clock in from any network. Your allowed list and exempt accounts are kept for when you switch it back on.'
+                : (ranges.length
+                    ? 'On: Onsite clock-ins and break starts must come from the allowed addresses below.'
+                    : 'On, but the allowed list is empty, so nothing is enforced yet. Add the office address below.');
+        }
+    }
+
+    function renderChips() {
+        updateEnforcementBadge();
+        chipsWrap.querySelectorAll('.attendance-ip-chip').forEach(el => el.remove());
+        ranges.forEach((range, i) => {
+            const chip = document.createElement('span');
+            chip.className = 'attendance-ip-chip ac-ip-chip';
+            chip.innerHTML = `${htmlEsc(range)} <button type="button" aria-label="Remove">&times;</button>`;
+            chip.querySelector('button').addEventListener('click', () => { ranges.splice(i, 1); renderChips(); });
+            chipsWrap.insertBefore(chip, ipInput);
+        });
+    }
+
+    function addRange(raw) {
+        const value = raw.trim();
+        if (!value) return true;
+        if (!IP_PATTERN.test(value) || !octetsValid(value)) {
+            showIpError(`"${value}" isn't a valid IP or CIDR range (e.g. 203.0.113.4 or 203.0.113.0/24).`);
+            return false;
+        }
+        if (!ranges.includes(value)) ranges.push(value);
+        showIpError('');
+        return true;
+    }
+
+    // Returns true if everything typed was accepted. Invalid entries stay in
+    // the box (with the error shown) instead of being wiped and silently lost.
+    function addFromInput() {
+        const rejected = IPAllowlist_parse(ipInput.value).filter(v => !addRange(v));
+        renderChips();
+        ipInput.value = rejected.join(', ');
+        return rejected.length === 0;
+    }
+
+    ipInput.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ',') {
+            e.preventDefault();
+            addFromInput();
+        } else if (e.key === 'Backspace' && !ipInput.value && ranges.length) {
+            ranges.pop();
+            renderChips();
+        }
+    });
+    ipInput.addEventListener('blur', addFromInput);
+    chipsWrap.addEventListener('click', () => ipInput.focus());
+
+    // Shows the address the server sees for THIS admin, with a one-click add —
+    // the reliable way to enter the office address (open this tab from a
+    // computer on the office network).
+    const detectedEl = document.getElementById('attendanceDetectedIp');
+    const addDetectedBtn = document.getElementById('attendanceAddDetectedBtn');
+    const detectedIp = ACCESS_CONTROL_ATTENDANCE_DETECTED_IP || '';
+    const isLoopback = detectedIp === '' || detectedIp === '::1' || detectedIp.startsWith('127.');
+    if (detectedEl) {
+        detectedEl.textContent = detectedIp || 'unknown';
+        if (isLoopback) {
+            const note = document.createElement('div');
+            note.className = 'text-xs text-amber-600 mt-1';
+            note.textContent = 'This is the server\'s own computer (localhost), not the office network. Open this page from an office computer using the server\'s network address or the live site URL, then it will show the real address.';
+            detectedEl.closest('div').parentElement.insertBefore(note, detectedEl.closest('div').nextSibling);
+        }
+    }
+    if (ACCESS_CONTROL_ATTENDANCE_PROXY_WARNING && detectedEl) {
+        const warn = document.createElement('div');
+        warn.className = 'text-xs text-red-600 font-semibold mt-1';
+        warn.textContent = 'Warning: this request came through a proxy/CDN that the server isn\'t configured to trust, so the address above is the proxy\'s, not the visitor\'s. The network check won\'t work correctly until proxyIPs is set in app/Config/App.php.';
+        detectedEl.closest('div').parentElement.insertBefore(warn, detectedEl.closest('div').nextSibling);
+    }
+    if (addDetectedBtn) {
+        if (isLoopback) {
+            addDetectedBtn.disabled = true;
+            addDetectedBtn.style.opacity = '.4';
+            addDetectedBtn.style.cursor = 'not-allowed';
+        }
+        addDetectedBtn.addEventListener('click', function () {
+            if (!isLoopback && addRange(detectedIp)) renderChips();
+        });
+    }
+
+    if (enforceToggle) {
+        enforceToggle.addEventListener('change', function () {
+            enforcementEnabled = this.checked;
+            updateEnforcementBadge();
+            if (statusEl) statusEl.textContent = 'Switch changed — press Save to apply.';
+        });
+    }
+
+    renderChips();
+
+    // Exempt accounts — searchable checklist with a live selected count.
+    const exemptIds = new Set(ACCESS_CONTROL_ATTENDANCE_NETWORK_EXEMPT_IDS);
+
+    function updateExemptCount() {
+        exemptCount.textContent = exemptIds.size ? `${exemptIds.size} selected` : '';
+    }
+
+    function renderExemptList(filter) {
+        const q = (filter || '').trim().toLowerCase();
+        const accounts = ACCESS_CONTROL_ACCOUNTS.filter(acc =>
+            !q || acc.name.toLowerCase().includes(q) || (acc.email || '').toLowerCase().includes(q)
+        );
+
+        exemptList.innerHTML = accounts.map(acc => {
+            const checked = exemptIds.has(acc.user_id) ? 'checked' : '';
+            return `
+                <label class="flex items-center gap-2 text-sm px-2 py-1.5 rounded-lg hover:bg-gray-50 cursor-pointer">
+                    <input type="checkbox" class="attendance-exempt-checkbox" value="${acc.user_id}" ${checked}>
+                    <span class="font-medium text-gray-700">${htmlEsc(acc.name)}</span>
+                    <span class="text-gray-400 truncate">${htmlEsc(acc.email || '')}</span>
+                </label>
+            `;
+        }).join('') || `<p class="text-sm text-gray-400 px-2 py-1.5">${q ? 'No matching accounts.' : 'No accounts found.'}</p>`;
+
+        exemptList.querySelectorAll('.attendance-exempt-checkbox').forEach(cb => {
+            cb.addEventListener('change', function () {
+                // Numeric: the Set is seeded with integer user ids, so a string
+                // here would never match (or remove) an existing exemption.
+                const id = Number(this.value);
+                if (this.checked) exemptIds.add(id); else exemptIds.delete(id);
+                updateExemptCount();
+            });
+        });
+    }
+
+    renderExemptList('');
+    updateExemptCount();
+    if (exemptSearch) exemptSearch.addEventListener('input', () => renderExemptList(exemptSearch.value));
+
+    saveBtn.addEventListener('click', function () {
+        // Don't save past an invalid entry the admin is still looking at.
+        if (!addFromInput()) return;
+
+        if (enforcementEnabled && ranges.length === 0 && !confirm('The allowed list is empty, so clock-ins will NOT be restricted to the office network. Save anyway?')) return;
+
+        const fd = new FormData();
+        fd.set('allowed_ips', ranges.join('\n'));
+        fd.set('enforcement_enabled', enforcementEnabled ? '1' : '0');
+        Array.from(exemptIds).forEach(id => fd.append('exempt_user_ids[]', id));
+
+        saveBtn.disabled = true;
+        const originalHtml = saveBtn.innerHTML;
+        saveBtn.innerHTML = 'Saving…';
+        if (statusEl) statusEl.textContent = '';
+
+        fetch('<?= site_url('client_portal/access-control/attendance-network') ?>', {
+            method: 'POST',
+            headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': CSRF_HASH },
+            body: fd,
+        })
+            .then(res => res.json())
+            .then(data => {
+                if (window.showToast) window.showToast(data.message || (data.success ? 'Saved.' : 'Something went wrong.'), data.success ? 'success' : 'error');
+                if (data.success && statusEl) {
+                    statusEl.textContent = 'Saved just now.';
+                    setTimeout(() => { statusEl.textContent = ''; }, 4000);
+                }
+            })
+            .catch(() => {
+                if (window.showToast) window.showToast('Network error. Please try again.', 'error');
+            })
+            .finally(() => {
+                saveBtn.disabled = false;
+                saveBtn.innerHTML = originalHtml;
+            });
+    });
+})();
+
 const CURRENT_USER_ID = <?= (int) ($currentUserId ?? 0) ?>;
 const EDIT_ICON = "<?= base_url('icons/edit.png') ?>";
 const VIEW_ICON = "<?= base_url('icons/view.png') ?>";
+// Line icons for the row action buttons (same style as the Access Control icons).
+const ROW_SVG_OPEN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">';
+const VIEW_ICON_SVG = ROW_SVG_OPEN + '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>';
+const EDIT_ICON_SVG = ROW_SVG_OPEN + '<path d="M12 5H6a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-6"/><path d="M17.5 3.5a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4 8.5-8.5Z"/></svg>';
 const LOAN_UPDATE_URL = "<?= site_url('client_portal/loans/update') ?>";
 const UPDATE_URL = "<?= site_url('client_portal/employees/update') ?>";
 
@@ -786,13 +1388,13 @@ function htmlEsc(val)
                 <div class="p-4 flex justify-center gap-4">
 
                     <div
-                        class="cursor-pointer w-7 h-7 hover:scale-110 transition"
+                        class="crud-icon-btn" title="View" aria-label="View"
                         onclick="viewEmployeeDetails(${htmlEsc(p.id)})">
-                        <img src="${VIEW_ICON}" class="w-6 h-6" alt="View">
+                        ${VIEW_ICON_SVG}
                     </div>
 
                     <div
-                        class="cursor-pointer w-7 h-7 hover:scale-110 transition"
+                        class="crud-icon-btn" title="Edit" aria-label="Edit"
                         data-action="edit"
                         data-modal="editEmployeeModal"
                         data-update-url="${UPDATE_URL}"
@@ -816,6 +1418,7 @@ function htmlEsc(val)
 
                         data-working_day_type="${htmlEsc(p.working_day_type)}"
                         data-working_days='${htmlEsc(p.working_days || "[]")}'
+                        data-wfh_days='${htmlEsc(p.wfh_days || "[]")}'
                         data-start_time="${htmlEsc(p.start_time)}"
                         data-end_time="${htmlEsc(p.end_time)}"
                         data-break_schedule='${htmlEsc(p.break_schedule || "[]")}'
@@ -848,7 +1451,7 @@ function htmlEsc(val)
                         data-leave_total="${htmlEsc(p.leave_total)}"
                         data-status="${htmlEsc(p.status ?? 0)}">
 
-                        <img src="${EDIT_ICON}" class="w-6 h-6" alt="Edit">
+                        ${EDIT_ICON_SVG}
                     </div>
 
                 </div>
@@ -864,6 +1467,7 @@ function htmlEsc(val)
         if (!employee) return;
  
         let workingDays = [];
+        let wfhDays = [];
  
         let deMinimisBreakdown = {
             allocations: {},
@@ -876,6 +1480,10 @@ function htmlEsc(val)
  
         try {
             workingDays = JSON.parse(employee.working_days || '[]');
+        } catch (e) {}
+
+        try {
+            wfhDays = JSON.parse(employee.wfh_days || '[]');
         } catch (e) {}
  
         const allocations = deMinimisBreakdown.allocations || {};
@@ -897,7 +1505,7 @@ function htmlEsc(val)
                 <div class="bg-[#A891FC] rounded-t-xl px-8 py-6 flex items-center gap-6 -mx-6 mb-6 shrink-0">
                     <div class="w-20 h-20 rounded-full bg-white/30 flex items-center justify-center shrink-0 overflow-hidden border-4 border-white/50">
                         ${employee.photo_path
-                            ? `<img src="${employee.photo_path}" alt="${employee.first_name} ${employee.last_name}" class="w-full h-full object-cover">`
+                            ? `<img src="${htmlEsc(employee.photo_path)}" alt="${htmlEsc(employee.first_name)} ${htmlEsc(employee.last_name)}" class="w-full h-full object-cover">`
                             : `<svg class="w-12 h-12 text-white" fill="currentColor" viewBox="0 0 24 24">
                                     <path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/>
                                 </svg>`
@@ -906,11 +1514,11 @@ function htmlEsc(val)
  
                     <div>
                         <h1 class="text-2xl font-bold text-white">
-                            ${employee.first_name} ${employee.last_name}
+                            ${htmlEsc(employee.first_name)} ${htmlEsc(employee.last_name)}
                         </h1>
  
                         <p class="text-white/80 italic text-sm mt-0.5">
-                            ${employee.position ?? 'No Position Set'}
+                            ${htmlEsc(employee.position ?? 'No Position Set')}
                         </p>
  
                         <span class="inline-block mt-2 px-3 py-0.5 rounded-full text-xs font-semibold
@@ -928,7 +1536,7 @@ function htmlEsc(val)
                         </p>
  
                         <p class="text-white font-bold text-lg">
-                            ${employee.employee_number}
+                            ${htmlEsc(employee.employee_number)}
                         </p>
                     </div>
                 </div>
@@ -939,22 +1547,22 @@ function htmlEsc(val)
                     <div class="flex divide-x divide-gray-200 mb-6">
                         <div class="flex-1 pr-6">
                             <p class="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-2">Department</p>
-                            <p class="text-sm text-gray-700">${employee.department ?? '—'}</p>
+                            <p class="text-sm text-gray-700">${htmlEsc(employee.department ?? '—')}</p>
                         </div>
  
                         <div class="flex-1 px-6">
                             <p class="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-2">Email</p>
-                            <p class="text-sm text-gray-700">${employee.email ?? '—'}</p>
+                            <p class="text-sm text-gray-700">${htmlEsc(employee.email ?? '—')}</p>
                         </div>
  
                         <div class="flex-1 px-6">
                             <p class="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-2">Birthdate</p>
-                            <p class="text-sm text-gray-700">${employee.birthdate ?? '—'}</p>
+                            <p class="text-sm text-gray-700">${htmlEsc(employee.birthdate ?? '—')}</p>
                         </div>
  
                         <div class="flex-1 pl-6">
                             <p class="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-2">Contact No.</p>
-                            <p class="text-sm text-gray-700">${employee.mobile_number ?? '—'}</p>
+                            <p class="text-sm text-gray-700">${htmlEsc(employee.mobile_number ?? '—')}</p>
                         </div>
                     </div>
  
@@ -1028,14 +1636,18 @@ function htmlEsc(val)
                             <div class="flex gap-2 flex-wrap">
                                 ${['mon','tue','wed','thu','fri','sat','sun'].map(day => {
                                     const active = workingDays.includes(day);
- 
+                                    const isWfh = active && wfhDays.includes(day);
+
                                     return `
-                                        <div class="w-10 h-10 rounded-full flex items-center justify-center text-xs font-semibold
-                                            ${active
-                                                ? 'bg-[#A891FC] text-white'
-                                                : 'bg-gray-100 text-gray-400'}">
- 
-                                            ${day.charAt(0).toUpperCase() + day.slice(1)}
+                                        <div class="flex flex-col items-center gap-1">
+                                            <div class="w-10 h-10 rounded-full flex items-center justify-center text-xs font-semibold
+                                                ${active
+                                                    ? 'bg-[#A891FC] text-white'
+                                                    : 'bg-gray-100 text-gray-400'}">
+
+                                                ${day.charAt(0).toUpperCase() + day.slice(1)}
+                                            </div>
+                                            ${isWfh ? '<span class="text-[9px] font-semibold text-[#6650cc]">WFH</span>' : ''}
                                         </div>
                                     `;
                                 }).join('')}
@@ -1110,7 +1722,7 @@ function htmlEsc(val)
                                             .map(item => `
                                                 <div class="flex items-center justify-between bg-white rounded-xl px-4 py-2.5">
                                                     <span class="text-sm text-gray-700">
-                                                        ${item.purpose || 'Unnamed Benefit'}
+                                                        ${htmlEsc(item.purpose || 'Unnamed Benefit')}
                                                     </span>
                                                     <span class="text-sm font-semibold text-gray-800">
                                                         ₱${Number(item.amount || 0).toLocaleString()}
@@ -1177,7 +1789,7 @@ function htmlEsc(val)
         return `
             <div>
                 <p class="text-xs text-gray-400 mb-0.5">${label}</p>
-                <p class="text-sm font-medium text-gray-800">${value || '—'}</p>
+                <p class="text-sm font-medium text-gray-800">${htmlEsc(value || '—')}</p>
             </div>
         `;
     }
@@ -1228,10 +1840,10 @@ function faceRecognitionRowTemplate(p) {
                 ${FACE_REQUIREMENT_LABELS[requirement]}
                 <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
-            <div class="hidden absolute left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-md text-xs z-10 overflow-hidden w-40" data-face-requirement-menu>
-                <button type="button" class="block w-full text-left px-3 py-2 hover:bg-gray-50" onclick="selectFaceRequirement(this, 'default')">System Default</button>
-                <button type="button" class="block w-full text-left px-3 py-2 hover:bg-gray-50" onclick="selectFaceRequirement(this, 'required')">Always Require</button>
-                <button type="button" class="block w-full text-left px-3 py-2 hover:bg-gray-50" onclick="selectFaceRequirement(this, 'exempt')">Exempt</button>
+            <div class="hidden bg-white border border-gray-200 rounded-lg shadow-md text-xs overflow-hidden w-40" style="position:fixed;z-index:60;" data-face-requirement-menu>
+                <button type="button" class="block w-full text-left px-3 py-2 hover:bg-gray-50" data-option="default" onclick="selectFaceRequirement(this, 'default')">System Default</button>
+                <button type="button" class="block w-full text-left px-3 py-2 hover:bg-gray-50" data-option="required" onclick="selectFaceRequirement(this, 'required')">Always Require</button>
+                <button type="button" class="block w-full text-left px-3 py-2 hover:bg-gray-50" data-option="exempt" onclick="selectFaceRequirement(this, 'exempt')">Exempt</button>
             </div>
         </div>`;
 
@@ -1257,14 +1869,14 @@ function faceRecognitionRowTemplate(p) {
 
             <div class="p-4 flex justify-center gap-4">
                 <div
-                    class="cursor-pointer w-7 h-7 hover:scale-110 transition"
+                    class="crud-icon-btn" title="Enroll / manage face" aria-label="Enroll / manage face"
                     data-action="edit-face"
                     data-user_id="${htmlEsc(p.user_id)}"
                     data-name="${htmlEsc(p.name)}"
                     data-enrolled="${p.enrolled ? '1' : '0'}"
                     data-enrollment_count="${htmlEsc(p.enrollment_count)}"
                     data-enrollment_latest_at="${htmlEsc(p.enrollment_latest_at)}">
-                    <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-label="Edit face enrollment">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-label="Edit face enrollment">
                         <path d="M4 8V6a2 2 0 0 1 2-2h2" />
                         <path d="M16 4h2a2 2 0 0 1 2 2v2" />
                         <path d="M20 16v2a2 2 0 0 1-2 2h-2" />
@@ -1291,15 +1903,40 @@ function closeAllFaceRequirementMenus(except) {
 }
 
 function toggleFaceRequirementMenu(badgeBtn) {
-    const menu = badgeBtn.closest('[data-face-requirement-cell]').querySelector('[data-face-requirement-menu]');
+    const cell = badgeBtn.closest('[data-face-requirement-cell]');
+    const menu = cell.querySelector('[data-face-requirement-menu]');
     const willOpen = menu.classList.contains('hidden');
     closeAllFaceRequirementMenus();
     menu.classList.toggle('hidden', !willOpen);
+    if (!willOpen) return;
+
+    // Highlight the current choice.
+    menu.querySelectorAll('[data-option]').forEach(opt => {
+        const current = opt.dataset.option === (cell.dataset.value || 'default');
+        opt.classList.toggle('bg-gray-100', current);
+        opt.classList.toggle('font-semibold', current);
+    });
+
+    // The menu is position:fixed so the table's scroll area can't clip it. Open below the
+    // badge, or above it when there isn't room (last rows of the table).
+    const rect = badgeBtn.getBoundingClientRect();
+    const menuH = menu.offsetHeight;
+    const menuW = menu.offsetWidth;
+    const below = rect.bottom + 4;
+    const top = (below + menuH > window.innerHeight - 8 && rect.top - menuH - 4 >= 8) ? rect.top - menuH - 4 : below;
+    menu.style.top = Math.max(8, top) + 'px';
+    menu.style.left = Math.max(8, Math.min(rect.left, window.innerWidth - menuW - 8)) + 'px';
 }
 
 document.addEventListener('click', function (e) {
     if (!e.target.closest('[data-face-requirement-cell]')) closeAllFaceRequirementMenus();
 });
+// A fixed menu would otherwise drift away from its badge: close it on scroll or Escape.
+document.addEventListener('scroll', function (e) {
+    if (e.target && e.target.closest && e.target.closest('[data-face-requirement-menu]')) return;
+    closeAllFaceRequirementMenus();
+}, true);
+document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeAllFaceRequirementMenus(); });
 
 function selectFaceRequirement(optionBtn, value) {
     const cell = optionBtn.closest('[data-face-requirement-cell]');
@@ -1416,18 +2053,18 @@ function loanRowTemplate(loan)
             <div class="p-4 flex justify-center gap-4">
                 <!-- VIEW -->
                 <div
-                    class="cursor-pointer w-7 h-7 flex items-center justify-center hover:scale-110 transition"
+                    class="crud-icon-btn" title="View loan" aria-label="View loan"
                     data-loan-action="view"
                     data-loan-id="${loan.id}">
-                    <img src="${VIEW_ICON}" class="w-6 h-6" alt="View">
+                    ${VIEW_ICON_SVG}
                 </div>
 
                 <!-- EDIT - pass ID instead of encoded object -->
                 <div
-                    class="cursor-pointer w-7 h-7 flex items-center justify-center hover:scale-110 transition"
+                    class="crud-icon-btn" title="Edit loan" aria-label="Edit loan"
                     data-loan-action="edit"
                     data-loan-id="${loan.id}">
-                    <img src="${EDIT_ICON}" class="w-6 h-6" alt="Edit">
+                    ${EDIT_ICON_SVG}
                 </div>
             </div>
 
@@ -1883,6 +2520,25 @@ window.addEventListener('click', function(e)
                 }
             });
         } catch(e) {}
+
+        // Rebuild the Work Location list for whichever days are now checked,
+        // then mark the previously-saved WFH days within it.
+        if (typeof renderEditWfhList === 'function') {
+            renderEditWfhList();
+            try {
+                const wfhDays = JSON.parse(button.dataset.wfh_days || '[]');
+                document.querySelectorAll('#edit_wfh_list .edit-wfh-checkbox').forEach(cb => {
+                    const isWfh = wfhDays.includes(cb.value);
+                    cb.checked = isWfh;
+                    const sw = cb.closest('.edit-wfh-switch');
+                    if (sw) {
+                        sw.classList.toggle('is-wfh', isWfh);
+                        const lbl = sw.querySelector('.edit-wfh-switch-label');
+                        if (lbl) lbl.textContent = isWfh ? 'WFH' : 'Onsite';
+                    }
+                });
+            } catch(e) {}
+        }
 
         // Guard self-deactivate note
         const selfGuard = document.getElementById('selfDeactivateGuardNote');

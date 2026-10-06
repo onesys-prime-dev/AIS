@@ -8,7 +8,7 @@ use CodeIgniter\HTTP\ResponseInterface;
 
 class PresenceController extends BaseController
 {
-    protected PresenceModel $presenceModel;
+    protected PresenceModel $presenceModel; 
 
     public function __construct()
     {
@@ -28,7 +28,9 @@ class PresenceController extends BaseController
             return $this->response->setStatusCode(401)->setJSON(['error' => 'Unauthenticated']);
         }
 
-        $status = $this->request->getJSON(true)['status'] ?? 'Online';
+        // getJSON(true) is null for a missing/invalid body — don't index into it.
+        $body = $this->request->getJSON(true);
+        $status = is_array($body) ? ($body['status'] ?? 'Online') : 'Online';
         $this->presenceModel->updatePresence((int) $user->id, $status);
 
         return $this->response->setJSON(['ok' => true]);
