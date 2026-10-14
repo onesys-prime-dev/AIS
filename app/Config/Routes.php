@@ -6,6 +6,9 @@ use CodeIgniter\Router\RouteCollection;
  * @var RouteCollection $routes
  */
 
+// Unauthenticated deploy-verification endpoint — see HealthController.
+$routes->get('health', 'HealthController::index');
+
 // =============================== AUTH ===============================
 $routes->get ('/logout', 'Auth\ClientAuthController::logout');
 $routes->get ('login'  , 'Auth\ClientAuthController::loginView', ['as' => 'login']);
