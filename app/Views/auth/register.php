@@ -48,7 +48,7 @@
 <option value="hr_admin">Hr Admin</option>
 <option value="team_head">Team Head</option>
 <option value="admin">Admin</option>
-<option value="superadmin">Superadmin</option>
+<?php if (auth()->user() && auth()->user()->inGroup('superadmin')): ?><option value="superadmin">Superadmin</option><?php endif; ?>
 <?php endif; ?>
                         </select>
                     </div>
