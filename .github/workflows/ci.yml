@@ -1,0 +1,258 @@
+name: CI
+
+# Runs on every pull request into main. A push to main is covered by
+# deploy-staging.yml, which calls this workflow (workflow_call) and deploys
+# only if it passes. The job named "CI passed" at the bottom is the single
+# result to look at (and the one to require in a branch ruleset).
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_call:
+
+# A newer push to the same PR cancels the older, now-pointless run.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  # gitleaks reads the PR's commit list through the API on pull_request runs.
+  pull-requests: read
+
+jobs:
+  php-syntax:
+    name: PHP syntax (${{ matrix.php }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        # 8.2 is the floor in composer.json (and the local dev version);
+        # 8.4 is what staging's PHP-FPM actually runs.
+        php: ["8.2", "8.4"]
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+
+      - name: Lint every PHP file
+        run: |
+          status=0
+          while IFS= read -r -d '' file; do
+            php -l "$file" > /dev/null || status=1
+          done < <(find app tests public -name '*.php' -print0)
+          php -l spark > /dev/null || status=1
+          exit $status
+
+  composer:
+    name: Composer (validate, install, audit)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.2"
+          extensions: mbstring, intl, mysqli, zip
+          coverage: none
+          tools: composer
+
+      - name: Validate composer.json
+        run: composer validate --strict
+
+      - name: Cache Composer downloads
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/composer/files
+          key: composer-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist
+
+      - name: Audit dependencies for known vulnerabilities
+        run: composer audit
+
+  tests:
+    name: Tests (PHP ${{ matrix.php }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ["8.2", "8.4"]
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          # sqlite3 backs the stock CI4 test scaffold's "tests" DB group
+          # (phpunit.xml.dist leaves database.tests.* unset, so it falls back
+          # to SQLite); mysqli is for the app's own real DB group, used by
+          # tests that hit it directly.
+          extensions: mbstring, intl, mysqli, sqlite3, zip, gd
+          coverage: none
+          tools: composer
+
+      - name: Cache Composer downloads
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/composer/files
+          key: composer-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist
+
+      - name: Run tests
+        run: vendor/bin/phpunit --testdox
+
+  # Migrations run against MariaDB, not MySQL: that's what staging and
+  # production actually run, and the two engines disagree on sql_mode
+  # ONLY_FULL_GROUP_BY (MariaDB never relaxed it the way MySQL 5.7+ did).
+  # That exact mismatch caused several production 500s this project already
+  # hit once; forcing the strict mode here catches the next one before it
+  # ships.
+  migrate-check:
+    name: Migrate an empty database (MariaDB, as the server runs)
+    runs-on: ubuntu-24.04
+    services:
+      mariadb:
+        image: mariadb:10.11
+        env:
+          MARIADB_ALLOW_EMPTY_ROOT_PASSWORD: "yes"
+          MARIADB_DATABASE: ais_spark_check
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping --silent"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.4"
+          extensions: mbstring, intl, mysqli, zip
+          coverage: none
+          tools: composer
+
+      - name: Cache Composer downloads
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/composer/files
+          key: composer-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist
+
+      - name: Match production's strict SQL mode
+        run: |
+          mysql -h127.0.0.1 -uroot -e "SET GLOBAL sql_mode='ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION';"
+
+      # The same command the server runs, on an empty database. If any
+      # migration is broken on a fresh install, it fails here.
+      #
+      # spark ignores `-g tests`, so the default connection is pointed at
+      # ais_spark_check through environment variables instead. spark also
+      # exits 0 when it cannot connect, so the next check proves the
+      # migrations really ran: the history table must hold at least one row
+      # per App migration file.
+      - name: Migrate
+        run: |
+          env database.default.hostname=127.0.0.1 \
+              database.default.database=ais_spark_check \
+              database.default.username=root \
+              database.default.password= \
+              database.default.DBDriver=MySQLi \
+              php spark migrate --all
+
+          php -r '
+            $db = new mysqli("127.0.0.1", "root", "", "ais_spark_check");
+            $ran = (int) $db->query("SELECT COUNT(*) AS c FROM migrations")->fetch_assoc()["c"];
+            $files = count(glob("app/Database/Migrations/*.php"));
+            echo "{$ran} migrations recorded, {$files} App migration files\n";
+            exit($ran >= $files ? 0 : 1);
+          '
+
+  assets:
+    name: Frontend build and audit
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      # npm ci installs exactly what package-lock.json says, so a green run
+      # here means the lockfile is sound on Linux (where the server builds).
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Build Tailwind CSS
+        run: npm run build:css:min
+
+      - name: Verify build output
+        run: test -f public/css/main.css
+
+  secrets:
+    name: Secret scan
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # scan history, not just the latest commit
+
+      - uses: gitleaks/gitleaks-action@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+
+  face-service:
+    name: Face recognition service (import check)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: python-face-service/requirements.txt
+
+      - name: Install
+        working-directory: python-face-service
+        run: pip install -r requirements.txt
+
+      # No test suite exists for this service yet. This at least proves every
+      # module imports cleanly (catches typos/missing deps); model loading
+      # happens in FastAPI's startup event, not at import time, so this stays
+      # cheap and doesn't need the ONNX models downloaded.
+      - name: Import check
+        working-directory: python-face-service
+        run: python -c "import app"
+
+  ci-passed:
+    name: CI passed
+    if: always()
+    needs: [php-syntax, composer, tests, migrate-check, assets, secrets, face-service]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Require every job to have succeeded
+        run: |
+          echo '${{ toJSON(needs) }}'
+          if [ '${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}' = 'true' ]; then
+            echo "One or more CI jobs failed or were cancelled."
+            exit 1
+          fi
