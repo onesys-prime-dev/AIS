@@ -9,6 +9,11 @@ on:
   pull_request:
     branches: [main]
   workflow_call:
+  # staging is being retired as a feature branch (it will be deleted once
+  # everything moves to main); until then, a push to it should only run CI,
+  # never a deploy.
+  push:
+    branches: [staging]
 
 # A newer push to the same PR cancels the older, now-pointless run.
 concurrency:
