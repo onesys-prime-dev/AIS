@@ -96,7 +96,15 @@
                 Require clock-ins and break starts on Onsite days to come from the office network (clocking out and ending a break are always allowed, so no shift gets stranded). WFH days always bypass this, and anyone on the exempt list below bypasses it on any day. Leave the list empty to not enforce anything.
             </p>
 
-            <div class="mb-4" style="display:grid; grid-template-columns:repeat(auto-fit,minmax(340px,1fr)); gap:16px; align-items:start;">
+            <div class="ann-toggle">
+                <label class="ac-switch"><input type="checkbox" id="attendanceEnforcementToggle" aria-label="Enforce office network"><span class="ac-switch-track"></span></label>
+                <div>
+                    <div class="ann-toggle-title">Enforce office network</div>
+                    <div id="attendanceEnforcementHint" class="ann-toggle-hint"></div>
+                </div>
+            </div>
+
+            <div id="attendanceNetworkGrid" class="mb-4" style="display:grid; grid-template-columns:repeat(auto-fit,minmax(340px,1fr)); gap:16px; align-items:start;">
 
                 <div class="ann-sub">
                     <div class="flex items-center justify-between mb-2">
@@ -260,6 +268,10 @@
 .ac-switch input:focus-visible + .ac-switch-track{ outline:3px solid rgba(30,30,30,.28); outline-offset:2px; }
 
 /* Attendance Network */
+.ann-toggle{ display:flex; align-items:center; gap:14px; padding:14px 18px; margin-bottom:16px; background:#f9fafb; border:1px solid #e5e7eb; border-radius:14px; }
+.ann-toggle-title{ font-size:14px; font-weight:700; color:#17223b; }
+.ann-toggle-hint{ margin-top:2px; font-size:12px; color:#667085; line-height:1.45; }
+.ann-off{ opacity:.55; }
 .ann-sub{ background:#f9fafb; border:1px solid #e5e7eb; border-radius:14px; padding:18px; }
 .ann-label{ font-size:13px; font-weight:700; color:#17223b; }
 .ann-detect{ display:flex; align-items:center; justify-content:space-between; gap:8px; background:#fff; border:1px solid #e5e7eb; border-radius:10px; padding:8px 12px; margin-bottom:8px; font-size:12px; color:#4b5563; }

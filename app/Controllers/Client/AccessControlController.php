@@ -167,6 +167,8 @@ class AccessControlController extends BaseController
             'attendanceProxyWarning'     => (service('request')->hasHeader('X-Forwarded-For') || service('request')->hasHeader('CF-Connecting-IP'))
                                             && empty(config('App')->proxyIPs),
             'attendanceAllowedIps'       => (string) ($networkSettingsModel->getSetting('attendance_allowed_ips') ?? ''),
+            // Unset = on, so behaviour is exactly as before until an admin switches it off.
+            'attendanceEnforcementEnabled' => (string) ($networkSettingsModel->getSetting('attendance_network_enabled') ?? '1') !== '0',
             'attendanceNetworkExemptIds' => is_array($exemptIds) ? array_map('intval', $exemptIds) : [],
         ];
     }
@@ -474,6 +476,8 @@ class AccessControlController extends BaseController
      * entirely, and accounts in the exempt list bypass it on any day. An
      * empty allowlist enforces nothing (fail-open) — turning this on is
      * opt-in so a misconfiguration can't lock out every onsite employee.
+     * An admin switch (attendance_network_enabled) turns the whole check off
+     * while keeping the saved list and exempt accounts.
      */
     public function updateAttendanceNetworkSettings()
     {
@@ -492,10 +496,17 @@ class AccessControlController extends BaseController
         $model->setSetting('attendance_allowed_ips', implode("\n", $ranges));
         $model->setSetting('attendance_network_exempt_ids', json_encode($exemptIds));
 
+        // Optional on/off switch. A request without the field (older page) leaves it unchanged.
+        $enabledPost = $this->request->getPost('enforcement_enabled');
+        $enabled = $enabledPost === null ? null : in_array((string) $enabledPost, ['1', 'true', 'on'], true);
+        if ($enabled !== null) {
+            $model->setSetting('attendance_network_enabled', $enabled ? '1' : '0');
+        }
+
         service('activityLogger')->log(
             'updated', 'attendance_network_settings',
             'Attendance network restriction settings updated',
-            null, null, ['allowed_ips' => $ranges, 'exempt_user_ids' => $exemptIds]
+            null, null, ['allowed_ips' => $ranges, 'exempt_user_ids' => $exemptIds, 'enforcement_enabled' => $enabled]
         );
 
         return $this->response->setJSON(['success' => true, 'message' => 'Attendance network settings saved.']);

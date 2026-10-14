@@ -118,7 +118,12 @@ class ClientRegisterController extends ShieldRegister
         return [
             'role' => [
                 'label' => 'Role',
-                'rules' => \App\Libraries\PortalAccess::can('roles') ? 'required|in_list[employee,client_payroll_staff,hr_admin,team_head,admin,superadmin]' : 'required|in_list[employee]',
+                // Same rule as Access Control: only a Super Admin can create (or change) a Super Admin account.
+                'rules' => \App\Libraries\PortalAccess::can('roles')
+                    ? (auth()->user() && auth()->user()->inGroup('superadmin')
+                        ? 'required|in_list[employee,client_payroll_staff,hr_admin,team_head,admin,superadmin]'
+                        : 'required|in_list[employee,client_payroll_staff,hr_admin,team_head,admin]')
+                    : 'required|in_list[employee]',
             ],
             'first_name' => [
                 'label' => 'First Name',
