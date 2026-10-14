@@ -94,7 +94,10 @@ jobs:
           # to SQLite); mysqli is for the app's own real DB group, used by
           # tests that hit it directly.
           extensions: mbstring, intl, mysqli, sqlite3, zip, gd
-          coverage: none
+          # phpunit.xml.dist has failOnWarning="true" and a <coverage> block;
+          # with no driver installed, PHPUnit's own "No code coverage driver
+          # available" warning fails the build even though every test passed.
+          coverage: pcov
           tools: composer
 
       - name: Cache Composer downloads
