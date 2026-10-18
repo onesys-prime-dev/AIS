@@ -72,3 +72,8 @@ tatus
 # machine only.
 Testing Log book and pay.docx
 reset_for_new_company.sql
+
+# Environment secrets
+.env
+.env.*
+!.env.example
