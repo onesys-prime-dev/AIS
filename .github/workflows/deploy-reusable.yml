@@ -253,6 +253,39 @@ jobs:
           REMOTE_SCRIPT
 
       ########################################################
+      # Restart the environment's face-recognition service
+      ########################################################
+
+      - name: Restart face-recognition service
+        env:
+          FACE_SERVICE: ${{ inputs.environment == 'production' && 'opay-face-service' || 'ais-face-service' }}
+          FACE_PORT: ${{ inputs.environment == 'production' && '8200' || '8100' }}
+        run: |
+          ssh $SSH_OPTS "$REMOTE" bash -s -- "$FACE_SERVICE" "$FACE_PORT" <<'REMOTE_SCRIPT'
+          set -euo pipefail
+          SERVICE="$1"
+          PORT="$2"
+
+          sudo -n /usr/bin/systemctl restart "$SERVICE"
+
+          for attempt in 1 2 3 4 5 6 7 8 9 10; do
+            if curl --fail --silent --show-error --max-time 3 \
+              "http://127.0.0.1:${PORT}/health"; then
+              echo
+              echo "$SERVICE is healthy."
+              exit 0
+            fi
+
+            echo "Attempt $attempt: $SERVICE is not healthy yet."
+            sleep 3
+          done
+
+          sudo -n /usr/bin/systemctl status "$SERVICE" | cat || true
+          echo "::error::$SERVICE did not become healthy on port $PORT."
+          exit 1
+          REMOTE_SCRIPT
+
+      ########################################################
       # Health check
       ########################################################
 
