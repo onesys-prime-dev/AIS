@@ -1848,8 +1848,19 @@ document.addEventListener('DOMContentLoaded', function () {
                             ⓘ This date has already passed — this will be filed as a backdated request for payroll to review.
                         </div>
 
-                        <label>End Date</label>
-                        <input type="date" name="end_date" id="reqEndDate">
+                        <div id="reqEndDateWrap">
+                            <label>End Date</label>
+                            <input type="date" name="end_date" id="reqEndDate">
+                        </div>
+
+                        <!-- Overtime only: the time span the request covers. Only time worked inside it counts as approved OT. -->
+                        <div id="otSpanWrap" style="display:none;">
+                            <label>Overtime From</label>
+                            <input type="time" name="ot_start_time" id="reqOtStart" disabled>
+                            <label>Overtime To</label>
+                            <input type="time" name="ot_end_time" id="reqOtEnd" disabled>
+                            <div style="font-size:12px;color:#6b7280;margin:-2px 0 8px;">Overtime starts when your shift ends. Only the time inside this span is approved as overtime.</div>
+                        </div>
 
                         <label>Message</label>
                         <textarea rows="3" name="reason" id="reqReason" placeholder="Enter your reason..." required></textarea>
@@ -2325,6 +2336,16 @@ document.addEventListener('DOMContentLoaded', function () {
     function toggleLeaveCategoryField(type) {
         const wrap = document.getElementById('leaveCategoryWrap');
         if (wrap) wrap.style.display = (type === 'leave') ? '' : 'none';
+
+        // Overtime is a single day with a From/To time span instead of an end date.
+        const isOt = type === 'overtime';
+        const otWrap = document.getElementById('otSpanWrap');
+        const endWrap = document.getElementById('reqEndDateWrap');
+        const otStart = document.getElementById('reqOtStart');
+        const otEnd = document.getElementById('reqOtEnd');
+        if (otWrap) otWrap.style.display = isOt ? '' : 'none';
+        if (endWrap) endWrap.style.display = isOt ? 'none' : '';
+        [otStart, otEnd].forEach(function (el) { if (el) { el.disabled = !isOt; el.required = isOt; } });
     }
 
     // Tracks active preset duration (days) when a code provides one

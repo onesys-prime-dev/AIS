@@ -1144,6 +1144,9 @@
                                 if ($endDate !== null && $endDate !== $startDate) {
                                     $dateText .= ' to ' . $endDate;
                                 }
+                                if (($request['request_type'] ?? '') === 'overtime' && ! empty($request['ot_start_time']) && ! empty($request['ot_end_time'])) {
+                                    $dateText .= ', ' . date('g:i A', strtotime($request['ot_start_time'])) . ' to ' . date('g:i A', strtotime($request['ot_end_time']));
+                                }
                                 $duration       = (int) ($request['duration'] ?? 1);
                                 $displayName    = (string) ($request['requested_by_name'] ?? (string) ($request['requested_by'] ?? 'U'));
                                 $initialsSource = trim($displayName);
@@ -1489,6 +1492,11 @@ function formatRequestDateRange(request) {
     const endText   = endDate && !isNaN(endDate.getTime()) && endDate.getTime() !== startDate.getTime()
         ? fmt(endDate) : null;
     const rangeText = endText ? `${startText} to ${endText}` : startText;
+    // Overtime: show the time span it covers instead of a day count.
+    if (request.request_type === 'overtime' && request.ot_start_time && request.ot_end_time) {
+        const t = (v) => new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }).format(new Date('1970-01-01T' + String(v).slice(0, 5) + ':00'));
+        return `${rangeText}, ${t(request.ot_start_time)} to ${t(request.ot_end_time)}`;
+    }
     return duration > 0 ? `${rangeText} (${duration} day${duration !== 1 ? 's' : ''})` : rangeText;
 }
 
