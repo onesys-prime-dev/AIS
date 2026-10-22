@@ -1691,15 +1691,15 @@ function openRequestDetailModal(requestId) {
     document.getElementById('detailDateRange').textContent         = formatRequestDateRange(request);
     document.getElementById('detailReason').textContent            = request.reason || '---';
 
-    // Review note — colored by status
-    const noteBlock = document.getElementById('staffDetailNoteBlock');
-    const noteText  = document.getElementById('staffDetailNote');
+    // Review note — this employee modal has its own row. (It used to look up the payroll-staff modal's
+    // ids, which don't exist on this page for employees, so the script threw and the modal never opened.)
+    const noteRow  = document.getElementById('detailReviewNoteRow');
+    const noteText = document.getElementById('detailReviewNote');
     if (request.review_message) {
-        noteText.textContent    = request.review_message;
-        noteBlock.className     = 'staff-detail-note-block ' + status;
-        noteBlock.style.display = '';
+        noteText.textContent  = request.review_message;
+        noteRow.style.display = '';
     } else {
-        noteBlock.style.display = 'none';
+        noteRow.style.display = 'none';
     }
 
     const badgeColour = status === 'approved' ? '#16a34a' : status === 'rejected' ? '#ef4444' : '#f59e0b';
