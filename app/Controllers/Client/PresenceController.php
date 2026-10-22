@@ -8,7 +8,7 @@ use CodeIgniter\HTTP\ResponseInterface;
 
 class PresenceController extends BaseController
 {
-    protected PresenceModel $presenceModel;
+    protected PresenceModel $presenceModel; 
 
     public function __construct()
     {
