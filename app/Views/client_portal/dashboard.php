@@ -1859,7 +1859,7 @@ document.addEventListener('DOMContentLoaded', function () {
                             <input type="time" name="ot_start_time" id="reqOtStart" disabled>
                             <label>Overtime To</label>
                             <input type="time" name="ot_end_time" id="reqOtEnd" disabled>
-                            <div style="font-size:12px;color:#6b7280;margin:-2px 0 8px;">Overtime starts when your shift ends. Only the time inside this span is approved as overtime.</div>
+                            <div id="otStartHint" style="font-size:12px;color:#6b7280;margin:-2px 0 8px;">Overtime starts when your shift ends. Only the time inside this span is approved as overtime.</div>
                         </div>
 
                         <label>Message</label>
@@ -2275,6 +2275,7 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('reqStartDate').value = dateStr;
         document.getElementById('reqEndDate').value = dateStr;
         document.getElementById('reqReason').value = reason || '';
+        applyOtAutoStart();
 
         checkBackdatedRequest();
 
@@ -2293,6 +2294,11 @@ document.addEventListener('DOMContentLoaded', function () {
         }
         resetPresetState();
         document.getElementById("requestForm").reset();
+        // reset() puts the type back to Leave without firing its change event, so put the form's
+        // Leave/Overtime fields back in step (otherwise Overtime's From/To stay visible and required).
+        toggleLeaveCategoryField(document.getElementById("reqType").value);
+        const otStartEl = document.getElementById("reqOtStart");
+        if (otStartEl) otStartEl.dataset.auto = "";
         document.getElementById("reqBackdatedNotice").style.display = "none";
     }
 
@@ -2346,7 +2352,38 @@ document.addEventListener('DOMContentLoaded', function () {
         if (otWrap) otWrap.style.display = isOt ? '' : 'none';
         if (endWrap) endWrap.style.display = isOt ? 'none' : '';
         [otStart, otEnd].forEach(function (el) { if (el) { el.disabled = !isOt; el.required = isOt; } });
+        if (isOt) applyOtAutoStart();
     }
+
+    // Overtime starts when the shift ends: fill the From time in automatically on the employee's working days.
+    // (The person can still change it; rest days have no shift, so the field is left for them to fill.)
+    const OT_SHIFT_END = <?= json_encode($otShiftEnd ?? null) ?>;
+    const OT_WORKING_DAYS = <?= json_encode($otWorkingDays ?? []) ?>;
+    function applyOtAutoStart() {
+        const startEl = document.getElementById('reqOtStart');
+        const hint = document.getElementById('otStartHint');
+        if (!startEl || !OT_SHIFT_END || document.getElementById('reqType').value !== 'overtime') return;
+        const dateVal = document.getElementById('reqStartDate').value;
+        let workDay = true;
+        if (dateVal && OT_WORKING_DAYS.length) {
+            const dow = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'][new Date(dateVal + 'T00:00:00').getDay()];
+            workDay = OT_WORKING_DAYS.indexOf(dow) !== -1;
+        }
+        const label = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }).format(new Date('1970-01-01T' + OT_SHIFT_END + ':00'));
+        if (workDay) {
+            if (!startEl.value || startEl.dataset.auto === '1') { startEl.value = OT_SHIFT_END; startEl.dataset.auto = '1'; }
+            if (hint) hint.textContent = 'Starts when your shift ends (' + label + '). Pick the time your overtime ends.';
+        } else {
+            if (startEl.dataset.auto === '1') { startEl.value = ''; startEl.dataset.auto = ''; }
+            if (hint) hint.textContent = 'This is not one of your working days, so there is no shift to start from. Enter the time your overtime starts and ends.';
+        }
+    }
+    document.addEventListener('DOMContentLoaded', function () {
+        const startEl = document.getElementById('reqOtStart');
+        if (startEl) startEl.addEventListener('input', function () { startEl.dataset.auto = ''; });
+        const dateEl = document.getElementById('reqStartDate');
+        if (dateEl) dateEl.addEventListener('input', applyOtAutoStart);
+    });
 
     // Tracks active preset duration (days) when a code provides one
     let _currentPresetDuration = null;

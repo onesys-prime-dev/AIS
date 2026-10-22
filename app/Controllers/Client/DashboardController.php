@@ -154,6 +154,9 @@ class DashboardController extends BaseController
             'attendanceToken' => session()->get('attendance_csrf'),
             'nextBreakMinutes' => $nextBreakMinutes,
             'shiftMinutes' => $shiftMinutes,
+            // Used by the Overtime request form: OT starts when the shift ends, on the employee's working days.
+            'otShiftEnd' => !empty($positionRow['end_time']) ? substr((string) $positionRow['end_time'], 0, 5) : null,
+            'otWorkingDays' => (static function ($raw) { $d = json_decode((string) $raw, true); return is_array($d) ? array_values($d) : []; })($positionRow['working_days'] ?? null),
             'currentAttendance' => $currentAttendance,
             'requests' => $requests,
             'savedTasks' => $savedTasks,
