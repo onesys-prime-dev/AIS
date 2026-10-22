@@ -2885,12 +2885,20 @@ document.addEventListener('DOMContentLoaded', function () {
     let isClockedIn = false;
 
     // logic 
+    // Kept outside the block below so the countdowns can be re-derived from the real clock at any time.
+    let timeInMs = null;
+    let breakStartMs = null;
+    let breakUsedMin = 0;
+
     if (attendance) {
         isClockedIn = true;
 
         // time_in is now a full datetime string e.g. "2026-06-02 09:00:00"
         // Replace space with T so all browsers parse it correctly
         const timeIn = new Date(attendance.time_in.replace(' ', 'T'));
+        timeInMs = timeIn.getTime();
+        breakUsedMin = attendance.break_duration ? attendance.break_duration * 60 : 0;
+        if (attendance.break_start) breakStartMs = new Date(attendance.break_start.replace(' ', 'T')).getTime();
 
         const now = new Date();
         let workedMinutes = Math.floor((now - timeIn) / 60000);
@@ -2991,12 +2999,38 @@ document.addEventListener('DOMContentLoaded', function () {
     // avoids the redundant request.
     let breakAutoEndTriggered = false;
 
-    setInterval(()=>{
+    // The countdowns used to be a counter decremented once a minute. Browsers throttle or fully
+    // suspend timers in background tabs, while the computer sleeps or the screen is locked, so
+    // after being away the counter fell behind and the clock looked frozen at an old time until a
+    // reload. Both values are now recomputed from the real clock on every tick, and again the
+    // moment the tab becomes visible, focused or restored, so it is always right on return.
+    function syncFromClock() {
+        if (!isClockedIn || timeInMs === null) return;
+        const nowMs = Date.now();
+        if (onBreak && breakStartMs !== null) {
+            // During a break only the break countdown moves, exactly as before; the shift value keeps what it had at page load.
+            breakRemaining = BREAK_MINUTES - Math.floor((nowMs - breakStartMs) / 60000);
+        } else {
+            shiftRemaining = SHIFT_MINUTES - (Math.floor((nowMs - timeInMs) / 60000) - breakUsedMin);
+        }
+    }
+
+    function renderClockDate() {
+        const d = new Date();
+        const el = document.getElementById("clockDate");
+        if (el) el.innerText = days[d.getDay()] + ", " + months[d.getMonth()] + " " + d.getDate() + ", " + d.getFullYear();
+    }
+
+    function clockTick(){
+
+        // Left open overnight: keep the date line right too.
+        renderClockDate();
 
         if(!isClockedIn) return;
 
+        syncFromClock();
+
         if(onBreak){
-            breakRemaining--;
             updateDisplay();
 
             // The break's scheduled length is up — end it automatically
@@ -3016,25 +3050,23 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
             }
         }else{
-            if(shiftRemaining > 0){
-                shiftRemaining--;
-                updateDisplay();
-            }
+            updateDisplay();
         }
 
-    },60000);
-
-    const now = new Date();
+    }
 
     const days=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
     const months=["January","February","March","April","May","June","July","August","September","October","November","December"];
 
-    document.getElementById("clockDate").innerText =
-        days[now.getDay()] + ", " +
-        months[now.getMonth()] + " " +
-        now.getDate() + ", " +
-        now.getFullYear();
+    setInterval(clockTick, 60000);
 
+    // Catch up immediately when the user comes back to the tab / wakes the computer.
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) clockTick(); });
+    window.addEventListener('focus', clockTick);
+    window.addEventListener('pageshow', clockTick);
+
+    renderClockDate();
+    syncFromClock();
     updateDisplay();
 
     // Every path that finalizes a clock-out (direct, after the undertime modal,
