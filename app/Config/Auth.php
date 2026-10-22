@@ -208,7 +208,9 @@ class Auth extends ShieldAuth
      */
     public array $sessionConfig = [
         'field'              => 'user',
-        'allowRemembering'   => true,
+        // Off on purpose: a "remember me" cookie would log someone back in with no password and no face scan,
+        // which defeats the face verification step. The login page's checkbox now only remembers the email.
+        'allowRemembering'   => false,
         'rememberCookieName' => 'remember',
         'rememberLength'     => 30 * DAY,
     ];
