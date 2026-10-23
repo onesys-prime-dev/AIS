@@ -288,6 +288,20 @@ class AttendanceComputationService{
     }
 
     /**
+     * Hours of late arrival that the employee's tardiness grace forgives: when the
+     * arrival is late but within the grace, those minutes are not tardy, so they
+     * must not be charged again as undertime either. Zero when there is no grace,
+     * the arrival is on time, or the lateness is past the grace (then the full
+     * lateness stands, same gate as lateMinutes()).
+     */
+    public static function graceForgivenHours(\DateTimeInterface $actualStart, ?\DateTimeInterface $windowStart, int $graceMinutes): float
+    {
+        if (!$windowStart || $graceMinutes <= 0 || $actualStart <= $windowStart) return 0.0;
+        $seconds = $actualStart->getTimestamp() - $windowStart->getTimestamp();
+        return floor($seconds / 60) <= $graceMinutes ? $seconds / 3600 : 0.0;
+    }
+
+    /**
      * Canonical shift math shared by live clock-out/import (via analyzeClockOut()
      * below), the Timesheet page, and Payroll aggregation — previously each of
      * those computed OT/UT independently: clock-out/import used a single net
@@ -529,7 +543,8 @@ class AttendanceComputationService{
 
         if ($split['has_schedule']) {
             $requiredHours = \App\Libraries\AttendanceWindow::requiredHours(($split['window_end']->getTimestamp() - $split['window_start']->getTimestamp()) / 3600, $schedule);
-            $undertime = max(0, round($requiredHours - $split['regular_hours'], 2));
+            $forgiven = self::graceForgivenHours(new \DateTime($attendance['time_in']), $split['window_start'], (int) ($schedule['tardiness_grace_minutes'] ?? 0));
+            $undertime = max(0, round($requiredHours - $split['regular_hours'] - $forgiven, 2));
             if ($undertime > 0) {
                 $approvedUt = $this->getApprovedRequest($userId, $date, 'undertime');
                 $result['undertime'][$approvedUt ? 'approved_ut' : 'unapproved_ut'] = $undertime;
