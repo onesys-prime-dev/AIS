@@ -563,7 +563,9 @@ class TimesheetsService
                 // during the shift the employee simply wasn't there (late arrival,
                 // early leave, etc.), independent of any OT worked outside it.
                 if ($hasSchedule) {
-                    $shortfall = max(0, round($requiredHours - $regularHours, 2));
+                    // Late minutes forgiven by the tardiness grace are not undertime either.
+                    $forgiven  = AttendanceComputationService::graceForgivenHours(new DateTime($att['time_in']), $windowStart, (int) (($recordSchedule ?? [])['tardiness_grace_minutes'] ?? 0));
+                    $shortfall = max(0, round($requiredHours - $regularHours - $forgiven, 2));
                     if ($hasApprovedUt) {
                         $undertimeHours = $shortfall;
                     } else {
