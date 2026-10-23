@@ -28,8 +28,10 @@ abstract class BaseController extends Controller
      * In production, $publicMessage is shown to the client instead of the raw
      * exception text so internals (queries, file paths, stack info) never leak.
      */
-    protected function jsonError(Throwable $e, string $publicMessage = 'Something went wrong. Please try again.', int $statusCode = 500)
+    protected function jsonError(Throwable $e, string $publicMessage = 'Something went wrong. Please try again.', ?int $statusCode = null)
     {
+        // Expected validation failures are the caller's fault, not a server fault.
+        $statusCode ??= $e instanceof \App\Exceptions\ValidationException ? 422 : 500;
         log_message('error', static::class . ': ' . $e->getMessage() . ' | ' . $e->getFile() . ':' . $e->getLine());
 
         return $this->response->setStatusCode($statusCode)->setJSON(['error' => $this->safeErrorMessage($e, $publicMessage)]);
