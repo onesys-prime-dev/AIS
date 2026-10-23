@@ -262,6 +262,10 @@ class TimesheetController extends BaseController
         $start = $this->request->getGet('start');
         $end = $this->request->getGet('end');
 
+        if (!is_string($start) || !is_string($end) || $start === '' || $end === '') {
+            return $this->response->setStatusCode(400)->setJSON(['error' => 'Start and end dates are required.']);
+        }
+
         $data =
             $this->timesheetsService
                 ->getDetailedTimesheet(

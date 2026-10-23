@@ -35,6 +35,9 @@ class TaskController extends BaseController
         }
 
         $post          = $this->request->getPost();
+        if (! is_string($post['task_performed'] ?? null) || ! is_string($post['start_time'] ?? null) || ! is_string($post['end_time'] ?? null)) {
+            return redirect()->back()->with('error', 'Please fill in the task, start time and end time.');
+        }
         $taskPerformed = trim($post['task_performed']);
         $startTime     = $post['start_time'];
         $endTime       = $post['end_time'];
