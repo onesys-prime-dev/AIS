@@ -553,6 +553,11 @@ class TimesheetsService
                 $start = $split['span_start'];
                 $end   = $split['span_end'];
                 $regularHours = $split['regular_hours'];
+                // Arriving late but within the tardiness grace is not a shortfall: credit those minutes so the day reads as complete.
+                if ($hasSchedule && $requiredHours > 0) {
+                    $forgiven    = AttendanceComputationService::graceForgivenHours(new DateTime($att['time_in']), $windowStart, (int) (($recordSchedule ?? [])['tardiness_grace_minutes'] ?? 0));
+                    $regularHours = round($regularHours + min($forgiven, max(0, $requiredHours - $regularHours)), 2);
+                }
                 $excessHours  = $split['excess_hours'];
                 // A request with a time span only approves the OT worked inside that span; a span-less request approves the whole day.
                 $otSplit           = AttendanceComputationService::applyOtApproval($split, $otApproval);

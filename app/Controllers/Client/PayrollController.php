@@ -837,7 +837,11 @@ class PayrollController extends BaseController
             // Break deduction now happens per record (inside splitShiftWindow), not
             // once against the day's total, matching how the Timesheet page and
             // live clock-out apply it.
-            $regularCapped = round($dayRegularHours, 2);
+            // Late arrival within the tardiness grace is not a shortfall: credit those minutes so the day reads as complete.
+            $dayForgiven   = AttendanceComputationService::graceForgivenHours(new \DateTime($recs[0]['time_in']), $dayWindowStart, (int) ($daySchedule['tardiness_grace_minutes'] ?? 0));
+            $regularCapped = ($dayScheduledStart && $dayScheduledEnd && $dayRequiredHours > 0)
+                ? round($dayRegularHours + min($dayForgiven, max(0, $dayRequiredHours - $dayRegularHours)), 2)
+                : round($dayRegularHours, 2);
             // OT = time actually worked outside the scheduled window, but only
             // paid if an approved overtime request covers this specific date —
             // unapproved excess isn't paid as OT, and doesn't inflate Regular.
