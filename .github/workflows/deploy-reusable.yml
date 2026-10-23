@@ -249,7 +249,12 @@ jobs:
           ssh $SSH_OPTS "$REMOTE" bash -s -- "$DEPLOY_PATH" "$PHP_BIN" <<'REMOTE_SCRIPT'
           set -euo pipefail
           cd "$1"
-          "$2" spark migrate --all
+          # App migrations only: vendor tables (Shield, settings) already exist on these
+          # servers and are not in their migration history, so --all dies on them first.
+          # spark exits 0 even when a migration throws, so fail the deploy on its output.
+          out=$("$2" spark migrate -n App 2>&1) || { echo "$out"; exit 1; }
+          echo "$out"
+          if echo "$out" | grep -qE 'Exception|Migration(s)? failed|Error'; then echo 'Migration failed' >&2; exit 1; fi
           REMOTE_SCRIPT
 
       ########################################################

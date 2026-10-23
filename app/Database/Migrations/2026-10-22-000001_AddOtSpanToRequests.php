@@ -14,10 +14,18 @@ class AddOtSpanToRequests extends Migration
 {
     public function up()
     {
-        $this->forge->addColumn('requests', [
-            'ot_start_time' => ['type' => 'TIME', 'null' => true, 'after' => 'end_date'],
-            'ot_end_time'   => ['type' => 'TIME', 'null' => true, 'after' => 'ot_start_time'],
-        ]);
+        // Safe to re-run: skip columns that were already added by hand on a server
+        // whose schema pre-dates migration tracking.
+        $fields = [];
+        if (! $this->db->fieldExists('ot_start_time', 'requests')) {
+            $fields['ot_start_time'] = ['type' => 'TIME', 'null' => true, 'after' => 'end_date'];
+        }
+        if (! $this->db->fieldExists('ot_end_time', 'requests')) {
+            $fields['ot_end_time'] = ['type' => 'TIME', 'null' => true, 'after' => 'ot_start_time'];
+        }
+        if ($fields) {
+            $this->forge->addColumn('requests', $fields);
+        }
     }
 
     public function down()

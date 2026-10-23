@@ -75,7 +75,7 @@ class CreateBaselineSchema extends Migration
     private function tableStatements(): array
     {
         return [
-            "CREATE TABLE `employees` (
+            "CREATE TABLE IF NOT EXISTS `employees` (
               `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
               `employee_number` varchar(20) NOT NULL,
               `user_id` int(11) unsigned NOT NULL,
@@ -92,7 +92,7 @@ class CreateBaselineSchema extends Migration
               KEY `employees_user_id_foreign` (`user_id`)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 
-            "CREATE TABLE `employee_accounts` (
+            "CREATE TABLE IF NOT EXISTS `employee_accounts` (
               `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
               `employee_id` int(11) unsigned NOT NULL,
               `photo_path` varchar(255) DEFAULT NULL,
@@ -117,7 +117,7 @@ class CreateBaselineSchema extends Migration
               CONSTRAINT `employee_accounts_updated_by_foreign` FOREIGN KEY (`updated_by`) REFERENCES `users` (`id`) ON DELETE SET NULL ON UPDATE SET NULL
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 
-            "CREATE TABLE `employee_government_ids` (
+            "CREATE TABLE IF NOT EXISTS `employee_government_ids` (
               `id` int(11) NOT NULL AUTO_INCREMENT,
               `employee_id` int(11) unsigned NOT NULL,
               `sss` varchar(50) NOT NULL,
@@ -131,7 +131,7 @@ class CreateBaselineSchema extends Migration
             // break_schedule/break_windows/tardiness_grace_minutes/ot_grace_minutes/
             // additional_de_minimis_*/department_id/wfh_days all come from later
             // migrations.
-            "CREATE TABLE `employee_positions` (
+            "CREATE TABLE IF NOT EXISTS `employee_positions` (
               `id` int(11) NOT NULL AUTO_INCREMENT,
               `employee_id` int(11) unsigned NOT NULL,
               `department` varchar(100) NOT NULL,
@@ -148,7 +148,7 @@ class CreateBaselineSchema extends Migration
               PRIMARY KEY (`id`)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 
-            "CREATE TABLE `company_branding` (
+            "CREATE TABLE IF NOT EXISTS `company_branding` (
               `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
               `company_id` int(11) unsigned NOT NULL,
               `logo_path` varchar(255) DEFAULT NULL,
@@ -166,7 +166,7 @@ class CreateBaselineSchema extends Migration
               UNIQUE KEY `uq_company_branding_company_id` (`company_id`)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 
-            "CREATE TABLE `sss_brackets` (
+            "CREATE TABLE IF NOT EXISTS `sss_brackets` (
               `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
               `effective_year` smallint(5) unsigned NOT NULL DEFAULT 2025,
               `is_active` tinyint(4) NOT NULL DEFAULT 0,
@@ -184,7 +184,7 @@ class CreateBaselineSchema extends Migration
               KEY `idx_sss_year` (`effective_year`)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 
-            "CREATE TABLE `wtax_brackets` (
+            "CREATE TABLE IF NOT EXISTS `wtax_brackets` (
               `tax_bracket` int(11) NOT NULL,
               `min_amount` int(11) NOT NULL,
               `max_amount` int(11) DEFAULT NULL,
@@ -193,7 +193,7 @@ class CreateBaselineSchema extends Migration
               PRIMARY KEY (`tax_bracket`)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 
-            "CREATE TABLE `wtax_brackets_daily` (
+            "CREATE TABLE IF NOT EXISTS `wtax_brackets_daily` (
               `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
               `effective_year` smallint(5) unsigned NOT NULL DEFAULT 2025,
               `is_active` tinyint(4) NOT NULL DEFAULT 0,
@@ -204,7 +204,7 @@ class CreateBaselineSchema extends Migration
               PRIMARY KEY (`id`)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 
-            "CREATE TABLE `wtax_brackets_monthly` (
+            "CREATE TABLE IF NOT EXISTS `wtax_brackets_monthly` (
               `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
               `effective_year` smallint(5) unsigned NOT NULL DEFAULT 2025,
               `is_active` tinyint(4) NOT NULL DEFAULT 0,
@@ -217,7 +217,7 @@ class CreateBaselineSchema extends Migration
               KEY `idx_wtax_year` (`effective_year`)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 
-            "CREATE TABLE `wtax_brackets_semimonthly` (
+            "CREATE TABLE IF NOT EXISTS `wtax_brackets_semimonthly` (
               `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
               `effective_year` smallint(5) unsigned NOT NULL DEFAULT 2025,
               `is_active` tinyint(4) NOT NULL DEFAULT 0,
@@ -228,7 +228,7 @@ class CreateBaselineSchema extends Migration
               PRIMARY KEY (`id`)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 
-            "CREATE TABLE `wtax_brackets_weekly` (
+            "CREATE TABLE IF NOT EXISTS `wtax_brackets_weekly` (
               `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
               `effective_year` smallint(5) unsigned NOT NULL DEFAULT 2025,
               `is_active` tinyint(4) NOT NULL DEFAULT 0,
@@ -241,7 +241,7 @@ class CreateBaselineSchema extends Migration
 
             // breaks_taken/missed_clockout_reason/shift_date/schedule_snapshot/
             // break_log/state_version all come from later migrations.
-            "CREATE TABLE `attendance` (
+            "CREATE TABLE IF NOT EXISTS `attendance` (
               `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
               `user_id` int(10) unsigned NOT NULL,
               `time_in` datetime NOT NULL,
@@ -270,7 +270,7 @@ class CreateBaselineSchema extends Migration
               CONSTRAINT `fk_attendance_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 
-            "CREATE TABLE `tasks` (
+            "CREATE TABLE IF NOT EXISTS `tasks` (
               `id` int(11) NOT NULL AUTO_INCREMENT,
               `attendance_id` int(10) unsigned NOT NULL,
               `user_id` int(10) unsigned NOT NULL,
@@ -288,7 +288,7 @@ class CreateBaselineSchema extends Migration
 
             // client: added by AddClientToSavedTasks, then dropped again by
             // CreateSavedClients once saved_clients took over that role.
-            "CREATE TABLE `saved_tasks` (
+            "CREATE TABLE IF NOT EXISTS `saved_tasks` (
               `id` int(11) NOT NULL AUTO_INCREMENT,
               `user_id` int(10) unsigned NOT NULL,
               `task_performed` text NOT NULL,
@@ -298,7 +298,7 @@ class CreateBaselineSchema extends Migration
               CONSTRAINT `saved_tasks_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 
-            "CREATE TABLE `requests` (
+            "CREATE TABLE IF NOT EXISTS `requests` (
               `id` int(11) NOT NULL AUTO_INCREMENT,
               `requested_by` int(10) unsigned NOT NULL,
               `request_type` varchar(20) NOT NULL,
@@ -321,7 +321,7 @@ class CreateBaselineSchema extends Migration
               CONSTRAINT `requests_ibfk_2` FOREIGN KEY (`processed_by`) REFERENCES `users` (`id`)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 
-            "CREATE TABLE `approval_codes` (
+            "CREATE TABLE IF NOT EXISTS `approval_codes` (
               `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
               `code` varchar(100) NOT NULL,
               `generated_by` int(10) unsigned NOT NULL,
@@ -337,7 +337,7 @@ class CreateBaselineSchema extends Migration
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 
             // status/details come from later migrations.
-            "CREATE TABLE `request_notifications` (
+            "CREATE TABLE IF NOT EXISTS `request_notifications` (
               `id` int(11) NOT NULL AUTO_INCREMENT,
               `request_id` int(11) DEFAULT NULL,
               `recipient_user_id` int(11) NOT NULL,
@@ -352,7 +352,7 @@ class CreateBaselineSchema extends Migration
               PRIMARY KEY (`id`)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 
-            "CREATE TABLE `leave_balances` (
+            "CREATE TABLE IF NOT EXISTS `leave_balances` (
               `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
               `employee_id` int(10) unsigned NOT NULL,
               `leave_type` varchar(30) NOT NULL DEFAULT 'leave',
@@ -368,7 +368,7 @@ class CreateBaselineSchema extends Migration
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 
             // period_type comes from a later migration.
-            "CREATE TABLE `payroll` (
+            "CREATE TABLE IF NOT EXISTS `payroll` (
               `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
               `employee_id` int(11) unsigned NOT NULL,
               `month_year` varchar(7) NOT NULL,
@@ -384,7 +384,7 @@ class CreateBaselineSchema extends Migration
               CONSTRAINT `payroll_employee_id_foreign` FOREIGN KEY (`employee_id`) REFERENCES `employees` (`id`) ON DELETE CASCADE
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 
-            "CREATE TABLE `payroll_cutoffs` (
+            "CREATE TABLE IF NOT EXISTS `payroll_cutoffs` (
               `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
               `name` varchar(100) NOT NULL,
               `start_date` date NOT NULL,
@@ -395,7 +395,7 @@ class CreateBaselineSchema extends Migration
               PRIMARY KEY (`id`)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 
-            "CREATE TABLE `payroll_cutoff_summary` (
+            "CREATE TABLE IF NOT EXISTS `payroll_cutoff_summary` (
               `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
               `employee_id` int(11) unsigned NOT NULL,
               `cutoff_id` int(11) unsigned NOT NULL,
@@ -445,7 +445,7 @@ class CreateBaselineSchema extends Migration
               KEY `cutoff_id` (`cutoff_id`)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 
-            "CREATE TABLE `payroll_settings` (
+            "CREATE TABLE IF NOT EXISTS `payroll_settings` (
               `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
               `client_id` int(11) unsigned DEFAULT NULL,
               `setting_key` varchar(100) NOT NULL,
@@ -457,7 +457,7 @@ class CreateBaselineSchema extends Migration
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 
             // paid_by/paid_at come from a later migration.
-            "CREATE TABLE `payroll_transactions` (
+            "CREATE TABLE IF NOT EXISTS `payroll_transactions` (
               `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
               `employee_id` int(11) unsigned NOT NULL,
               `period_start` date NOT NULL,
@@ -490,7 +490,7 @@ class CreateBaselineSchema extends Migration
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 
             // sent_by and every release-tracking column come from later migrations.
-            "CREATE TABLE `employee_payslips` (
+            "CREATE TABLE IF NOT EXISTS `employee_payslips` (
               `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
               `employee_id` int(11) unsigned NOT NULL,
               `period_start` date NOT NULL,
@@ -507,7 +507,7 @@ class CreateBaselineSchema extends Migration
 
             // Every column beyond sss_loan/calamity_loan/salary_advance comes from
             // AlignEmployeeLoansSchema / AddActiveOngoingLoanStatus.
-            "CREATE TABLE `employee_loans` (
+            "CREATE TABLE IF NOT EXISTS `employee_loans` (
               `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
               `employee_id` int(11) unsigned NOT NULL,
               `sss_loan` decimal(12,2) DEFAULT 0.00,
@@ -522,7 +522,7 @@ class CreateBaselineSchema extends Migration
             // loan_category/grace_period_days/penalty_rate, and the
             // max_salary_multiplier/allow_multiple_active_loans renames, come
             // from AlignEmployeeLoansSchema.
-            "CREATE TABLE `employee_loan_settings` (
+            "CREATE TABLE IF NOT EXISTS `employee_loan_settings` (
               `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
               `loan_type` varchar(100) NOT NULL,
               `interest_rate` decimal(5,2) NOT NULL DEFAULT 0.00,
@@ -536,7 +536,7 @@ class CreateBaselineSchema extends Migration
               PRIMARY KEY (`id`)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 
-            "CREATE TABLE `employee_loan_schedule` (
+            "CREATE TABLE IF NOT EXISTS `employee_loan_schedule` (
               `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
               `loan_id` bigint(20) unsigned NOT NULL,
               `installment_no` int(11) NOT NULL,
@@ -555,7 +555,7 @@ class CreateBaselineSchema extends Migration
             // payroll_id starts as a plain BIGINT with no FK; a later migration
             // (AddPayrollIdForeignKeyToLoanPayments) narrows its type to match
             // employee_payslips.id and adds the foreign key.
-            "CREATE TABLE `employee_loan_payments` (
+            "CREATE TABLE IF NOT EXISTS `employee_loan_payments` (
               `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
               `loan_id` bigint(20) unsigned NOT NULL,
               `schedule_id` bigint(20) unsigned NOT NULL,
@@ -573,7 +573,7 @@ class CreateBaselineSchema extends Migration
               KEY `employee_id` (`employee_id`)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 
-            "CREATE TABLE `annual_tax_adjustments` (
+            "CREATE TABLE IF NOT EXISTS `annual_tax_adjustments` (
               `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
               `employee_id` int(11) unsigned NOT NULL,
               `year` year(4) NOT NULL,
@@ -589,7 +589,7 @@ class CreateBaselineSchema extends Migration
               CONSTRAINT `fk_annual_tax_employee` FOREIGN KEY (`employee_id`) REFERENCES `employees` (`id`) ON DELETE CASCADE
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 
-            "CREATE TABLE `annualization_records` (
+            "CREATE TABLE IF NOT EXISTS `annualization_records` (
               `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
               `employee_id` int(10) unsigned NOT NULL,
               `year` smallint(5) unsigned NOT NULL,
@@ -607,7 +607,7 @@ class CreateBaselineSchema extends Migration
               UNIQUE KEY `employee_id_year` (`employee_id`,`year`)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 
-            "CREATE TABLE `thirteenth_month_pay` (
+            "CREATE TABLE IF NOT EXISTS `thirteenth_month_pay` (
               `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
               `employee_id` int(11) unsigned NOT NULL,
               `year` year(4) NOT NULL,
@@ -621,7 +621,7 @@ class CreateBaselineSchema extends Migration
               CONSTRAINT `fk_thirteenth_month_employee` FOREIGN KEY (`employee_id`) REFERENCES `employees` (`id`) ON DELETE CASCADE
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 
-            "CREATE TABLE `thirteenth_month_records` (
+            "CREATE TABLE IF NOT EXISTS `thirteenth_month_records` (
               `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
               `employee_id` int(10) unsigned NOT NULL,
               `year` smallint(5) unsigned NOT NULL,
@@ -640,7 +640,7 @@ class CreateBaselineSchema extends Migration
               UNIQUE KEY `employee_id_year` (`employee_id`,`year`)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 
-            "CREATE TABLE `announcements` (
+            "CREATE TABLE IF NOT EXISTS `announcements` (
               `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
               `title` varchar(120) NOT NULL,
               `category` varchar(30) NOT NULL,
@@ -662,7 +662,7 @@ class CreateBaselineSchema extends Migration
               KEY `idx_announcements_created_by` (`created_by`)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 
-            "CREATE TABLE `announcement_attachments` (
+            "CREATE TABLE IF NOT EXISTS `announcement_attachments` (
               `id` int(11) NOT NULL AUTO_INCREMENT,
               `announcement_id` int(11) NOT NULL,
               `file_path` varchar(255) NOT NULL,
@@ -675,7 +675,7 @@ class CreateBaselineSchema extends Migration
               PRIMARY KEY (`id`)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 
-            "CREATE TABLE `announcement_views` (
+            "CREATE TABLE IF NOT EXISTS `announcement_views` (
               `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
               `announcement_id` int(11) unsigned NOT NULL,
               `user_id` int(11) unsigned NOT NULL,
@@ -688,7 +688,7 @@ class CreateBaselineSchema extends Migration
               KEY `user_id` (`user_id`)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 
-            "CREATE TABLE `announcement_dismissals` (
+            "CREATE TABLE IF NOT EXISTS `announcement_dismissals` (
               `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
               `announcement_id` int(11) unsigned NOT NULL,
               `user_id` int(11) unsigned NOT NULL,
@@ -701,7 +701,7 @@ class CreateBaselineSchema extends Migration
               KEY `user_id` (`user_id`)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 
-            "CREATE TABLE `help_requests` (
+            "CREATE TABLE IF NOT EXISTS `help_requests` (
               `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
               `user_id` int(11) unsigned NOT NULL,
               `category` varchar(30) NOT NULL,
@@ -720,7 +720,7 @@ class CreateBaselineSchema extends Migration
               KEY `created_at` (`created_at`)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 
-            "CREATE TABLE `activity_logs` (
+            "CREATE TABLE IF NOT EXISTS `activity_logs` (
               `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
               `user_id` int(10) unsigned NOT NULL,
               `username` varchar(30) NOT NULL,
