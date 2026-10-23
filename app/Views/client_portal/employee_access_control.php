@@ -73,7 +73,9 @@
                     ['value' => 'employees', 'label' => 'Employees'],
                 ],
                 'actionsHtml' => '<button type="button" id="addDepartmentBtn" class="ac-add-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Add department</button>',
-            ]);
+            // saveData=false: CodeIgniter keeps view() variables for later views in the same request, so
+            // without this the Add button leaked into the Face Recognition and Loan tables rendered after it.
+            ], ['saveData' => false]);
             ?>
         </div>
     </div>

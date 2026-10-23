@@ -706,25 +706,10 @@ class PayrollController extends BaseController
         // request covers it — not whatever approved_ot_hours happened to be
         // frozen on the attendance row at clock-out time (same rule as the
         // Timesheet page, so the two stay consistent with each other).
-        $approvedOtDates = [];
+        // Per date: the approved OT requests (a request's time span limits which OT hours count; a span-less request covers the whole day).
+        $otRequestsByDate = [];
         if ($userId) {
-            $otRequests = (new \App\Models\Client\RequestModel())
-                ->where('requested_by', $userId)
-                ->where('status', 'approved')
-                ->where('request_type', 'overtime')
-                ->where('start_date <=', $endDate)
-                ->groupStart()
-                    ->where('end_date >=', $startDate)
-                    ->orWhere('end_date', null)
-                ->groupEnd()
-                ->findAll();
-            foreach ($otRequests as $req) {
-                $rangeStart = max(strtotime($req['start_date']), strtotime($startDate));
-                $rangeEnd   = min(strtotime($req['end_date'] ?? $req['start_date']), strtotime($endDate));
-                for ($t = $rangeStart; $t <= $rangeEnd; $t += 86400) {
-                    $approvedOtDates[date('Y-m-d', $t)] = true;
-                }
-            }
+            $otRequestsByDate = (new AttendanceComputationService())->approvedOtRequestsByDate((int) $userId, $startDate, $endDate);
         }
 
         // Group records by date — employees can have multiple clock-ins per day
@@ -804,7 +789,8 @@ class PayrollController extends BaseController
             $dayBreak         = 0.0;
             $dayRegularHours  = 0.0;
             $dayExcessHours   = 0.0;
-            $hasApprovedOt    = isset($approvedOtDates[$attDate]);
+            $otApproval       = AttendanceComputationService::otApprovalForDay($otRequestsByDate[$attDate] ?? [], $attDate);
+            $dayApprovedOtHours = 0.0;
             foreach ($recs as $rec) {
                 $dayBreak += (float)($rec['break_duration'] ?? 0);
 
@@ -830,18 +816,20 @@ class PayrollController extends BaseController
                 );
                 $dayRegularHours += $split['regular_hours'];
                 $dayExcessHours  += $split['excess_hours'];
+                $otSplit = AttendanceComputationService::applyOtApproval($split, $otApproval);
+                $dayApprovedOtHours += $otSplit['approved'];
 
                 // Night differential only counts for paid time: the scheduled
                 // window, or the full span if this date's overtime was approved.
                 // Unapproved excess worked at night isn't recognized as OT, so it
                 // isn't paid a night differential either (same rule as Timesheet).
-                $nsdPaidStart = $hasApprovedOt ? $split['span_start'] : max($split['span_start'], $split['window_start'] ?? $split['span_start']);
-                $nsdPaidEnd   = $hasApprovedOt ? $split['span_end']   : min($split['span_end'],   $split['window_end']   ?? $split['span_end']);
-                if ($nsdPaidStart < $nsdPaidEnd) {
-                    $dayNsd += $this->calcNightDiffHours(
-                        $nsdPaidStart->format('Y-m-d H:i:s'),
-                        $nsdPaidEnd->format('Y-m-d H:i:s')
-                    );
+                foreach ($otSplit['paid'] as [$nsdPaidStart, $nsdPaidEnd]) {
+                    if ($nsdPaidStart < $nsdPaidEnd) {
+                        $dayNsd += $this->calcNightDiffHours(
+                            $nsdPaidStart->format('Y-m-d H:i:s'),
+                            $nsdPaidEnd->format('Y-m-d H:i:s')
+                        );
+                    }
                 }
             }
             $totalBreakHours += $dayBreak;
@@ -854,7 +842,7 @@ class PayrollController extends BaseController
             // paid if an approved overtime request covers this specific date —
             // unapproved excess isn't paid as OT, and doesn't inflate Regular.
             $dayExcessHours = round($dayExcessHours, 2);
-            $ot             = $hasApprovedOt ? $dayExcessHours : 0.0;
+            $ot             = round($dayApprovedOtHours, 2);
             // Undertime = shortfall against the scheduled window itself, tracked
             // by the Timesheet page but previously invisible to payroll entirely.
             $dayUndertime   = ($dayScheduledStart && $dayScheduledEnd) ? max(0, round($dayRequiredHours - $regularCapped, 2)) : 0.0;

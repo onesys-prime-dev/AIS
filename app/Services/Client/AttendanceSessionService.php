@@ -286,6 +286,18 @@ final class AttendanceSessionService
             // else (left early, IP changed mid-shift) and would keep running.
             $this->version($row, $expected); $now = $this->now();
             $changes = !empty($row['break_start']) ? $this->endBreak($row, $now) : [];
+            // A scheduled break that was never taken is still unpaid: when the shift
+            // ran to its scheduled end, charge the unused slots so hours match the
+            // dashboard's "required hours". Early clock-outs are left as recorded.
+            $merged = array_replace($row, $changes);
+            [, $schedEnd] = AttendanceWindow::bounds($merged, $this->currentSchedule($userId));
+            if ($schedEnd && strtotime($now) >= $schedEnd->getTimestamp()) {
+                $slots = AttendanceWindow::liveBreakSlots($merged, $this->currentSchedule($userId));
+                $unused = array_slice($slots, (int) ($merged['breaks_taken'] ?? 0));
+                if ($unused) {
+                    $changes['break_duration'] = round((float) ($merged['break_duration'] ?? 0) + array_sum($unused) / 60, 2);
+                }
+            }
             $effective = array_replace($row, $changes);
             $analysis = (new AttendanceComputationService())->analyzeClockOut($userId, $now, $effective);
             $ot = $analysis['overtime']; $ut = $analysis['undertime'];

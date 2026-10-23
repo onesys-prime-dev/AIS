@@ -499,6 +499,18 @@ class RequestController extends BaseController
                 return $this->backWithError('Message is required.');
             }
 
+            // Overtime carries the time span it covers (checked and normalised here); it is always a single day.
+            $otFrom = $otTo = null;
+            if ($requestType === 'overtime') {
+                $ot = $this->validateOvertimeSpan((int) $userId, $startDate, (string) $this->request->getPost('ot_start_time'), (string) $this->request->getPost('ot_end_time'));
+                if ($ot['error'] !== null) {
+                    return $this->backWithError($ot['error']);
+                }
+                [$otFrom, $otTo] = [$ot['from'], $ot['to']];
+                $endDate = $startDate;
+                $endDateObj = clone $startDateObj;
+                $presetDuration = null;
+            }
             if ($presetDuration !== null) {
                 $endDateObj = clone $startDateObj;
                 if ($presetDuration > 1) {
@@ -541,6 +553,8 @@ class RequestController extends BaseController
                 'leave_category' => $leaveCategory ?? 'leave',
                 'start_date'     => $startDate,
                 'end_date'       => $endDate !== '' ? $endDate : null,
+                'ot_start_time'  => $otFrom,
+                'ot_end_time'    => $otTo,
                 'duration'       => $duration,
                 'approval_code'  => $normalizedCode,
                 'reason'         => $reason,
@@ -625,6 +639,18 @@ class RequestController extends BaseController
             }
         }
 
+        // Overtime carries the time span it covers (checked and normalised here); it is always a single day.
+        $otFrom = $otTo = null;
+        if ($requestType === 'overtime') {
+            $ot = $this->validateOvertimeSpan((int) $userId, $startDate, (string) $this->request->getPost('ot_start_time'), (string) $this->request->getPost('ot_end_time'));
+            if ($ot['error'] !== null) {
+                return $this->backWithError($ot['error']);
+            }
+            [$otFrom, $otTo] = [$ot['from'], $ot['to']];
+            $endDate = $startDate;
+            $endDateObj = clone $startDateObj;
+            $presetDuration = null;
+        }
         if ($presetDuration !== null) {
             $endDateObj = clone $startDateObj;
             if ($presetDuration > 1) {
@@ -656,6 +682,8 @@ class RequestController extends BaseController
             'leave_category' => $leaveCategory ?? 'leave',
             'start_date'     => $startDate,
             'end_date'       => $endDate !== '' ? $endDate : null,
+            'ot_start_time'  => $otFrom,
+            'ot_end_time'    => $otTo,
             'duration'       => $duration,
             'approval_code'  => $normalizedCode !== '' ? $normalizedCode : null,
             'reason'         => $reason,
@@ -679,12 +707,87 @@ class RequestController extends BaseController
         // No code — plain pending request, no balance touched yet.
         $this->requestModel->insert($insertData);
         $newRequestId = (int) $this->requestModel->getInsertID();
+        if ($newRequestId <= 0) {
+            return $this->backWithError('Your request could not be saved. Please try again.');
+        }
         service('activityLogger')->requestFiled($newRequestId, $insertData);
 
         return $this->backWithSuccess('Request submitted successfully.');
     }
 
 
+    /**
+     * Checks an overtime request's time span and returns it normalised ('HH:MM:00').
+     * Rules: both times valid; To after From (or past midnight, at most 12 hours); not more than 14 days ahead;
+     * starts at or after the employee's scheduled shift end on a regular working day (rest days, holidays and
+     * overnight shifts are not checked against the shift); never overlaps another pending/approved OT request that day.
+     *
+     * @return array{error: ?string, from: ?string, to: ?string}
+     */
+    private function validateOvertimeSpan(int $userId, string $date, string $from, string $to): array
+    {
+        $fail = static fn (string $message): array => ['error' => $message, 'from' => null, 'to' => null];
+        $minutes = static function (string $t): ?int {
+            return preg_match('/^([01]?\d|2[0-3]):([0-5]\d)(?::[0-5]\d)?$/', trim($t), $m) ? (int) $m[1] * 60 + (int) $m[2] : null;
+        };
+        $clock = static fn (int $mins): string => date('g:i A', mktime(intdiv($mins, 60), $mins % 60));
+
+        $fromMin = $minutes($from);
+        $toMin   = $minutes($to);
+        if (trim($from) === '' || trim($to) === '') {
+            return $fail('Please enter the From and To time for your overtime.');
+        }
+        if ($fromMin === null || $toMin === null) {
+            return $fail('Overtime times must be valid times (for example 18:00).');
+        }
+        $crossesMidnight = $toMin <= $fromMin;
+        $spanMin = $crossesMidnight ? $toMin + 1440 - $fromMin : $toMin - $fromMin;
+        if ($crossesMidnight && $spanMin > 12 * 60) {
+            return $fail('The To time must be later than the From time (a span that goes past midnight can be at most 12 hours).');
+        }
+
+        if (strtotime($date) > strtotime('+14 days', strtotime(date('Y-m-d')))) {
+            return $fail('Overtime can be filed up to 14 days ahead.');
+        }
+
+        // Overtime is extra time beyond the regular shift, so on a normal working day it has to begin when the shift ends.
+        $schedule = (new \App\Services\Client\AttendanceComputationService())->getEmployeeSchedule($userId);
+        if ($schedule && !empty($schedule['start_time']) && !empty($schedule['end_time'])) {
+            $workDays = json_decode((string) ($schedule['working_days'] ?? ''), true);
+            $isWorkDay = !is_array($workDays) || $workDays === [] || in_array(strtolower(date('D', strtotime($date))), $workDays, true);
+            $isHoliday = (new \App\Models\Client\HolidayModel())->isHoliday($date);
+            $shiftStart = $minutes((string) $schedule['start_time']);
+            $shiftEnd   = $minutes((string) $schedule['end_time']);
+            if ($isWorkDay && !$isHoliday && $shiftStart !== null && $shiftEnd !== null && $shiftEnd > $shiftStart && $fromMin < $shiftEnd) {
+                return $fail('Overtime must start at or after your shift ends (' . $clock($shiftEnd) . ').');
+            }
+        }
+
+        // Another pending or approved OT request on the same date: a request without a span covers the whole day.
+        $others = $this->requestModel
+            ->where('requested_by', $userId)
+            ->where('request_type', 'overtime')
+            ->where('status !=', 'rejected')
+            ->where('start_date <=', $date)
+            ->groupStart()->where('end_date >=', $date)->orWhere('end_date', null)->groupEnd()
+            ->findAll();
+        foreach ($others as $other) {
+            $oFrom = $minutes((string) ($other['ot_start_time'] ?? ''));
+            $oTo   = $minutes((string) ($other['ot_end_time'] ?? ''));
+            // For a request that has no end date, only its own start date counts (same rule as payroll and the timesheet).
+            if (empty($other['end_date']) && $other['start_date'] !== $date) continue;
+            if ($oFrom === null || $oTo === null) {
+                return $fail('You already have an overtime request for that date.');
+            }
+            $oEnd = $oTo <= $oFrom ? $oTo + 1440 : $oTo;
+            $newEnd = $fromMin + $spanMin;
+            if ($fromMin < $oEnd && $oFrom < $newEnd) {
+                return $fail('This overlaps your other overtime request for that date (' . $clock($oFrom) . ' to ' . $clock($oTo) . ').');
+            }
+        }
+
+        return ['error' => null, 'from' => sprintf('%02d:%02d:00', intdiv($fromMin, 60), $fromMin % 60), 'to' => sprintf('%02d:%02d:00', intdiv($toMin, 60), $toMin % 60)];
+    }
     /**
      * Generates approval code in the format XXXX-XXXX-XXXX-XXXX.
      * Retries up to 10 times to guarantee uniqueness in the DB.

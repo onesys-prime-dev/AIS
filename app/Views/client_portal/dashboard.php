@@ -1848,8 +1848,19 @@ document.addEventListener('DOMContentLoaded', function () {
                             ⓘ This date has already passed — this will be filed as a backdated request for payroll to review.
                         </div>
 
-                        <label>End Date</label>
-                        <input type="date" name="end_date" id="reqEndDate">
+                        <div id="reqEndDateWrap">
+                            <label>End Date</label>
+                            <input type="date" name="end_date" id="reqEndDate">
+                        </div>
+
+                        <!-- Overtime only: the time span the request covers. Only time worked inside it counts as approved OT. -->
+                        <div id="otSpanWrap" style="display:none;">
+                            <label>Overtime From</label>
+                            <input type="time" name="ot_start_time" id="reqOtStart" disabled>
+                            <label>Overtime To</label>
+                            <input type="time" name="ot_end_time" id="reqOtEnd" disabled>
+                            <div id="otStartHint" style="font-size:12px;color:#6b7280;margin:-2px 0 8px;">Overtime starts when your shift ends. Only the time inside this span is approved as overtime.</div>
+                        </div>
 
                         <label>Message</label>
                         <textarea rows="3" name="reason" id="reqReason" placeholder="Enter your reason..." required></textarea>
@@ -2264,6 +2275,7 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('reqStartDate').value = dateStr;
         document.getElementById('reqEndDate').value = dateStr;
         document.getElementById('reqReason').value = reason || '';
+        applyOtAutoStart();
 
         checkBackdatedRequest();
 
@@ -2282,6 +2294,11 @@ document.addEventListener('DOMContentLoaded', function () {
         }
         resetPresetState();
         document.getElementById("requestForm").reset();
+        // reset() puts the type back to Leave without firing its change event, so put the form's
+        // Leave/Overtime fields back in step (otherwise Overtime's From/To stay visible and required).
+        toggleLeaveCategoryField(document.getElementById("reqType").value);
+        const otStartEl = document.getElementById("reqOtStart");
+        if (otStartEl) otStartEl.dataset.auto = "";
         document.getElementById("reqBackdatedNotice").style.display = "none";
     }
 
@@ -2325,7 +2342,48 @@ document.addEventListener('DOMContentLoaded', function () {
     function toggleLeaveCategoryField(type) {
         const wrap = document.getElementById('leaveCategoryWrap');
         if (wrap) wrap.style.display = (type === 'leave') ? '' : 'none';
+
+        // Overtime is a single day with a From/To time span instead of an end date.
+        const isOt = type === 'overtime';
+        const otWrap = document.getElementById('otSpanWrap');
+        const endWrap = document.getElementById('reqEndDateWrap');
+        const otStart = document.getElementById('reqOtStart');
+        const otEnd = document.getElementById('reqOtEnd');
+        if (otWrap) otWrap.style.display = isOt ? '' : 'none';
+        if (endWrap) endWrap.style.display = isOt ? 'none' : '';
+        [otStart, otEnd].forEach(function (el) { if (el) { el.disabled = !isOt; el.required = isOt; } });
+        if (isOt) applyOtAutoStart();
     }
+
+    // Overtime starts when the shift ends: fill the From time in automatically on the employee's working days.
+    // (The person can still change it; rest days have no shift, so the field is left for them to fill.)
+    const OT_SHIFT_END = <?= json_encode($otShiftEnd ?? null) ?>;
+    const OT_WORKING_DAYS = <?= json_encode($otWorkingDays ?? []) ?>;
+    function applyOtAutoStart() {
+        const startEl = document.getElementById('reqOtStart');
+        const hint = document.getElementById('otStartHint');
+        if (!startEl || !OT_SHIFT_END || document.getElementById('reqType').value !== 'overtime') return;
+        const dateVal = document.getElementById('reqStartDate').value;
+        let workDay = true;
+        if (dateVal && OT_WORKING_DAYS.length) {
+            const dow = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'][new Date(dateVal + 'T00:00:00').getDay()];
+            workDay = OT_WORKING_DAYS.indexOf(dow) !== -1;
+        }
+        const label = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }).format(new Date('1970-01-01T' + OT_SHIFT_END + ':00'));
+        if (workDay) {
+            if (!startEl.value || startEl.dataset.auto === '1') { startEl.value = OT_SHIFT_END; startEl.dataset.auto = '1'; }
+            if (hint) hint.textContent = 'Starts when your shift ends (' + label + '). Pick the time your overtime ends.';
+        } else {
+            if (startEl.dataset.auto === '1') { startEl.value = ''; startEl.dataset.auto = ''; }
+            if (hint) hint.textContent = 'This is not one of your working days, so there is no shift to start from. Enter the time your overtime starts and ends.';
+        }
+    }
+    document.addEventListener('DOMContentLoaded', function () {
+        const startEl = document.getElementById('reqOtStart');
+        if (startEl) startEl.addEventListener('input', function () { startEl.dataset.auto = ''; });
+        const dateEl = document.getElementById('reqStartDate');
+        if (dateEl) dateEl.addEventListener('input', applyOtAutoStart);
+    });
 
     // Tracks active preset duration (days) when a code provides one
     let _currentPresetDuration = null;
@@ -2885,12 +2943,20 @@ document.addEventListener('DOMContentLoaded', function () {
     let isClockedIn = false;
 
     // logic 
+    // Kept outside the block below so the countdowns can be re-derived from the real clock at any time.
+    let timeInMs = null;
+    let breakStartMs = null;
+    let breakUsedMin = 0;
+
     if (attendance) {
         isClockedIn = true;
 
         // time_in is now a full datetime string e.g. "2026-06-02 09:00:00"
         // Replace space with T so all browsers parse it correctly
         const timeIn = new Date(attendance.time_in.replace(' ', 'T'));
+        timeInMs = timeIn.getTime();
+        breakUsedMin = attendance.break_duration ? attendance.break_duration * 60 : 0;
+        if (attendance.break_start) breakStartMs = new Date(attendance.break_start.replace(' ', 'T')).getTime();
 
         const now = new Date();
         let workedMinutes = Math.floor((now - timeIn) / 60000);
@@ -2991,12 +3057,38 @@ document.addEventListener('DOMContentLoaded', function () {
     // avoids the redundant request.
     let breakAutoEndTriggered = false;
 
-    setInterval(()=>{
+    // The countdowns used to be a counter decremented once a minute. Browsers throttle or fully
+    // suspend timers in background tabs, while the computer sleeps or the screen is locked, so
+    // after being away the counter fell behind and the clock looked frozen at an old time until a
+    // reload. Both values are now recomputed from the real clock on every tick, and again the
+    // moment the tab becomes visible, focused or restored, so it is always right on return.
+    function syncFromClock() {
+        if (!isClockedIn || timeInMs === null) return;
+        const nowMs = Date.now();
+        if (onBreak && breakStartMs !== null) {
+            // During a break only the break countdown moves, exactly as before; the shift value keeps what it had at page load.
+            breakRemaining = BREAK_MINUTES - Math.floor((nowMs - breakStartMs) / 60000);
+        } else {
+            shiftRemaining = SHIFT_MINUTES - (Math.floor((nowMs - timeInMs) / 60000) - breakUsedMin);
+        }
+    }
+
+    function renderClockDate() {
+        const d = new Date();
+        const el = document.getElementById("clockDate");
+        if (el) el.innerText = days[d.getDay()] + ", " + months[d.getMonth()] + " " + d.getDate() + ", " + d.getFullYear();
+    }
+
+    function clockTick(){
+
+        // Left open overnight: keep the date line right too.
+        renderClockDate();
 
         if(!isClockedIn) return;
 
+        syncFromClock();
+
         if(onBreak){
-            breakRemaining--;
             updateDisplay();
 
             // The break's scheduled length is up — end it automatically
@@ -3016,25 +3108,23 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
             }
         }else{
-            if(shiftRemaining > 0){
-                shiftRemaining--;
-                updateDisplay();
-            }
+            updateDisplay();
         }
 
-    },60000);
-
-    const now = new Date();
+    }
 
     const days=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
     const months=["January","February","March","April","May","June","July","August","September","October","November","December"];
 
-    document.getElementById("clockDate").innerText =
-        days[now.getDay()] + ", " +
-        months[now.getMonth()] + " " +
-        now.getDate() + ", " +
-        now.getFullYear();
+    setInterval(clockTick, 60000);
 
+    // Catch up immediately when the user comes back to the tab / wakes the computer.
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) clockTick(); });
+    window.addEventListener('focus', clockTick);
+    window.addEventListener('pageshow', clockTick);
+
+    renderClockDate();
+    syncFromClock();
     updateDisplay();
 
     // Every path that finalizes a clock-out (direct, after the undertime modal,

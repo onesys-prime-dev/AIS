@@ -321,6 +321,7 @@ class AttendanceComputationService{
         $hasSchedule = (bool) ($scheduledStart && $scheduledEnd);
         $windowStart = $windowEnd = null;
         $excessHours = 0.0;
+        $gracedLeading = $gracedTrailing = 0;
         if ($hasSchedule) {
             $windowStart = new \DateTime($windowDate . ' ' . $scheduledStart);
             $windowEnd = new \DateTime($windowDate . ' ' . $scheduledEnd);
@@ -376,9 +377,126 @@ class AttendanceComputationService{
             'has_schedule'  => $hasSchedule,
             'regular_hours' => $regularHours,
             'excess_hours'  => $excessHours,
+            // Minutes of extra time before the start / after the end of the scheduled window (grace already applied).
+            'leading_minutes'  => $gracedLeading,
+            'trailing_minutes' => $gracedTrailing,
         ];
     }
 
+    /**
+     * Approved overtime requests per calendar date for one employee, keyed 'Y-m-d' => [request rows].
+     * A request covers every date between its start and end date (a request with no end date covers its start date).
+     */
+    public function approvedOtRequestsByDate(int $userId, string $startDate, string $endDate): array
+    {
+        $rows = db_connect()->table('requests')
+            ->where('requested_by', $userId)
+            ->where('status', 'approved')
+            ->where('request_type', 'overtime')
+            ->where('start_date <=', $endDate)
+            ->groupStart()->where('end_date >=', $startDate)->orWhere('end_date', null)->groupEnd()
+            ->orderBy('start_date', 'ASC')->orderBy('id', 'ASC')
+            ->get()->getResultArray();
+
+        $byDate = [];
+        foreach ($rows as $r) {
+            $from = max(strtotime($r['start_date']), strtotime($startDate));
+            $to   = min(strtotime($r['end_date'] ?: $r['start_date']), strtotime($endDate));
+            for ($t = $from; $t <= $to; $t += 86400) $byDate[date('Y-m-d', $t)][] = $r;
+        }
+        return $byDate;
+    }
+
+    /**
+     * What a day's approved OT requests cover.
+     *  true  = the whole day (a request with no time span: every request filed before spans existed)
+     *  array = list of [DateTime start, DateTime end] windows (every request that day has a span)
+     *  false = no approved OT that day
+     */
+    public static function otApprovalForDay(array $requests, string $date)
+    {
+        if (!$requests) return false;
+        $windows = [];
+        foreach ($requests as $r) {
+            $s = $r['ot_start_time'] ?? null; $e = $r['ot_end_time'] ?? null;
+            if (!$s || !$e) return true;   // a span-less request keeps approving the whole day
+            $start = new \DateTime($date . ' ' . $s);
+            $end   = new \DateTime($date . ' ' . $e);
+            if ($end <= $start) $end->modify('+1 day');
+            $windows[] = [$start, $end];
+        }
+        return $windows;
+    }
+
+    /**
+     * Splits a shift's extra time (worked outside the scheduled window) into approved and unapproved hours,
+     * and lists the time ranges that count as paid time (used for night differential).
+     * With a whole-day approval or none this reproduces the previous true/false behaviour exactly.
+     *
+     * @param array $split output of splitShiftWindow()
+     * @param bool|array $approval output of otApprovalForDay()
+     * @return array{approved: float, unapproved: float, paid: array<int, array{0: \DateTime, 1: \DateTime}>}
+     */
+    public static function applyOtApproval(array $split, $approval): array
+    {
+        $excess = (float) $split['excess_hours'];
+        $spanStart = $split['span_start']; $spanEnd = $split['span_end'];
+        $hasSchedule = (bool) $split['has_schedule'];
+
+        $approved = 0.0;
+        if ($approval === true) {
+            $approved = $excess;
+        } elseif (is_array($approval) && $excess > 0 && $hasSchedule) {
+            $edges = [
+                [$spanStart, $split['window_start'], (int) ($split['leading_minutes'] ?? 0)],   // before the shift
+                [$split['window_end'], $spanEnd,     (int) ($split['trailing_minutes'] ?? 0)],  // after the shift
+            ];
+            $approvedMinutes = 0;
+            foreach ($edges as [$edgeStart, $edgeEnd, $edgeMinutes]) {
+                if ($edgeMinutes <= 0 || $edgeStart >= $edgeEnd) continue;
+                $overlap = 0;
+                foreach (self::mergeIntervals($approval) as [$ws, $we]) {
+                    $from = max($edgeStart, $ws); $to = min($edgeEnd, $we);
+                    if ($from < $to) $overlap += (int) floor(($to->getTimestamp() - $from->getTimestamp()) / 60);
+                }
+                $approvedMinutes += min($edgeMinutes, $overlap);
+            }
+            $approved = min($excess, round($approvedMinutes / 60, 2));
+        }
+
+        // Paid time: the scheduled window, plus whatever OT is approved. (Whole-day approval, or no schedule on file, pays the whole span.)
+        if ($approval === true || !$hasSchedule) {
+            $paid = [[$spanStart, $spanEnd]];
+        } else {
+            $paid = [];
+            $ws = max($spanStart, $split['window_start']); $we = min($spanEnd, $split['window_end']);
+            if ($ws < $we) $paid[] = [$ws, $we];
+            if (is_array($approval)) {
+                foreach ($approval as [$as, $ae]) {
+                    $from = max($spanStart, $as); $to = min($spanEnd, $ae);
+                    if ($from < $to) $paid[] = [$from, $to];
+                }
+                $paid = self::mergeIntervals($paid);
+            }
+        }
+
+        return ['approved' => $approved, 'unapproved' => round($excess - $approved, 2), 'paid' => $paid];
+    }
+
+    /** Sorts and merges overlapping [DateTime, DateTime] ranges. */
+    public static function mergeIntervals(array $intervals): array
+    {
+        usort($intervals, fn($a, $b) => $a[0] <=> $b[0]);
+        $merged = [];
+        foreach ($intervals as [$s, $e]) {
+            if ($merged && $s <= $merged[count($merged) - 1][1]) {
+                if ($e > $merged[count($merged) - 1][1]) $merged[count($merged) - 1][1] = $e;
+            } else {
+                $merged[] = [$s, $e];
+            }
+        }
+        return $merged;
+    }
     public function analyzeClockOut(int $userId, string $actualOut, ?array $attendance = null): array
     {
         $result = ['overtime' => ['approved_ot' => 0, 'unapproved_ot' => 0], 'undertime' => ['approved_ut' => 0, 'unapproved_ut' => 0], 'night_diff_hours' => 0.0];
@@ -400,10 +518,13 @@ class AttendanceComputationService{
         // like Timesheet/Payroll, the full worked span is only paid at night when
         // overtime is actually approved; otherwise night hours outside the
         // scheduled window aren't paid either, so they don't count here.
-        $hasApprovedOt = (bool) $this->getApprovedRequest($userId, $date, 'overtime');
+        $otApproval = self::otApprovalForDay($this->approvedOtRequestsByDate($userId, $date, $date)[$date] ?? [], $date);
+        $otSplit    = self::applyOtApproval($split, $otApproval);
 
         if ($split['excess_hours'] > 0) {
-            $result['overtime'][$hasApprovedOt ? 'approved_ot' : 'unapproved_ot'] = $split['excess_hours'];
+            // Whole-day / no approval: all of it lands in one bucket, as before. A span can split it across both.
+            if ($otSplit['approved'] > 0)   $result['overtime']['approved_ot']   = $otSplit['approved'];
+            if ($otSplit['unapproved'] > 0) $result['overtime']['unapproved_ot'] = $otSplit['unapproved'];
         }
 
         if ($split['has_schedule']) {
@@ -415,10 +536,10 @@ class AttendanceComputationService{
             }
         }
 
-        $paidStart = ($hasApprovedOt || !$split['has_schedule']) ? $split['span_start'] : max($split['span_start'], $split['window_start']);
-        $paidEnd   = ($hasApprovedOt || !$split['has_schedule']) ? $split['span_end']   : min($split['span_end'],   $split['window_end']);
-        if ($paidStart < $paidEnd) {
-            $result['night_diff_hours'] = \App\Libraries\AttendanceWindow::nightHours($paidStart->format('Y-m-d H:i:s'), $paidEnd->format('Y-m-d H:i:s'));
+        foreach ($otSplit['paid'] as [$paidStart, $paidEnd]) {
+            if ($paidStart < $paidEnd) {
+                $result['night_diff_hours'] += \App\Libraries\AttendanceWindow::nightHours($paidStart->format('Y-m-d H:i:s'), $paidEnd->format('Y-m-d H:i:s'));
+            }
         }
 
         return $result;

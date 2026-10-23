@@ -432,7 +432,7 @@ class TimesheetsService
 
         // Batch-fetch approved requests for the whole range. OT/UT requests drive
         // approval calculations, while every request contributes a dated remark.
-        $approvedOtDates = [];
+        $otRequestsByDate = [];   // approved OT requests per date (rows, so each request's time span is available)
         $approvedUtDates = [];
         $requestRemarksByDate = [];
         $leaveRemarksByDate = [];
@@ -460,7 +460,7 @@ class TimesheetsService
             for ($t = $rangeStart; $t <= $rangeEnd; $t += 86400) {
                 $d = date('Y-m-d', $t);
                 if ($req['request_type'] === 'overtime') {
-                    $approvedOtDates[$d] = true;
+                    $otRequestsByDate[$d][] = $req;
                 } elseif ($req['request_type'] === 'undertime') {
                     $approvedUtDates[$d] = true;
                 }
@@ -509,7 +509,7 @@ class TimesheetsService
             $tardyMinutes      = 0;
             $nightDiff         = 0;
             $hasSchedule       = (bool) ($scheduledStart && $scheduledEnd);
-            $hasApprovedOt     = isset($approvedOtDates[$date]);
+            $otApproval        = AttendanceComputationService::otApprovalForDay($otRequestsByDate[$date] ?? [], $date);
             // Same split as OT above (approved-request lookup, not the
             // attendance row's own attendance_status), so "Undertime" here
             // means the same thing "OT Hrs" does: only the approved portion,
@@ -554,11 +554,10 @@ class TimesheetsService
                 $end   = $split['span_end'];
                 $regularHours = $split['regular_hours'];
                 $excessHours  = $split['excess_hours'];
-                if ($hasApprovedOt) {
-                    $otHours = $excessHours;
-                } else {
-                    $unapprovedOtHours = $excessHours;
-                }
+                // A request with a time span only approves the OT worked inside that span; a span-less request approves the whole day.
+                $otSplit           = AttendanceComputationService::applyOtApproval($split, $otApproval);
+                $otHours           = $otSplit['approved'];
+                $unapprovedOtHours = $otSplit['unapproved'];
 
                 // Undertime = shortfall against the scheduled window itself — time
                 // during the shift the employee simply wasn't there (late arrival,
@@ -577,14 +576,10 @@ class TimesheetsService
                 // that's actually paid (the scheduled window, plus any OT hours
                 // that were approved). Unapproved excess worked at night isn't
                 // recognized as OT, so it isn't paid a night differential either.
-                if ($hasApprovedOt || !$hasSchedule) {
-                    $paidStart = $start;
-                    $paidEnd   = $end;
-                } else {
-                    $paidStart = max($start, $split['window_start']);
-                    $paidEnd   = min($end, $split['window_end']);
+                $nightDiff = 0;
+                foreach ($otSplit['paid'] as [$paidStart, $paidEnd]) {
+                    $nightDiff += $this->computeNightDiffRange($paidStart, $paidEnd, $date, $nightStart, $nightEnd);
                 }
-                $nightDiff = $this->computeNightDiffRange($paidStart, $paidEnd, $date, $nightStart, $nightEnd);
             }
 
             // RDOT (Rest Day OT – example: Sunday)
@@ -732,6 +727,9 @@ class TimesheetsService
                 : 'Leave';
         } else {
             $label = 'Approved ' . ucfirst($type);
+            if ($type === 'overtime' && !empty($request['ot_start_time']) && !empty($request['ot_end_time'])) {
+                $label .= ' ' . date('g:i A', strtotime($request['ot_start_time'])) . ' - ' . date('g:i A', strtotime($request['ot_end_time']));
+            }
         }
 
         $reason = trim((string) ($request['reason'] ?? ''));

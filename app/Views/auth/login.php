@@ -66,9 +66,9 @@ $postLoginRedirect = $postLoginRedirect ?? site_url('/client_portal/dashboard');
                         <label class="flex items-center gap-3 text-gray-600 cursor-pointer">
                             <input
                                 type="checkbox"
-                                name="remember"
+                                name="remember_email"
                                 class="h-5 w-5 rounded border-gray-300 text-purple-600 focus:ring-purple-500">
-                            <span>Stay logged in?</span>
+                            <span>Remember my email</span>
                         </label>
 
                         <a
@@ -172,6 +172,26 @@ $postLoginRedirect = $postLoginRedirect ?? site_url('/client_portal/dashboard');
 </div>
 
 <script src="<?= base_url('js/components/password-toggle.js') ?>"></script>
+<script>
+// "Remember my email" only fills the email box next time. It never keeps anyone signed in:
+// the password (and the face scan, where required) is still needed on every login.
+(function () {
+    var KEY = 'ais_login_email';
+    var email = document.querySelector('input[name="email"]');
+    var box = document.querySelector('input[name="remember_email"]');
+    if (!email || !box) return;
+    try {
+        var saved = localStorage.getItem(KEY);
+        if (saved) { if (!email.value) email.value = saved; box.checked = true; }
+    } catch (e) {}
+    if (email.form) email.form.addEventListener('submit', function () {
+        try {
+            if (box.checked && email.value.trim()) localStorage.setItem(KEY, email.value.trim());
+            else localStorage.removeItem(KEY);
+        } catch (e) {}
+    });
+})();
+</script>
 
 <?php if ($showFaceModal): ?>
     <style>
