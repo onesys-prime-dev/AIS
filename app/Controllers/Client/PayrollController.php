@@ -849,8 +849,7 @@ class PayrollController extends BaseController
             $ot             = round($dayApprovedOtHours, 2);
             // Undertime = shortfall against the scheduled window itself, tracked
             // by the Timesheet page but previously invisible to payroll entirely.
-            $dayForgiven    = AttendanceComputationService::graceForgivenHours(new \DateTime($recs[0]['time_in']), $dayWindowStart, (int) ($daySchedule['tardiness_grace_minutes'] ?? 0));
-            $dayUndertime   = ($dayScheduledStart && $dayScheduledEnd) ? max(0, round($dayRequiredHours - $regularCapped - $dayForgiven, 2)) : 0.0;
+            $dayUndertime   = ($dayScheduledStart && $dayScheduledEnd) ? max(0, round($dayRequiredHours - $regularCapped, 2)) : 0.0;
             $undertimeHours += $dayUndertime;
             $dow            = (int)date('N', strtotime($attDate));
             $holidayType   = $getHolidayType($attDate);
