@@ -171,6 +171,8 @@ const ACCESS_CONTROL_ROLE_OPTIONS = <?= json_encode($accessControlRoleOptions ??
 const ACCESS_CONTROL_ROLE_DESCRIPTIONS = <?= json_encode($accessControlRoleDescriptions ?? []) ?>;
 const ACCESS_CONTROL_CURRENT_USER_ID = <?= json_encode((int) $currentUserId) ?>;
 const ACCESS_CONTROL_DEPARTMENTS = <?= json_encode($accessControlDepartments ?? []) ?>;
+const ACCESS_CONTROL_CLIENTS = <?= json_encode($accessControlClients ?? []) ?>;
+const ACCESS_CONTROL_CLIENT_EMPLOYEES = <?= json_encode($accessControlClientEmployees ?? []) ?>;
 const ACCESS_CONTROL_TEAM_HEAD_ACCOUNTS = <?= json_encode($accessControlTeamHeadAccounts ?? []) ?>;
 const ACCESS_CONTROL_DEPARTMENT_TEAM_HEADS = <?= json_encode($accessControlDepartmentTeamHeads ?? []) ?>;
 const ACCESS_CONTROL_PERMISSIONS = <?= json_encode($accessControlPermissions ?? []) ?>;
@@ -519,6 +521,8 @@ const AC_ICONS = (function () {
 
     // Local, mutable copy so add/rename/deactivate can update the UI without a full reload.
     let departments = ACCESS_CONTROL_DEPARTMENTS.slice();
+    // The Clients tab assigns clients to these same departments, including ones added during this visit.
+    window.acDepartments = function () { return departments; };
     const deptTeamHeads = Object.assign({}, ACCESS_CONTROL_DEPARTMENT_TEAM_HEADS);
 
     // Must match the 'gridStyle' passed to the crud_table in employee_access_control.php.
@@ -1020,6 +1024,7 @@ const AC_ICONS = (function () {
     const panels = {
         accounts: document.querySelector('[data-ac-panel="accounts"]'),
         departments: document.getElementById('departmentsSection'),
+        clients: document.getElementById('clientsSection'),
         permissions: document.getElementById('rolePermissionsSection'),
         network: document.getElementById('attendanceNetworkSection'),
     };
@@ -1054,6 +1059,266 @@ const AC_ICONS = (function () {
 
     const firstEligible = buttons.find(function (btn) { return isEligible(btn.dataset.acTab); });
     activate(firstEligible ? firstEligible.dataset.acTab : 'accounts');
+})();
+
+// ================= CLIENTS =================
+// The admin-managed list employees pick from when logging a task. A client is available to an employee
+// when their department OR they personally are assigned to it; nobody assigned = nobody can pick it.
+(function () {
+    const tableCard = document.querySelector('[data-crud-table="clientsTable"]');
+    if (!tableCard) return;
+
+    let clients = ACCESS_CONTROL_CLIENTS.slice();
+    const employees = ACCESS_CONTROL_CLIENT_EMPLOYEES.slice();
+    const departmentList = function () {
+        return (typeof window.acDepartments === 'function' ? window.acDepartments() : ACCESS_CONTROL_DEPARTMENTS) || [];
+    };
+
+    // Must match the 'gridStyle' passed to the crud_table in employee_access_control.php.
+    const ROW_GRID = 'minmax(0,2fr) minmax(0,2.6fr) minmax(0,0.8fr) minmax(0,0.8fr) minmax(0,0.7fr)';
+
+    function post(url, params) {
+        return fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': CSRF_HASH },
+            body: params,
+        }).then(function (res) { return res.json(); });
+    }
+    function toast(message, ok) { if (window.showToast) window.showToast(message, ok ? 'success' : 'error'); }
+    function findClient(id) { return clients.find(function (c) { return String(c.id) === String(id); }); }
+    function isAssigned(c) { return (c.department_ids || []).length > 0 || (c.user_ids || []).length > 0; }
+    function deptName(id) {
+        const d = departmentList().find(function (x) { return String(x.id) === String(id); });
+        return d ? d.name : null;
+    }
+
+    function availableTo(c) {
+        if (!isAssigned(c)) return '<span class="text-xs text-red-500">Nobody yet</span>';
+        const chip = function (t) { return '<span class="inline-block px-3 py-1 mr-2 mb-1 rounded-full text-xs font-semibold bg-gray-200 text-gray-700">' + acEscapeHtml(t) + '</span>'; };
+        const names = (c.department_ids || []).map(deptName).filter(Boolean);
+        let out = names.slice(0, 2).map(chip).join('');
+        if (names.length > 2) out += chip('+' + (names.length - 2) + ' more');
+        const n = (c.user_ids || []).length;
+        if (n) out += chip(n + (n === 1 ? ' employee' : ' employees'));
+        return out;
+    }
+
+    function rowTemplate(c) {
+        const status = c.is_active
+            ? '<span class="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700">Active</span>'
+            : '<span class="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-gray-200 text-gray-500">Inactive</span>';
+        return '<div class="grid items-center border-b hover:bg-gray-50" style="grid-template-columns:' + ROW_GRID + ';border-left:1px solid transparent;border-right:1px solid transparent;">' +
+            '<div class="p-4 flex items-center gap-3">' +
+                '<div class="w-10 h-10 bg-gray-300 rounded-full flex items-center justify-center text-gray-700 shrink-0 ac-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/><path d="M3 13h18"/></svg></div>' +
+                '<span class="font-medium truncate">' + acEscapeHtml(c.name) + '</span>' +
+            '</div>' +
+            '<div class="p-4">' + availableTo(c) + '</div>' +
+            '<div class="p-4">' + (Number(c.task_count) || 0) + '</div>' +
+            '<div class="p-4">' + status + '</div>' +
+            '<div class="p-4 flex justify-center">' +
+                '<button type="button" class="ac-icon-btn" data-manage-client="' + acEscapeHtml(c.id) + '" title="Manage client" aria-label="Manage client">' + AC_ICONS.manage + '</button>' +
+            '</div>' +
+        '</div>';
+    }
+
+    createCrudTable({
+        tableId: 'clientsTable',
+        data: function () { return clients; },
+        renderRow: rowTemplate,
+        filters: function (ctx) {
+            const item = (ctx && ctx.item) || {};
+            const query = (ctx && ctx.query) || '';
+            const values = (ctx && ctx.values) || {};
+            const matchesSearch = !query || String(item.name || '').toLowerCase().includes(query);
+            const matchesStatus = values.status === 'active' ? item.is_active : values.status === 'inactive' ? !item.is_active : true;
+            const matchesAssign = values.assignment === 'assigned' ? isAssigned(item) : values.assignment === 'unassigned' ? !isAssigned(item) : true;
+            return matchesSearch && matchesStatus && matchesAssign;
+        },
+        sort: function (ctx) {
+            let left, right;
+            if (ctx.sortBy === 'tasks') {
+                left = Number(ctx.a.task_count) || 0;
+                right = Number(ctx.b.task_count) || 0;
+            } else {
+                left = String(ctx.a.name || '').toLowerCase();
+                right = String(ctx.b.name || '').toLowerCase();
+            }
+            if (left < right) return ctx.sortOrder === 'asc' ? -1 : 1;
+            if (left > right) return ctx.sortOrder === 'asc' ? 1 : -1;
+            return 0;
+        },
+    });
+
+    function refreshTable() {
+        const search = tableCard.querySelector('.crud-search');
+        if (search) search.dispatchEvent(new Event('input'));
+    }
+    document.addEventListener('ac:tab', function (e) { if (e.detail === 'clients') refreshTable(); });
+
+    const manageModal = document.getElementById('acClientModal');
+    const addModal = document.getElementById('acClientAddModal');
+    if (!manageModal || !addModal) return;
+    [manageModal, addModal].forEach(function (m) { if (m.parentElement !== document.body) document.body.appendChild(m); });
+    function openOverlay(m) { m.classList.add('is-open'); m.setAttribute('aria-hidden', 'false'); }
+    function closeOverlay(m) { m.classList.remove('is-open'); m.setAttribute('aria-hidden', 'true'); }
+
+    // ---- add client ----
+    const addBtn = document.getElementById('addClientBtn');
+    const addInput = document.getElementById('newClientName');
+    const addSubmit = document.getElementById('acliAddSubmit');
+    function closeAdd() { closeOverlay(addModal); }
+
+    function submitAdd() {
+        const name = addInput.value.trim();
+        if (!name || addSubmit.disabled) return;
+        addSubmit.disabled = true;
+        post('<?= site_url('client_portal/access-control/clients/create') ?>', new URLSearchParams({ name: name }))
+            .then(function (data) {
+                toast(data.message || (data.success ? 'Added.' : 'Something went wrong.'), data.success);
+                if (data.success) {
+                    const c = { id: data.id, name: name, is_active: true, department_ids: [], user_ids: [], task_count: 0 };
+                    clients.push(c);
+                    addInput.value = '';
+                    closeAdd();
+                    refreshTable();
+                    openManage(c);   // straight on to choosing who can pick it
+                }
+            })
+            .catch(function () { toast('Something went wrong.', false); })
+            .finally(function () { addSubmit.disabled = false; });
+    }
+    if (addBtn) addBtn.addEventListener('click', function () { addInput.value = ''; openOverlay(addModal); addInput.focus(); });
+    document.getElementById('acliAddClose').addEventListener('click', closeAdd);
+    document.getElementById('acliAddCancel').addEventListener('click', closeAdd);
+    addSubmit.addEventListener('click', submitAdd);
+    addInput.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); submitAdd(); } });
+    addModal.addEventListener('click', function (e) { if (e.target === addModal) closeAdd(); });
+
+    // ---- manage client ----
+    const subtitleEl = document.getElementById('acliSubtitle');
+    const nameInput = document.getElementById('acliName');
+    const activeBox = document.getElementById('acliActive');
+    const deptsEl = document.getElementById('acliDepartments');
+    const empsEl = document.getElementById('acliEmployees');
+    const empSearch = document.getElementById('acliEmployeeSearch');
+    const noteEl = document.getElementById('acliNote');
+    const saveBtn = document.getElementById('acliSave');
+
+    let current = null;
+    let selDepts = new Set();
+    let selUsers = new Set();
+    let saved = '';
+
+    function signature() {
+        return JSON.stringify([nameInput.value.trim(), activeBox.checked,
+            Array.from(selDepts).map(String).sort(), Array.from(selUsers).map(String).sort()]);
+    }
+    function updateFooter() {
+        const changed = signature() !== saved;
+        noteEl.innerHTML = changed ? '<span class="acr-dirty"></span>Changes not saved yet' : '';
+        saveBtn.disabled = !changed || !nameInput.value.trim();
+    }
+
+    function initials(name) {
+        const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+        return ((parts[0] || '?').charAt(0) + (parts.length > 1 ? parts[parts.length - 1].charAt(0) : '')).toUpperCase();
+    }
+
+    function renderDepartments() {
+        const list = departmentList();
+        deptsEl.innerHTML = list.length
+            ? list.map(function (d) {
+                return '<label class="ac-pick"><span class="ac-pick-name">' + acEscapeHtml(d.name) + '</span>' +
+                    '<input type="checkbox" class="acli-dept" value="' + d.id + '"' + (selDepts.has(String(d.id)) ? ' checked' : '') + '></label>';
+            }).join('')
+            : '<p class="text-xs text-gray-400">No departments yet. Add them in the Departments tab.</p>';
+    }
+
+    function renderEmployees() {
+        const q = empSearch.value.trim().toLowerCase();
+        const shown = employees.filter(function (e) { return !q || e.name.toLowerCase().includes(q); });
+        empsEl.innerHTML = shown.length
+            ? shown.map(function (e) {
+                const dn = e.department_id ? deptName(e.department_id) : null;
+                return '<label class="ac-pick"><span class="acr-avatar">' + acEscapeHtml(initials(e.name)) + '</span>' +
+                    '<span class="ac-pick-name">' + acEscapeHtml(e.name) + (dn ? ' <span class="text-xs text-gray-400">' + acEscapeHtml(dn) + '</span>' : '') + '</span>' +
+                    '<input type="checkbox" class="acli-emp" value="' + e.user_id + '"' + (selUsers.has(String(e.user_id)) ? ' checked' : '') + '></label>';
+            }).join('')
+            : '<p class="text-xs text-gray-400">No employees match.</p>';
+    }
+
+    function openManage(c) {
+        current = c;
+        selDepts = new Set((c.department_ids || []).map(String));
+        selUsers = new Set((c.user_ids || []).map(String));
+        subtitleEl.textContent = (Number(c.task_count) || 0) + ' task' + (Number(c.task_count) === 1 ? '' : 's') + ' logged';
+        nameInput.value = c.name;
+        activeBox.checked = !!c.is_active;
+        empSearch.value = '';
+        renderDepartments();
+        renderEmployees();
+        saved = signature();
+        updateFooter();
+        openOverlay(manageModal);
+        nameInput.focus();
+    }
+    function closeManage() { closeOverlay(manageModal); current = null; }
+
+    deptsEl.addEventListener('change', function (e) {
+        if (!e.target.classList.contains('acli-dept')) return;
+        e.target.checked ? selDepts.add(e.target.value) : selDepts.delete(e.target.value);
+        updateFooter();
+    });
+    empsEl.addEventListener('change', function (e) {
+        if (!e.target.classList.contains('acli-emp')) return;
+        e.target.checked ? selUsers.add(e.target.value) : selUsers.delete(e.target.value);
+        updateFooter();
+    });
+    empSearch.addEventListener('input', renderEmployees);
+    nameInput.addEventListener('input', updateFooter);
+    activeBox.addEventListener('change', updateFooter);
+
+    saveBtn.addEventListener('click', function () {
+        if (!current || saveBtn.disabled) return;
+        const c = current;
+        const params = new URLSearchParams();
+        params.append('id', c.id);
+        params.append('name', nameInput.value.trim());
+        params.append('is_active', activeBox.checked ? '1' : '0');
+        selDepts.forEach(function (d) { params.append('department_ids[]', d); });
+        selUsers.forEach(function (u) { params.append('user_ids[]', u); });
+        saveBtn.disabled = true;
+        post('<?= site_url('client_portal/access-control/clients/update') ?>', params)
+            .then(function (data) {
+                toast(data.message || (data.success ? 'Saved.' : 'Something went wrong.'), data.success);
+                if (data.success) {
+                    c.name = nameInput.value.trim();
+                    c.is_active = activeBox.checked;
+                    c.department_ids = Array.from(selDepts).map(Number);
+                    c.user_ids = Array.from(selUsers).map(Number);
+                    saved = signature();
+                    refreshTable();
+                }
+                updateFooter();
+            })
+            .catch(function () { toast('Something went wrong.', false); updateFooter(); });
+    });
+
+    document.getElementById('acliClose').addEventListener('click', closeManage);
+    document.getElementById('acliCancel').addEventListener('click', closeManage);
+    manageModal.addEventListener('click', function (e) { if (e.target === manageModal) closeManage(); });
+    document.addEventListener('keydown', function (e) {
+        if (e.key !== 'Escape') return;
+        if (addModal.classList.contains('is-open')) closeAdd();
+        else if (manageModal.classList.contains('is-open')) closeManage();
+    });
+
+    tableCard.addEventListener('click', function (e) {
+        const btn = e.target.closest('[data-manage-client]');
+        if (!btn) return;
+        const c = findClient(btn.dataset.manageClient);
+        if (c) openManage(c);
+    });
 })();
 
 // ================= ATTENDANCE NETWORK RESTRICTION =================

@@ -17,7 +17,7 @@
  *   task_start_time, task_end_time (hidden inputs — canonical 24h "HH:MM"
  *     values), task_start_hour/_minute/_ampm, task_end_hour/_minute/_ampm
  *     (the visible <select> dropdowns users actually interact with),
- *   task_att_client, task_att_text,
+ *   task_att_client_id (select), task_att_text,
  *   tl_timeline, tl_window_label, tl_task_list, tl_empty_msg,
  *   tl_form_title, tl_cancel_edit_btn, tl_save_btn, tl_form_error,
  *   tl_duration_label (optional — duration readout for the time fields)
@@ -67,8 +67,32 @@ async function openTaskLogModal(attendanceId, date) {
 async function loadTaskPresets() {
     await Promise.all([
         fillPresetDropdown('savedTasksDropdown', typeof SAVED_TASKS_URL !== 'undefined' ? SAVED_TASKS_URL : null, 'task_performed', 'task_att_text', '-- Write your task manually --'),
-        fillPresetDropdown('savedClientsDropdown', typeof SAVED_CLIENTS_URL !== 'undefined' ? SAVED_CLIENTS_URL : null, 'client', 'task_att_client', '-- Type a client manually --'),
+        loadClientOptions(),
     ]);
+}
+
+// The Client dropdown lists only what an admin made available to this employee (their department's
+// clients plus any assigned to them personally). Picking one is required; nothing can be typed.
+let taskLogClients = [];
+async function loadClientOptions() {
+    const select = document.getElementById('task_att_client_id');
+    if (!select || typeof SAVED_CLIENTS_URL === 'undefined') return;
+    try {
+        const rows = await (await fetch(SAVED_CLIENTS_URL)).json();
+        taskLogClients = rows.map(r => ({ id: String(r.id), name: r.client }));
+        const keep = select.value;
+        select.innerHTML = '<option value="">-- Select a client --</option>';
+        taskLogClients.forEach(c => {
+            const opt = document.createElement('option');
+            opt.value = c.id;
+            opt.textContent = c.name;
+            select.appendChild(opt);
+        });
+        if (keep) select.value = keep;
+        if (!taskLogClients.length) showTaskFormError('No clients are assigned to you yet. Ask an admin to assign one.');
+    } catch (e) {
+        console.error('Failed to load clients:', e);
+    }
 }
 
 async function fillPresetDropdown(selectId, url, field, targetId, placeholder) {
@@ -319,16 +343,22 @@ function renderTimeline() {
     // Break block — shown so an on-break stretch reads as "not actually free"
     // at a glance, instead of looking like an empty clickable gap the same as
     // any other unlogged time. Informational only: doesn't change what
-    // validateTaskWindow() allows a task to overlap.
+    // the server allows (it only warns when a task overlaps a break).
     let breakBlock = '';
-    if (taskLogWindow.break_start) {
-        const bStart = new Date(taskLogWindow.break_start.replace(' ', 'T'));
-        const bEnd = taskLogWindow.break_end ? new Date(taskLogWindow.break_end.replace(' ', 'T')) : new Date();
+    // Every break taken (the server sends them all); older responses only carry the latest one.
+    const breakList = Array.isArray(taskLogWindow.breaks)
+        ? taskLogWindow.breaks
+        : (taskLogWindow.break_start ? [[taskLogWindow.break_start, taskLogWindow.break_end]] : []);
+    breakList.forEach(function (br) {
+        const brStart = br[0];
+        const brEnd = br[1];
+        const bStart = new Date(brStart.replace(' ', 'T'));
+        const bEnd = brEnd ? new Date(brEnd.replace(' ', 'T')) : new Date();
         const bLeftPct = Math.max(0, Math.min(100, ((bStart - winStart) / totalMs) * 100));
         const bWidthPct = Math.max(1.5, Math.min(100 - bLeftPct, ((bEnd - bStart) / totalMs) * 100));
-        const bStartLabel = fmtTime(taskLogWindow.break_start.split(' ')[1] || taskLogWindow.break_start);
-        const bEndLabel = taskLogWindow.break_end
-            ? fmtTime(taskLogWindow.break_end.split(' ')[1] || taskLogWindow.break_end)
+        const bStartLabel = fmtTime(brStart.split(' ')[1] || brStart);
+        const bEndLabel = brEnd
+            ? fmtTime(brEnd.split(' ')[1] || brEnd)
             : 'ongoing';
         // Amber stripe (not gray-on-gray) so it actually stands out against
         // the bar's own gray-100 background instead of blending into it, and
@@ -341,8 +371,8 @@ function renderTimeline() {
         // whole day — still shows the break hatch on top instead of the task
         // color completely hiding it. The task's own color still shows
         // through between the stripes.
-        breakBlock = `<div class="absolute flex items-center justify-center" style="left:calc(${bLeftPct}% + 1px);width:calc(${bWidthPct}% - 2px);top:3px;bottom:3px;border-radius:3px;background:repeating-linear-gradient(45deg,rgba(251,191,36,0.55),rgba(251,191,36,0.55) 5px,rgba(217,119,6,0.55) 5px,rgba(217,119,6,0.55) 10px);" title="On break (${bStartLabel} – ${bEndLabel})">${showLabel ? `<span style="font-size:9px;font-weight:700;color:#451a03;text-shadow:0 1px 2px rgba(255,255,255,0.7);white-space:nowrap;">☕ Break</span>` : ''}</div>`;
-    }
+        breakBlock += `<div class="absolute flex items-center justify-center" style="left:calc(${bLeftPct}% + 1px);width:calc(${bWidthPct}% - 2px);top:3px;bottom:3px;border-radius:3px;background:repeating-linear-gradient(45deg,rgba(251,191,36,0.55),rgba(251,191,36,0.55) 5px,rgba(217,119,6,0.55) 5px,rgba(217,119,6,0.55) 10px);" title="On break (${bStartLabel} – ${bEndLabel})">${showLabel ? `<span style="font-size:9px;font-weight:700;color:#451a03;text-shadow:0 1px 2px rgba(255,255,255,0.7);white-space:nowrap;">☕ Break</span>` : ''}</div>`;
+    });
 
     // Logged-task blocks — inset top/bottom and rounded so back-to-back tasks
     // stay visually distinct instead of blending into one solid strip.
@@ -534,7 +564,7 @@ function startEditTask(taskId) {
     document.getElementById('task_editing_id').value = taskId;
     setStartTimeValue(task.start_time.slice(0, 5));
     setEndTimeValue(task.end_time.slice(0, 5));
-    document.getElementById('task_att_client').value = task.client || '';
+    setTaskClient(task);
     document.getElementById('task_att_text').value   = task.task_performed || '';
     document.getElementById('tl_form_title').textContent = 'Edit Task';
     document.getElementById('tl_cancel_edit_btn').classList.remove('hidden');
@@ -544,9 +574,22 @@ function startEditTask(taskId) {
     updateDurationLabel();
 }
 
+// Editing a task keeps its current client even if an admin has since unassigned or deactivated it.
+function setTaskClient(task) {
+    const select = document.getElementById('task_att_client_id');
+    const id = task.client_id ? String(task.client_id) : '';
+    if (id && !Array.from(select.options).some(o => o.value === id)) {
+        const opt = document.createElement('option');
+        opt.value = id;
+        opt.textContent = task.client || 'Current client';
+        select.appendChild(opt);
+    }
+    select.value = id;
+}
+
 function cancelTaskEdit() {
     document.getElementById('task_editing_id').value = '';
-    document.getElementById('task_att_client').value = '';
+    document.getElementById('task_att_client_id').value = '';
     document.getElementById('task_att_text').value = '';
     document.getElementById('tl_form_title').textContent = 'Add a Task';
     document.getElementById('tl_cancel_edit_btn').classList.add('hidden');
@@ -566,14 +609,14 @@ async function saveTask() {
     const editingId      = document.getElementById('task_editing_id').value;
     const startTime      = document.getElementById('task_start_time').value;
     const endTime        = document.getElementById('task_end_time').value;
-    const client          = document.getElementById('task_att_client').value.trim();
+    const clientId        = document.getElementById('task_att_client_id').value;
     const taskPerformed  = document.getElementById('task_att_text').value.trim();
     const saveTaskToggle  = document.getElementById('saveTaskToggle');
-    const saveClientToggle = document.getElementById('saveClientToggle');
 
     document.getElementById('tl_form_error').classList.add('hidden');
 
     if (!taskPerformed) { showTaskFormError('Task description is required.'); return; }
+    if (!clientId && !editingId) { showTaskFormError('Please select a client.'); return; }
     if (!startTime || !endTime) { showTaskFormError('Start and end time are required.'); return; }
 
     const url = editingId
@@ -592,13 +635,12 @@ async function saveTask() {
             },
             body: JSON.stringify({
                 task_performed: taskPerformed,
-                client: client,
+                client_id: clientId ? Number(clientId) : null,
                 start_time: startTime + ':00',
                 end_time: endTime + ':00',
                 // Only relevant on create — the Dashboard's modal has this
                 // "save as preset" checkbox, the Timesheet page's doesn't.
                 save_task: !editingId && !!(saveTaskToggle && saveTaskToggle.checked),
-                save_client: !editingId && !!(saveClientToggle && saveClientToggle.checked),
             }),
         });
         const data = await res.json();
@@ -606,10 +648,13 @@ async function saveTask() {
 
         taskLogDirty = true;
         if (saveTaskToggle) saveTaskToggle.checked = false;
-        if (saveClientToggle) saveClientToggle.checked = false;
         cancelTaskEdit();
         await loadTasksForSession(attendanceId);
-        if (typeof showToast === 'function') showToast(editingId ? 'Task updated.' : 'Task added.', 'success');
+        if (typeof showToast === 'function') {
+            // Warn-only: a task over break time still saves, the server says so.
+            if (data.warning) showToast(data.warning, 'warning');
+            else showToast(editingId ? 'Task updated.' : 'Task added.', 'success');
+        }
     } catch (e) {
         showTaskFormError('Network error. Please try again.');
     } finally {

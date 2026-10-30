@@ -8,6 +8,6 @@ class TasksModel extends Model
 {
     protected $table      = 'tasks';
     protected $primaryKey = 'id';
-    protected $allowedFields = ['attendance_id', 'user_id', 'start_time', 'end_time', 'task_performed', 'client', 'saved_at'];
+    protected $allowedFields = ['attendance_id', 'user_id', 'start_time', 'end_time', 'task_performed', 'client', 'client_id', 'saved_at'];
     protected $useTimestamps = false;
 }

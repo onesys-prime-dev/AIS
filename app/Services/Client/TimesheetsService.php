@@ -6,7 +6,7 @@ use App\Models\Client\AttendanceModel;
 use App\Models\Client\TasksModel;
 use App\Models\Client\RequestModel;
 use App\Models\Client\EmployeePositionModel;
-use App\Models\Client\SavedClientsModel;
+use App\Services\Client\ClientService;
 use App\Models\Client\SavedTasksModel;
 use DateTime;
 
@@ -142,10 +142,22 @@ class TimesheetsService
         $start         = array_key_exists('start_time', $payload) ? trim((string) $payload['start_time']) : $task['start_time'];
         $end           = array_key_exists('end_time', $payload)   ? trim((string) $payload['end_time'])   : $task['end_time'];
         $taskPerformed = array_key_exists('task_performed', $payload) ? trim((string) $payload['task_performed']) : $task['task_performed'];
-        $client        = array_key_exists('client', $payload) ? trim((string) $payload['client']) : (string) ($task['client'] ?? '');
 
         if ($taskPerformed === '') {
             return ['success' => false, 'message' => 'Task description is required.'];
+        }
+
+        // Clients come from the admin-managed list. Keeping the task's current client is always allowed
+        // (it may have been deactivated or unassigned since); switching needs one available to this employee.
+        $clientId   = (int) ($task['client_id'] ?? 0);
+        $clientName = $task['client'] ?? null;
+        if (array_key_exists('client_id', $payload) && (int) $payload['client_id'] !== $clientId) {
+            $picked = (int) $payload['client_id'] ? (new ClientService())->resolveForUser($userId, (int) $payload['client_id']) : null;
+            if (! $picked) {
+                return ['success' => false, 'message' => 'Please select a client from the list.'];
+            }
+            $clientId   = $picked['id'];
+            $clientName = $picked['name'];
         }
 
         $attendance = $this->attendanceModel->find((int) $task['attendance_id']);
@@ -167,13 +179,20 @@ class TimesheetsService
             'start_time'     => $start,
             'end_time'       => $end,
             'task_performed' => $taskPerformed,
-            'client'         => $client !== '' ? $client : null,
+            'client'         => $clientName,
+            'client_id'      => $clientId ?: null,
         ];
 
         $ok = $this->tasksModel->update($taskId, $newData);
         if ($ok) service('activityLogger')->taskUpdated($taskId, $old, $newData);
 
-        return ['success' => (bool) $ok, 'message' => $ok ? null : 'Unable to update task.'];
+        $timesChanged = $start !== $task['start_time'] || $end !== $task['end_time'];
+
+        return [
+            'success' => (bool) $ok,
+            'message' => $ok ? null : 'Unable to update task.',
+            'warning' => ($ok && $timesChanged) ? $this->breakOverlapWarning($attendance, $start, $end) : null,
+        ];
     }
 
     public function deleteByUserId(int $taskId, int $userId): bool
@@ -211,6 +230,8 @@ class TimesheetsService
                 // (validateTaskWindow() doesn't check this; unchanged here).
                 'break_start' => $attendance['break_start'] ?? null,
                 'break_end'   => $attendance['break_end'] ?? null,
+                // Every break taken (and one in progress), so the timeline can show them all.
+                'breaks'      => $this->breakIntervals($attendance),
             ],
         ];
     }
@@ -225,10 +246,19 @@ class TimesheetsService
         $start         = trim((string) ($payload['start_time'] ?? ''));
         $end           = trim((string) ($payload['end_time']   ?? ''));
         $taskPerformed = trim((string) ($payload['task_performed'] ?? ''));
-        $client        = trim((string) ($payload['client'] ?? ''));
 
         if ($taskPerformed === '') {
             return ['success' => false, 'message' => 'Task description is required.'];
+        }
+
+        // A client is required and must be one the admin made available to this employee.
+        $requestedClient = (int) ($payload['client_id'] ?? 0);
+        if (! $requestedClient) {
+            return ['success' => false, 'message' => 'Please select a client.'];
+        }
+        $client = (new ClientService())->resolveForUser($userId, $requestedClient);
+        if (! $client) {
+            return ['success' => false, 'message' => 'That client is not available to you. Please pick one from the list.'];
         }
 
         $error = $this->validateTaskWindow($attendance, $start, $end);
@@ -242,7 +272,8 @@ class TimesheetsService
             'start_time'     => $start,
             'end_time'       => $end,
             'task_performed' => $taskPerformed,
-            'client'         => $client !== '' ? $client : null,
+            'client'         => $client['name'],
+            'client_id'      => $client['id'],
             'saved_at'       => date('Y-m-d H:i:s'),
         ]);
 
@@ -260,30 +291,13 @@ class TimesheetsService
             $this->saveAsPreset($userId, $taskPerformed);
         }
 
-        if (!empty($payload['save_client']) && $client !== '') {
-            $this->saveClientPreset($userId, $client);
-        }
-
-        return ['success' => true, 'task' => $this->tasksModel->find($id)];
+        return ['success' => true, 'task' => $this->tasksModel->find($id), 'warning' => $this->breakOverlapWarning($attendance, $start, $end)];
     }
 
     /**
      * Saves a task description as a reusable preset (the "Select Preset Task"
      * dropdown), skipping the insert if this user already has an identical one.
      */
-    private function saveClientPreset(int $userId, string $client): void
-    {
-        $model = new SavedClientsModel();
-        $exists = $model->where('user_id', $userId)->where('client', $client)->first();
-        if ($exists) return;
-
-        $model->insert([
-            'user_id'  => $userId,
-            'client'   => $client,
-            'saved_at' => date('Y-m-d H:i:s'),
-        ]);
-    }
-
     private function saveAsPreset(int $userId, string $taskPerformed): void
     {
         $savedTasksModel = new SavedTasksModel();
@@ -303,25 +317,13 @@ class TimesheetsService
     }
 
     /**
-     * Validates a task's [start,end) window against its attendance's clock-in/out
-     * span (capped at "now" if still clocked in) and against every other task
-     * already logged on that same attendance record. Times are anchored to the
-     * attendance's clock-in date, with a same-pattern +1 day roll for spans that
-     * cross midnight (mirrors the regular/OT hour math in getDetailedTimesheet()).
-     * Returns an error message, or null if the window is valid.
+     * The clocked-in span a task has to fit in, plus a closure that anchors a bare "HH:MM" start/end
+     * onto real dates for it. Shared by the window validation and the break-overlap warning.
+     *
+     * @return array{0: DateTime, 1: DateTime, 2: \Closure}
      */
-    private function validateTaskWindow(array $attendance, string $start, string $end, ?int $excludeTaskId = null): ?string
+    private function taskWindowContext(array $attendance): array
     {
-        if ($start === '' || $end === '') {
-            return 'Start and end time are required.';
-        }
-        if (strtotime($start) === false || strtotime($end) === false) {
-            return 'Invalid time format.';
-        }
-        if ($start === $end) {
-            return 'Start and end time cannot be the same.';
-        }
-
         $baseDate = date('Y-m-d', strtotime($attendance['time_in']));
         $winStart = new DateTime($attendance['time_in']);
         // Floor to the minute — the real clock-in timestamp almost always has
@@ -347,6 +349,213 @@ class TimesheetsService
             }
             return [$start, $end];
         };
+
+        return [$winStart, $winEnd, $anchor];
+    }
+
+    /**
+     * Hours of logged tasks per client, with the detail behind every figure.
+     *
+     * A task's hours are its length minus any break actually taken inside it (break time isn't client
+     * work, and older tasks may already overlap one). Tasks belong to the day of the shift they were
+     * logged on. Also reports clocked (worked) hours for the same days, so the gap — time worked but
+     * never logged to a client — is visible rather than silently missing.
+     *
+     * @param int[] $userIds
+     * @return array<string, mixed>
+     */
+    /** Most tasks one Client Hours request will load; beyond this the caller is asked to narrow the range. */
+    public const CLIENT_HOURS_MAX_TASKS = 30000;
+
+    public function clientHours(array $userIds, string $start, string $end, ?int $clientId = null, ?int $maxTasks = null): array
+    {
+        $userIds = array_values(array_unique(array_filter(array_map('intval', $userIds))));
+        $empty = ['range' => ['start' => $start, 'end' => $end], 'totals' => ['logged_hours' => 0.0, 'worked_hours' => 0.0, 'unlogged_hours' => 0.0, 'tasks' => 0, 'employees' => 0, 'clients' => 0], 'clients' => [], 'client_options' => []];
+        if (! $userIds) return $empty;
+
+        $db = \Config\Database::connect();
+
+        // Bounded work however many people and days are asked for.
+        $taskCount = $db->table('tasks t')
+            ->join('attendance a', 'a.id = t.attendance_id')
+            ->whereIn('t.user_id', $userIds)
+            ->where('COALESCE(a.shift_date, DATE(a.time_in)) >=', $start)
+            ->where('COALESCE(a.shift_date, DATE(a.time_in)) <=', $end)
+            ->countAllResults();
+        if ($taskCount > ($maxTasks ?? self::CLIENT_HOURS_MAX_TASKS)) {
+            throw new \App\Exceptions\ValidationException('That is a lot of tasks (' . number_format($taskCount) . '). Pick an employee or a shorter date range.');
+        }
+
+        $rows = $db->table('tasks t')
+            ->select("t.id, t.user_id, t.start_time, t.end_time, t.task_performed, t.client, t.client_id, a.id AS attendance_id, a.time_in, a.time_out, a.shift_date, a.break_log, a.break_start, CONCAT(e.first_name, ' ', e.last_name) AS employee_name", false)
+            ->join('attendance a', 'a.id = t.attendance_id')
+            ->join('employees e', 'e.user_id = t.user_id', 'left')
+            ->whereIn('t.user_id', $userIds)
+            ->where('COALESCE(a.shift_date, DATE(a.time_in)) >=', $start)
+            ->where('COALESCE(a.shift_date, DATE(a.time_in)) <=', $end)
+            ->orderBy('COALESCE(a.shift_date, DATE(a.time_in))', 'ASC', false)
+            ->orderBy('t.start_time', 'ASC')
+            ->get()->getResultArray();
+
+        $contexts = [];
+        $clients = [];
+        $options = [];
+        $loggedAll = 0.0;
+        foreach ($rows as $r) {
+            $attId = (int) $r['attendance_id'];
+            $att   = ['time_in' => $r['time_in'], 'time_out' => $r['time_out'], 'break_log' => $r['break_log'], 'break_start' => $r['break_start']];
+            [, , $anchor] = $contexts[$attId] ??= $this->taskWindowContext($att);
+            [$ts, $te] = $anchor((string) $r['start_time'], (string) $r['end_time']);
+
+            $seconds = max(0, $te->getTimestamp() - $ts->getTimestamp());
+            $breakSeconds = 0;
+            foreach ($this->breakIntervals($att) as [$bs, $be]) {
+                $overlap = min($te->getTimestamp(), strtotime($be)) - max($ts->getTimestamp(), strtotime($bs));
+                if ($overlap > 0) $breakSeconds += $overlap;
+            }
+            $hours = round(max(0, $seconds - $breakSeconds) / 3600, 2);
+
+            $cid  = $r['client_id'] !== null ? (int) $r['client_id'] : 0;
+            $name = $r['client'] !== null && trim((string) $r['client']) !== '' ? (string) $r['client'] : 'No client';
+            $options[$cid] = ['id' => $cid, 'name' => $name];
+            $loggedAll += $hours;
+            if ($clientId !== null && $cid !== $clientId) continue;
+
+            $date = $r['shift_date'] ?: substr((string) $r['time_in'], 0, 10);
+            $uid  = (int) $r['user_id'];
+            $clients[$cid]['client_id'] = $cid;
+            $clients[$cid]['name']      = $name;
+            $emp = &$clients[$cid]['employees'][$uid];
+            $emp['user_id'] = $uid;
+            $emp['name']    = trim((string) $r['employee_name']) ?: 'Employee #' . $uid;
+            $emp['hours']   = round(($emp['hours'] ?? 0) + $hours, 2);
+            $emp['days'][$date]['date']  = $date;
+            $emp['days'][$date]['hours'] = round(($emp['days'][$date]['hours'] ?? 0) + $hours, 2);
+            $emp['days'][$date]['tasks'][] = [
+                'start'       => substr((string) $r['start_time'], 0, 5),
+                'end'         => substr((string) $r['end_time'], 0, 5),
+                'description' => (string) $r['task_performed'],
+                'hours'       => $hours,
+                'break_excluded_minutes' => (int) round($breakSeconds / 60),
+            ];
+            unset($emp);
+        }
+
+        // Shape for JSON and add totals / shares.
+        $out = [];
+        $loggedShown = 0.0;
+        $taskCount = 0;
+        $employeeSet = [];
+        foreach ($clients as $c) {
+            $empList = [];
+            $cHours = 0.0; $cTasks = 0;
+            foreach ($c['employees'] as $e) {
+                $days = array_values($e['days']);
+                $tasks = array_sum(array_map(static fn ($d) => count($d['tasks']), $days));
+                $empList[] = ['user_id' => $e['user_id'], 'name' => $e['name'], 'hours' => $e['hours'], 'tasks' => $tasks, 'days' => $days];
+                $cHours += $e['hours']; $cTasks += $tasks;
+                $employeeSet[$e['user_id']] = true;
+            }
+            usort($empList, static fn ($a, $b) => $b['hours'] <=> $a['hours']);
+            $out[] = ['client_id' => $c['client_id'], 'name' => $c['name'], 'hours' => round($cHours, 2), 'tasks' => $cTasks, 'employees' => $empList];
+            $loggedShown += $cHours;
+            $taskCount += $cTasks;
+        }
+        usort($out, static fn ($a, $b) => $b['hours'] <=> $a['hours']);
+        foreach ($out as &$o) {
+            $o['share'] = $loggedShown > 0 ? round($o['hours'] / $loggedShown * 100, 1) : 0.0;
+        }
+        unset($o);
+
+        $worked = (float) ($db->table('attendance')
+            ->selectSum('total_hours', 'h')
+            ->whereIn('user_id', $userIds)
+            ->where('time_out IS NOT NULL', null, false)
+            ->where('COALESCE(shift_date, DATE(time_in)) >=', $start)
+            ->where('COALESCE(shift_date, DATE(time_in)) <=', $end)
+            ->get()->getRow()->h ?? 0);
+
+        usort($options, static fn ($a, $b) => strcasecmp($a['name'], $b['name']));
+
+        return [
+            'range'   => ['start' => $start, 'end' => $end],
+            'totals'  => [
+                'logged_hours'   => round($loggedShown, 2),
+                'worked_hours'   => round($worked, 2),
+                // Across every client (not just the filtered one): time clocked in but never logged to any.
+                'unlogged_hours' => round(max(0, $worked - $loggedAll), 2),
+                'tasks'          => $taskCount,
+                'employees'      => count($employeeSet),
+                'clients'        => count($out),
+            ],
+            'clients'        => $out,
+            'client_options' => array_values($options),
+        ];
+    }
+    /**
+     * Every break actually taken on an attendance, as [start, end] datetime strings: the logged breaks
+     * plus one still running (which ends now, or at clock-out). Real times, not the fixed slot length
+     * that payroll deducts.
+     *
+     * @return list<array{0: string, 1: string}>
+     */
+    public function breakIntervals(array $attendance): array
+    {
+        $out = [];
+        foreach ((json_decode((string) ($attendance['break_log'] ?? ''), true) ?: []) as $b) {
+            if (! empty($b['start']) && ! empty($b['end'])) $out[] = [(string) $b['start'], (string) $b['end']];
+        }
+        if (! empty($attendance['break_start'])) {
+            $out[] = [(string) $attendance['break_start'], (string) ($attendance['time_out'] ?: date('Y-m-d H:i:s'))];
+        }
+        return $out;
+    }
+
+    /**
+     * A friendly warning when a task's time runs over a break the employee took, or null. Warn-only:
+     * the task is still saved (break time isn't paid work, so the report also subtracts it).
+     */
+    private function breakOverlapWarning(array $attendance, string $start, string $end): ?string
+    {
+        $breaks = $this->breakIntervals($attendance);
+        if (! $breaks) return null;
+
+        [, , $anchor] = $this->taskWindowContext($attendance);
+        [$taskStart, $taskEnd] = $anchor($start, $end);
+
+        $hits = [];
+        foreach ($breaks as [$bs, $be]) {
+            $bStart = new DateTime($bs);
+            $bEnd   = new DateTime($be);
+            if ($taskStart < $bEnd && $taskEnd > $bStart) {
+                $hits[] = $bStart->format('h:i A') . ' – ' . $bEnd->format('h:i A');
+            }
+        }
+        if (! $hits) return null;
+
+        return 'Saved, but this overlaps your break (' . implode(', ', $hits) . '). Break time is not counted as client work.';
+    }
+    /**
+     * Validates a task's [start,end) window against its attendance's clock-in/out
+     * span (capped at "now" if still clocked in) and against every other task
+     * already logged on that same attendance record. Times are anchored to the
+     * attendance's clock-in date, with a same-pattern +1 day roll for spans that
+     * cross midnight (mirrors the regular/OT hour math in getDetailedTimesheet()).
+     * Returns an error message, or null if the window is valid.
+     */
+    private function validateTaskWindow(array $attendance, string $start, string $end, ?int $excludeTaskId = null): ?string
+    {
+        if ($start === '' || $end === '') {
+            return 'Start and end time are required.';
+        }
+        if (strtotime($start) === false || strtotime($end) === false) {
+            return 'Invalid time format.';
+        }
+        if ($start === $end) {
+            return 'Start and end time cannot be the same.';
+        }
+
+        [$winStart, $winEnd, $anchor] = $this->taskWindowContext($attendance);
 
         [$taskStart, $taskEnd] = $anchor($start, $end);
 

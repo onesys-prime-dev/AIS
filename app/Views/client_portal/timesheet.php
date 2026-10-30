@@ -49,6 +49,22 @@
                 <span>Past Timesheets</span>
             </button>
 
+            <button type="button"
+                data-modal-open="viewClientHoursModal"
+                aria-haspopup="dialog"
+                aria-controls="viewClientHoursModal"
+                onclick="openClientHours()"
+                class="timesheet-nav-btn flex items-center gap-2 text-gray-700 text-sm font-medium">
+                <span class="timesheet-nav-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="7" width="18" height="13" rx="2"/>
+                        <path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/>
+                        <path d="M3 13h18"/>
+                    </svg>
+                </span>
+                <span>Client Hours</span>
+            </button>
+
             <?php if ($isPayrollAdmin): ?>
             <button type="button"
                 data-modal-open="viewEmployeeTimesheetModal"
@@ -367,6 +383,17 @@
         ]);
     ?>
 
+    <!-- Client Hours Modal: hours of logged tasks per client (own tasks; reviewers can pick employees) -->
+    <?php
+        $content = view('client_portal/modals/client_hours', ['isReviewer' => $isPayrollAdmin]);
+        echo view('components/view_modal', [
+            'id'       => 'viewClientHoursModal',
+            'title'    => 'Client Hours',
+            'maxWidth' => '1100px',
+            'content'  => $content,
+        ]);
+    ?>
+
     <!-- Payslip Modal -->
     <?php
         $content = view('client_portal/modals/view_payslip');
@@ -528,19 +555,13 @@
                         <span id="tl_duration_label" class="text-[11px] font-semibold text-gray-500"></span>
                     </div>
 
-                    <label class="block text-[11px] text-gray-400 mb-0.5">Select Preset Client</label>
-                    <select id="savedClientsDropdown" class="tl-field mb-2">
-                        <option value="">-- Type a client manually --</option>
+                    <label class="block text-[11px] text-gray-400 mb-0.5">Client</label>
+                    <select id="task_att_client_id" class="tl-field mb-2">
+                        <option value="">-- Select a client --</option>
                     </select>
-
-                    <label class="block text-[11px] text-gray-400 mb-0.5">Or type the client</label>
-                    <input type="text" id="task_att_client" placeholder="e.g. Acme Corp" class="tl-field mb-2">
 
                     <label class="text-xs text-gray-600" style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
                         <input type="checkbox" id="saveTaskToggle"> Save this task as a preset
-                    </label>
-                    <label class="text-xs text-gray-600" style="display:flex;align-items:center;gap:6px;">
-                        <input type="checkbox" id="saveClientToggle"> Save this client as a preset
                     </label>
 
                     <p id="tl_form_error" class="text-xs text-red-600 hidden" style="margin-top:6px;"></p>

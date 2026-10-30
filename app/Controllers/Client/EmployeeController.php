@@ -332,6 +332,8 @@ class EmployeeController extends BaseController
         $accessControlRoleOptions = [];
         $accessControlRoleDescriptions = [];
         $accessControlDepartments = [];
+        $accessControlClients = [];
+        $accessControlClientEmployees = [];
         $accessControlTeamHeadAccounts = [];
         $accessControlDepartmentTeamHeads = [];
         $accessControlPermissions = [];
@@ -348,6 +350,8 @@ class EmployeeController extends BaseController
             $accessControlRoleOptions = $accessControlData['roleOptions'];
             $accessControlRoleDescriptions = $accessControlData['roleDescriptions'];
             $accessControlDepartments = $accessControlData['departments'];
+            $accessControlClients = $accessControlData['clients'];
+            $accessControlClientEmployees = $accessControlData['clientEmployees'];
             $accessControlTeamHeadAccounts = $accessControlData['teamHeadAccounts'];
             $accessControlDepartmentTeamHeads = $accessControlData['departmentTeamHeads'];
             $accessControlPermissions = $accessControlData['permissions'];
@@ -373,6 +377,8 @@ class EmployeeController extends BaseController
                 'accessControlRoleOptions' => $accessControlRoleOptions,
                 'accessControlRoleDescriptions' => $accessControlRoleDescriptions,
                 'accessControlDepartments' => $accessControlDepartments,
+                'accessControlClients' => $accessControlClients,
+                'accessControlClientEmployees' => $accessControlClientEmployees,
                 'accessControlTeamHeadAccounts' => $accessControlTeamHeadAccounts,
                 'accessControlDepartmentTeamHeads' => $accessControlDepartmentTeamHeads,
                 'accessControlPermissions' => $accessControlPermissions,
@@ -510,6 +516,8 @@ class EmployeeController extends BaseController
         $data['accessControlRoleOptions'] = $accessControlRoleOptions;
         $data['accessControlRoleDescriptions'] = $accessControlRoleDescriptions;
         $data['accessControlDepartments'] = $accessControlDepartments;
+        $data['accessControlClients'] = $accessControlClients;
+        $data['accessControlClientEmployees'] = $accessControlClientEmployees;
         $data['accessControlTeamHeadAccounts'] = $accessControlTeamHeadAccounts;
         $data['accessControlDepartmentTeamHeads'] = $accessControlDepartmentTeamHeads;
         $data['accessControlPermissions'] = $accessControlPermissions;

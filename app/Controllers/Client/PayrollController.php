@@ -1774,6 +1774,21 @@ class PayrollController extends BaseController
             $taskLog->freezePane('A2');
             if($taskLine>2)$taskLog->setAutoFilter('A1:F'.($taskLine-1));
 
+            // Hours per client for the same cutoff (task length minus breaks taken inside it), as real
+            // numbers so they can be summed. Same figures as the Client Hours report on the Timesheet page.
+            $byClient=$book->createSheet()->setTitle('By Client');
+            $byClient->fromArray(['Client','Tasks','Hours (decimal)','Hours (h:mm)'],null,'A1');
+            $clientLine=2;
+            foreach((new \App\Services\Client\TimesheetsService())->clientHours([(int)$employee['user_id']],$startDate,$endDate)['clients'] as $clientRow){
+                $minutes=(int)round($clientRow['hours']*60);
+                $byClient->setCellValueExplicit([1,$clientLine],$clientRow['name'],\PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
+                $byClient->setCellValueExplicit([2,$clientLine],(int)$clientRow['tasks'],\PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_NUMERIC);
+                $byClient->setCellValueExplicit([3,$clientLine],(float)$clientRow['hours'],\PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_NUMERIC);
+                $byClient->setCellValueExplicit([4,$clientLine],sprintf('%d:%02d',intdiv($minutes,60),$minutes%60),\PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
+                $clientLine++;
+            }
+            $byClient->freezePane('A2');
+
             $totals=$book->createSheet()->setTitle('Timesheet Totals');
             $totals->fromArray([['System timesheet totals','Value'],['Employee',$employee['employee_number']],['Cutoff start',$startDate],['Cutoff end',$endDate]]);
             $line=5;foreach($detailed['totals'] as $key=>$value)$totals->fromArray([$key,$value],null,'A'.$line++,true);

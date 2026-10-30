@@ -12,6 +12,7 @@
     $acTabs = [
         'accounts'    => ['Accounts', '<circle cx="9" cy="8.5" r="3"/><path d="M3.5 19c0-3 2.4-5 5.5-5s5.5 2 5.5 5"/><circle cx="17" cy="9.5" r="2.4"/><path d="M16.5 14.2c2.6.2 4.5 1.9 4.5 4.3"/>'],
         'departments' => ['Departments', '<path d="M4 21V5a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v16"/><path d="M14 10h5a1 1 0 0 1 1 1v10"/><path d="M3 21h18"/><path d="M8 8h2M8 12h2M8 16h2"/>'],
+        'clients'     => ['Clients', '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/><path d="M3 13h18"/>'],
         'permissions' => ['Role Permissions', '<path d="M12 3 5 6v5c0 4.6 3 8.3 7 10 4-1.7 7-5.4 7-10V6l-7-3Z"/><path d="m9 12 2 2 4-4"/>'],
         'network'     => ['Attendance Network', '<path d="M2.5 9a15 15 0 0 1 19 0"/><path d="M5.5 12.5a10.5 10.5 0 0 1 13 0"/><path d="M8.7 16a6 6 0 0 1 6.6 0"/><path d="M12 19.5v.01"/>'],
     ];
@@ -75,6 +76,38 @@
                 'actionsHtml' => '<button type="button" id="addDepartmentBtn" class="ac-add-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Add department</button>',
             // saveData=false: CodeIgniter keeps view() variables for later views in the same request, so
             // without this the Add button leaked into the Face Recognition and Loan tables rendered after it.
+            ], ['saveData' => false]);
+            ?>
+        </div>
+    </div>
+
+    <!-- CLIENTS: the list employees pick from when logging a task; each client is assigned to departments and/or individual employees -->
+    <div class="flex-1 min-h-0" id="clientsSection" data-ac-panel="clients" style="display:none;">
+        <div style="height:100%;">
+            <?php
+            echo view('components/crud_table', [
+                'title'       => 'Clients',
+                'tableId'     => 'clientsTable',
+                // Must match ROW_GRID in the CLIENTS script.
+                'gridStyle'   => 'minmax(0,2fr) minmax(0,2.6fr) minmax(0,0.8fr) minmax(0,0.8fr) minmax(0,0.7fr)',
+                'columns'     => ['Client', 'Available to', 'Tasks', 'Status', 'Action'],
+                'filters'     => [
+                    ['key' => 'status', 'label' => 'Status', 'options' => [
+                        ['value' => '', 'label' => 'All'],
+                        ['value' => 'active', 'label' => 'Active'],
+                        ['value' => 'inactive', 'label' => 'Inactive'],
+                    ]],
+                    ['key' => 'assignment', 'label' => 'Assignment', 'options' => [
+                        ['value' => '', 'label' => 'All'],
+                        ['value' => 'assigned', 'label' => 'Assigned'],
+                        ['value' => 'unassigned', 'label' => 'Not assigned'],
+                    ]],
+                ],
+                'sortOptions' => [
+                    ['value' => 'name',  'label' => 'Name'],
+                    ['value' => 'tasks', 'label' => 'Tasks logged'],
+                ],
+                'actionsHtml' => '<button type="button" id="addClientBtn" class="ac-add-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Add client</button>',
             ], ['saveData' => false]);
             ?>
         </div>
@@ -368,6 +401,67 @@
         <div class="acr-footer">
             <button type="button" id="adAddCancel" class="acr-btn acr-cancel">Cancel</button>
             <button type="button" id="adAddSubmit" class="acr-btn acr-save">Add department</button>
+        </div>
+    </div>
+</div>
+
+<!-- MANAGE CLIENT MODAL -->
+<div id="acClientModal" class="acr-overlay" aria-hidden="true">
+    <div class="acr-box acr-box-sm" role="dialog" aria-modal="true" aria-labelledby="acliTitle">
+        <div class="acr-header">
+            <div class="acr-header-main">
+                <span class="acr-avatar acr-avatar-lg" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/><path d="M3 13h18"/></svg></span>
+                <div>
+                    <h3 id="acliTitle">Manage client</h3>
+                    <p id="acliSubtitle"></p>
+                </div>
+            </div>
+            <button type="button" id="acliClose" class="acr-close" aria-label="Close">&#10005;</button>
+        </div>
+        <div class="acr-body">
+            <div class="ac-field-label">Client name</div>
+            <input type="text" id="acliName" class="ac-input" style="width:100%;flex:none;" maxlength="190" autocomplete="off">
+
+            <label class="ac-pick" style="margin-top:12px;">
+                <span class="ac-pick-name">Active <span class="text-xs text-gray-400">&mdash; employees can pick this client</span></span>
+                <input type="checkbox" id="acliActive">
+            </label>
+
+            <div class="ac-field-label">Available to departments</div>
+            <div id="acliDepartments" style="max-height:170px;overflow-y:auto;"></div>
+
+            <div class="ac-field-label">Also available to these employees</div>
+            <input type="text" id="acliEmployeeSearch" class="ac-input" style="width:100%;flex:none;margin-bottom:6px;" placeholder="Search employees..." autocomplete="off">
+            <div id="acliEmployees" style="max-height:200px;overflow-y:auto;"></div>
+            <p class="text-xs text-gray-400" style="margin-top:6px;">An employee can pick the client if their department <em>or</em> they personally are selected. With nobody selected, no one can pick it.</p>
+        </div>
+        <div class="acr-footer">
+            <span id="acliNote" class="acr-note"></span>
+            <button type="button" id="acliCancel" class="acr-btn acr-cancel">Close</button>
+            <button type="button" id="acliSave" class="acr-btn acr-save" disabled>Save changes</button>
+        </div>
+    </div>
+</div>
+
+<!-- ADD CLIENT MODAL -->
+<div id="acClientAddModal" class="acr-overlay" aria-hidden="true">
+    <div class="acr-box acr-box-xs" role="dialog" aria-modal="true" aria-labelledby="acliAddTitle">
+        <div class="acr-header">
+            <div class="acr-header-main">
+                <div>
+                    <h3 id="acliAddTitle">Add client</h3>
+                    <p>You'll choose who can pick it next.</p>
+                </div>
+            </div>
+            <button type="button" id="acliAddClose" class="acr-close" aria-label="Close">&#10005;</button>
+        </div>
+        <div class="acr-body">
+            <div class="ac-field-label">Client name</div>
+            <input type="text" id="newClientName" class="ac-input" style="width:100%;flex:none;" maxlength="190" placeholder="e.g. Acme Corp" autocomplete="off">
+        </div>
+        <div class="acr-footer">
+            <button type="button" id="acliAddCancel" class="acr-btn acr-cancel">Cancel</button>
+            <button type="button" id="acliAddSubmit" class="acr-btn acr-save">Add client</button>
         </div>
     </div>
 </div>

@@ -494,6 +494,76 @@ class TimesheetController extends BaseController
         return $rows;
     }
 
+    /** Task hours per client for the signed-in employee's own tasks. */
+    public function clientHours()
+    {
+        $user = auth()->user();
+        if (!$user) {
+            return $this->response->setStatusCode(401)->setJSON(['error' => 'Unauthenticated']);
+        }
+        return $this->clientHoursResponse([(int) $user->id]);
+    }
+
+    /**
+     * The same report for reviewers: one employee, or everyone they may review when none is chosen
+     * (everyone for attendance reviewers, their department's people for a Team Head).
+     */
+    public function adminClientHours()
+    {
+        if (!\App\Libraries\PortalAccess::reviewsAttendance()) {
+            return $this->response->setStatusCode(403)->setJSON(['error' => 'Unauthorized']);
+        }
+
+        $employeeParam = $this->request->getGet('employee_id');
+        if ($employeeParam !== null && $employeeParam !== '' && !is_string($employeeParam)) {
+            return $this->response->setStatusCode(400)->setJSON(['error' => 'Invalid employee.']);
+        }
+
+        $db = db_connect();
+        if ((int) $employeeParam > 0) {
+            if (!\App\Libraries\PortalAccess::canReviewEmployee((int) $employeeParam)) {
+                return $this->response->setStatusCode(403)->setJSON(['error' => 'Unauthorized']);
+            }
+            $row = $db->table('employees')->select('user_id')->where('id', (int) $employeeParam)->get()->getRowArray();
+            $userIds = $row && $row['user_id'] ? [(int) $row['user_id']] : [];
+        } else {
+            $query = $db->table('employees')->select('user_id')->where('user_id IS NOT NULL', null, false);
+            if (!\App\Libraries\PortalAccess::can('attendance')) {
+                $query->whereIn('user_id', \App\Libraries\PortalAccess::teamUserIds() ?: [0]);
+            }
+            $userIds = array_map('intval', array_column($query->get()->getResultArray(), 'user_id'));
+        }
+
+        return $this->clientHoursResponse($userIds);
+    }
+
+    private function clientHoursResponse(array $userIds)
+    {
+        $start = $this->request->getGet('start');
+        $end   = $this->request->getGet('end');
+        $client = $this->request->getGet('client_id');
+        $valid = static fn ($d) => is_string($d) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $d) && strtotime($d) !== false;
+
+        if (!$valid($start) || !$valid($end) || $start > $end) {
+            return $this->response->setStatusCode(400)->setJSON(['error' => 'Choose a valid start and end date.']);
+        }
+        // Keeps one request bounded however many people and tasks are in range.
+        if ((strtotime($end) - strtotime($start)) / 86400 > 366) {
+            return $this->response->setStatusCode(400)->setJSON(['error' => 'Choose a range of one year or less.']);
+        }
+        if ($client !== null && $client !== '' && !is_string($client)) {
+            return $this->response->setStatusCode(400)->setJSON(['error' => 'Invalid client.']);
+        }
+
+        try {
+            return $this->response->setJSON($this->timesheetsService->clientHours(
+                $userIds, $start, $end, is_string($client) && $client !== '' ? (int) $client : null
+            ));
+        } catch (\Throwable $e) {
+            // A ValidationException's message (e.g. "too many tasks, narrow the range") is shown as is, as a 422.
+            return $this->jsonError($e, 'Unable to load client hours.');
+        }
+    }
     public function reviewEmployees()
     {
         if (!\App\Libraries\PortalAccess::reviewsAttendance()) {
