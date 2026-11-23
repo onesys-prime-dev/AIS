@@ -313,7 +313,7 @@
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
 
                         <div>
-                            <label class="block text-sm text-gray-600 mb-2">First Name</label>
+                            <label class="block text-sm text-gray-600 mb-2">First Name <span class="text-red-500">*</span></label>
                             <input type="text" name="first_name"
                                 placeholder="e.g., John"
                                 class="form-input" required>
@@ -327,7 +327,7 @@
                         </div>
 
                         <div>
-                            <label class="block text-sm text-gray-600 mb-2">Last Name</label>
+                            <label class="block text-sm text-gray-600 mb-2">Last Name <span class="text-red-500">*</span></label>
                             <input type="text" name="last_name"
                                 placeholder="e.g., Dela Cruz"
                                 class="form-input" required>
@@ -387,7 +387,7 @@
 
             <div class="flex justify-end pt-4 shrink-0">
                 <button type="button"
-                    onclick="nextStep(2)"
+                    onclick="addNext(1, 2)"
                     class="btn-primary">
                     Next
                 </button>
@@ -460,7 +460,7 @@
                 </button>
 
                 <button type="button"
-                    onclick="nextStep(3)"
+                    onclick="addNext(2, 3)"
                     class="btn-primary">
                     Next
                 </button>
@@ -515,7 +515,7 @@
 
                     <div>
                         <label class="block text-sm text-gray-600 mb-3">
-                            Working Days
+                            Working Days <span class="text-red-500">*</span>
                         </label>
 
                         <div class="flex flex-wrap gap-3">
@@ -612,6 +612,30 @@
 
                     <div>
                         <label class="block text-sm text-gray-600 mb-2">
+                            Reminder timing
+                            <span class="text-xs text-gray-400">(optional: this employee's own reminder minutes; leave blank to use the defaults in Access Control &rarr; Reminders)</span>
+                        </label>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                            <div>
+                                <span class="text-xs text-gray-500">Clock in (minutes from start)</span>
+                                <input type="text" name="rem_clock_in_steps" class="form-input" placeholder="-10, 0, 10, 30, 60" autocomplete="off">
+                            </div>
+                            <div>
+                                <span class="text-xs text-gray-500">Clock out (minutes from end)</span>
+                                <input type="text" name="rem_clock_out_steps" class="form-input" placeholder="-10, 30, 120" autocomplete="off">
+                            </div>
+                            <div>
+                                <span class="text-xs text-gray-500">Break window warning (min before it closes)</span>
+                                <input type="number" min="0" max="120" step="1" name="rem_break_close_before" class="form-input" placeholder="10">
+                            </div>
+                            <div>
+                                <span class="text-xs text-gray-500">Break ending warning (min before it ends)</span>
+                                <input type="number" min="0" max="120" step="1" name="rem_break_end_before" class="form-input" placeholder="2">
+                            </div>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm text-gray-600 mb-2">
                             Break Schedule
                             <span class="text-xs text-gray-400">(set each break's own duration — e.g. a short break and a longer lunch)</span>
                         </label>
@@ -639,7 +663,7 @@
                 </button>
 
                 <button type="button"
-                    onclick="nextStep(4)"
+                    onclick="addNext(3, 4)"
                     class="btn-primary">
                     Next
                 </button>
@@ -692,7 +716,7 @@
 
                         <div>
                             <label class="block text-sm text-gray-600 mb-2">
-                                Company Email
+                                Company Email <span class="text-red-500">*</span>
                             </label>
 
                             <input type="email"
@@ -703,7 +727,7 @@
 
                         <div>
                             <label class="block text-sm text-gray-600 mb-2">
-                                Password
+                                Password <span class="text-red-500">*</span>
                             </label>
 
                             <div class="relative">
@@ -741,7 +765,7 @@
                 </button>
 
                 <button type="button"
-                    onclick="nextStep(5)"
+                    onclick="addNext(4, 5)"
                     class="btn-primary">
                     Next
                 </button>
@@ -1236,6 +1260,34 @@ function renderAddWfhList() {
     }).join('');
 }
 document.addEventListener('DOMContentLoaded', renderAddWfhList);
+
+// Next only moves on once the required fields of the current step are filled.
+// The same rules run again on submit as a backstop.
+function addNext(from, to) {
+    const val = name => (document.querySelector('input[name="' + name + '"]')?.value || '').trim();
+    let bad = null;
+    if (from === 1) {
+        if (!val('first_name')) bad = ['input[name="first_name"]', 'First Name is required.'];
+        else if (!val('last_name')) bad = ['input[name="last_name"]', 'Last Name is required.'];
+    } else if (from === 3) {
+        const s = val('start_time'), en = val('end_time');
+        if (!document.querySelectorAll('input[name="working_days[]"]:checked').length) bad = ['input[name="working_days[]"]', 'Please select at least one working day.'];
+        else if (s && en && s === en) bad = ['input[name="start_time"]', 'Start and end must differ. An earlier end means the following day.'];
+    } else if (from === 4) {
+        const email = val('email'), password = val('password');
+        if (!email) bad = ['input[name="email"]', 'Email is required.'];
+        else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) bad = ['input[name="email"]', 'Please enter a valid email address.'];
+        else if (!password) bad = ['input[name="password"]', 'Password is required.'];
+        else if (password.length < 8) bad = ['input[name="password"]', 'Password must be at least 8 characters.'];
+    }
+    if (bad) {
+        const field = document.querySelector(bad[0]);
+        if (field && typeof field.focus === 'function') field.focus();
+        showToast(bad[1], 'warning');
+        return;
+    }
+    nextStep(to);
+}
 
 document.getElementById('employeeForm').addEventListener('submit', function(e) {
     const email = document.querySelector('input[name="email"]').value.trim();

@@ -353,6 +353,9 @@ class TimesheetsService
         return [$winStart, $winEnd, $anchor];
     }
 
+    /** Most tasks one Client Hours request will load; beyond this the caller is asked to narrow the range. */
+    public const CLIENT_HOURS_MAX_TASKS = 30000;
+
     /**
      * Hours of logged tasks per client, with the detail behind every figure.
      *
@@ -361,13 +364,13 @@ class TimesheetsService
      * logged on. Also reports clocked (worked) hours for the same days, so the gap — time worked but
      * never logged to a client — is visible rather than silently missing.
      *
+     * $summaryOnly returns just each client's hours, tasks and employee count (no employee, day or task detail):
+     * what a table column needs, at a fraction of the size.
+     *
      * @param int[] $userIds
      * @return array<string, mixed>
      */
-    /** Most tasks one Client Hours request will load; beyond this the caller is asked to narrow the range. */
-    public const CLIENT_HOURS_MAX_TASKS = 30000;
-
-    public function clientHours(array $userIds, string $start, string $end, ?int $clientId = null, ?int $maxTasks = null): array
+    public function clientHours(array $userIds, string $start, string $end, ?int $clientId = null, ?int $maxTasks = null, bool $summaryOnly = false): array
     {
         $userIds = array_values(array_unique(array_filter(array_map('intval', $userIds))));
         $empty = ['range' => ['start' => $start, 'end' => $end], 'totals' => ['logged_hours' => 0.0, 'worked_hours' => 0.0, 'unlogged_hours' => 0.0, 'tasks' => 0, 'employees' => 0, 'clients' => 0], 'clients' => [], 'client_options' => []];
@@ -429,6 +432,11 @@ class TimesheetsService
             $emp['user_id'] = $uid;
             $emp['name']    = trim((string) $r['employee_name']) ?: 'Employee #' . $uid;
             $emp['hours']   = round(($emp['hours'] ?? 0) + $hours, 2);
+            if ($summaryOnly) {
+                $emp['tasks'] = ($emp['tasks'] ?? 0) + 1;
+                unset($emp);
+                continue;
+            }
             $emp['days'][$date]['date']  = $date;
             $emp['days'][$date]['hours'] = round(($emp['days'][$date]['hours'] ?? 0) + $hours, 2);
             $emp['days'][$date]['tasks'][] = [
@@ -450,14 +458,14 @@ class TimesheetsService
             $empList = [];
             $cHours = 0.0; $cTasks = 0;
             foreach ($c['employees'] as $e) {
-                $days = array_values($e['days']);
-                $tasks = array_sum(array_map(static fn ($d) => count($d['tasks']), $days));
+                $days = array_values($e['days'] ?? []);
+                $tasks = $summaryOnly ? (int) $e['tasks'] : array_sum(array_map(static fn ($d) => count($d['tasks']), $days));
                 $empList[] = ['user_id' => $e['user_id'], 'name' => $e['name'], 'hours' => $e['hours'], 'tasks' => $tasks, 'days' => $days];
                 $cHours += $e['hours']; $cTasks += $tasks;
                 $employeeSet[$e['user_id']] = true;
             }
             usort($empList, static fn ($a, $b) => $b['hours'] <=> $a['hours']);
-            $out[] = ['client_id' => $c['client_id'], 'name' => $c['name'], 'hours' => round($cHours, 2), 'tasks' => $cTasks, 'employees' => $empList];
+            $out[] = ['client_id' => $c['client_id'], 'name' => $c['name'], 'hours' => round($cHours, 2), 'tasks' => $cTasks, 'employee_count' => count($empList), 'employees' => $summaryOnly ? [] : $empList];
             $loggedShown += $cHours;
             $taskCount += $cTasks;
         }
@@ -492,6 +500,7 @@ class TimesheetsService
             'client_options' => array_values($options),
         ];
     }
+
     /**
      * Every break actually taken on an attendance, as [start, end] datetime strings: the logged breaks
      * plus one still running (which ends now, or at clock-out). Real times, not the fixed slot length

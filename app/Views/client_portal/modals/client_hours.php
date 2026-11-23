@@ -40,8 +40,10 @@ $isReviewer = $isReviewer ?? false;
 
 <div id="chRoot">
     <div class="ch-bar">
-        <label>From<input type="date" id="chStart" class="ch-field"></label>
-        <label>To<input type="date" id="chEnd" class="ch-field"></label>
+        <div>
+            <div style="font-size:12px;color:#6b7280;margin-bottom:2px;">Period</div>
+            <span id="chPeriodMount" style="display:inline-flex;"></span>
+        </div>
         <?php if ($isReviewer): ?>
         <label>Employee
             <select id="chEmployee" class="ch-field" style="min-width:210px;"><option value="">All employees</option></select>
@@ -50,16 +52,13 @@ $isReviewer = $isReviewer ?? false;
         <label>Client
             <select id="chClient" class="ch-field"><option value="">All clients</option></select>
         </label>
-        <button type="button" id="chShow" class="ch-btn ch-btn-primary">Show</button>
-        <button type="button" id="chMonth" class="ch-btn">This month</button>
-        <button type="button" id="chLast30" class="ch-btn">Last 30 days</button>
         <button type="button" id="chCsv" class="ch-btn" style="margin-left:auto;" disabled>Download CSV</button>
     </div>
 
     <div id="chError" class="ch-warn" style="display:none;font-size:13px;margin-bottom:10px;"></div>
     <div class="ch-cards" id="chCards"></div>
     <div id="chBody" style="max-height:52vh;overflow:auto;border:1px solid #e5e7eb;border-radius:12px;">
-        <div class="ch-empty">Pick a date range and press Show.</div>
+        <div class="ch-empty">Loading...</div>
     </div>
     <p class="ch-muted" style="font-size:11px;margin-top:8px;">Hours are task length minus any break taken inside the task. “Unlogged” is time clocked in that was never logged to a client.</p>
 </div>
@@ -70,6 +69,7 @@ $isReviewer = $isReviewer ?? false;
     const URL_SELF = <?= json_encode(site_url('client_portal/timesheet/client-hours')) ?>;
     const URL_ADMIN = <?= json_encode(site_url('client_portal/timesheet/employee/client-hours')) ?>;
     const EMPLOYEES_URL = <?= json_encode(site_url('client_portal/timesheet/review-employees')) ?>;
+    const CUTOFFS_URL = <?= json_encode(site_url('client_portal/timesheet/cutoffs')) ?>;
 
     const $ = (id) => document.getElementById(id);
     const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -83,9 +83,14 @@ $isReviewer = $isReviewer ?? false;
     let data = null;
     let inited = false;
 
-    function setRange(start, end) { $('chStart').value = iso(start); $('chEnd').value = iso(end); }
-    function monthToDate() { const n = new Date(); setRange(new Date(n.getFullYear(), n.getMonth(), 1), n); }
-    function last30() { const n = new Date(); const s = new Date(); s.setDate(n.getDate() - 29); setRange(s, n); }
+    let picker = null;
+    let kind = null;     // the chosen period, e.g. cutoff:2026-10-11|2026-10-25 (see period-picker.js)
+    async function loadCutoffs() {
+        try {
+            const rows = await (await fetch(CUTOFFS_URL)).json();
+            return Array.isArray(rows) ? rows : [];
+        } catch (e) { return []; }
+    }
 
     function showError(msg) { const e = $('chError'); e.textContent = msg || ''; e.style.display = msg ? 'block' : 'none'; }
 
@@ -160,25 +165,26 @@ $isReviewer = $isReviewer ?? false;
         }
     });
 
+    let loadToken = 0;   // a slow response for an earlier choice must not overwrite a newer one
     async function load() {
+        const token = ++loadToken;
         showError('');
-        const params = new URLSearchParams({ start: $('chStart').value, end: $('chEnd').value });
+        const range = PeriodPicker.range(kind);
+        const params = new URLSearchParams({ start: range[0], end: range[1] });
         if ($('chClient').value) params.set('client_id', $('chClient').value);
         const emp = IS_REVIEWER ? $('chEmployee').value : '';
         if (emp) params.set('employee_id', emp);
-        $('chShow').disabled = true;
         try {
             const res = await fetch((IS_REVIEWER ? URL_ADMIN : URL_SELF) + '?' + params.toString(), { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
             const json = await res.json();
+            if (token !== loadToken) return;
             if (!res.ok || json.error) { showError(json.error || 'Unable to load client hours.'); return; }
             const keep = $('chClient').value;
             data = json;
             fillClients(json.client_options || [], keep);
             render();
         } catch (e) {
-            showError('Network error. Please try again.');
-        } finally {
-            $('chShow').disabled = false;
+            if (token === loadToken) showError('Network error. Please try again.');
         }
     }
 
@@ -201,9 +207,9 @@ $isReviewer = $isReviewer ?? false;
         setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     }
 
-    $('chShow').addEventListener('click', load);
-    $('chMonth').addEventListener('click', () => { monthToDate(); load(); });
-    $('chLast30').addEventListener('click', () => { last30(); load(); });
+    // Employee and client filters apply as soon as they change.
+    if (IS_REVIEWER) $('chEmployee').addEventListener('change', load);
+    $('chClient').addEventListener('change', load);
     $('chCsv').addEventListener('click', downloadCsv);
 
     // Called when the modal is opened (first time sets defaults and loads).
@@ -211,9 +217,18 @@ $isReviewer = $isReviewer ?? false;
         if (typeof openModalById === 'function') openModalById('viewClientHoursModal');
         if (inited) return;
         inited = true;
-        monthToDate();
         loadEmployees();
-        load();
+        // Opens on the current payroll cutoff (this month if cutoffs are unavailable).
+        loadCutoffs().then((list) => {
+            kind = list.length ? PeriodPicker.cutoffKey(list[0]) : PeriodPicker.monthKey(new Date());
+            picker = PeriodPicker.create({
+                mount: $('chPeriodMount'),
+                cutoffs: list,
+                value: kind,
+                onChange: (k) => { kind = k; load(); },
+            });
+            load();
+        });
     };
 })();
 </script>

@@ -13,6 +13,7 @@
         'accounts'    => ['Accounts', '<circle cx="9" cy="8.5" r="3"/><path d="M3.5 19c0-3 2.4-5 5.5-5s5.5 2 5.5 5"/><circle cx="17" cy="9.5" r="2.4"/><path d="M16.5 14.2c2.6.2 4.5 1.9 4.5 4.3"/>'],
         'departments' => ['Departments', '<path d="M4 21V5a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v16"/><path d="M14 10h5a1 1 0 0 1 1 1v10"/><path d="M3 21h18"/><path d="M8 8h2M8 12h2M8 16h2"/>'],
         'clients'     => ['Clients', '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/><path d="M3 13h18"/>'],
+        'reminders'   => ['Reminders', '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/>'],
         'permissions' => ['Role Permissions', '<path d="M12 3 5 6v5c0 4.6 3 8.3 7 10 4-1.7 7-5.4 7-10V6l-7-3Z"/><path d="m9 12 2 2 4-4"/>'],
         'network'     => ['Attendance Network', '<path d="M2.5 9a15 15 0 0 1 19 0"/><path d="M5.5 12.5a10.5 10.5 0 0 1 13 0"/><path d="M8.7 16a6 6 0 0 1 6.6 0"/><path d="M12 19.5v.01"/>'],
     ];
@@ -89,8 +90,8 @@
                 'title'       => 'Clients',
                 'tableId'     => 'clientsTable',
                 // Must match ROW_GRID in the CLIENTS script.
-                'gridStyle'   => 'minmax(0,2fr) minmax(0,2.6fr) minmax(0,0.8fr) minmax(0,0.8fr) minmax(0,0.7fr)',
-                'columns'     => ['Client', 'Available to', 'Tasks', 'Status', 'Action'],
+                'gridStyle'   => 'minmax(0,2fr) minmax(0,2.4fr) minmax(0,0.7fr) minmax(0,1fr) minmax(0,0.8fr) minmax(0,0.7fr)',
+                'columns'     => ['Client', 'Available to', 'Tasks', 'Hours', 'Status', 'Action'],
                 'filters'     => [
                     ['key' => 'status', 'label' => 'Status', 'options' => [
                         ['value' => '', 'label' => 'All'],
@@ -106,10 +107,86 @@
                 'sortOptions' => [
                     ['value' => 'name',  'label' => 'Name'],
                     ['value' => 'tasks', 'label' => 'Tasks logged'],
+                    ['value' => 'hours', 'label' => 'Hours (chosen period)'],
                 ],
-                'actionsHtml' => '<button type="button" id="addClientBtn" class="ac-add-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Add client</button>',
+                'actionsHtml' => '<span id="clientsPeriodMount" style="display:inline-flex;"></span><button type="button" id="addClientBtn" class="ac-add-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Add client</button>',
             ], ['saveData' => false]);
             ?>
+        </div>
+    </div>
+
+    <!-- REMINDERS: attendance reminders (clock in / clock out / breaks): settings, health, and who they can't reach -->
+    <div class="flex-1 min-h-0 overflow-y-auto" id="remindersSection" data-ac-panel="reminders" style="display:none;">
+        <div id="remindersAdmin" data-settings-url="<?= site_url('client_portal/access-control/reminders/settings') ?>" data-save-url="<?= site_url('client_portal/access-control/reminders/save') ?>" data-report-url="<?= site_url('client_portal/access-control/reminders/report') ?>">
+            <div class="bg-white rounded-2xl shadow-lg p-5 border border-gray-400 mb-4">
+                <div class="flex items-start justify-between gap-4 flex-wrap">
+                    <div>
+                        <h3 class="text-xl font-bold text-gray-700">Attendance reminders</h3>
+                        <p class="text-sm text-gray-500 mt-1">Reminders to clock in, clock out and take breaks, relative to each employee's own schedule. Employees can switch their own reminders off in their profile; an employee who does gets nothing, including the Team Head / admin copy.</p>
+                    </div>
+                    <label class="ac-pick" style="min-width:230px;">
+                        <span class="ac-pick-name">Reminders are on</span>
+                        <input type="checkbox" id="rmEnabled">
+                    </label>
+                </div>
+                <div id="rmHealth" class="text-sm text-gray-600 mt-3" style="border-top:1px solid #f1f5f9;padding-top:10px;">Loading...</div>
+            </div>
+
+            <div data-rm-dependent>
+                <div class="grid gap-4 mb-4" style="grid-template-columns:repeat(auto-fit,minmax(320px,1fr));">
+                    <div class="bg-white rounded-2xl shadow-lg p-5 border border-gray-400">
+                        <h4 class="text-base font-bold text-gray-700 mb-1">Clock in</h4>
+                        <label class="ac-pick" style="margin-bottom:8px;"><span class="ac-pick-name">Send clock-in reminders</span><input type="checkbox" id="rmCiOn"></label>
+                        <div class="ac-field-label">Minutes from shift start</div>
+                        <input type="text" id="rmCiSteps" class="ac-input" style="width:100%;flex:none;" placeholder="-10, 0, 10, 30, 60" autocomplete="off">
+                        <p class="text-xs text-gray-400" style="margin:4px 0 8px;">Negative = before the shift starts. Up to 8 numbers, separated by commas.</p>
+                        <div class="ac-field-label">Stop reminding after (minutes from start)</div>
+                        <input type="text" id="rmCiStop" class="ac-input" style="width:100%;flex:none;" autocomplete="off">
+                        <label class="ac-pick" style="margin-top:12px;"><span class="ac-pick-name">Also tell the Team Head and admins</span><input type="checkbox" id="rmEscOn"></label>
+                        <div class="ac-field-label">...at this many minutes after the shift starts (no later than the stop time)</div>
+                        <input type="text" id="rmCiEsc" class="ac-input" style="width:100%;flex:none;" autocomplete="off">
+                    </div>
+
+                    <div class="bg-white rounded-2xl shadow-lg p-5 border border-gray-400">
+                        <h4 class="text-base font-bold text-gray-700 mb-1">Clock out</h4>
+                        <label class="ac-pick" style="margin-bottom:8px;"><span class="ac-pick-name">Send clock-out reminders</span><input type="checkbox" id="rmCoOn"></label>
+                        <div class="ac-field-label">Minutes from shift end</div>
+                        <input type="text" id="rmCoSteps" class="ac-input" style="width:100%;flex:none;" placeholder="-10, 30, 120" autocomplete="off">
+                        <p class="text-xs text-gray-400" style="margin:4px 0 8px;">After approved overtime with a time span, the minutes count from the end of the overtime.</p>
+                        <div class="ac-field-label">Stop reminding after (minutes from end)</div>
+                        <input type="text" id="rmCoStop" class="ac-input" style="width:100%;flex:none;" autocomplete="off">
+                    </div>
+
+                    <div class="bg-white rounded-2xl shadow-lg p-5 border border-gray-400">
+                        <h4 class="text-base font-bold text-gray-700 mb-1">Breaks</h4>
+                        <label class="ac-pick" style="margin-bottom:8px;"><span class="ac-pick-name">Send break reminders</span><input type="checkbox" id="rmBrOn"></label>
+                        <div class="ac-field-label">Warn this many minutes before a break window closes</div>
+                        <input type="text" id="rmBrClose" class="ac-input" style="width:100%;flex:none;" autocomplete="off">
+                        <div class="ac-field-label">Warn this many minutes before a break ends</div>
+                        <input type="text" id="rmBrEnd" class="ac-input" style="width:100%;flex:none;" autocomplete="off">
+                        <p class="text-xs text-gray-400" style="margin-top:8px;">Window reminders only apply to breaks that have a time window in the employee's schedule. Break reminders are never emailed.</p>
+                    </div>
+
+                    <div class="bg-white rounded-2xl shadow-lg p-5 border border-gray-400">
+                        <h4 class="text-base font-bold text-gray-700 mb-1">How they are delivered</h4>
+                        <label class="ac-pick" style="margin-bottom:8px;"><span class="ac-pick-name">Pop-up in the portal (with sound)</span><input type="checkbox" id="rmPopupOn"></label>
+                        <label class="ac-pick" style="margin-bottom:8px;"><span class="ac-pick-name">Email (clock in and clock out only)</span><input type="checkbox" id="rmEmailOn"></label>
+                        <label class="ac-pick"><span class="ac-pick-name">Also email the "before" reminders <span class="text-xs text-gray-400">&mdash; off by default</span></span><input type="checkbox" id="rmEmailBefore"></label>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-2xl shadow-lg p-4 border border-gray-400 mb-4 flex items-center justify-end gap-3 flex-wrap">
+                    <span id="rmNote" class="acr-note" style="margin-right:auto;"></span>
+                    <button type="button" id="rmReset" class="acr-btn acr-cancel">Reset to defaults</button>
+                    <button type="button" id="rmSave" class="acr-btn acr-save" disabled>Save changes</button>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-2xl shadow-lg p-5 border border-gray-400 mb-4">
+                <h4 class="text-base font-bold text-gray-700">Employees to check</h4>
+                <p id="rmReportSummary" class="text-sm text-gray-500 mt-1 mb-3"></p>
+                <div id="rmReport" style="max-height:340px;overflow-y:auto;"></div>
+            </div>
         </div>
     </div>
 
@@ -462,6 +539,34 @@
         <div class="acr-footer">
             <button type="button" id="acliAddCancel" class="acr-btn acr-cancel">Cancel</button>
             <button type="button" id="acliAddSubmit" class="acr-btn acr-save">Add client</button>
+        </div>
+    </div>
+</div>
+
+<!-- CLIENT HOURS MODAL: the detailed breakdown for one client (opened by clicking its row) -->
+<div id="acClientHoursModal" class="acr-overlay" aria-hidden="true">
+    <div class="acr-box" role="dialog" aria-modal="true" aria-labelledby="achTitle" style="max-width:760px;">
+        <div class="acr-header">
+            <div class="acr-header-main">
+                <span class="acr-avatar acr-avatar-lg" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/><path d="M3 13h18"/></svg></span>
+                <div>
+                    <h3 id="achTitle">Client hours</h3>
+                    <p id="achSubtitle"></p>
+                </div>
+            </div>
+            <button type="button" id="achClose" class="acr-close" aria-label="Close">&#10005;</button>
+        </div>
+        <div class="acr-body">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;">
+                <div class="ac-field-label" style="margin:0;">Period</div>
+                <span id="achPeriodMount" style="display:inline-flex;"></span>
+            </div>
+            <div id="achCards" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px;"></div>
+            <div id="achList" style="max-height:46vh;overflow-y:auto;"></div>
+        </div>
+        <div class="acr-footer">
+            <a id="achReport" class="text-xs" style="color:#4b5563;text-decoration:underline;margin-right:auto;" href="#">All clients and CSV download: Timesheets &rarr; Client Hours</a>
+            <button type="button" id="achCancel" class="acr-btn acr-cancel">Close</button>
         </div>
     </div>
 </div>

@@ -204,8 +204,8 @@
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
 
                 <div>
-                    <label class="edit-form-label">First Name</label>
-                    <input type="text" id="edit_first_name" name="first_name" class="edit-form-input">
+                    <label class="edit-form-label">First Name <span class="text-red-500">*</span></label>
+                    <input type="text" id="edit_first_name" name="first_name" class="edit-form-input" required>
                 </div>
 
                 <div>
@@ -214,8 +214,8 @@
                 </div>
 
                 <div>
-                    <label class="edit-form-label">Last Name</label>
-                    <input type="text" id="edit_last_name" name="last_name" class="edit-form-input">
+                    <label class="edit-form-label">Last Name <span class="text-red-500">*</span></label>
+                    <input type="text" id="edit_last_name" name="last_name" class="edit-form-input" required>
                 </div>
 
                 <div>
@@ -336,7 +336,7 @@
             </div>
 
             <div>
-                <label class="edit-form-label mb-3">Working Days</label>
+                <label class="edit-form-label mb-3">Working Days <span class="text-red-500">*</span></label>
 
                 <div class="flex flex-wrap gap-3">
 
@@ -410,6 +410,29 @@
             </div>
 
             <div>
+                <label class="edit-form-label">Reminder timing
+                    <span class="text-xs text-gray-400 font-normal">(optional: this employee's own reminder minutes; blank = the defaults in Access Control &rarr; Reminders)</span>
+                </label>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                    <div>
+                        <span class="text-xs text-gray-500">Clock in (minutes from start)</span>
+                        <input type="text" id="edit_rem_clock_in_steps" name="rem_clock_in_steps" class="edit-form-input" placeholder="-10, 0, 10, 30, 60" autocomplete="off">
+                    </div>
+                    <div>
+                        <span class="text-xs text-gray-500">Clock out (minutes from end)</span>
+                        <input type="text" id="edit_rem_clock_out_steps" name="rem_clock_out_steps" class="edit-form-input" placeholder="-10, 30, 120" autocomplete="off">
+                    </div>
+                    <div>
+                        <span class="text-xs text-gray-500">Break window warning (min before it closes)</span>
+                        <input type="number" min="0" max="120" step="1" id="edit_rem_break_close_before" name="rem_break_close_before" class="edit-form-input" placeholder="10">
+                    </div>
+                    <div>
+                        <span class="text-xs text-gray-500">Break ending warning (min before it ends)</span>
+                        <input type="number" min="0" max="120" step="1" id="edit_rem_break_end_before" name="rem_break_end_before" class="edit-form-input" placeholder="2">
+                    </div>
+                </div>
+            </div>
+            <div>
                 <label class="edit-form-label">
                     Break Schedule
                     <span class="text-xs text-gray-400 font-normal">(set each break's own duration)</span>
@@ -461,7 +484,7 @@
                 </div>
 
                 <div>
-                    <label class="edit-form-label">Email</label>
+                    <label class="edit-form-label">Email <span class="text-red-500">*</span></label>
                     <input type="email" id="edit_email" name="email" class="edit-form-input">
                 </div>
 

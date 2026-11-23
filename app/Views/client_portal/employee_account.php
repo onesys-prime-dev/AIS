@@ -100,6 +100,7 @@
             <button type="button" id="profile-tab" class="settings-tab active" data-settings-tab="profile" role="tab" aria-controls="profile-panel" aria-selected="true">Personal info</button>
             <button type="button" id="employment-tab" class="settings-tab" data-settings-tab="employment" role="tab" aria-controls="employment-panel" aria-selected="false" tabindex="-1">Employment &amp; leave</button>
             <button type="button" id="security-tab" class="settings-tab" data-settings-tab="security" role="tab" aria-controls="security-panel" aria-selected="false" tabindex="-1">Login &amp; security</button>
+            <button type="button" id="reminders-tab" class="settings-tab" data-settings-tab="reminders" role="tab" aria-controls="reminders-panel" aria-selected="false" tabindex="-1">Reminders</button>
             <button type="button" id="appearance-tab" class="settings-tab" data-settings-tab="appearance" role="tab" aria-controls="appearance-panel" aria-selected="false" tabindex="-1">Appearance</button>
         </nav>
     </aside>
@@ -227,6 +228,26 @@
                     </div>
                     <div class="form-actions"><button type="button" class="btn btn-danger" onclick="document.getElementById('resetPayslipModal').style.display='flex'">Reset to default</button><button type="submit" class="btn btn-primary">Update payslip password</button></div>
                 </form>
+            </section>
+        </div>
+
+        <div id="reminders-panel" class="settings-panel" data-settings-panel="reminders" role="tabpanel" aria-labelledby="reminders-tab" hidden>
+            <section class="settings-section" id="reminderPrefs" data-prefs-url="<?= site_url('client_portal/reminders/preferences') ?>" data-test-url="<?= site_url('client_portal/reminders/test') ?>" data-subscribe-url="<?= site_url('client_portal/reminders/push-subscribe') ?>" data-unsubscribe-url="<?= site_url('client_portal/reminders/push-unsubscribe') ?>" data-sw-url="<?= base_url('sw.js') ?>" data-sw-scope="<?= base_url() ?>">
+                <div class="section-heading"><h2>Attendance reminders</h2><p>Reminders to clock in, clock out and take your breaks, based on your own work schedule.</p></div>
+
+                <p id="remOff" class="save-hint" style="display:none;margin:0 0 12px;color:#b45309;">Attendance reminders are switched off for the whole company right now.</p>
+
+                <div class="settings-form">
+                    <label class="rem-row"><span><strong>Remind me</strong><small>Clock in, clock out and break reminders. If you turn this off you get none of them, and nobody is told if you forget to clock in.</small></span><input type="checkbox" id="remMaster"></label>
+                    <label class="rem-row"><span><strong>Email me</strong><small id="remEmailHint">Clock-in and clock-out reminders by email.</small></span><input type="checkbox" id="remEmail"></label>
+                    <label class="rem-row"><span><strong>Play a sound</strong><small>A short beep when a reminder pops up (your browser needs one click on the page first).</small></span><input type="checkbox" id="remSound"></label>
+                    <label class="rem-row"><span><strong>Notify me when this tab is in the background</strong><small id="remNotifHint">Shows a system notification for a new reminder while you are working in another tab.</small></span><button type="button" class="btn btn-secondary" id="remNotifBtn" style="white-space:nowrap;">Allow</button></label>
+                </div>
+
+                <div class="form-actions" style="margin-top:16px;">
+                    <span class="save-hint" id="remNote" aria-live="polite"></span>
+                    <button type="button" class="btn btn-secondary" id="remTest">Send me a test email</button>
+                </div>
             </section>
         </div>
 
@@ -610,6 +631,10 @@
     .settings-panel{ width:100%; }
     .settings-panel[hidden]{ display:none; }
     .settings-section{ padding:27px 0; border-bottom:1px solid #e3e6eb; }
+    .rem-row{ display:flex; align-items:center; justify-content:space-between; gap:16px; padding:14px 0; border-bottom:1px solid #eef0f3; cursor:pointer; }
+    .rem-row strong{ display:block; font-size:14px; color:#1f2937; }
+    .rem-row small{ display:block; margin-top:2px; font-size:12px; color:#6b7280; line-height:1.45; max-width:520px; }
+    .rem-row input[type=checkbox]{ width:18px; height:18px; flex:none; }
     .section-heading{ margin-bottom:18px; }
     .section-heading h2{ margin:0; color:#17223b; font-size:17px; font-weight:650; line-height:1.35; }
     .section-heading p{ margin:5px 0 0; color:#667085; font-size:13px; line-height:1.5; }
@@ -737,6 +762,134 @@
         if (requestedTab && panels.some((panel) => panel.dataset.settingsPanel === requestedTab)) {
             showSettingsPanel(requestedTab);
         }
+    })();
+
+    // Attendance reminders: the employee's own switches. Each change saves straight away.
+    (function () {
+        const box = document.getElementById('reminderPrefs');
+        if (!box) return;
+        const $ = (id) => document.getElementById(id);
+        const csrf = () => { const m = document.querySelector('meta[name="csrf-token"]'); return m ? m.getAttribute('content') : ''; };
+        const toast = (msg, ok) => { if (window.showToast) window.showToast(msg, ok ? 'success' : 'error'); };
+        const fields = { reminders_enabled: 'remMaster', email_enabled: 'remEmail', sound_enabled: 'remSound' };
+        let canMail = true;
+
+        function applyState(p) {
+            Object.keys(fields).forEach((k) => { $(fields[k]).checked = !!p[k]; });
+            $('remOff').style.display = p.feature_enabled === false ? 'block' : 'none';
+            ['remEmail', 'remSound', 'remNotifBtn', 'remTest'].forEach((id) => { $(id).disabled = !p.reminders_enabled; });
+            canMail = !!p.can_send_mail;
+            remindersOn = !!p.reminders_enabled;
+            pushState = { available: !!p.push_available, key: p.push_public_key || '', devices: p.push_devices || 0 };
+            $('remEmailHint').textContent = p.email ? 'Clock-in and clock-out reminders go to ' + p.email + '.' : 'Your account has no email address, so email reminders cannot reach you. Ask an administrator to add one.';
+            $('remEmail').disabled = !p.reminders_enabled || !p.email;
+            $('remTest').disabled = !p.reminders_enabled || !p.email;
+            refreshNotifButton();
+        }
+
+        let pushState = { available: false, key: '', devices: 0 };
+        let remindersOn = true;
+
+        function urlB64ToBytes(b64) {
+            const pad = '='.repeat((4 - (b64.length % 4)) % 4);
+            const raw = atob((b64 + pad).replace(/-/g, '+').replace(/_/g, '/'));
+            return Uint8Array.from(raw, (ch) => ch.charCodeAt(0));
+        }
+        const pushSupported = () => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+
+        async function thisDeviceSubscription() {
+            if (!pushSupported()) return null;
+            const reg = await navigator.serviceWorker.getRegistration(box.dataset.swScope);
+            return reg ? reg.pushManager.getSubscription() : null;
+        }
+
+        // "Allow" asks the browser for notification permission. When the server has browser push set up, it also
+        // registers this device so reminders arrive even with the portal closed.
+        async function refreshNotifButton() {
+            const btn = $('remNotifBtn');
+            if (!('Notification' in window)) { btn.style.display = 'none'; $('remNotifHint').textContent = 'This browser does not support notifications.'; return; }
+            if (Notification.permission === 'denied') { btn.textContent = 'Blocked'; btn.disabled = true; $('remNotifHint').textContent = 'Notifications are blocked for this site. Allow them in your browser settings to use this.'; return; }
+            if (pushState.available && pushSupported()) {
+                const sub = await thisDeviceSubscription().catch(() => null);
+                btn.disabled = !remindersOn;   // opted out: nothing to turn on
+                btn.textContent = sub ? 'Turn off on this device' : 'Turn on for this device';
+                $('remNotifHint').textContent = (sub
+                    ? 'This device gets reminders even when the portal is closed (your browser must be running).'
+                    : 'Get reminders on this device even when the portal is closed (your browser must be running).')
+                    + (pushState.devices ? ' ' + pushState.devices + ' device' + (pushState.devices === 1 ? '' : 's') + ' registered.' : '');
+                return;
+            }
+            btn.disabled = !remindersOn || Notification.permission === 'granted';
+            if (Notification.permission === 'granted') btn.textContent = 'Allowed';
+        }
+
+        async function togglePush() {
+            const btn = $('remNotifBtn');
+            btn.disabled = true;
+            try {
+                if (!pushState.available || !pushSupported()) { await Notification.requestPermission(); return; }
+                const existing = await thisDeviceSubscription();
+                if (existing) {
+                    const body = new URLSearchParams({ endpoint: existing.endpoint });
+                    await existing.unsubscribe();
+                    const r = await post(box.dataset.unsubscribeUrl, body);
+                    if (r && r.preferences) pushState.devices = r.preferences.push_devices;
+                    toast('Notifications turned off on this device.', true);
+                    return;
+                }
+                if ((await Notification.requestPermission()) !== 'granted') { toast('Notifications were not allowed.', false); return; }
+                const reg = await navigator.serviceWorker.register(box.dataset.swUrl, { scope: box.dataset.swScope });
+                await navigator.serviceWorker.ready;
+                const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlB64ToBytes(pushState.key) });
+                const j = sub.toJSON();
+                const r = await post(box.dataset.subscribeUrl, new URLSearchParams({ endpoint: j.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth }));
+                if (!r || !r.success) { await sub.unsubscribe(); toast('Could not register this device.', false); return; }
+                pushState.devices = r.preferences.push_devices;
+                toast('This device will now get your reminders.', true);
+            } catch (e) {
+                toast('Could not change notifications on this device.', false);
+            } finally {
+                refreshNotifButton();
+            }
+        }
+
+        async function post(url, body) {
+            const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': csrf() }, body: body.toString() });
+            return res.json();
+        }
+        async function load() {
+            try { applyState(await (await fetch(box.dataset.prefsUrl, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })).json()); }
+            catch (e) { $('remNote').textContent = 'Could not load your reminder settings.'; }
+        }
+
+        async function save(field, value) {
+            const body = new URLSearchParams();
+            body.set(field, value ? '1' : '0');
+            try {
+                const res = await fetch(box.dataset.prefsUrl, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': csrf() }, body: body.toString() });
+                const data = await res.json();
+                if (!res.ok || !data.success) throw new Error('failed');
+                applyState(data.preferences);
+                $('remNote').textContent = 'Saved.';
+                setTimeout(() => { $('remNote').textContent = ''; }, 2500);
+            } catch (e) {
+                toast('Could not save that change.', false);
+                load();
+            }
+        }
+
+        Object.keys(fields).forEach((k) => $(fields[k]).addEventListener('change', (e) => save(k, e.target.checked)));
+        $('remNotifBtn').addEventListener('click', togglePush);
+        $('remTest').addEventListener('click', async () => {
+            const btn = $('remTest'); btn.disabled = true;
+            try {
+                const res = await fetch(box.dataset.testUrl, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': csrf() }, body: '' });
+                const data = await res.json();
+                toast(data.message || 'Done.', !!data.success);
+            } catch (e) { toast('Could not send the test.', false); }
+            btn.disabled = false;
+        });
+        load();
     })();
 
     // Profile photo: pick -> auto crop/resize/compress in the browser -> upload -> update in place.

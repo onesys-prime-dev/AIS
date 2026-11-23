@@ -255,6 +255,8 @@ class EmployeeService
                 'swift_code'     => $data['swift_code'] ?? null,
             ]);
 
+            $this->saveReminderOverride((int) $employeeId, $data);
+
             // Vacation / Sick / Emergency leave entitlements
             foreach (['vacation', 'sick', 'emergency'] as $lt) {
                 $key = $lt . '_leave';
@@ -489,6 +491,42 @@ class EmployeeService
         return [$first ?: 'Employee', $middle ?: null, $last ?: 'User'];
     }
 
+    /**
+     * The employee's own attendance-reminder minutes (Work Schedule -> Reminder timing). Blank fields mean "use the
+     * global defaults"; all four blank removes the override. Fields that are absent from the request leave it untouched.
+     */
+    private function saveReminderOverride(int $employeeId, array $data): void
+    {
+        $fields = ['rem_clock_in_steps' => 'clock_in_steps', 'rem_clock_out_steps' => 'clock_out_steps', 'rem_break_close_before' => 'break_close_before', 'rem_break_end_before' => 'break_end_before'];
+        $submitted = false;
+        $in = [];
+        foreach ($fields as $field => $key) {
+            if (array_key_exists($field, $data)) $submitted = true;
+            $v = $data[$field] ?? '';
+            $in[$key] = is_string($v) ? $v : '';
+        }
+        if (! $submitted) return;
+
+        try {
+            $override = \App\Libraries\ReminderConfig::overrideFromInput($in);
+        } catch (\DomainException $e) {
+            throw new \App\Exceptions\ValidationException($e->getMessage());
+        }
+
+        $db = \Config\Database::connect();
+        if (! $db->tableExists('attendance_reminder_overrides')) return;
+        if ($override === []) {
+            $db->table('attendance_reminder_overrides')->where('employee_id', $employeeId)->delete();
+            return;
+        }
+        $row = ['config' => json_encode($override), 'updated_at' => date('Y-m-d H:i:s')];
+        if ($db->table('attendance_reminder_overrides')->where('employee_id', $employeeId)->countAllResults()) {
+            $db->table('attendance_reminder_overrides')->where('employee_id', $employeeId)->update($row);
+        } else {
+            $db->table('attendance_reminder_overrides')->insert($row + ['employee_id' => $employeeId]);
+        }
+    }
+
     public function updateEmployee($employeeId, array $data)
     {
         $db = \Config\Database::connect();
@@ -633,6 +671,8 @@ class EmployeeService
                 'gender'       => $data['gender']       ?? null,
                 'civil_status' => $data['civil_status'] ?? null,
             ]);
+
+            $this->saveReminderOverride((int) $employeeId, $data);
 
             /*
             |--------------------------------------------------------------------------

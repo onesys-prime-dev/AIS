@@ -494,6 +494,28 @@ class TimesheetController extends BaseController
         return $rows;
     }
 
+    /**
+     * The payroll cutoffs (from Payroll Settings), newest first, the current one flagged, so screens can
+     * offer "Current cutoff", "Previous cutoff" and earlier ones as period choices.
+     */
+    public function cutoffs()
+    {
+        if (!auth()->user()) {
+            return $this->response->setStatusCode(401)->setJSON(['error' => 'Unauthenticated']);
+        }
+
+        $out = [];
+        $period = \App\Libraries\PayrollCutoff::forDate(date('Y-m-d'));
+        for ($i = 0; $i < 12; $i++) {
+            $out[] = ['start' => $period['start'], 'end' => $period['end'], 'current' => $i === 0];
+            $prev = \App\Libraries\PayrollCutoff::forDate(date('Y-m-d', strtotime($period['start'] . ' -1 day')));
+            if ($prev['start'] === $period['start']) break;   // guard against a settings gap looping forever
+            $period = $prev;
+        }
+
+        return $this->response->setJSON($out);
+    }
+
     /** Task hours per client for the signed-in employee's own tasks. */
     public function clientHours()
     {
@@ -557,7 +579,8 @@ class TimesheetController extends BaseController
 
         try {
             return $this->response->setJSON($this->timesheetsService->clientHours(
-                $userIds, $start, $end, is_string($client) && $client !== '' ? (int) $client : null
+                $userIds, $start, $end, is_string($client) && $client !== '' ? (int) $client : null,
+                null, $this->request->getGet('summary') === '1'
             ));
         } catch (\Throwable $e) {
             // A ValidationException's message (e.g. "too many tasks, narrow the range") is shown as is, as a 422.

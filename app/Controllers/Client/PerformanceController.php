@@ -49,7 +49,69 @@ class PerformanceController extends BaseController
             'latest'        => end($trend) ?: null,
             'trend'         => $trend,
             'daily'         => $this->buildDailyBreakdown($latestRows),
+            'streak'        => $this->onTimeStreak((int) $user->id),
         ]);
+    }
+
+    /**
+     * On-time streak: consecutive worked days (most recent first) with no
+     * late minutes. Counts the whole attendance history, so the best streak is
+     * all-time; the calendar map is limited to the last 120 days and the dot
+     * strip to the last 30 worked days.
+     */
+    private function onTimeStreak(int $userId): array
+    {
+        $rows = (new AttendanceModel())
+            ->where('user_id', $userId)
+            ->where('time_in IS NOT NULL')
+            ->findAll();
+
+        $byDate = [];
+        foreach ($rows as $r) {
+            $date = $r['shift_date'] ?? date('Y-m-d', strtotime($r['time_in']));
+            $byDate[$date] = max($byDate[$date] ?? 0.0, (float) ($r['late_minutes'] ?? 0));
+        }
+        ksort($byDate);
+
+        $current = 0;
+        foreach (array_reverse($byDate, true) as $late) {
+            if ($late > 0) {
+                break;
+            }
+            $current++;
+        }
+
+        $best = $run = 0;
+        foreach ($byDate as $late) {
+            $run  = $late > 0 ? 0 : $run + 1;
+            $best = max($best, $run);
+        }
+
+        $recent = [];
+        foreach (array_slice($byDate, -30, null, true) as $date => $late) {
+            $recent[] = ['date' => $date, 'late' => $late > 0];
+        }
+
+        // date => late? for the calendar heatmap (days off are simply absent)
+        $map = [];
+        foreach ($byDate as $date => $late) {
+            if ($date >= date('Y-m-d', strtotime('-120 days'))) {
+                $map[$date] = $late > 0;
+            }
+        }
+
+        $onTime30 = count(array_filter($recent, fn ($r) => !$r['late']));
+
+        return [
+            'current'      => $current,
+            'best'         => $best,
+            'recent'       => $recent,
+            'days'         => count($byDate),
+            'map'          => $map,
+            'on_time_rate' => $recent ? round($onTime30 / count($recent) * 100) : null,
+            'total_on_time'=> count(array_filter($byDate, fn ($l) => $l <= 0)),
+            'last_late'    => $byDate && end($byDate) > 0,
+        ];
     }
 
     /**

@@ -296,8 +296,20 @@ document.addEventListener("DOMContentLoaded", function () {
     $notifJsVer = is_file($notifJsPath) ? filemtime($notifJsPath) : time();
 ?>
 <script src="<?= base_url('js/components/toast.js') ?>?v=<?= $toastJsVer ?>"></script>
+<script src="<?= base_url('js/components/period-picker.js') ?>?v=<?= is_file(FCPATH . 'js/components/period-picker.js') ? filemtime(FCPATH . 'js/components/period-picker.js') : time() ?>"></script>
 <script src="<?= base_url('js/components/notification-modals.js') ?>?v=<?= $notifJsVer ?>"></script>
 <?php if (auth()->loggedIn()): ?>
+<script>
+    // Attendance reminders: the pop-up for a clock-in / clock-out / break reminder that is due right now
+    window.AIS_REMINDERS = {
+        pendingUrl: <?= json_encode(site_url('client_portal/reminders/pending')) ?>,
+        dismissUrl: <?= json_encode(site_url('client_portal/reminders/dismiss')) ?>,
+        pushCheckUrl: <?= json_encode(site_url('client_portal/reminders/push-check')) ?>,
+        swScope: <?= json_encode(base_url()) ?>,
+        intervalMs: 30000
+    };
+</script>
+<script src="<?= base_url('js/components/attendance-reminders.js') ?>?v=<?= is_file(FCPATH . 'js/components/attendance-reminders.js') ? filemtime(FCPATH . 'js/components/attendance-reminders.js') : time() ?>"></script>
 <script src="<?= base_url('js/components/notifications-poll.js') ?>?v=<?= is_file(FCPATH . 'js/components/notifications-poll.js') ? filemtime(FCPATH . 'js/components/notifications-poll.js') : time() ?>"></script>
 <?php endif; ?>
 <script>

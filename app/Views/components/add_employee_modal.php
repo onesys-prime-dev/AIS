@@ -80,7 +80,7 @@
 }
 </style>
 
-<div id="<?= $id ?>" class="add-employee-overlay modal-overlay">
+<div id="<?= $id ?>" class="add-employee-overlay modal-overlay" data-static-backdrop>
 
     <div class="add-employee-box">
 
