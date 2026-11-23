@@ -146,10 +146,13 @@
 
 <?= $this->section('scripts') ?>
 
-<script src="<?= base_url('js/components/modal-handler.js') ?>"></script>
+<script src="<?= base_url('js/components/modal-handler.js') ?>?v=<?= @filemtime(FCPATH . 'js/components/modal-handler.js') ?: 1 ?>"></script>
 <script src="<?= base_url('js/components/crud-actions.js') ?>"></script>
 <script src="<?= base_url('js/components/crud-table.js') ?>?v=<?= is_file(FCPATH . 'js/components/crud-table.js') ? filemtime(FCPATH . 'js/components/crud-table.js') : time() ?>"></script>
 <script src="<?= base_url('js/components/password-toggle.js') ?>"></script>
+<?php if (\App\Libraries\PortalAccess::canManageAccessControl()): ?>
+<script src="<?= base_url('js/components/reminders-admin.js') ?>?v=<?= is_file(FCPATH . 'js/components/reminders-admin.js') ? filemtime(FCPATH . 'js/components/reminders-admin.js') : time() ?>"></script>
+<?php endif; ?>
 <?php if (\App\Libraries\PortalAccess::can('face_recognition')): ?>
 <script src="<?= base_url('js/components/face-scan.js') ?>"></script>
 <?php endif; ?>
@@ -171,6 +174,8 @@ const ACCESS_CONTROL_ROLE_OPTIONS = <?= json_encode($accessControlRoleOptions ??
 const ACCESS_CONTROL_ROLE_DESCRIPTIONS = <?= json_encode($accessControlRoleDescriptions ?? []) ?>;
 const ACCESS_CONTROL_CURRENT_USER_ID = <?= json_encode((int) $currentUserId) ?>;
 const ACCESS_CONTROL_DEPARTMENTS = <?= json_encode($accessControlDepartments ?? []) ?>;
+const ACCESS_CONTROL_CLIENTS = <?= json_encode($accessControlClients ?? []) ?>;
+const ACCESS_CONTROL_CLIENT_EMPLOYEES = <?= json_encode($accessControlClientEmployees ?? []) ?>;
 const ACCESS_CONTROL_TEAM_HEAD_ACCOUNTS = <?= json_encode($accessControlTeamHeadAccounts ?? []) ?>;
 const ACCESS_CONTROL_DEPARTMENT_TEAM_HEADS = <?= json_encode($accessControlDepartmentTeamHeads ?? []) ?>;
 const ACCESS_CONTROL_PERMISSIONS = <?= json_encode($accessControlPermissions ?? []) ?>;
@@ -519,6 +524,8 @@ const AC_ICONS = (function () {
 
     // Local, mutable copy so add/rename/deactivate can update the UI without a full reload.
     let departments = ACCESS_CONTROL_DEPARTMENTS.slice();
+    // The Clients tab assigns clients to these same departments, including ones added during this visit.
+    window.acDepartments = function () { return departments; };
     const deptTeamHeads = Object.assign({}, ACCESS_CONTROL_DEPARTMENT_TEAM_HEADS);
 
     // Must match the 'gridStyle' passed to the crud_table in employee_access_control.php.
@@ -1020,6 +1027,8 @@ const AC_ICONS = (function () {
     const panels = {
         accounts: document.querySelector('[data-ac-panel="accounts"]'),
         departments: document.getElementById('departmentsSection'),
+        clients: document.getElementById('clientsSection'),
+        reminders: document.getElementById('remindersSection'),
         permissions: document.getElementById('rolePermissionsSection'),
         network: document.getElementById('attendanceNetworkSection'),
     };
@@ -1054,6 +1063,479 @@ const AC_ICONS = (function () {
 
     const firstEligible = buttons.find(function (btn) { return isEligible(btn.dataset.acTab); });
     activate(firstEligible ? firstEligible.dataset.acTab : 'accounts');
+})();
+
+// ================= CLIENTS =================
+// The admin-managed list employees pick from when logging a task. A client is available to an employee
+// when their department OR they personally are assigned to it; nobody assigned = nobody can pick it.
+(function () {
+    const tableCard = document.querySelector('[data-crud-table="clientsTable"]');
+    if (!tableCard) return;
+
+    let clients = ACCESS_CONTROL_CLIENTS.slice();
+    const employees = ACCESS_CONTROL_CLIENT_EMPLOYEES.slice();
+    const departmentList = function () {
+        return (typeof window.acDepartments === 'function' ? window.acDepartments() : ACCESS_CONTROL_DEPARTMENTS) || [];
+    };
+
+    // Must match the 'gridStyle' passed to the crud_table in employee_access_control.php.
+    const ROW_GRID = 'minmax(0,2fr) minmax(0,2.4fr) minmax(0,0.7fr) minmax(0,1fr) minmax(0,0.8fr) minmax(0,0.7fr)';
+    const HOURS_URL = <?= json_encode(site_url('client_portal/timesheet/employee/client-hours')) ?>;
+    const HOURS_REPORT_URL = <?= json_encode(site_url('client_portal/timesheet')) ?>;
+    const CUTOFFS_URL = <?= json_encode(site_url('client_portal/timesheet/cutoffs')) ?>;
+
+    // The Clients table's Hours column: client_id -> {hours, tasks} for the chosen period (the light summary report).
+    // null = not loaded / unavailable.
+    let hoursData = null;
+    let tablePeriod = 'month';   // becomes the current payroll cutoff once the cutoffs have loaded
+    const pad2 = function (n) { return String(n).padStart(2, '0'); };
+    const fmtHM = function (h) { const m = Math.round(Number(h) * 60); return Math.floor(m / 60) + ':' + pad2(m % 60); };
+
+    // Period choices come from the shared picker (public/js/components/period-picker.js): a payroll cutoff
+    // (the default), a whole month, or custom dates. The report is the same one as Timesheets -> Client Hours.
+    const periodRange = function (kind) { return PeriodPicker.range(kind); };
+    let cutoffs = [];
+    let cutoffsPromise = null;
+    function loadCutoffs() {
+        if (!cutoffsPromise) {
+            cutoffsPromise = fetch(CUTOFFS_URL, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                .then(function (r) { return r.json(); })
+                .then(function (rows) { cutoffs = Array.isArray(rows) ? rows : []; })
+                .catch(function () { cutoffs = []; });
+        }
+        return cutoffsPromise;
+    }
+    function defaultPeriod() { return cutoffs.length ? PeriodPicker.cutoffKey(cutoffs[0]) : PeriodPicker.monthKey(new Date()); }
+    function periodTitle(kind) { const d = PeriodPicker.describe(kind, cutoffs); return d.label + ' \u00b7 ' + d.dates; }
+    // summary = true: just each client's totals (what the table needs); false: the full employee/day/task detail.
+    function fetchHours(kind, clientId, summary) {
+        const r = periodRange(kind);
+        const params = new URLSearchParams({ start: r[0], end: r[1] });
+        if (clientId !== undefined && clientId !== null) params.set('client_id', clientId);
+        if (summary) params.set('summary', '1');
+        return fetch(HOURS_URL + '?' + params.toString(), { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(function (res) { return res.json().then(function (j) { if (!res.ok || j.error) throw new Error(j.error || 'failed'); return j; }); });
+    }
+    function loadTableHours() {
+        const kind = tablePeriod;
+        return fetchHours(kind, null, true).then(function (j) {
+            if (kind !== tablePeriod) return;
+            hoursData = {};
+            (j.clients || []).forEach(function (c) { hoursData[c.client_id] = c; });
+        }).catch(function () { hoursData = null; }).then(function () { refreshTable(); });
+    }
+
+    function post(url, params) {
+        return fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': CSRF_HASH },
+            body: params,
+        }).then(function (res) { return res.json(); });
+    }
+    function toast(message, ok) { if (window.showToast) window.showToast(message, ok ? 'success' : 'error'); }
+    function findClient(id) { return clients.find(function (c) { return String(c.id) === String(id); }); }
+    function isAssigned(c) { return (c.department_ids || []).length > 0 || (c.user_ids || []).length > 0; }
+    function deptName(id) {
+        const d = departmentList().find(function (x) { return String(x.id) === String(id); });
+        return d ? d.name : null;
+    }
+
+    function availableTo(c) {
+        if (!isAssigned(c)) return '<span class="text-xs text-red-500">Nobody yet</span>';
+        const chip = function (t) { return '<span class="inline-block px-3 py-1 mr-2 mb-1 rounded-full text-xs font-semibold bg-gray-200 text-gray-700">' + acEscapeHtml(t) + '</span>'; };
+        const names = (c.department_ids || []).map(deptName).filter(Boolean);
+        let out = names.slice(0, 2).map(chip).join('');
+        if (names.length > 2) out += chip('+' + (names.length - 2) + ' more');
+        const n = (c.user_ids || []).length;
+        if (n) out += chip(n + (n === 1 ? ' employee' : ' employees'));
+        return out;
+    }
+
+    function hoursCell(c) {
+        if (hoursData === null) return '<span class="text-gray-300">&mdash;</span>';
+        const h = hoursData[c.id];
+        return h ? '<strong>' + Number(h.hours).toFixed(2) + '</strong> <span class="text-xs text-gray-400">' + fmtHM(h.hours) + '</span>' : '<span class="text-gray-400">0.00</span>';
+    }
+
+    const t12 = function (t) { const p = String(t).split(':'); const H = Number(p[0]); return ((H % 12) || 12) + ':' + p[1] + ' ' + (H >= 12 ? 'PM' : 'AM'); };
+    const dayLabel = function (d) { return new Date(d + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }); };
+
+    function rowTemplate(c) {
+        const status = c.is_active
+            ? '<span class="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700">Active</span>'
+            : '<span class="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-gray-200 text-gray-500">Inactive</span>';
+        return '<div class="grid items-center border-b hover:bg-gray-50" data-client-hours="' + acEscapeHtml(c.id) + '" title="Click to see the hours breakdown" style="cursor:pointer;grid-template-columns:' + ROW_GRID + ';border-left:1px solid transparent;border-right:1px solid transparent;">' +
+            '<div class="p-4 flex items-center gap-3">' +
+                '<div class="w-10 h-10 bg-gray-300 rounded-full flex items-center justify-center text-gray-700 shrink-0 ac-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/><path d="M3 13h18"/></svg></div>' +
+                '<span class="font-medium truncate">' + acEscapeHtml(c.name) + '</span>' +
+            '</div>' +
+            '<div class="p-4">' + availableTo(c) + '</div>' +
+            '<div class="p-4">' + (Number(c.task_count) || 0) + '</div>' +
+            '<div class="p-4">' + hoursCell(c) + '</div>' +
+            '<div class="p-4">' + status + '</div>' +
+            '<div class="p-4 flex justify-center">' +
+                '<button type="button" class="ac-icon-btn" data-manage-client="' + acEscapeHtml(c.id) + '" title="Manage client" aria-label="Manage client">' + AC_ICONS.manage + '</button>' +
+            '</div>' +
+        '</div>';
+    }
+
+    createCrudTable({
+        tableId: 'clientsTable',
+        data: function () { return clients; },
+        renderRow: rowTemplate,
+        filters: function (ctx) {
+            const item = (ctx && ctx.item) || {};
+            const query = (ctx && ctx.query) || '';
+            const values = (ctx && ctx.values) || {};
+            const matchesSearch = !query || String(item.name || '').toLowerCase().includes(query);
+            const matchesStatus = values.status === 'active' ? item.is_active : values.status === 'inactive' ? !item.is_active : true;
+            const matchesAssign = values.assignment === 'assigned' ? isAssigned(item) : values.assignment === 'unassigned' ? !isAssigned(item) : true;
+            return matchesSearch && matchesStatus && matchesAssign;
+        },
+        sort: function (ctx) {
+            let left, right;
+            if (ctx.sortBy === 'tasks') {
+                left = Number(ctx.a.task_count) || 0;
+                right = Number(ctx.b.task_count) || 0;
+            } else if (ctx.sortBy === 'hours') {
+                left = hoursData && hoursData[ctx.a.id] ? Number(hoursData[ctx.a.id].hours) : 0;
+                right = hoursData && hoursData[ctx.b.id] ? Number(hoursData[ctx.b.id].hours) : 0;
+            } else {
+                left = String(ctx.a.name || '').toLowerCase();
+                right = String(ctx.b.name || '').toLowerCase();
+            }
+            if (left < right) return ctx.sortOrder === 'asc' ? -1 : 1;
+            if (left > right) return ctx.sortOrder === 'asc' ? 1 : -1;
+            return 0;
+        },
+    });
+
+    function refreshTable() {
+        const search = tableCard.querySelector('.crud-search');
+        if (search) search.dispatchEvent(new Event('input'));
+    }
+    // The table's period picker is created the first time the tab opens (the cutoffs are needed first).
+    let tablePicker = null;
+    document.addEventListener('ac:tab', function (e) {
+        if (e.detail !== 'clients') return;
+        refreshTable();
+        loadCutoffs().then(function () {
+            if (!tablePicker) {
+                tablePeriod = defaultPeriod();
+                tablePicker = PeriodPicker.create({
+                    mount: document.getElementById('clientsPeriodMount'),
+                    cutoffs: cutoffs,
+                    value: tablePeriod,
+                    onChange: function (kind) { tablePeriod = kind; loadTableHours(); },
+                });
+            } else {
+                tablePicker.setCutoffs(cutoffs);
+            }
+            loadTableHours();   // fresh numbers every time the tab is opened
+        });
+    });
+
+    const manageModal = document.getElementById('acClientModal');
+    const addModal = document.getElementById('acClientAddModal');
+    if (!manageModal || !addModal) return;
+    [manageModal, addModal].forEach(function (m) { if (m.parentElement !== document.body) document.body.appendChild(m); });
+    function openOverlay(m) { m.classList.add('is-open'); m.setAttribute('aria-hidden', 'false'); }
+    function closeOverlay(m) { m.classList.remove('is-open'); m.setAttribute('aria-hidden', 'true'); }
+
+    // ---- add client ----
+    const addBtn = document.getElementById('addClientBtn');
+    const addInput = document.getElementById('newClientName');
+    const addSubmit = document.getElementById('acliAddSubmit');
+    function closeAdd() { closeOverlay(addModal); }
+
+    function submitAdd() {
+        const name = addInput.value.trim();
+        if (!name || addSubmit.disabled) return;
+        addSubmit.disabled = true;
+        post('<?= site_url('client_portal/access-control/clients/create') ?>', new URLSearchParams({ name: name }))
+            .then(function (data) {
+                toast(data.message || (data.success ? 'Added.' : 'Something went wrong.'), data.success);
+                if (data.success) {
+                    const c = { id: data.id, name: name, is_active: true, department_ids: [], user_ids: [], task_count: 0 };
+                    clients.push(c);
+                    addInput.value = '';
+                    closeAdd();
+                    refreshTable();
+                    openManage(c);   // straight on to choosing who can pick it
+                }
+            })
+            .catch(function () { toast('Something went wrong.', false); })
+            .finally(function () { addSubmit.disabled = false; });
+    }
+    if (addBtn) addBtn.addEventListener('click', function () { addInput.value = ''; openOverlay(addModal); addInput.focus(); });
+    document.getElementById('acliAddClose').addEventListener('click', closeAdd);
+    document.getElementById('acliAddCancel').addEventListener('click', closeAdd);
+    addSubmit.addEventListener('click', submitAdd);
+    addInput.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); submitAdd(); } });
+    addModal.addEventListener('click', function (e) { if (e.target === addModal) closeAdd(); });
+
+    // ---- manage client ----
+    const subtitleEl = document.getElementById('acliSubtitle');
+    const nameInput = document.getElementById('acliName');
+    const activeBox = document.getElementById('acliActive');
+    const deptsEl = document.getElementById('acliDepartments');
+    const empsEl = document.getElementById('acliEmployees');
+    const empSearch = document.getElementById('acliEmployeeSearch');
+    const noteEl = document.getElementById('acliNote');
+    const saveBtn = document.getElementById('acliSave');
+    let current = null;
+    let selDepts = new Set();
+    let selUsers = new Set();
+    let saved = '';
+
+    function signature() {
+        return JSON.stringify([nameInput.value.trim(), activeBox.checked,
+            Array.from(selDepts).map(String).sort(), Array.from(selUsers).map(String).sort()]);
+    }
+    function updateFooter() {
+        const changed = signature() !== saved;
+        noteEl.innerHTML = changed ? '<span class="acr-dirty"></span>Changes not saved yet' : '';
+        saveBtn.disabled = !changed || !nameInput.value.trim();
+    }
+
+    function initials(name) {
+        const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+        return ((parts[0] || '?').charAt(0) + (parts.length > 1 ? parts[parts.length - 1].charAt(0) : '')).toUpperCase();
+    }
+
+    function renderDepartments() {
+        const list = departmentList();
+        deptsEl.innerHTML = list.length
+            ? list.map(function (d) {
+                return '<label class="ac-pick"><span class="ac-pick-name">' + acEscapeHtml(d.name) + '</span>' +
+                    '<input type="checkbox" class="acli-dept" value="' + d.id + '"' + (selDepts.has(String(d.id)) ? ' checked' : '') + '></label>';
+            }).join('')
+            : '<p class="text-xs text-gray-400">No departments yet. Add them in the Departments tab.</p>';
+    }
+
+    function renderEmployees() {
+        const q = empSearch.value.trim().toLowerCase();
+        const shown = employees.filter(function (e) { return !q || e.name.toLowerCase().includes(q); });
+        empsEl.innerHTML = shown.length
+            ? shown.map(function (e) {
+                const dn = e.department_id ? deptName(e.department_id) : null;
+                return '<label class="ac-pick"><span class="acr-avatar">' + acEscapeHtml(initials(e.name)) + '</span>' +
+                    '<span class="ac-pick-name">' + acEscapeHtml(e.name) + (dn ? ' <span class="text-xs text-gray-400">' + acEscapeHtml(dn) + '</span>' : '') + '</span>' +
+                    '<input type="checkbox" class="acli-emp" value="' + e.user_id + '"' + (selUsers.has(String(e.user_id)) ? ' checked' : '') + '></label>';
+            }).join('')
+            : '<p class="text-xs text-gray-400">No employees match.</p>';
+    }
+
+    function openManage(c) {
+        current = c;
+        selDepts = new Set((c.department_ids || []).map(String));
+        selUsers = new Set((c.user_ids || []).map(String));
+        subtitleEl.textContent = (Number(c.task_count) || 0) + ' task' + (Number(c.task_count) === 1 ? '' : 's') + ' logged';
+        nameInput.value = c.name;
+        activeBox.checked = !!c.is_active;
+        empSearch.value = '';
+        renderDepartments();
+        renderEmployees();
+        saved = signature();
+        updateFooter();
+        openOverlay(manageModal);
+        nameInput.focus();
+    }
+    function closeManage() { closeOverlay(manageModal); current = null; }
+
+    deptsEl.addEventListener('change', function (e) {
+        if (!e.target.classList.contains('acli-dept')) return;
+        e.target.checked ? selDepts.add(e.target.value) : selDepts.delete(e.target.value);
+        updateFooter();
+    });
+    empsEl.addEventListener('change', function (e) {
+        if (!e.target.classList.contains('acli-emp')) return;
+        e.target.checked ? selUsers.add(e.target.value) : selUsers.delete(e.target.value);
+        updateFooter();
+    });
+    empSearch.addEventListener('input', renderEmployees);
+    nameInput.addEventListener('input', updateFooter);
+    activeBox.addEventListener('change', updateFooter);
+
+    saveBtn.addEventListener('click', function () {
+        if (!current || saveBtn.disabled) return;
+        const c = current;
+        const params = new URLSearchParams();
+        params.append('id', c.id);
+        params.append('name', nameInput.value.trim());
+        params.append('is_active', activeBox.checked ? '1' : '0');
+        selDepts.forEach(function (d) { params.append('department_ids[]', d); });
+        selUsers.forEach(function (u) { params.append('user_ids[]', u); });
+        saveBtn.disabled = true;
+        post('<?= site_url('client_portal/access-control/clients/update') ?>', params)
+            .then(function (data) {
+                toast(data.message || (data.success ? 'Saved.' : 'Something went wrong.'), data.success);
+                if (data.success) {
+                    c.name = nameInput.value.trim();
+                    c.is_active = activeBox.checked;
+                    c.department_ids = Array.from(selDepts).map(Number);
+                    c.user_ids = Array.from(selUsers).map(Number);
+                    saved = signature();
+                    refreshTable();
+                }
+                updateFooter();
+            })
+            .catch(function () { toast('Something went wrong.', false); updateFooter(); });
+    });
+
+    document.getElementById('acliClose').addEventListener('click', closeManage);
+    document.getElementById('acliCancel').addEventListener('click', closeManage);
+    manageModal.addEventListener('click', function (e) { if (e.target === manageModal) closeManage(); });
+    document.addEventListener('keydown', function (e) {
+        if (e.key !== 'Escape') return;
+        if (addModal.classList.contains('is-open')) closeAdd();
+        else if (hoursModal.classList.contains('is-open')) closeHours();
+        else if (manageModal.classList.contains('is-open')) closeManage();
+    });
+
+    // ---- client hours modal: employees -> days -> tasks for the chosen period ----
+    const hoursModal = document.getElementById('acClientHoursModal');
+    if (hoursModal && hoursModal.parentElement !== document.body) document.body.appendChild(hoursModal);
+    const achTitle = document.getElementById('achTitle');
+    const achSubtitle = document.getElementById('achSubtitle');
+    let achPicker = null;
+    const achCards = document.getElementById('achCards');
+    const achList = document.getElementById('achList');
+    let hoursClient = null;
+    let achKind = 'month';   // the period the modal shows (set from the table's period when it opens)
+    let hoursReport = null;
+    let hoursToken = 0;                  // ignores a slow response for a client/period already moved on from
+    const modalOpenEmployees = new Set();
+
+    function renderHours() {
+        const d = hoursReport;
+        const card = function (k, v, sub) {
+            return '<div style="border:1px solid #e5e7eb;border-radius:12px;padding:10px 14px;background:#fff;">' +
+                '<div style="font-size:11px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:.04em;">' + k + '</div>' +
+                '<div style="font-size:22px;font-weight:700;color:#111827;line-height:1.25;">' + v + '</div>' +
+                '<div style="font-size:11px;color:#9ca3af;min-height:14px;">' + (sub || '') + '</div></div>';
+        };
+        // The cards are always shown (zeros when nothing is logged) so the modal looks the same either way.
+        achCards.innerHTML =
+            card('Hours', (d ? Number(d.hours).toFixed(2) : '0.00'), d ? fmtHM(d.hours) + ' h:mm' : '') +
+            card('Tasks', d ? d.tasks : 0, '') +
+            card('Employees', d ? d.employees.length : 0, '');
+
+        if (!d) {
+            const others = ['30', 'year'].filter(function (k) { return k !== achKind; });
+            const labelOf = function (k) { return PeriodPicker.describe(k, cutoffs).label; };
+            achList.innerHTML = '<div style="text-align:center;padding:26px 10px 22px;color:#6b7280;">' +
+                '<div style="width:46px;height:46px;border-radius:50%;background:#f3f4f6;margin:0 auto 10px;display:flex;align-items:center;justify-content:center;color:#9ca3af;">' +
+                    '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div>' +
+                '<div style="font-weight:600;color:#374151;">No hours logged yet</div>' +
+                '<div style="font-size:12px;margin-top:2px;">Nothing was logged to ' + acEscapeHtml(hoursClient ? hoursClient.name : 'this client') + ' in this period.</div>' +
+                '<div style="margin-top:12px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">' +
+                    others.map(function (k) { return '<button type="button" class="acr-btn acr-cancel" data-ach-period="' + k + '" style="padding:6px 12px;">Try ' + labelOf(k).toLowerCase() + '</button>'; }).join('') +
+                '</div></div>';
+            return;
+        }
+
+        achList.innerHTML = '<div class="ac-field-label" style="margin:0 0 4px;">By employee</div>' + d.employees.map(function (e) {
+            const open = modalOpenEmployees.has(String(e.user_id));
+            const share = d.hours > 0 ? Math.round(e.hours / d.hours * 100) : 0;
+            let html = '<div data-ach-emp="' + e.user_id + '" style="padding:9px 6px 8px;border-bottom:1px solid #eef0f3;cursor:pointer;">' +
+                '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">' +
+                    '<span style="display:flex;align-items:center;gap:10px;min-width:0;">' +
+                        '<span style="display:inline-block;width:12px;color:#9ca3af;transform:rotate(' + (open ? 90 : 0) + 'deg);">&#9656;</span>' +
+                        '<span class="acr-avatar" style="flex:none;">' + acEscapeHtml(achInitials(e.name)) + '</span>' +
+                        '<span style="min-width:0;"><strong>' + acEscapeHtml(e.name) + '</strong><br><span class="text-xs text-gray-400">' + e.tasks + ' task' + (e.tasks === 1 ? '' : 's') + ' &middot; ' + share + '% of the total</span></span>' +
+                    '</span>' +
+                    '<span style="text-align:right;white-space:nowrap;"><strong>' + Number(e.hours).toFixed(2) + ' h</strong><br><span class="text-xs text-gray-400">' + fmtHM(e.hours) + '</span></span>' +
+                '</div>' +
+                '<div style="height:4px;background:#eef0f3;border-radius:3px;margin:7px 0 0 22px;"><div style="height:4px;width:' + share + '%;background:#4b5563;border-radius:3px;"></div></div>' +
+            '</div>';
+            if (open) {
+                html += '<div style="background:#fafafa;border-bottom:1px solid #eef0f3;padding:2px 0 4px;">';
+                e.days.forEach(function (day) {
+                    html += '<div style="padding:7px 8px 2px 38px;font-size:11px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:.03em;">' + acEscapeHtml(dayLabel(day.date)) + ' <span style="font-weight:500;color:#9ca3af;">&middot; ' + Number(day.hours).toFixed(2) + ' h</span></div>';
+                    day.tasks.forEach(function (t) {
+                        html += '<div style="display:flex;justify-content:space-between;gap:12px;padding:4px 8px 4px 38px;color:#4b5563;font-size:12px;">' +
+                            '<span style="min-width:0;"><span style="color:#9ca3af;">' + t12(t.start) + ' &ndash; ' + t12(t.end) + '</span> &nbsp;' + acEscapeHtml(t.description) +
+                            (t.break_excluded_minutes ? ' <span style="color:#b45309">(' + t.break_excluded_minutes + ' min break excluded)</span>' : '') + '</span>' +
+                            '<span style="white-space:nowrap;">' + Number(t.hours).toFixed(2) + ' h</span></div>';
+                    });
+                });
+                html += '</div>';
+            }
+            return html;
+        }).join('');
+    }
+
+    function achInitials(name) {
+        const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+        return ((parts[0] || '?').charAt(0) + (parts.length > 1 ? parts[parts.length - 1].charAt(0) : '')).toUpperCase();
+    }
+    function loadHours() {
+        if (!hoursClient) return;
+        const token = ++hoursToken;
+        const id = hoursClient.id;
+        achSubtitle.textContent = periodTitle(achKind);
+        achList.innerHTML = '<p class="text-xs text-gray-400" style="text-align:center;padding:26px 0;">Loading...</p>';
+        fetchHours(achKind, id).then(function (j) {
+            if (token !== hoursToken) return;
+            hoursReport = (j.clients || [])[0] || null;
+            renderHours();
+        }).catch(function () {
+            if (token !== hoursToken) return;
+            hoursReport = null;
+            achCards.innerHTML = '';
+            achList.innerHTML = '<p class="text-xs text-gray-400" style="text-align:center;padding:26px 0;">Hours could not be loaded. Please close this and try again.</p>';
+        });
+    }
+
+    function openHours(c) {
+        hoursClient = c;
+        hoursReport = null;
+        modalOpenEmployees.clear();
+        achTitle.textContent = c.name;
+        achKind = tablePeriod;                       // start on the period the table is showing
+        if (!achPicker) {
+            achPicker = PeriodPicker.create({
+                mount: document.getElementById('achPeriodMount'),
+                cutoffs: cutoffs,
+                value: achKind,
+                onChange: function (kind) { achKind = kind; loadHours(); },
+            });
+        } else {
+            achPicker.setCutoffs(cutoffs);
+            achPicker.setValue(achKind);
+        }
+        document.getElementById('achReport').href = HOURS_REPORT_URL;
+        openOverlay(hoursModal);
+        loadHours();
+    }
+    function closeHours() { closeOverlay(hoursModal); hoursClient = null; hoursToken++; }
+
+    achList.addEventListener('click', function (e) {
+        const pick = e.target.closest('[data-ach-period]');
+        if (pick) { achKind = pick.dataset.achPeriod; achPicker.setValue(achKind); loadHours(); return; }
+        const row = e.target.closest('[data-ach-emp]');
+        if (!row) return;
+        const key = String(row.dataset.achEmp);
+        modalOpenEmployees.has(key) ? modalOpenEmployees.delete(key) : modalOpenEmployees.add(key);
+        renderHours();
+    });
+    document.getElementById('achClose').addEventListener('click', closeHours);
+    document.getElementById('achCancel').addEventListener('click', closeHours);
+    hoursModal.addEventListener('click', function (e) { if (e.target === hoursModal) closeHours(); });
+    tableCard.addEventListener('click', function (e) {
+        const btn = e.target.closest('[data-manage-client]');
+        if (btn) {
+            const c = findClient(btn.dataset.manageClient);
+            if (c) openManage(c);
+            return;
+        }
+        const row = e.target.closest('[data-client-hours]');
+        if (row) {
+            const c = findClient(row.dataset.clientHours);
+            if (c) openHours(c);
+        }
+    });
 })();
 
 // ================= ATTENDANCE NETWORK RESTRICTION =================
@@ -1425,6 +1907,7 @@ function htmlEsc(val)
                         data-break_windows='${htmlEsc(p.break_windows || "[]")}'
                         data-tardiness_grace_minutes="${htmlEsc(p.tardiness_grace_minutes ?? 0)}"
                         data-ot_grace_minutes="${htmlEsc(p.ot_grace_minutes ?? 0)}"
+                        data-reminder_override="${htmlEsc(p.reminder_override ?? '')}"
 
                         data-sss="${htmlEsc(p.sss)}"
                         data-tin="${htmlEsc(p.tin)}"
@@ -2492,6 +2975,16 @@ window.addEventListener('click', function(e)
         setVal('edit_end_time',          button.dataset.end_time);
         setVal('edit_tardiness_grace_minutes', button.dataset.tardiness_grace_minutes || 0);
         setVal('edit_ot_grace_minutes',        button.dataset.ot_grace_minutes || 0);
+        // This employee's own reminder minutes (blank = the global defaults)
+        (function () {
+            let o = {};
+            try { o = JSON.parse(button.dataset.reminder_override || '{}') || {}; } catch (e) { o = {}; }
+            const list = function (v) { return Array.isArray(v) ? v.join(', ') : ''; };
+            setVal('edit_rem_clock_in_steps', list(o.clock_in_steps));
+            setVal('edit_rem_clock_out_steps', list(o.clock_out_steps));
+            setVal('edit_rem_break_close_before', o.break_close_before != null ? String(o.break_close_before) : '');
+            setVal('edit_rem_break_end_before', o.break_end_before != null ? String(o.break_end_before) : '');
+        })();
         if (typeof toggleEditScheduleTime === 'function') toggleEditScheduleTime(button.dataset.working_day_type);
 
         // Restore break schedule (falls back to a single 60-min break if unset)

@@ -43,6 +43,7 @@ class Filters extends BaseFilters
         'auth'          => [ChainAuth::class, \App\Filters\PortalAccessFilter::class, \App\Filters\TrackPresence::class],
         'portalaccess' => \App\Filters\PortalAccessFilter::class,
         'faceverified'  => FaceVerified::class,
+        'scalarinput'   => \App\Filters\ScalarInput::class,
     ];
 
     /**
@@ -105,6 +106,9 @@ class Filters extends BaseFilters
                 // Low-sensitivity payload (Online/Away/Offline status only).
                 'client_portal/presence/heartbeat',
             ]],
+            // Rejects arrays/nested values where a screen only ever sends text, so a hand-edited request
+            // gets a 400 instead of crashing the controller (see App\Filters\ScalarInput).
+            'scalarinput',
             // 'honeypot',
             // 'invalidchars',
         ],

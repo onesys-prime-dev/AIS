@@ -85,7 +85,7 @@
 }
 </style>
 
-<div id="<?= $id ?>" class="ee-modal-overlay modal-overlay">
+<div id="<?= $id ?>" class="ee-modal-overlay modal-overlay" data-static-backdrop>
 
     <div class="ee-modal-box">
 

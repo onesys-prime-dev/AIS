@@ -54,6 +54,11 @@ $routes->group('client_portal', ['filter' => 'auth'], function($routes){
     $routes->post('access-control/departments/rename'         , 'Client\AccessControlController::renameDepartment');
     $routes->post('access-control/departments/deactivate'     , 'Client\AccessControlController::deactivateDepartment');
     $routes->post('access-control/departments/team-heads'     , 'Client\AccessControlController::updateDepartmentTeamHeads');
+    $routes->post('access-control/clients/create'            , 'Client\AccessControlController::createClient');
+    $routes->post('access-control/clients/update'            , 'Client\AccessControlController::updateClient');
+    $routes->get ('access-control/reminders/settings'        , 'Client\ReminderAdminController::settings');
+    $routes->post('access-control/reminders/save'            , 'Client\ReminderAdminController::save');
+    $routes->get ('access-control/reminders/report'          , 'Client\ReminderAdminController::report');
     $routes->post('access-control/attendance-network'         , 'Client\AccessControlController::updateAttendanceNetworkSettings');
 
     // -- Loans --
@@ -87,6 +92,17 @@ $routes->group('client_portal', ['filter' => 'auth'], function($routes){
     $routes->get('timesheet/records'        , 'Client\TimesheetController::attendanceRecords');
     $routes->get('timesheet/history-list', 'Client\TimesheetController::historyList');
     $routes->get('timesheet/history-details', 'Client\TimesheetController::historyDetails');
+    $routes->get('timesheet/client-hours'   , 'Client\TimesheetController::clientHours');
+    $routes->get('timesheet/cutoffs'        , 'Client\TimesheetController::cutoffs');
+    // Attendance reminders: what the signed-in employee sees and their own switches
+    $routes->get ('reminders/pending'        , 'Client\ReminderController::pending');
+    $routes->post('reminders/dismiss'        , 'Client\ReminderController::dismiss');
+    $routes->get ('reminders/preferences'    , 'Client\ReminderController::preferences');
+    $routes->post('reminders/preferences'    , 'Client\ReminderController::savePreferences');
+    $routes->post('reminders/test'           , 'Client\ReminderController::test');
+    $routes->post('reminders/push-subscribe'   , 'Client\ReminderController::pushSubscribe');
+    $routes->post('reminders/push-unsubscribe' , 'Client\ReminderController::pushUnsubscribe');
+    $routes->post('reminders/push-check'       , 'Client\ReminderController::pushCheck');
     $routes->get('timesheet/export-history' , 'Client\TimesheetController::exportHistory');
 
     $routes->get('timesheet/tasks/(:num)'        , 'Client\TimesheetController::listTasks/$1');
@@ -261,6 +277,7 @@ $routes->group('client_portal', ['namespace' => 'App\Controllers\Client', 'filte
     $routes->post('timesheet/update-attendance/(:num)', 'TimesheetController::updateAttendance/$1');
     $routes->get ('timesheet/review-employees'        , 'TimesheetController::reviewEmployees');
     $routes->get ('timesheet/employee/history'        , 'TimesheetController::adminEmployeeTimesheetHistory');
+    $routes->get ('timesheet/employee/client-hours'   , 'TimesheetController::adminClientHours');
     $routes->get ('timesheet/employee'                , 'TimesheetController::adminEmployeeTimesheet');
     $routes->get ('timesheet/employee/export'         , 'TimesheetController::adminExportEmployeeTimesheet');
     $routes->get ('company-logo'                      , 'PayrollController::getCompanyLogo');

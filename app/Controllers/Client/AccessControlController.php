@@ -156,6 +156,8 @@ class AccessControlController extends BaseController
             'roleOptions'         => $roleOptions,
             'roleDescriptions'    => $roleDescriptions,
             'departments'         => $departments,
+            'clients'             => (new \App\Services\Client\ClientService())->adminList(),
+            'clientEmployees'     => (new \App\Services\Client\ClientService())->assignableEmployees(),
             'teamHeadAccounts'    => array_map(fn ($a) => ['user_id' => $a['user_id'], 'name' => $a['name']], $teamHeadAccounts),
             'departmentTeamHeads' => $departmentTeamHeads,
             'permissions'         => self::getRolePermissions(),
@@ -340,6 +342,61 @@ class AccessControlController extends BaseController
         service('activityLogger')->log('updated', 'departments', "Department '{$dept['name']}' deactivated", $id, ['is_active' => 1], ['is_active' => 0]);
 
         return $this->response->setJSON(['success' => true, 'message' => 'Department deactivated.']);
+    }
+
+    public function createClient()
+    {
+        if ($denied = $this->guardManager()) return $denied;
+
+        $name = $this->request->getPost('name');
+        if (! is_string($name)) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Client name is required.']);
+        }
+
+        try {
+            $id = (new \App\Services\Client\ClientService())->create($name);
+        } catch (\DomainException $e) {
+            return $this->response->setJSON(['success' => false, 'message' => $e->getMessage()]);
+        }
+
+        service('activityLogger')->log('created', 'clients', 'Client created', $id, null, ['name' => trim($name)]);
+
+        return $this->response->setJSON(['success' => true, 'message' => 'Client added. Assign it to departments or employees so people can pick it.', 'id' => $id]);
+    }
+
+    /** Name, active flag and who can pick the client, saved together. */
+    public function updateClient()
+    {
+        if ($denied = $this->guardManager()) return $denied;
+
+        $id = (int) $this->request->getPost('id');
+        if (! $id) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Invalid request.']);
+        }
+
+        // Array-typed fields only: anything else is treated as empty rather than crashing.
+        $deptIds = $this->request->getPost('department_ids');
+        $userIds = $this->request->getPost('user_ids');
+        $name    = $this->request->getPost('name');
+        if (! is_string($name)) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Client name is required.']);
+        }
+
+        try {
+            $changes = (new \App\Services\Client\ClientService())->update(
+                $id,
+                $name,
+                (string) $this->request->getPost('is_active') !== '0',
+                is_array($deptIds) ? $deptIds : [],
+                is_array($userIds) ? $userIds : []
+            );
+        } catch (\DomainException $e) {
+            return $this->response->setJSON(['success' => false, 'message' => $e->getMessage()]);
+        }
+
+        service('activityLogger')->log('updated', 'clients', 'Client updated', $id, $changes['before'], $changes['after']);
+
+        return $this->response->setJSON(['success' => true, 'message' => 'Client saved.']);
     }
 
     /**

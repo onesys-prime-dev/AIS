@@ -49,7 +49,7 @@ document.addEventListener('click', function(e)
             ? e.target
             : null;
 
-    if (overlay)
+    if (overlay && !overlay.hasAttribute('data-static-backdrop'))
     {
         closeModal(overlay);
     }

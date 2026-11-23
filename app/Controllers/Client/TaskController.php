@@ -43,6 +43,14 @@ class TaskController extends BaseController
         $endTime       = $post['end_time'];
         $saveTask      = isset($post['save_task']);
 
+        // Same rule as the Task Log: a client from the admin-managed list is required.
+        $client = (int) ($post['client_id'] ?? 0)
+            ? (new \App\Services\Client\ClientService())->resolveForUser((int) $userId, (int) $post['client_id'])
+            : null;
+        if (! $client) {
+            return redirect()->back()->with('error', 'Please select a client from the list.');
+        }
+
         // Task time validation
         if ($startTime < $attendance['time_in']) {
             return redirect()->back()->with('error', 'Task start time cannot be before your clock-in time!');
@@ -60,6 +68,8 @@ class TaskController extends BaseController
             'start_time'     => $startTime,
             'end_time'       => $endTime,
             'task_performed' => $taskPerformed,
+            'client'         => $client['name'],
+            'client_id'      => $client['id'],
             'saved_at'       => $now,
         ]);
 
@@ -112,10 +122,12 @@ class TaskController extends BaseController
 
     public function getSavedClients()
     {
-        $clients = (new \App\Models\Client\SavedClientsModel())
-            ->where('user_id', auth()->user()->id)
-            ->orderBy('client', 'ASC')
-            ->findAll();
+        // The admin-managed clients this employee may log against (their department's, plus any
+        // assigned to them personally). Kept on this URL so cached task forms keep working.
+        $clients = array_map(
+            static fn (array $c) => ['id' => $c['id'], 'client' => $c['name']],
+            (new \App\Services\Client\ClientService())->availableForUser((int) auth()->user()->id)
+        );
 
         return $this->response->setJSON($clients);
     }
